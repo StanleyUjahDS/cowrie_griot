@@ -4,7 +4,7 @@ import 'app_text.dart';
 import 'app_theme_extension.dart';
 
 class AppTheme {
-  // 🌑 DARK THEME
+  //  DARK THEME
   static final ThemeData darkTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
@@ -12,7 +12,7 @@ class AppTheme {
     scaffoldBackgroundColor: AppColors.darkPrimary,
 
     colorScheme: const ColorScheme.dark(
-      primary: AppColors.gold,                 // 🔥 accent only
+      primary: AppColors.gold,                 //  accent only
       secondary: AppColors.darkSecondary,
       surface: AppColors.darkSurface,
 
@@ -55,7 +55,7 @@ class AppTheme {
     ],
   );
 
-  // ☀️ LIGHT THEME
+  //  LIGHT THEME
   static final ThemeData lightTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
@@ -63,7 +63,7 @@ class AppTheme {
     scaffoldBackgroundColor: AppColors.lightPrimary,
 
     colorScheme: const ColorScheme.light(
-      primary: AppColors.gold,                // 🔥 accent only
+      primary: AppColors.gold,                //  accent only
       secondary: AppColors.lightSecondary,
       surface: AppColors.lightSurface,
 

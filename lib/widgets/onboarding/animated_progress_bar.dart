@@ -16,7 +16,7 @@ class AnimatedProgressBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: value),
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 900),
       curve: Curves.easeOutCubic,
       builder: (context, animatedValue, child) {
         return LinearProgressIndicator(

@@ -37,13 +37,12 @@ class WelcomePage5 extends StatelessWidget {
                 " and transact seamlessly in one unified ecosystem.",
             imagePath: "assets/cowrie_images/fifth_frame.png",
           
-            onSkip: () => context.go('/home'),
-          
+
             bottomAction: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 TextButton(
-                  onPressed: () => context.go('/home'),
+                  onPressed: () => context.go('/login'),
                   child: Text(
                     "Skip",
                     style: textTheme.titleSmall?.copyWith(
@@ -60,9 +59,11 @@ class WelcomePage5 extends StatelessWidget {
                     valueColor: colorScheme.primary,
                   ),
                 ),
-          
+                SizedBox(
+                  width:12,
+                ),
                 ElevatedButton(
-                  onPressed: () => context.go('/home'),
+                  onPressed: () => context.go('/login'),
                   style: ElevatedButton.styleFrom(
                     shape: const CircleBorder(),
                     padding: const EdgeInsets.all(16),

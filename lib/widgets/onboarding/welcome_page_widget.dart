@@ -8,7 +8,6 @@ class WelcomePageWidget extends StatelessWidget {
   final String imagePath;
   final Widget bottomAction;
 
-  final VoidCallback? onSkip;
 
   const WelcomePageWidget({
     super.key,
@@ -17,7 +16,6 @@ class WelcomePageWidget extends StatelessWidget {
     required this.description,
     required this.imagePath,
     required this.bottomAction,
-    this.onSkip,
   });
 
   @override
@@ -29,7 +27,7 @@ class WelcomePageWidget extends StatelessWidget {
       height: size.height,
       child: Column(
         children: [
-          // 🔥 SCROLLABLE CONTENT
+          //  SCROLLABLE CONTENT
           Expanded(
             child: SingleChildScrollView(
               physics: const ClampingScrollPhysics(),
@@ -55,7 +53,7 @@ class WelcomePageWidget extends StatelessWidget {
 
                     SizedBox(height: size.height * 0.04),
 
-                    // 🖼 CENTERED IMAGE
+                    //  CENTERED IMAGE
                     Center(
                       child: ConstrainedBox(
                         constraints: BoxConstraints(
@@ -71,7 +69,7 @@ class WelcomePageWidget extends StatelessWidget {
 
                     const SizedBox(height: 24),
 
-                    // 🧠 TITLE (LEFT)
+                    //  TITLE (LEFT)
                     Text(
                       title,
                       textAlign: TextAlign.left,
@@ -94,10 +92,13 @@ class WelcomePageWidget extends StatelessWidget {
             ),
           ),
 
-          // 🔻 FIXED BOTTOM ACTION
+          //  FIXED BOTTOM ACTION
           SafeArea(
             top: false,
             child: bottomAction,
+          ),
+          SizedBox(
+            height:12,
           ),
         ],
       ),

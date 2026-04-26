@@ -8,7 +8,9 @@ import '../../features/splash/welcome_page_2.dart';
 import '../../features/splash/welcome_page_3.dart';
 import '../../features/splash/welcome_page_4.dart';
 import '../../features/splash/welcome_page_5.dart';
-
+import '/features/auth/login_screen.dart';
+import '/features/auth/create_account.dart';
+import '/features/auth/recover_account.dart';
 
 
 
@@ -54,7 +56,29 @@ class AppRouter {
         path: '/welcome_five',
         builder: (context, state) => const WelcomePage5(),
       ),
+      GoRoute(
+        path: '/login',
+        builder: (context, state) => const LoginScreen(),
 
+      ),
+      GoRoute(
+        path: '/create_account',
+        builder: (context, state) => const CreateAccountScreen(),
+        routes: [
+          GoRoute(
+            path: 'generate_account',
+            builder: (context, state) => const RecoverAccountScreen(),
+          ),
+          GoRoute(
+            path: 'display_account',
+            builder: (context, state) => const RecoverAccountScreen(),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/recover_account',
+        builder: (context, state) => const RecoverAccountScreen(),
+      ),
 
     ],
   );

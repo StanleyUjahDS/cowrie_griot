@@ -37,13 +37,12 @@ class WelcomePage2 extends StatelessWidget {
                 " in a fully user-controlled experience designed for seamless Web3 interaction.",
             imagePath: "assets/cowrie_images/second_frame.png",
           
-            onSkip: () => context.go('/home'),
-          
+
             bottomAction: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 TextButton(
-                  onPressed: () => context.go('/home'),
+                  onPressed: () => context.go('/login'),
                   child: Text(
                     "Skip",
                     style: textTheme.titleSmall?.copyWith(
@@ -60,7 +59,9 @@ class WelcomePage2 extends StatelessWidget {
                     valueColor: colorScheme.primary,
                   ),
                 ),
-          
+                SizedBox(
+                  width:12,
+                ),
                 ElevatedButton(
                   onPressed: () => context.push('/welcome_three'),
                   style: ElevatedButton.styleFrom(

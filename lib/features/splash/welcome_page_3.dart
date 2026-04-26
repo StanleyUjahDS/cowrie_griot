@@ -37,13 +37,12 @@ class WelcomePage3 extends StatelessWidget {
                 "tokens, rewarding participation and activity.",
             imagePath: "assets/cowrie_images/image4.png",
           
-            onSkip: () => context.go('/home'),
-          
+
             bottomAction: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 TextButton(
-                  onPressed: () => context.go('/home'),
+                  onPressed: () => context.go('/login'),
                   child: Text(
                     "Skip",
                     style: textTheme.titleSmall?.copyWith(
@@ -60,7 +59,9 @@ class WelcomePage3 extends StatelessWidget {
                     valueColor: colorScheme.primary,
                   ),
                 ),
-          
+                SizedBox(
+                  width:12,
+                ),
                 ElevatedButton(
                   onPressed: () => context.push('/welcome_four'),
                   style: ElevatedButton.styleFrom(

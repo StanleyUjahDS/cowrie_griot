@@ -36,13 +36,12 @@ class WelcomePage1 extends StatelessWidget {
                 "conversation and access token-gated communities for creators and DAOs.",
             imagePath: "assets/cowrie_images/first_frame.png",
           
-            onSkip: () => context.go('/home'),
-          
+
             bottomAction: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 TextButton(
-                  onPressed: () => context.go('/home'),
+                  onPressed: () => context.go('/login'),
                   child: Text(
                     "Skip",
                     style: theme.textTheme.titleSmall?.copyWith(
@@ -59,7 +58,9 @@ class WelcomePage1 extends StatelessWidget {
                     valueColor: colorScheme.primary,
                   ),
                 ),
-          
+                SizedBox(
+                  width:12,
+                ),
                 ElevatedButton(
                   onPressed: () => context.push('/welcome_two'),
                   style: ElevatedButton.styleFrom(

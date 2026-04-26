@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class AppText {
   static const String fontFamily = "Poppins";
 
-  // 🔥 Display (big brand text / splash / hero titles)
+  // 🔥Display (big brand text / splash / hero titles)
   static const TextStyle displayLarge = TextStyle(
     fontSize: 45, // was 36
     fontWeight: FontWeight.bold,
