@@ -18,7 +18,6 @@ class WelcomePage1 extends StatelessWidget {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         extendBodyBehindAppBar: true,
-
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
@@ -26,20 +25,20 @@ class WelcomePage1 extends StatelessWidget {
           scrolledUnderElevation: 0,
           surfaceTintColor: Colors.transparent,
         ),
-
+      
         body: SafeArea(
           child: WelcomePageWidget(
             order: 1,
             title: "Messaging. Connect. Transact.",
-            description: "Private, encrypted 1:1 and group chats where your wallet address"
-                " becomes your digital identity. Send crypto or tokens directly in "
+            description:
+            "Private, encrypted 1:1 and group chats where your wallet address "
+                "becomes your digital identity. Send crypto or tokens directly in "
                 "conversation and access token-gated communities for creators and DAOs.",
             imagePath: "assets/cowrie_images/first_frame.png",
-          
-
+      
             bottomAction: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
+      
                 TextButton(
                   onPressed: () => context.go('/login'),
                   child: Text(
@@ -49,7 +48,9 @@ class WelcomePage1 extends StatelessWidget {
                     ),
                   ),
                 ),
-          
+      
+                const SizedBox(width: 10),
+      
                 Expanded(
                   child: AnimatedProgressBar(
                     value: progress,
@@ -58,9 +59,9 @@ class WelcomePage1 extends StatelessWidget {
                     valueColor: colorScheme.primary,
                   ),
                 ),
-                SizedBox(
-                  width:12,
-                ),
+      
+                const SizedBox(width: 12),
+      
                 ElevatedButton(
                   onPressed: () => context.push('/welcome_two'),
                   style: ElevatedButton.styleFrom(

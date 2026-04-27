@@ -3,10 +3,18 @@ import '../../theme/app_colors.dart';
 
 class GradientScaffold extends StatelessWidget {
   final Widget child;
+  final PreferredSizeWidget? appBar;
+  final Widget? bottomNavigationBar;
+  final Widget? floatingActionButton;
+  final bool extendBodyBehindAppBar;
 
   const GradientScaffold({
     super.key,
     required this.child,
+    this.appBar,
+    this.bottomNavigationBar,
+    this.floatingActionButton,
+    this.extendBodyBehindAppBar = false,
   });
 
   @override
@@ -14,31 +22,32 @@ class GradientScaffold extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: SizedBox.expand(
+      extendBodyBehindAppBar: extendBodyBehindAppBar,
+
+      appBar: appBar,
+
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isDark
+                ? [
+              AppColors.darkPrimary,
+              AppColors.darkSurface,
+            ]
+                : [
+              AppColors.lightPrimary,
+              AppColors.lightSurface,
+            ],
+            stops: const [0.55, 1.0],
+            begin: Alignment.topRight,
+            end: Alignment.bottomLeft,
+          ),
+        ),
+
         child: Stack(
           children: [
-            //  GRADIENT BACKGROUND (FROM APPCOLORS)
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: isDark
-                      ? [
-                    AppColors.darkPrimary,
-                    AppColors.darkSurface,
-                  ]
-                      : [
-                    AppColors.lightPrimary,
-                    AppColors.lightSurface,
-                  ],
-                  stops: const [0.55, 1.0],
-                  begin: Alignment.topRight,
-                  end: Alignment.bottomLeft,
-                ),
-              ),
-            ),
 
-            // OPTIONAL BACKGROUND IMAGE LAYER
+            ///  BACKGROUND IMAGE (safe overlay now)
             Positioned(
               top: 0,
               left: 0,
@@ -50,11 +59,14 @@ class GradientScaffold extends StatelessWidget {
               ),
             ),
 
-            // 📦 CONTENT LAYER
-            child,
+            /// 📦 CONTENT
+            SafeArea(child: child),
           ],
         ),
       ),
+
+      bottomNavigationBar: bottomNavigationBar,
+      floatingActionButton: floatingActionButton,
     );
   }
 }

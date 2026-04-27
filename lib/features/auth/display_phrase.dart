@@ -191,7 +191,7 @@ class _DisplayPhraseScreenState extends State<DisplayPhraseScreen> {
                   child: ElevatedButton(
                     style: AppButtons.primary(context),
                     onPressed: () {
-                      context.push('/create_account/verify_phrase');
+                      context.push('/verify_phrase');
                     },
                     child: Text(
                       "Continue",

@@ -120,7 +120,7 @@ class CreateAccountScreen extends StatelessWidget {
                   child: ElevatedButton(
                     style: AppButtons.primary(context),
                     onPressed: () {
-                      context.push('/create_account/display_phrase');
+                      context.push('/display_phrase');
                     },
                     child: Text("Generate Account",style: textTheme.titleSmall),
                   ),

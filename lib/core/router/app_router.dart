@@ -12,11 +12,15 @@ import '../../features/splash/welcome_page_5.dart';
 
 import '../../features/auth/login_screen.dart';
 import '../../features/auth/create_account.dart';
+import '../../features/auth/confirm_phrase.dart';
+import '../../features/auth/display_phrase.dart';
 import '../../features/auth/recover_account.dart';
 
 import '../../features/local_auth/create_password_screen.dart';
 import '../../features/local_auth/confirm_password_screen.dart';
+
 import '../../features/local_auth/enable_biometrics_screen.dart';
+
 
 import '../../features/chat/chat_home_screen.dart';
 import '../../features/wallet/wallet_screen.dart';
@@ -61,6 +65,10 @@ class AppRouter {
       GoRoute(path: '/create_account', builder: (context, state) => const CreateAccountScreen()),
       GoRoute(path: '/recover_account', builder: (context, state) => const ImportWalletScreen()),
       GoRoute(path: '/set_password', builder: (context, state) => const SetPassword()),
+      GoRoute(path: '/verify_phrase', builder: (context, state) => const VerifySeed()),
+      GoRoute(path: '/display_phrase', builder: (context, state) => const  DisplayPhraseScreen()),
+
+
 
       GoRoute(
         path: '/confirm_password',

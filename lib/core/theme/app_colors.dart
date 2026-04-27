@@ -1,26 +1,32 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // 🌑 DARK THEME BASE
+  // 🌑 DARK THEME BASE (stable + depth-safe)
   static const Color darkPrimary = Color(0xFF00211A);
   static const Color darkSecondary = Color(0xFF004D3A);
-  static const Color darkSurface = Color(0xFF012D23);
 
-  // ☀ LIGHT THEME BASE (PURE WHITE STYLE)
-  static const Color lightPrimary = Colors.white; // brand identity
+  // 🔥 Better depth surface (prevents flat look + M3 artifacts)
+  static const Color darkSurface = Color(0xFF0D231D);
 
-  static const Color lightSecondary = Color(0xFFFFFFFF); // keep clean white system
+  // ☀ LIGHT THEME BASE
+  static const Color lightPrimary = Color(0xFFFFFFFF);
+  static const Color lightSecondary = Color(0xFFFFFFFF);
 
-  static const Color lightBackground = Color(0xFFFFFFFF); // pure white base
-  static const Color lightSurface = Color(0xFFFFFFFF); // cards / sheets also white
+  static const Color lightBackground = Color(0xFFFFFFFF);
 
-  static const Color lightSurfaceVariant = Color(0xFFF5F5F5); // subtle grey elevation
+  // 🔥 FIXED: avoids Material 3 tint artifacts
+  static const Color lightSurface = Color(0xFFFDFDFD);
 
-  static const Color lightBorder = Color(0xFFE5E7EB); // clean neutral divider
+  // 🧱 Slightly softer UI separation (better than harsh grey)
+  static const Color lightSurfaceVariant = Color(0xFFF3F4F6);
 
-  static const Color lightTextPrimary = Color(0xFF111827); // strong readable dark text
-  static const Color lightTextSecondary = Color(0xFF6B7280); // muted grey text
+  static const Color lightBorder = Color(0xFFEAECEF);
 
+  // 📝 TEXT COLORS
+  static const Color lightTextPrimary = Color(0xFF111827);
+  static const Color lightTextSecondary = Color(0xFF6B7280);
+
+  // 🚨 STATUS COLORS
   static const Color lightError = Color(0xFFEF4444);
   static const Color lightSuccess = Color(0xFF16A34A);
 
