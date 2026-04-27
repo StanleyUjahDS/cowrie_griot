@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-class WalletScreen extends StatelessWidget {
-  const WalletScreen({super.key});
+class SettingsScreen extends StatelessWidget {
+  const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -12,12 +12,12 @@ class WalletScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.account_balance_wallet, size: 64),
+            const Icon(Icons.settings, size: 64),
             const SizedBox(height: 16),
-            Text('Wallet', style: textTheme.titleLarge),
+            Text('Settings', style: textTheme.titleLarge),
             const SizedBox(height: 8),
             Text(
-              'Your balances and transactions will appear here.',
+              'Manage your account and preferences.',
               textAlign: TextAlign.center,
               style: textTheme.bodyMedium,
             ),

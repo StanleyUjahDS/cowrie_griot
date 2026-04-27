@@ -18,7 +18,7 @@ class GradientScaffold extends StatelessWidget {
       body: SizedBox.expand(
         child: Stack(
           children: [
-            // 🌈 GRADIENT BACKGROUND (FROM APPCOLORS)
+            //  GRADIENT BACKGROUND (FROM APPCOLORS)
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -38,7 +38,7 @@ class GradientScaffold extends StatelessWidget {
               ),
             ),
 
-            // 🖼 OPTIONAL BACKGROUND IMAGE LAYER
+            // OPTIONAL BACKGROUND IMAGE LAYER
             Positioned(
               top: 0,
               left: 0,
