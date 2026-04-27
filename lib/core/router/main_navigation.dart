@@ -1,77 +1,81 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_nav_bar/google_nav_bar.dart';
 
-class MainNavigationShell extends StatefulWidget {
-  final Widget child;
-  const MainNavigationShell({super.key, required this.child});
+class MainNavigationShell extends StatelessWidget {
+  final StatefulNavigationShell navigationShell;
 
-  @override
-  State<MainNavigationShell> createState() => _MainNavigationShellState();
-}
+  const MainNavigationShell({
+    super.key,
+    required this.navigationShell,
+  });
 
-class _MainNavigationShellState extends State<MainNavigationShell> {
-  int index = 0;
-
-  final List<String> routes = [
-    '/main_navigation/wallet',
-    '/main_navigation/p2p',
-    '/main_navigation/miner',
-    '/main_navigation/chat',
-    '/main_navigation/settings',
-  ];
-
-  void _onTabChange(int i) {
-    setState(() => index = i);
-    context.go(routes[i]);
+  void _goBranch(int index) {
+    navigationShell.goBranch(
+      index,
+      initialLocation: index == navigationShell.currentIndex,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
-    final textColor = Theme.of(context).textTheme.bodyMedium?.color;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      body: widget.child,
+      backgroundColor: Colors.transparent,
+      body: navigationShell,
 
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: GNav(
-          selectedIndex: index,
-          onTabChange: _onTabChange,
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: navigationShell.currentIndex,
+        onTap: _goBranch,
+        type: BottomNavigationBarType.fixed,
 
-          gap: 6,
-          iconSize: 22,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          duration: const Duration(milliseconds: 300),
+        // ================= TEXT COLORS =================
+        selectedItemColor: colorScheme.primary,
+        unselectedItemColor: isDark ? Colors.white : Colors.black,
 
-          tabBackgroundColor: primary.withOpacity(0.12),
-          activeColor: primary,
-          color: textColor,
-
-          tabs: const [
-            GButton(
-              icon: Icons.account_balance_wallet,
-              text: 'Wallet',
-            ),
-            GButton(
-              icon: Icons.people_alt,
-              text: 'P2P',
-            ),
-            GButton(
-              icon: Icons.memory,
-              text: 'Miner',
-            ),
-            GButton(
-              icon: Icons.chat_bubble_outline,
-              text: 'Chat',
-            ),
-            GButton(
-              icon: Icons.settings,
-              text: 'Settings',
-            ),
-          ],
+        // ================= ICON COLORS =================
+        selectedIconTheme: IconThemeData(
+          color: colorScheme.primary,
+          size: 28,
         ),
+
+        unselectedIconTheme: IconThemeData(
+          color: isDark ? Colors.white54 : Colors.black,
+          size: 24,
+        ),
+
+        // ================= BACKGROUND =================
+        backgroundColor: isDark
+            ? const Color(0xFF0B1F1A)
+            : Colors.white,
+
+        elevation: 10,
+
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.comment_bank),
+            label: 'Chat',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.construction),
+            label: 'Miner',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.account_balance_wallet),
+            label: 'Wallet',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.flash_on),
+            label: 'P2P',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings),
+            label: 'Settings',
+          ),
+        ],
       ),
     );
   }

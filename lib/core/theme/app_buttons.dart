@@ -43,4 +43,20 @@ class AppButtons {
       ),
     );
   }
+
+  // =========================
+  // FLOATING ACTION BUTTON
+  // =========================
+  static FloatingActionButtonThemeData fab(BuildContext context) {
+    final theme = Theme.of(context).extension<AppThemeExtension>()!;
+
+    return FloatingActionButtonThemeData(
+      backgroundColor: theme.primaryButton.withValues(alpha: 0.95),
+      foregroundColor: Colors.white,
+      elevation: 6,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+      ),
+    );
+  }
 }

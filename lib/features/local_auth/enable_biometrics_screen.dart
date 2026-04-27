@@ -105,7 +105,7 @@ class _BiometricsScreenState extends State<BiometricsScreen> {
       background: Colors.black87,
     );
 
-    context.go('/main_navigation');
+    context.go('/chat');
   }
 
   void _showMessage(String message) {
