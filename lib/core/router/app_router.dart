@@ -18,11 +18,14 @@ import '../../features/auth/recover_account.dart';
 
 import '../../features/local_auth/create_password_screen.dart';
 import '../../features/local_auth/confirm_password_screen.dart';
-
 import '../../features/local_auth/enable_biometrics_screen.dart';
 
 
 import '../../features/chat/chat_home_screen.dart';
+import '../../features/chat/chatting_screen.dart';
+
+
+
 import '../../features/wallet/wallet_screen.dart';
 import '../../features/p2p/peer_2_peer.dart';
 import '../../features/miner/miner_screen.dart';
@@ -39,13 +42,22 @@ class AppRouter {
     initialLocation: '/',
     routes: [
 
-      // ================= SPLASH =================
+      // ================= ROOT =================
       GoRoute(
         path: '/',
         builder: (context, state) => const SplashScreen(),
       ),
 
-      // ================= THEME =================
+      // ================= FULL SCREEN ROUTES (NO SHELL) =================
+
+      GoRoute(
+        path: '/chat/:userId',
+        builder: (context, state) {
+          final userId = state.pathParameters['userId']!;
+          return ChatScreen(userId: userId);
+        },
+      ),
+
       GoRoute(
         path: '/theme-settings',
         builder: (context, state) => ThemeSettingsPage(
@@ -66,9 +78,7 @@ class AppRouter {
       GoRoute(path: '/recover_account', builder: (context, state) => const ImportWalletScreen()),
       GoRoute(path: '/set_password', builder: (context, state) => const SetPassword()),
       GoRoute(path: '/verify_phrase', builder: (context, state) => const VerifySeed()),
-      GoRoute(path: '/display_phrase', builder: (context, state) => const  DisplayPhraseScreen()),
-
-
+      GoRoute(path: '/display_phrase', builder: (context, state) => const DisplayPhraseScreen()),
 
       GoRoute(
         path: '/confirm_password',
@@ -83,15 +93,17 @@ class AppRouter {
         builder: (context, state) => const BiometricsScreen(),
       ),
 
-      // ================= WHATSAPP STYLE SHELL =================
+      // ================= SHELL (BOTTOM NAV ONLY) =================
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
           return GradientScaffold(
-              child: MainNavigationShell(navigationShell: navigationShell));
+            child: MainNavigationShell(navigationShell: navigationShell),
+          );
         },
 
         branches: [
 
+          // CHAT HOME (inside shell only)
           StatefulShellBranch(
             routes: [
               GoRoute(

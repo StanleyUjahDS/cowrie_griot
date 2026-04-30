@@ -84,7 +84,7 @@ class _BiometricsScreenState extends State<BiometricsScreen> {
       );
 
       if (!mounted) return;
-      context.go('/main_navigation');
+      context.go('/chat');
     } catch (e) {
       debugPrint("Biometric error: $e");
       _showMessage('Biometric authentication failed');

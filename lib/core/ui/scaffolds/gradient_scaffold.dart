@@ -54,7 +54,7 @@ class GradientScaffold extends StatelessWidget {
               right: 0,
               height: MediaQuery.of(context).size.height * 0.48,
               child: Image.asset(
-                'assets/cowrie_images/background_spiral.png',
+                'assets/cowrie_images/background_pattern.png',
                 fit: BoxFit.cover,
               ),
             ),
