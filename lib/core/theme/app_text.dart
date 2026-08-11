@@ -1,66 +1,94 @@
 import 'package:flutter/material.dart';
 
 class AppText {
-  static const String fontFamily = "Poppins";
+  static const String fontFamily = 'Poppins';
 
-  // 🔥Display (big brand text / splash / hero titles)
+  // ============================================================
+  // DISPLAY
+  // ============================================================
+
   static const TextStyle displayLarge = TextStyle(
-    fontSize: 45, // was 36
-    fontWeight: FontWeight.bold,
+    fontSize: 45,
+    fontWeight: FontWeight.w700,
+    height: 1.1,
   );
 
   static const TextStyle displayMedium = TextStyle(
-    fontSize: 34, // was 32
-    fontWeight: FontWeight.bold,
+    fontSize: 34,
+    fontWeight: FontWeight.w700,
+    height: 1.15,
   );
 
-  //  Headings
+  // ============================================================
+  // HEADINGS
+  // ============================================================
+
   static const TextStyle heading = TextStyle(
-    fontSize: 30, // was 28
-    fontWeight: FontWeight.bold,
+    fontSize: 30,
+    fontWeight: FontWeight.w700,
+    height: 1.2,
   );
 
   static const TextStyle headingSmall = TextStyle(
-    fontSize: 26, // was 24
+    fontSize: 26,
     fontWeight: FontWeight.w600,
+    height: 1.2,
   );
 
-  //  Subheadings
+  // ============================================================
+  // SUBHEADINGS
+  // ============================================================
+
   static const TextStyle subheading = TextStyle(
-    fontSize: 20, // was 18
+    fontSize: 20,
     fontWeight: FontWeight.w600,
+    height: 1.25,
   );
 
   static const TextStyle subheadingSmall = TextStyle(
-    fontSize: 18, // was 16
+    fontSize: 18,
     fontWeight: FontWeight.w600,
+    height: 1.3,
   );
 
-  //  Body text
+  // ============================================================
+  // BODY
+  // ============================================================
+
   static const TextStyle bodyLarge = TextStyle(
-    fontSize: 18, // was 16
+    fontSize: 18,
     fontWeight: FontWeight.w400,
+    height: 1.5,
   );
 
   static const TextStyle body = TextStyle(
-    fontSize: 16, // was 14
+    fontSize: 16,
     fontWeight: FontWeight.w400,
+    height: 1.5,
   );
 
   static const TextStyle bodySmall = TextStyle(
-    fontSize: 14, // was 12
+    fontSize: 14,
     fontWeight: FontWeight.w400,
+    height: 1.45,
   );
 
-  //  Caption / helper text
+  // ============================================================
+  // CAPTION
+  // ============================================================
+
   static const TextStyle caption = TextStyle(
-    fontSize: 13, // was 11
+    fontSize: 13,
     fontWeight: FontWeight.w400,
+    height: 1.35,
   );
 
-  //  Button text
+  // ============================================================
+  // BUTTON
+  // ============================================================
+
   static const TextStyle button = TextStyle(
-    fontSize: 18, // was 16
+    fontSize: 16,
     fontWeight: FontWeight.w600,
   );
 }

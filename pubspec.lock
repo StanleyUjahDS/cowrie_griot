@@ -25,22 +25,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.13.1"
-  bip32:
+  bip39_mnemonic:
     dependency: "direct main"
     description:
-      name: bip32
-      sha256: "54787cd7a111e9d37394aabbf53d1fc5e2e0e0af2cd01c459147a97c0e3f8a97"
+      name: bip39_mnemonic
+      sha256: "0fe4ac6c9f2e5b3fb65783371c806007acbcfb66590f4121f577adf5e4523f96"
       url: "https://pub.dev"
     source: hosted
-    version: "2.0.0"
-  bip39:
-    dependency: "direct main"
-    description:
-      name: bip39
-      sha256: de1ee27ebe7d96b84bb3a04a4132a0a3007dcdd5ad27dd14aa87a29d97c45edc
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.6"
+    version: "4.1.0"
   boolean_selector:
     dependency: transitive
     description:
@@ -49,14 +41,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.2"
-  bs58check:
-    dependency: transitive
-    description:
-      name: bs58check
-      sha256: c4a164d42b25c2f6bc88a8beccb9fc7d01440f3c60ba23663a20a70faf484ea9
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.2"
   characters:
     dependency: transitive
     description:
@@ -114,7 +98,7 @@ packages:
     source: hosted
     version: "3.1.2"
   crypto:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: crypto
       sha256: c8ea0233063ba03258fbcf2ca4d6dadfefe14f02fab57702265467a19f27fadf
@@ -288,14 +272,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "17.2.2"
-  hex:
-    dependency: transitive
-    description:
-      name: hex
-      sha256: "4e7cd54e4b59ba026432a6be2dd9d96e4c5205725194997193bf871703b82c4a"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.2.0"
   hooks:
     dependency: transitive
     description:
@@ -305,7 +281,7 @@ packages:
     source: hosted
     version: "1.0.3"
   http:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: http
       sha256: "87721a4a50b19c7f1d49001e51409bddc46303966ce89a65af4f4e6004896412"
@@ -484,10 +460,10 @@ packages:
     dependency: "direct main"
     description:
       name: mobile_scanner
-      sha256: d234581c090526676fd8fab4ada92f35c6746e3fb4f05a399665d75a399fb760
+      sha256: ce3f059ebd6dbfab7292bba0e893e354b46730636820d3c9ef69005ce2d55bce
       url: "https://pub.dev"
     source: hosted
-    version: "5.2.3"
+    version: "7.4.0"
   native_toolchain_c:
     dependency: transitive
     description:
@@ -496,6 +472,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.17.6"
+  nested:
+    dependency: transitive
+    description:
+      name: nested
+      sha256: "03bac4c528c64c95c722ec99280375a6f2fc708eec17c7b3f07253b626cd2a20"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.0"
   objective_c:
     dependency: transitive
     description:
@@ -616,6 +600,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.5.0"
+  provider:
+    dependency: "direct main"
+    description:
+      name: provider
+      sha256: "4e82183fa20e5ca25703ead7e05de9e4cceed1fbd1eadc1ac3cb6f565a09f272"
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.1.5+1"
   pub_semver:
     dependency: transitive
     description:
@@ -765,6 +757,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.0"
+  unorm_dart:
+    dependency: transitive
+    description:
+      name: unorm_dart
+      sha256: "0c69186b03ca6addab0774bcc0f4f17b88d4ce78d9d4d8f0619e30a99ead58e7"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.3.2"
   uuid:
     dependency: transitive
     description:
@@ -790,7 +790,7 @@ packages:
     source: hosted
     version: "15.1.0"
   wallet:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: wallet
       sha256: "687fd89a16557649b26189e597792962f405797fc64113e8758eabc2c2605c32"

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '/core/theme/app_colors.dart';
 
 class WelcomePageWidget extends StatelessWidget {
   final int order;
@@ -7,7 +6,6 @@ class WelcomePageWidget extends StatelessWidget {
   final String description;
   final String imagePath;
   final Widget bottomAction;
-
 
   const WelcomePageWidget({
     super.key,
@@ -20,22 +18,32 @@ class WelcomePageWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
+    final colorScheme = theme.colorScheme;
     final size = MediaQuery.of(context).size;
 
     return SizedBox(
       height: size.height,
       child: Column(
         children: [
-          //  SCROLLABLE CONTENT
+          // ======================================================
+          // SCROLLABLE CONTENT
+          // ======================================================
+
           Expanded(
             child: SingleChildScrollView(
               physics: const ClampingScrollPhysics(),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // ==================================================
+                    // BRAND
+                    // ==================================================
 
                     Text(
                       'Griot',
@@ -45,15 +53,20 @@ class WelcomePageWidget extends StatelessWidget {
                     Text(
                       'By Cowrie',
                       style: textTheme.titleSmall?.copyWith(
-                        color: AppColors.gold,
+                        color: colorScheme.primary,
                         fontStyle: FontStyle.italic,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
 
-                    SizedBox(height: size.height * 0.04),
+                    SizedBox(
+                      height: size.height * 0.04,
+                    ),
 
-                    //  CENTERED IMAGE
+                    // ==================================================
+                    // IMAGE
+                    // ==================================================
+
                     Center(
                       child: ConstrainedBox(
                         constraints: BoxConstraints(
@@ -69,7 +82,10 @@ class WelcomePageWidget extends StatelessWidget {
 
                     const SizedBox(height: 24),
 
-                    //  TITLE (LEFT)
+                    // ==================================================
+                    // TITLE
+                    // ==================================================
+
                     Text(
                       title,
                       textAlign: TextAlign.left,
@@ -78,7 +94,10 @@ class WelcomePageWidget extends StatelessWidget {
 
                     const SizedBox(height: 12),
 
-                    //  DESCRIPTION (LEFT)
+                    // ==================================================
+                    // DESCRIPTION
+                    // ==================================================
+
                     Text(
                       description,
                       textAlign: TextAlign.left,
@@ -92,14 +111,16 @@ class WelcomePageWidget extends StatelessWidget {
             ),
           ),
 
-          //  FIXED BOTTOM ACTION
+          // ==========================================================
+          // FIXED BOTTOM ACTION
+          // ==========================================================
+
           SafeArea(
             top: false,
             child: bottomAction,
           ),
-          SizedBox(
-            height:12,
-          ),
+
+          const SizedBox(height: 12),
         ],
       ),
     );

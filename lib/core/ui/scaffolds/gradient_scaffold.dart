@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../theme/app_colors.dart';
 
 class GradientScaffold extends StatelessWidget {
   final Widget child;
@@ -19,54 +18,77 @@ class GradientScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    final backgroundColor =
+        theme.scaffoldBackgroundColor;
 
     return Scaffold(
-      extendBodyBehindAppBar: extendBodyBehindAppBar,
+      extendBodyBehindAppBar:
+      extendBodyBehindAppBar,
+
+      backgroundColor:
+      backgroundColor,
 
       appBar: appBar,
 
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: isDark
-                ? [
-              AppColors.darkPrimary,
-              AppColors.darkSurface,
-            ]
-                : [
-              AppColors.lightPrimary,
-              AppColors.lightSurface,
-            ],
-            stops: const [0.55, 1.0],
-            begin: Alignment.topRight,
-            end: Alignment.bottomLeft,
-          ),
-        ),
+        color: backgroundColor,
 
         child: Stack(
           children: [
 
-            ///  BACKGROUND IMAGE (safe overlay now)
+            // ==================================================
+            // BACKGROUND IMAGE
+            // ==================================================
+
             Positioned(
               top: 0,
               left: 0,
               right: 0,
-              height: MediaQuery.of(context).size.height * 0.48,
-              child: Image.asset(
-                'assets/cowrie_images/background_pattern.png',
-                fit: BoxFit.cover,
+              height:
+              MediaQuery.of(context).size.height * 0.48,
+
+              child: IgnorePointer(
+                child: Image.asset(
+                  'assets/cowrie_images/background_pattern.png',
+
+                  fit: BoxFit.cover,
+
+                  alignment:
+                  Alignment.topCenter,
+
+                  color: colors.onSurface.withValues(
+                    alpha:
+                    theme.brightness ==
+                        Brightness.dark
+                        ? 0.06
+                        : 0.025,
+                  ),
+
+                  colorBlendMode:
+                  BlendMode.srcIn,
+                ),
               ),
             ),
 
-            /// 📦 CONTENT
-            SafeArea(child: child),
+            // ==================================================
+            // CONTENT
+            // ==================================================
+
+            SafeArea(
+              child: child,
+            ),
           ],
         ),
       ),
 
-      bottomNavigationBar: bottomNavigationBar,
-      floatingActionButton: floatingActionButton,
+      bottomNavigationBar:
+      bottomNavigationBar,
+
+      floatingActionButton:
+      floatingActionButton,
     );
   }
 }

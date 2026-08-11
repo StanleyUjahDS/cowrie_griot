@@ -1,31 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '/core/ui/scaffolds/gradient_scaffold.dart';
-import '/core/theme/app_colors.dart';
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+  const SplashScreen({
+    super.key,
+  });
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  State<SplashScreen> createState() =>
+      _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState
+    extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
 
-    // ⏱ realistic splash timing
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        context.go('/welcome_one');
-      }
-    });
+    Future.delayed(
+      const Duration(seconds: 2),
+          () {
+        if (mounted) {
+          context.go('/welcome_one');
+        }
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
+    final colorScheme = theme.colorScheme;
 
     return GradientScaffold(
       child: Scaffold(
@@ -33,18 +41,30 @@ class _SplashScreenState extends State<SplashScreen> {
         body: SafeArea(
           child: Center(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24,
+              ),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment:
+                MainAxisAlignment.center,
                 children: [
                   const Spacer(),
 
-                  // 🧠 Logo
+                  // ==================================================
+                  // LOGO
+                  // ==================================================
+
                   Image.asset(
                     'assets/cowrie_images/cowrie_stack.png',
-                    width: MediaQuery.of(context).size.width * 0.8,
+                    width:
+                    MediaQuery.of(context).size.width *
+                        0.8,
                     fit: BoxFit.contain,
                   ),
+
+                  // ==================================================
+                  // BRAND
+                  // ==================================================
 
                   Align(
                     alignment: Alignment.topLeft,
@@ -54,15 +74,12 @@ class _SplashScreenState extends State<SplashScreen> {
                     ),
                   ),
 
-
-                  // 🔥 Brand line (GOLD)
                   Align(
                     alignment: Alignment.topLeft,
-
                     child: Text(
                       'By Cowrie',
                       style: textTheme.titleSmall?.copyWith(
-                        color: AppColors.gold,
+                        color: colorScheme.primary,
                         fontStyle: FontStyle.italic,
                         fontWeight: FontWeight.w600,
                       ),
@@ -72,7 +89,10 @@ class _SplashScreenState extends State<SplashScreen> {
 
                   const SizedBox(height: 16),
 
-                  // 🔷 Description
+                  // ==================================================
+                  // DESCRIPTION
+                  // ==================================================
+
                   Align(
                     alignment: Alignment.topLeft,
                     child: Text(
@@ -84,16 +104,24 @@ class _SplashScreenState extends State<SplashScreen> {
 
                   const Spacer(),
 
-                  // 🔄 Loader
-                  const CircularProgressIndicator(),
+                  // ==================================================
+                  // LOADER
+                  // ==================================================
+
+                  CircularProgressIndicator(
+                    color: colorScheme.primary,
+                  ),
+
                   const SizedBox(height: 16),
 
                   Text(
                     'Loading...',
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: AppColors.gold,
+                    style:
+                    textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.primary,
                     ),
                   ),
+
                   const SizedBox(height: 24),
                 ],
               ),

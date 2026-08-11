@@ -35,15 +35,18 @@ dependencies:
   cupertino_icons: ^1.0.8
   go_router: ^17.2.2
   web3dart: ^2.7.3
-  bip39: ^1.0.6
-  bip32: ^2.0.0
   convert: ^3.1.1
   flutter_secure_storage: ^9.0.0
   shared_preferences: ^2.5.5
   overlay_support: ^2.1.0
   local_auth: ^2.2.0
   font_awesome_flutter: ^10.7.0
-  mobile_scanner: ^5.2.3
+  mobile_scanner: ^7.4.0
+  wallet: ^0.0.13
+  http: ^1.6.0
+  crypto: ^3.0.7
+  provider: ^6.1.5+1
+  bip39_mnemonic: ^4.0.1
 dev_dependencies:
   flutter_test:
     sdk: flutter
