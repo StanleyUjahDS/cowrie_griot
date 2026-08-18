@@ -20,11 +20,11 @@ class AuthenticationResponse {
       user: UserModel.fromJson(
         json['user'] as Map<String, dynamic>,
       ),
-      isNewUser: json['isNewUser'] == true,
+      isNewUser: (json['isNewUser'] ?? json['is_new_user']) == true,
       accessToken:
-      json['accessToken']?.toString() ?? '',
+      (json['accessToken'] ?? json['access_token'])?.toString() ?? '',
       refreshToken:
-      json['refreshToken']?.toString() ?? '',
+      (json['refreshToken'] ?? json['refresh_token'])?.toString() ?? '',
     );
   }
 

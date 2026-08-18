@@ -26,15 +26,17 @@ class AuthApiService {
   Future<NonceResponse> requestNonce({
     required String walletAddress,
   }) async {
-    final data = await _apiClient.post(
+    final response = await _apiClient.post(
       ApiConfig.authNonce,
       body: {
         'walletAddress': walletAddress,
       },
     );
 
+    final data = (response.containsKey('data') ? response['data'] : response);
+
     return NonceResponse.fromJson(
-      data['data'] as Map<String, dynamic>,
+      data as Map<String, dynamic>,
     );
   }
 
@@ -47,7 +49,7 @@ class AuthApiService {
     required String nonce,
     required String signature,
   }) async {
-    final data = await _apiClient.post(
+    final response = await _apiClient.post(
       ApiConfig.authVerify,
       body: {
         'walletAddress': walletAddress,
@@ -56,9 +58,11 @@ class AuthApiService {
       },
     );
 
+    final data = (response.containsKey('data') ? response['data'] : response);
+
     final authenticationResponse =
     AuthenticationResponse.fromJson(
-      data['data'] as Map<String, dynamic>,
+      data as Map<String, dynamic>,
     );
 
     // ----------------------------------------------------------
@@ -82,16 +86,18 @@ class AuthApiService {
   Future<AuthenticationResponse> refreshSession({
     required String refreshToken,
   }) async {
-    final data = await _apiClient.post(
+    final response = await _apiClient.post(
       ApiConfig.authRefresh,
       body: {
         'refreshToken': refreshToken,
       },
     );
 
+    final data = (response.containsKey('data') ? response['data'] : response);
+
     final authenticationResponse =
     AuthenticationResponse.fromJson(
-      data['data'] as Map<String, dynamic>,
+      data as Map<String, dynamic>,
     );
 
     // ----------------------------------------------------------

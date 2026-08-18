@@ -34,8 +34,8 @@ import '../../features/wallet/services/wallet_crypto_service.dart';
 import '../../features/p2p/screens/peer_2_peer.dart';
 import '../../features/miner/screens/miner_screen.dart';
 
-import '/core/ui/scaffolds/gradient_scaffold.dart';
-import '/core/ui/screens/app_loading_screen.dart';
+import '../ui/scaffolds/gradient_scaffold.dart';
+import '../ui/screens/app_loading_screen.dart';
 
 import 'main_navigation.dart';
 import '../theme/theme_controller.dart';

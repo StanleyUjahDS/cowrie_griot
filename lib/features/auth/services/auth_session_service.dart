@@ -1,7 +1,7 @@
-import '/features/auth/services/auth_api_service.dart';
-import '/features/auth/services/auth_storage_service.dart';
-import '/features/auth/services/wallet_auth_service.dart';
-import '/features/wallet/services/wallet_service.dart';
+import 'auth_api_service.dart';
+import 'auth_storage_service.dart';
+import 'wallet_auth_service.dart';
+import '../../wallet/services/wallet_service.dart';
 
 // ============================================================
 // AUTH SESSION SERVICE

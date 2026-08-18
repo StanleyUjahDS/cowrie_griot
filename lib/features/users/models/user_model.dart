@@ -29,22 +29,22 @@ class UserModel {
     return UserModel(
       id: json['id']?.toString() ?? '',
       walletAddress:
-      json['wallet_address']?.toString() ?? '',
-      createdAt: json['created_at'] != null
+      (json['wallet_address'] ?? json['walletAddress'])?.toString() ?? '',
+      createdAt: (json['created_at'] ?? json['createdAt']) != null
           ? DateTime.tryParse(
-        json['created_at'].toString(),
+        (json['created_at'] ?? json['createdAt']).toString(),
       )
           : null,
-      updatedAt: json['updated_at'] != null
+      updatedAt: (json['updated_at'] ?? json['updatedAt']) != null
           ? DateTime.tryParse(
-        json['updated_at'].toString(),
+        (json['updated_at'] ?? json['updatedAt']).toString(),
       )
           : null,
       username: json['username']?.toString(),
       displayName:
-      json['display_name']?.toString(),
+      (json['display_name'] ?? json['displayName'])?.toString(),
       avatarUrl:
-      json['avatar_url']?.toString(),
+      (json['avatar_url'] ?? json['avatarUrl'])?.toString(),
       bio: json['bio']?.toString(),
     );
   }

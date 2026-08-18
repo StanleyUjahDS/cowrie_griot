@@ -28,7 +28,8 @@ class UserApiService {
       );
     }
 
-    final data = response['data'];
+    // Support both wrapped and unwrapped response
+    final data = (response.containsKey('data') ? response['data'] : response);
 
     if (data is! Map<String, dynamic>) {
       throw Exception(

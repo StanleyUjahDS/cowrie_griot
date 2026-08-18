@@ -3,12 +3,12 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '/core/ui/scaffolds/gradient_scaffold.dart';
-import '/core/ui/screens/app_loading_screen.dart';
+import '../../../core/ui/scaffolds/gradient_scaffold.dart';
+import '../../../core/ui/screens/app_loading_screen.dart';
 
-import '/features/wallet/services/wallet_service.dart';
-import '/features/wallet/services/wallet_crypto_service.dart';
-import '/features/wallet/services/wallet_storage_service.dart';
+import '../../wallet/services/wallet_service.dart';
+import '../../wallet/services/wallet_crypto_service.dart';
+import '../../wallet/services/wallet_storage_service.dart';
 
 class CreateAccountScreen extends StatefulWidget {
   const CreateAccountScreen({

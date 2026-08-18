@@ -5,9 +5,17 @@ import 'core/network/api_client.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_controller.dart';
+import 'core/startup/app_startup_service.dart';
 
+import 'features/auth/services/auth_api_service.dart';
+import 'features/auth/services/auth_session_service.dart';
+import 'features/auth/services/auth_storage_service.dart';
+import 'features/auth/services/wallet_auth_service.dart';
 import 'features/users/providers/user_provider.dart';
 import 'features/users/services/user_api_service.dart';
+import 'features/wallet/services/wallet_crypto_service.dart';
+import 'features/wallet/services/wallet_service.dart';
+import 'features/wallet/services/wallet_storage_service.dart';
 
 class GriotCowrieApp extends StatefulWidget {
   const GriotCowrieApp({
@@ -26,23 +34,47 @@ class _GriotCowrieAppState
 
   late final ApiClient _apiClient;
   late final UserApiService _userApiService;
+  late final WalletService _walletService;
+  late final AuthApiService _authApiService;
+  late final AuthSessionService _authSessionService;
 
   @override
   void initState() {
     super.initState();
 
-    // ==========================================================
-    // API CLIENT
-    // ==========================================================
+    // ----------------------------------------------------------
+    // CORE INFRASTRUCTURE
+    // ----------------------------------------------------------
 
     _apiClient = ApiClient();
 
-    // ==========================================================
-    // USER API SERVICE
-    // ==========================================================
+    final walletStorage = WalletStorageService();
+    final authStorage = AuthStorageService();
+
+    _walletService = WalletService(
+      cryptoService: WalletCryptoService(),
+      storageService: walletStorage,
+    );
 
     _userApiService = UserApiService(
       apiClient: _apiClient,
+    );
+
+    _authApiService = AuthApiService(
+      apiClient: _apiClient,
+      authStorageService: authStorage,
+    );
+
+    final walletAuthService = WalletAuthService(
+      walletService: _walletService,
+      authApiService: _authApiService,
+    );
+
+    _authSessionService = AuthSessionService(
+      walletService: _walletService,
+      authApiService: _authApiService,
+      authStorageService: authStorage,
+      walletAuthService: walletAuthService,
     );
 
     // ==========================================================
@@ -56,21 +88,7 @@ class _GriotCowrieAppState
 
   @override
   void dispose() {
-    // ==========================================================
-    // API CLIENT
-    // ==========================================================
-
     _apiClient.dispose();
-
-    // ==========================================================
-    // THEME CONTROLLER
-    // ==========================================================
-    //
-    // DO NOT dispose the singleton.
-    //
-    // The controller belongs to the entire application.
-    //
-
     super.dispose();
   }
 
@@ -81,13 +99,31 @@ class _GriotCowrieAppState
     return MultiProvider(
       providers: [
         // ======================================================
+        // DATA SERVICES
+        // ======================================================
+
+        Provider<WalletService>.value(value: _walletService),
+        Provider<AuthSessionService>.value(value: _authSessionService),
+
+        // ======================================================
         // USER PROVIDER
         // ======================================================
 
         ChangeNotifierProvider<UserProvider>(
           create: (_) => UserProvider(
             userApiService: _userApiService,
-          )..loadUser(),
+          ),
+        ),
+
+        // ======================================================
+        // STARTUP SERVICE
+        // ======================================================
+
+        ProxyProvider2<AuthSessionService, UserProvider, AppStartupService>(
+          update: (_, auth, user, __) => AppStartupService(
+            authSessionService: auth,
+            userProvider: user,
+          ),
         ),
       ],
 

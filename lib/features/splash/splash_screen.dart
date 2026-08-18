@@ -3,20 +3,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '/core/network/api_client.dart';
-import '/core/ui/scaffolds/gradient_scaffold.dart';
+import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 
-import '/features/auth/services/auth_api_service.dart';
-import '/features/auth/services/auth_session_service.dart';
-import '/features/auth/services/auth_storage_service.dart';
-import '/features/auth/services/wallet_auth_service.dart';
-
-import '/features/users/providers/user_provider.dart';
-import '/features/users/services/user_api_service.dart';
-
-import '/features/wallet/services/wallet_crypto_service.dart';
-import '/features/wallet/services/wallet_service.dart';
-import '/features/wallet/services/wallet_storage_service.dart';
+import '../wallet/services/wallet_crypto_service.dart';
+import '../wallet/services/wallet_service.dart';
+import '../wallet/services/wallet_storage_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({
@@ -24,17 +15,17 @@ class SplashScreen extends StatefulWidget {
   });
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  State<SplashScreen> createState() =>
+      _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState
+    extends State<SplashScreen> {
   // ============================================================
-  // SERVICES
+  // WALLET SERVICE
   // ============================================================
 
-  late final AuthSessionService _authSessionService;
-  late final UserApiService _userApiService;
-  late final UserProvider _userProvider;
+  late final WalletService _walletService;
 
   // ============================================================
   // INIT
@@ -48,245 +39,166 @@ class _SplashScreenState extends State<SplashScreen> {
     // WALLET STORAGE
     // ----------------------------------------------------------
 
-    final walletStorageService = WalletStorageService();
+    final walletStorageService =
+    WalletStorageService();
 
     // ----------------------------------------------------------
     // WALLET SERVICE
     // ----------------------------------------------------------
 
-    final walletService = WalletService(
+    _walletService = WalletService(
       cryptoService: WalletCryptoService(),
       storageService: walletStorageService,
     );
 
     // ----------------------------------------------------------
-    // AUTH STORAGE
+    // START LOCAL INITIALIZATION
     // ----------------------------------------------------------
 
-    final authStorageService = AuthStorageService();
-
-    // ----------------------------------------------------------
-    // API CLIENT
-    // ----------------------------------------------------------
-
-    final apiClient = ApiClient();
-
-    // ----------------------------------------------------------
-    // AUTH API SERVICE
-    // ----------------------------------------------------------
-
-    final authApiService = AuthApiService(
-      apiClient: apiClient,
-      authStorageService: authStorageService,
-    );
-
-    // ----------------------------------------------------------
-    // WALLET AUTH SERVICE
-    // ----------------------------------------------------------
-    //
-    // Used when the existing wallet needs to establish a new
-    // backend authentication session.
-    //
-    // This NEVER deletes, replaces, or recreates the wallet.
-    //
-    // ----------------------------------------------------------
-
-    final walletAuthService = WalletAuthService(
-      walletService: walletService,
-      authApiService: authApiService,
-    );
-
-    // ----------------------------------------------------------
-    // AUTH SESSION SERVICE
-    // ----------------------------------------------------------
-
-    _authSessionService = AuthSessionService(
-      walletService: walletService,
-      authApiService: authApiService,
-      authStorageService: authStorageService,
-      walletAuthService: walletAuthService,
-    );
-
-    // ----------------------------------------------------------
-    // USER API SERVICE
-    // ----------------------------------------------------------
-
-    _userApiService = UserApiService(
-      apiClient: apiClient,
-    );
-
-    // ----------------------------------------------------------
-    // USER PROVIDER
-    // ----------------------------------------------------------
-
-    _userProvider = UserProvider(
-      userApiService: _userApiService,
-    );
-
-    // ----------------------------------------------------------
-    // START APPLICATION INITIALIZATION
-    // ----------------------------------------------------------
-
-    _initializeApp();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeApp();
+    });
   }
 
   // ============================================================
   // INITIALIZE APP
   // ============================================================
+  //
+  // Splash is LOCAL-FIRST.
+  //
+  // It ONLY determines whether a valid local wallet exists.
+  //
+  // It does NOT:
+  //
+  // - call the backend
+  // - request a nonce
+  // - authenticate the wallet
+  // - refresh JWT tokens
+  // - load the user profile
+  // - load chats
+  // - load wallet balances
+  // - load transactions
+  // - require internet access
+  //
+  // ============================================================
 
   Future<void> _initializeApp() async {
     try {
-      // ========================================================
-      // STEP 1
-      // RESTORE / ESTABLISH SESSION
-      // ========================================================
+      // ----------------------------------------------------------
+      // LOAD LOCAL WALLET
+      // ----------------------------------------------------------
       //
-      // AuthSessionService handles:
+      // WalletService currently exposes loadWallet(), not
+      // hasWallet().
       //
-      // No wallet
-      //     → /welcome_one
+      // A non-null WalletData means the local wallet is present
+      // and all required wallet values were successfully loaded.
       //
-      // Valid refresh token
-      //     → refresh session
-      //     → /chat
-      //
-      // Expired/invalid refresh token
-      //     → silently authenticate existing wallet
-      //     → /chat
-      //
-      // Existing wallet cannot authenticate
-      //     → /login
-      //
-      // ========================================================
+      // ----------------------------------------------------------
 
-      final destination =
-      await _authSessionService.getStartupDestination();
+      final wallet =
+      await _walletService.loadWallet();
 
       if (!mounted) {
         return;
       }
 
-      // ========================================================
-      // STEP 2
-      // FOLLOW THE AUTH SESSION DECISION
-      // ========================================================
+      // ----------------------------------------------------------
+      // NO WALLET
+      // ----------------------------------------------------------
+      //
+      // This is the genuine local-new-user state.
+      //
+      // ----------------------------------------------------------
 
-      if (destination != '/chat') {
-        context.go(destination);
+      if (wallet == null) {
+        context.go('/welcome_one');
         return;
       }
 
-      // ========================================================
-      // STEP 3
-      // AUTHENTICATED SESSION EXISTS
-      // ========================================================
+      // ----------------------------------------------------------
+      // WALLET EXISTS
+      // ----------------------------------------------------------
       //
-      // At this point:
+      // Splash does NOT authenticate against the backend.
       //
-      // - wallet exists
-      // - backend session has been restored/created
-      // - access token is stored
+      // The authenticated application layer will handle:
       //
-      // Load the current user's profile.
+      // - access token restoration
+      // - refresh token handling
+      // - wallet authentication
+      // - user synchronization
+      // - cached data
+      // - network recovery
       //
-      // ========================================================
-
-      await _userProvider.loadUser();
-
-      // ========================================================
-      // STEP 4
-      // VERIFY USER PROFILE
-      // ========================================================
-
-      if (!_userProvider.hasUser) {
-        throw Exception(
-          'Unable to load current user.',
-        );
-      }
-
-      // ========================================================
-      // STEP 5
-      // EXISTING USER → CHAT
-      // ========================================================
-
-      if (!mounted) {
-        return;
-      }
+      // ----------------------------------------------------------
 
       context.go('/chat');
-    } catch (error) {
-      // ========================================================
-      // STARTUP FAILURE
-      // ========================================================
-      //
-      // We only arrive here if something unexpected happened
-      // while restoring the session or loading the user.
-      //
-      // We NEVER delete the wallet.
-      //
-      // We check whether the wallet exists.
-      //
-      // Existing wallet:
-      //     → /login
-      //
-      // No wallet:
-      //     → /welcome_one
-      //
-      // ========================================================
+    } catch (error, stackTrace) {
+      // ----------------------------------------------------------
+      // LOCAL STORAGE FAILURE
+      // ----------------------------------------------------------
 
       debugPrint(
         'Splash initialization error: $error',
+      );
+
+      debugPrintStack(
+        stackTrace: stackTrace,
       );
 
       if (!mounted) {
         return;
       }
 
-      try {
-        final hasWallet =
-        await _authSessionService.hasWallet();
+      // ----------------------------------------------------------
+      // IMPORTANT
+      // ----------------------------------------------------------
+      //
+      // Do NOT:
+      //
+      // - delete the wallet
+      // - replace the wallet
+      // - recreate the wallet
+      // - authenticate against the backend
+      // - assume the user is new
+      //
+      // A storage failure is NOT the same thing as "no wallet".
+      //
+      // For now, remain on the splash rather than incorrectly
+      // sending an existing user through onboarding.
+      //
+      // ----------------------------------------------------------
 
-        if (!mounted) {
-          return;
-        }
-
-        if (hasWallet) {
-          // ----------------------------------------------------
-          // Existing wallet but something genuinely failed.
-          //
-          // Do not onboard the user.
-          // Do not delete the wallet.
-          //
-          // Login is only the final recovery path when the
-          // automatic session restoration could not succeed.
-          // ----------------------------------------------------
-
-          context.go('/login');
-        } else {
-          // ----------------------------------------------------
-          // No wallet means genuinely new user.
-          // ----------------------------------------------------
-
-          context.go('/welcome_one');
-        }
-      } catch (error) {
-        debugPrint(
-          'Unable to determine wallet state: $error',
-        );
-
-        if (!mounted) {
-          return;
-        }
-
-        // ------------------------------------------------------
-        // Last-resort destination.
-        //
-        // No wallet operation is performed here.
-        // ------------------------------------------------------
-
-        context.go('/welcome_one');
-      }
+      _showInitializationError();
     }
+  }
+
+  // ============================================================
+  // INITIALIZATION ERROR
+  // ============================================================
+
+  void _showInitializationError() {
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Unable to load your wallet. Please try again.',
+        ),
+      ),
+    );
+
+    // Retry after the current frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      _initializeApp();
+    });
   }
 
   // ============================================================
@@ -294,22 +206,32 @@ class _SplashScreenState extends State<SplashScreen> {
   // ============================================================
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final textTheme = theme.textTheme;
-    final colorScheme = theme.colorScheme;
+  Widget build(
+      BuildContext context,
+      ) {
+    final theme =
+    Theme.of(context);
+
+    final textTheme =
+        theme.textTheme;
+
+    final colorScheme =
+        theme.colorScheme;
 
     return GradientScaffold(
       child: Scaffold(
-        backgroundColor: Colors.transparent,
+        backgroundColor:
+        Colors.transparent,
         body: SafeArea(
           child: Center(
             child: Padding(
-              padding: const EdgeInsets.symmetric(
+              padding:
+              const EdgeInsets.symmetric(
                 horizontal: 24,
               ),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment:
+                MainAxisAlignment.center,
                 children: [
                   const Spacer(),
 
@@ -320,8 +242,12 @@ class _SplashScreenState extends State<SplashScreen> {
                   Image.asset(
                     'assets/cowrie_images/cowrie_stack.png',
                     width:
-                    MediaQuery.of(context).size.width * 0.8,
-                    fit: BoxFit.contain,
+                    MediaQuery.of(context)
+                        .size
+                        .width *
+                        0.8,
+                    fit:
+                    BoxFit.contain,
                   ),
 
                   // ==================================================
@@ -329,21 +255,29 @@ class _SplashScreenState extends State<SplashScreen> {
                   // ==================================================
 
                   Align(
-                    alignment: Alignment.topLeft,
+                    alignment:
+                    Alignment.topLeft,
                     child: Text(
                       'Griot',
-                      style: textTheme.displayLarge,
+                      style:
+                      textTheme.displayLarge,
                     ),
                   ),
 
                   Align(
-                    alignment: Alignment.topLeft,
+                    alignment:
+                    Alignment.topLeft,
                     child: Text(
                       'By Cowrie',
-                      style: textTheme.titleSmall?.copyWith(
-                        color: colorScheme.primary,
-                        fontStyle: FontStyle.italic,
-                        fontWeight: FontWeight.w600,
+                      style:
+                      textTheme.titleSmall
+                          ?.copyWith(
+                        color:
+                        colorScheme.primary,
+                        fontStyle:
+                        FontStyle.italic,
+                        fontWeight:
+                        FontWeight.w600,
                       ),
                     ),
                   ),
@@ -357,11 +291,14 @@ class _SplashScreenState extends State<SplashScreen> {
                   // ==================================================
 
                   Align(
-                    alignment: Alignment.topLeft,
+                    alignment:
+                    Alignment.topLeft,
                     child: Text(
                       'The first web3 super app to connect with others, earn, and tell your stories without censorship.',
-                      textAlign: TextAlign.justify,
-                      style: textTheme.bodyLarge,
+                      textAlign:
+                      TextAlign.justify,
+                      style:
+                      textTheme.bodyLarge,
                     ),
                   ),
 
@@ -372,7 +309,8 @@ class _SplashScreenState extends State<SplashScreen> {
                   // ==================================================
 
                   CircularProgressIndicator(
-                    color: colorScheme.primary,
+                    color:
+                    colorScheme.primary,
                   ),
 
                   const SizedBox(
@@ -381,8 +319,11 @@ class _SplashScreenState extends State<SplashScreen> {
 
                   Text(
                     'Loading...',
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.primary,
+                    style:
+                    textTheme.bodyMedium
+                        ?.copyWith(
+                      color:
+                      colorScheme.primary,
                     ),
                   ),
 

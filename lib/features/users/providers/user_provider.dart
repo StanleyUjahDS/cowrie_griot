@@ -4,13 +4,18 @@ import 'package:flutter/foundation.dart';
 
 import '../models/user_model.dart';
 import '../services/user_api_service.dart';
+import '../services/user_local_storage_service.dart';
 
 class UserProvider extends ChangeNotifier {
   final UserApiService _userApiService;
+  final UserLocalStorageService _userLocalStorageService;
 
   UserProvider({
     required UserApiService userApiService,
-  }) : _userApiService = userApiService;
+    UserLocalStorageService? userLocalStorageService,
+  })  : _userApiService = userApiService,
+        _userLocalStorageService =
+            userLocalStorageService ?? UserLocalStorageService();
 
   // ============================================================
   // STATE
@@ -38,6 +43,19 @@ class UserProvider extends ChangeNotifier {
   bool get hasUser => _user != null;
 
   // ============================================================
+  // LOAD LOCAL USER
+  // ============================================================
+
+  Future<void> loadLocalUser() async {
+    final cached = await _userLocalStorageService.loadUser();
+
+    if (cached != null) {
+      _user = cached;
+      notifyListeners();
+    }
+  }
+
+  // ============================================================
   // LOAD CURRENT USER
   // GET /api/users/me
   // ============================================================
@@ -54,6 +72,11 @@ class UserProvider extends ChangeNotifier {
 
     try {
       _user = await _userApiService.getCurrentUser();
+
+      // Update cache
+      if (_user != null) {
+        await _userLocalStorageService.saveUser(_user!);
+      }
     } catch (error) {
       _errorMessage = _cleanError(error);
       rethrow;
@@ -73,6 +96,11 @@ class UserProvider extends ChangeNotifier {
 
     try {
       _user = await _userApiService.getCurrentUser();
+
+      // Update cache
+      if (_user != null) {
+        await _userLocalStorageService.saveUser(_user!);
+      }
 
       notifyListeners();
     } catch (error) {
@@ -200,6 +228,11 @@ class UserProvider extends ChangeNotifier {
         avatarUrl: avatarUrl,
         bio: bio,
       );
+
+      // Update cache
+      if (_user != null) {
+        await _userLocalStorageService.saveUser(_user!);
+      }
     } catch (error) {
       _errorMessage = _cleanError(error);
 
@@ -312,6 +345,8 @@ class UserProvider extends ChangeNotifier {
   void clearUser() {
     _user = null;
     _errorMessage = null;
+
+    _userLocalStorageService.clearUser();
 
     notifyListeners();
   }

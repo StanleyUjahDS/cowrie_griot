@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/startup/app_startup_service.dart';
 import '../controllers/chat_controller.dart';
 
 import '../models/chat_user.dart';
@@ -46,6 +47,28 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
   String searchQuery = '';
 
   ChatSection selectedSection = ChatSection.chats;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // ==============================================================
+    // APPLICATION STARTUP
+    // ==============================================================
+    //
+    // Triggered once when the user reaches the main application
+    // interface.
+    //
+    // 1. Restore local data
+    // 2. Establish backend session
+    // 3. Synchronize authoritative data
+    //
+    // ==============================================================
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AppStartupService>().initialize();
+    });
+  }
 
   // ==============================================================
   // FORMAT TIME

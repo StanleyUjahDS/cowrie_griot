@@ -6,20 +6,20 @@ import 'package:go_router/go_router.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:overlay_support/overlay_support.dart';
 
-import '/core/network/api_client.dart';
-import '/core/ui/scaffolds/gradient_scaffold.dart';
-import '/core/ui/screens/app_loading_screen.dart';
+import '../../../core/network/api_client.dart';
+import '../../../core/ui/scaffolds/gradient_scaffold.dart';
+import '../../../core/ui/screens/app_loading_screen.dart';
 
-import '/features/auth/services/auth_api_service.dart';
-import '/features/auth/services/auth_storage_service.dart';
-import '/features/auth/services/wallet_auth_service.dart';
+import '../../auth/services/auth_api_service.dart';
+import '../../auth/services/auth_storage_service.dart';
+import '../../auth/services/wallet_auth_service.dart';
 
-import '/features/users/providers/user_provider.dart';
-import '/features/users/services/user_api_service.dart';
+import '../../users/providers/user_provider.dart';
+import '../../users/services/user_api_service.dart';
 
-import '/features/wallet/services/wallet_crypto_service.dart';
-import '/features/wallet/services/wallet_service.dart';
-import '/features/wallet/services/wallet_storage_service.dart';
+import '../../wallet/services/wallet_crypto_service.dart';
+import '../../wallet/services/wallet_service.dart';
+import '../../wallet/services/wallet_storage_service.dart';
 
 class BiometricsScreen extends StatefulWidget {
   const BiometricsScreen({

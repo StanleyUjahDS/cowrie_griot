@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
-import '/core/ui/scaffolds/gradient_scaffold.dart';
+import '../scaffolds/gradient_scaffold.dart';
 
 // ============================================================
 // TYPES

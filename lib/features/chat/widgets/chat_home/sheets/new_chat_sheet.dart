@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../models/chat_user.dart';
+import '../../../models/chat_user.dart';
 
 class NewChatSheet extends StatefulWidget {
   final void Function(
@@ -116,6 +116,8 @@ class _NewChatSheetState extends State<NewChatSheet> {
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
 
+    final searchResults = results;
+
     return Container(
       height: MediaQuery.of(context).size.height * 0.72,
       decoration: BoxDecoration(
@@ -218,21 +220,22 @@ class _NewChatSheetState extends State<NewChatSheet> {
             // ==================================================
 
             Expanded(
-              child: results.isEmpty
+              child: searchResults.isEmpty
                   ? const _NewChatEmptyState()
                   : ListView.separated(
                 padding:
                 const EdgeInsets.symmetric(
                   horizontal: 16,
                 ),
-                itemCount: results.length,
+                itemCount: searchResults.length,
                 separatorBuilder: (_, _) =>
                 const Divider(height: 1),
                 itemBuilder:
                     (context, index) {
-                  final user = results[index];
+                  final user = searchResults[index];
 
                   return _UserSearchItem(
+                    key: ValueKey(user.id),
                     user: user,
                     onRequest: () {
                       widget.onSendRequest(
@@ -260,6 +263,7 @@ class _UserSearchItem extends StatelessWidget {
   final VoidCallback onRequest;
 
   const _UserSearchItem({
+    super.key,
     required this.user,
     required this.onRequest,
   });

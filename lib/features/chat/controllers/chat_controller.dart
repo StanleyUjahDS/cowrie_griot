@@ -3,8 +3,8 @@ import 'package:flutter/foundation.dart';
 import '../models/chat_user.dart';
 import '../models/chat_message.dart';
 import '../models/message_request.dart';
-import '../services/chat_operations.dart';
-import '../services/message_request_operations.dart';
+import '../repositories/chat_repository.dart';
+import '../repositories/message_request_repository.dart';
 
 class ChatController extends ChangeNotifier {
   // ==========================================================

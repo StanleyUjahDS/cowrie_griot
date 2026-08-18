@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:overlay_support/overlay_support.dart';
 
-import '/core/ui/scaffolds/gradient_scaffold.dart';
-import '/features/wallet/services/wallet_service.dart';
-import '/features/wallet/services/wallet_crypto_service.dart';
-import '/features/wallet/services/wallet_storage_service.dart';
+import '../../../core/ui/scaffolds/gradient_scaffold.dart';
+import '../../wallet/services/wallet_service.dart';
+import '../../wallet/services/wallet_crypto_service.dart';
+import '../../wallet/services/wallet_storage_service.dart';
 
 class VerifySeed extends StatefulWidget {
   const VerifySeed({

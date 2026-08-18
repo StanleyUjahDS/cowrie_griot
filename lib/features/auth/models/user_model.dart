@@ -15,9 +15,9 @@ class UserModel {
     return UserModel(
       id: json['id'],
       walletAddress:
-      json['walletAddress']?.toString() ?? '',
+      (json['walletAddress'] ?? json['wallet_address'])?.toString() ?? '',
       walletType:
-      json['walletType']?.toString() ?? '',
+      (json['walletType'] ?? json['wallet_type'])?.toString() ?? '',
     );
   }
 

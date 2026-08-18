@@ -16,15 +16,15 @@ class NonceResponse {
       ) {
     return NonceResponse(
       walletAddress:
-      json['walletAddress']?.toString() ?? '',
+      (json['walletAddress'] ?? json['wallet_address'])?.toString() ?? '',
       nonce:
       json['nonce']?.toString() ?? '',
       message:
       json['message']?.toString() ?? '',
       expiresAt:
-      DateTime.parse(
-        json['expiresAt'].toString(),
-      ),
+      DateTime.tryParse(
+        (json['expiresAt'] ?? json['expires_at'])?.toString() ?? '',
+      ) ?? DateTime.now(),
     );
   }
 

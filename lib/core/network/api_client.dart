@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
-import '/features/auth/services/auth_storage_service.dart';
+import '../../features/auth/services/auth_storage_service.dart';
 
 import 'api_exception.dart';
 
