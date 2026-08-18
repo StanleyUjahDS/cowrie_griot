@@ -1,6 +1,10 @@
 import 'wallet_crypto_service.dart';
 import 'wallet_storage_service.dart';
 
+// ============================================================
+// WALLET SERVICE
+// ============================================================
+
 class WalletService {
   final WalletCryptoService _cryptoService;
   final WalletStorageService _storageService;
@@ -16,9 +20,12 @@ class WalletService {
   // ============================================================
 
   Future<WalletData> createWallet() async {
-    final wallet = _cryptoService.createWallet();
+    final WalletData wallet =
+    await _cryptoService.createWallet();
 
-    await _storageService.saveWallet(wallet);
+    await _storageService.saveWallet(
+      wallet,
+    );
 
     return wallet;
   }
@@ -32,7 +39,10 @@ class WalletService {
       ) async {
     final normalizedMnemonic = mnemonic
         .trim()
-        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAll(
+      RegExp(r'\s+'),
+      ' ',
+    )
         .toLowerCase();
 
     if (normalizedMnemonic.isEmpty) {
@@ -41,7 +51,8 @@ class WalletService {
       );
     }
 
-    final wallet = _cryptoService.restoreWallet(
+    final WalletData wallet =
+    await _cryptoService.restoreWallet(
       normalizedMnemonic,
     );
 
@@ -99,20 +110,24 @@ class WalletService {
   Future<String?> signMessage(
       String message,
       ) async {
-    final privateKey = await getPrivateKey();
+    final String? privateKey =
+    await getPrivateKey();
 
-    if (privateKey == null || privateKey.isEmpty) {
+    if (privateKey == null ||
+        privateKey.isEmpty) {
       return null;
     }
 
-    final signature = _cryptoService.signMessage(
+    final String signature =
+    _cryptoService.signMessage(
       privateKey: privateKey,
       message: message,
     );
 
     if (!signature.startsWith('0x')) {
       throw Exception(
-        'Invalid Ethereum signature: missing 0x prefix.',
+        'Invalid Ethereum signature: '
+            'missing 0x prefix.',
       );
     }
 

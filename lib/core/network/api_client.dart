@@ -1,15 +1,22 @@
 import 'dart:convert';
 
-import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+
+import '/features/auth/services/auth_storage_service.dart';
+
 import 'api_exception.dart';
 
 class ApiClient {
   final http.Client _client;
+  final AuthStorageService _authStorageService;
 
   ApiClient({
     http.Client? client,
-  }) : _client = client ?? http.Client();
+    AuthStorageService? authStorageService,
+  })  : _client = client ?? http.Client(),
+        _authStorageService =
+            authStorageService ?? AuthStorageService();
 
   // ============================================================
   // GET
@@ -61,6 +68,23 @@ class ApiClient {
   }
 
   // ============================================================
+  // PATCH
+  // ============================================================
+
+  Future<dynamic> patch(
+      String url, {
+        Map<String, dynamic>? body,
+        Map<String, String>? headers,
+      }) async {
+    return _request(
+      method: 'PATCH',
+      url: url,
+      body: body,
+      headers: headers,
+    );
+  }
+
+  // ============================================================
   // DELETE
   // ============================================================
 
@@ -88,13 +112,67 @@ class ApiClient {
     Map<String, String>? headers,
   }) async {
     final uri = Uri.parse(url);
-    debugPrint('API REQUEST URL: $url');
-    debugPrint('API REQUEST URI: $uri');
+
+    debugPrint(
+      'API REQUEST METHOD: $method',
+    );
+
+    debugPrint(
+      'API REQUEST URL: $url',
+    );
+
+    debugPrint(
+      'API REQUEST URI: $uri',
+    );
+
+    // ==========================================================
+    // GET CURRENT ACCESS TOKEN
+    // ==========================================================
+    //
+    // IMPORTANT:
+    //
+    // We read the token for EVERY request.
+    //
+    // This means that when /auth/refresh rotates the access
+    // token, the very next request automatically uses the
+    // newly saved token.
+    //
+    // ==========================================================
+
+    final accessToken =
+    await _authStorageService.getAccessToken();
+
+    // ==========================================================
+    // REQUEST HEADERS
+    // ==========================================================
+
     final requestHeaders = <String, String>{
       'Content-Type': 'application/json',
       'Accept': 'application/json',
       ...?headers,
     };
+
+    // ==========================================================
+    // ATTACH AUTHORIZATION HEADER
+    // ==========================================================
+
+    if (accessToken != null &&
+        accessToken.isNotEmpty) {
+      requestHeaders['Authorization'] =
+      'Bearer $accessToken';
+
+      debugPrint(
+        'API AUTHORIZATION: Bearer token attached',
+      );
+    } else {
+      debugPrint(
+        'API AUTHORIZATION: No access token',
+      );
+    }
+
+    // ==========================================================
+    // HTTP REQUEST
+    // ==========================================================
 
     http.Response response;
 
@@ -119,6 +197,16 @@ class ApiClient {
 
         case 'PUT':
           response = await _client.put(
+            uri,
+            headers: requestHeaders,
+            body: body == null
+                ? null
+                : jsonEncode(body),
+          );
+          break;
+
+        case 'PATCH':
+          response = await _client.patch(
             uri,
             headers: requestHeaders,
             body: body == null
@@ -152,6 +240,18 @@ class ApiClient {
         originalError: error,
       );
     }
+
+    // ==========================================================
+    // DEBUG RESPONSE
+    // ==========================================================
+
+    debugPrint(
+      'API RESPONSE STATUS: ${response.statusCode}',
+    );
+
+    debugPrint(
+      'API RESPONSE URL: $url',
+    );
 
     // ==========================================================
     // DECODE RESPONSE
@@ -189,7 +289,8 @@ class ApiClient {
     String message = 'Request failed.';
 
     if (data is Map<String, dynamic>) {
-      final serverMessage = data['message'];
+      final serverMessage =
+      data['message'];
 
       if (serverMessage is String &&
           serverMessage.isNotEmpty) {
@@ -197,10 +298,17 @@ class ApiClient {
       }
     }
 
+    debugPrint(
+      'API ERROR: $message',
+    );
+
+    debugPrint(
+      'API ERROR STATUS: ${response.statusCode}',
+    );
+
     throw ApiException(
       message: message,
-      statusCode:
-      response.statusCode,
+      statusCode: response.statusCode,
       data: data,
     );
   }

@@ -226,7 +226,7 @@ class _NewChatSheetState extends State<NewChatSheet> {
                   horizontal: 16,
                 ),
                 itemCount: results.length,
-                separatorBuilder: (_, __) =>
+                separatorBuilder: (_, _) =>
                 const Divider(height: 1),
                 itemBuilder:
                     (context, index) {

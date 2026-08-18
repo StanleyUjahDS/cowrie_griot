@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import 'core/network/api_client.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_controller.dart';
+
+import 'features/users/providers/user_provider.dart';
+import 'features/users/services/user_api_service.dart';
 
 class GriotCowrieApp extends StatefulWidget {
   const GriotCowrieApp({
@@ -10,16 +15,39 @@ class GriotCowrieApp extends StatefulWidget {
   });
 
   @override
-  State<GriotCowrieApp> createState() => _GriotCowrieAppState();
+  State<GriotCowrieApp> createState() =>
+      _GriotCowrieAppState();
 }
 
-class _GriotCowrieAppState extends State<GriotCowrieApp> {
+class _GriotCowrieAppState
+    extends State<GriotCowrieApp> {
   final ThemeController _themeController =
       ThemeController.instance;
+
+  late final ApiClient _apiClient;
+  late final UserApiService _userApiService;
 
   @override
   void initState() {
     super.initState();
+
+    // ==========================================================
+    // API CLIENT
+    // ==========================================================
+
+    _apiClient = ApiClient();
+
+    // ==========================================================
+    // USER API SERVICE
+    // ==========================================================
+
+    _userApiService = UserApiService(
+      apiClient: _apiClient,
+    );
+
+    // ==========================================================
+    // THEME CONTROLLER
+    // ==========================================================
 
     AppRouter.setThemeController(
       _themeController,
@@ -28,9 +56,21 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
 
   @override
   void dispose() {
-    // DO NOT dispose the singleton here.
+    // ==========================================================
+    // API CLIENT
+    // ==========================================================
+
+    _apiClient.dispose();
+
+    // ==========================================================
+    // THEME CONTROLLER
+    // ==========================================================
+    //
+    // DO NOT dispose the singleton.
     //
     // The controller belongs to the entire application.
+    //
+
     super.dispose();
   }
 
@@ -38,46 +78,65 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
   Widget build(
       BuildContext context,
       ) {
-    return AnimatedBuilder(
-      animation: _themeController,
-      builder: (
-          context,
-          _,
-          ) {
-        return MaterialApp.router(
-          debugShowCheckedModeBanner: false,
+    return MultiProvider(
+      providers: [
+        // ======================================================
+        // USER PROVIDER
+        // ======================================================
 
-          // ==================================================
-          // LIGHT THEME
-          // ==================================================
+        ChangeNotifierProvider<UserProvider>(
+          create: (_) => UserProvider(
+            userApiService: _userApiService,
+          )..loadUser(),
+        ),
+      ],
 
-          theme: AppTheme.theme(
-            style: _themeController.themeStyle,
-            brightness: Brightness.light,
-          ),
+      // ========================================================
+      // APP
+      // ========================================================
 
-          // ==================================================
-          // DARK THEME
-          // ==================================================
+      child: AnimatedBuilder(
+        animation: _themeController,
+        builder: (
+            context,
+            _,
+            ) {
+          return MaterialApp.router(
+            debugShowCheckedModeBanner: false,
 
-          darkTheme: AppTheme.theme(
-            style: _themeController.themeStyle,
-            brightness: Brightness.dark,
-          ),
+            // ==================================================
+            // LIGHT THEME
+            // ==================================================
 
-          // ==================================================
-          // CURRENT THEME MODE
-          // ==================================================
+            theme: AppTheme.theme(
+              style: _themeController.themeStyle,
+              brightness: Brightness.light,
+            ),
 
-          themeMode: _themeController.themeMode,
+            // ==================================================
+            // DARK THEME
+            // ==================================================
 
-          // ==================================================
-          // ROUTER
-          // ==================================================
+            darkTheme: AppTheme.theme(
+              style: _themeController.themeStyle,
+              brightness: Brightness.dark,
+            ),
 
-          routerConfig: AppRouter.router,
-        );
-      },
+            // ==================================================
+            // CURRENT THEME MODE
+            // ==================================================
+
+            themeMode:
+            _themeController.themeMode,
+
+            // ==================================================
+            // ROUTER
+            // ==================================================
+
+            routerConfig: AppRouter.router,
+          );
+        },
+      ),
     );
   }
 }

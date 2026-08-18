@@ -4,6 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '/core/ui/scaffolds/gradient_scaffold.dart';
+import '/core/ui/screens/app_loading_screen.dart';
+
+import '/features/wallet/services/wallet_service.dart';
+import '/features/wallet/services/wallet_crypto_service.dart';
+import '/features/wallet/services/wallet_storage_service.dart';
 
 class CreateAccountScreen extends StatefulWidget {
   const CreateAccountScreen({
@@ -18,44 +23,85 @@ class CreateAccountScreen extends StatefulWidget {
 class _CreateAccountScreenState
     extends State<CreateAccountScreen> {
   // ==========================================================
-  // STATE
+  // WALLET SERVICE
   // ==========================================================
 
-  bool _isLoading = false;
+  late final WalletService _walletService;
+
+  // ==========================================================
+  // INIT
+  // ==========================================================
+
+  @override
+  void initState() {
+    super.initState();
+
+    _walletService = WalletService(
+      cryptoService: WalletCryptoService(),
+      storageService: WalletStorageService(),
+    );
+  }
 
   // ==========================================================
   // GENERATE ACCOUNT
   // ==========================================================
 
-  Future<void> _generateAccount() async {
-    if (_isLoading) {
-      return;
-    }
+  void _generateAccount() {
+    context.push(
+      '/loading',
+      extra: AppLoadingRouteData(
+        // ----------------------------------------------------
+        // LOADING UI
+        // ----------------------------------------------------
 
-    setState(() {
-      _isLoading = true;
-    });
+        title: 'Preparing your account',
 
-    // Allow the loading spinner to render before navigation.
-    await Future<void>.delayed(
-      const Duration(milliseconds: 150),
+        message:
+        'Creating your secure wallet...',
+
+        // This icon is specific to THIS operation.
+        //
+        // The loading screen itself remains generic.
+        icon: Icons.account_balance_wallet_outlined,
+
+        // ----------------------------------------------------
+        // OPERATION
+        // ----------------------------------------------------
+
+        operation: () async {
+          return await _walletService.createWallet();
+        },
+
+        // ----------------------------------------------------
+        // SUCCESS
+        // ----------------------------------------------------
+
+        onSuccess: (
+            BuildContext context,
+            dynamic result,
+            ) {
+          // The generic loading route returns dynamic.
+          // We restore the expected type here.
+
+          if (result is! WalletData) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Unable to create wallet.',
+                ),
+              ),
+            );
+
+            return;
+          }
+
+          context.pushReplacement(
+            '/display_phrase',
+            extra: result,
+          );
+        },
+      ),
     );
-
-    if (!mounted) {
-      return;
-    }
-
-    await context.push('/display_phrase');
-
-    // If the user comes back to this screen,
-    // allow the button to be used again.
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _isLoading = false;
-    });
   }
 
   // ==========================================================
@@ -69,29 +115,22 @@ class _CreateAccountScreenState
     final textTheme = theme.textTheme;
 
     return GradientScaffold(
-      // ========================================================
-      // APP BAR
-      // ========================================================
-
       appBar: AppBar(
         title: const Text(
           'Create Account',
         ),
         backgroundColor: Colors.transparent,
+        foregroundColor: colorScheme.onSurface,
         elevation: 0,
         scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
       ),
-
-      // ========================================================
-      // BODY
-      // ========================================================
-
       child: SafeArea(
         child: Column(
           children: [
-            // ====================================================
-            // MAIN CONTENT
-            // ====================================================
+            // ==================================================
+            // CONTENT
+            // ==================================================
 
             Expanded(
               child: SingleChildScrollView(
@@ -103,9 +142,9 @@ class _CreateAccountScreenState
                   crossAxisAlignment:
                   CrossAxisAlignment.stretch,
                   children: [
-                    // ==================================================
-                    // RECOVERY PHRASE WARNING
-                    // ==================================================
+                    // ==========================================
+                    // WARNING CARD
+                    // ==========================================
 
                     ClipRRect(
                       borderRadius:
@@ -140,10 +179,6 @@ class _CreateAccountScreenState
                             crossAxisAlignment:
                             CrossAxisAlignment.start,
                             children: [
-                              // ======================================
-                              // ICON
-                              // ======================================
-
                               Container(
                                 width: 48,
                                 height: 48,
@@ -161,11 +196,9 @@ class _CreateAccountScreenState
                                   ),
                                 ),
                                 child: Icon(
-                                  Icons
-                                      .shield_outlined,
+                                  Icons.shield_outlined,
                                   color:
-                                  colorScheme
-                                      .primary,
+                                  colorScheme.primary,
                                   size: 26,
                                 ),
                               ),
@@ -174,10 +207,6 @@ class _CreateAccountScreenState
                                 height: 20,
                               ),
 
-                              // ======================================
-                              // TITLE
-                              // ======================================
-
                               Text(
                                 'Write it Down!',
                                 style: textTheme
@@ -185,9 +214,6 @@ class _CreateAccountScreenState
                                     ?.copyWith(
                                   fontWeight:
                                   FontWeight.w700,
-                                  color:
-                                  colorScheme
-                                      .onSurface,
                                 ),
                               ),
 
@@ -195,13 +221,11 @@ class _CreateAccountScreenState
                                 height: 10,
                               ),
 
-                              // ======================================
-                              // DESCRIPTION
-                              // ======================================
-
                               Text(
-                                'There is no way to recover your account if you lose your recovery phrase. '
-                                    'Make sure to store it in a safe place.',
+                                'There is no way to recover '
+                                    'your account if you lose your '
+                                    'recovery phrase. Make sure to '
+                                    'store it in a safe place.',
                                 style: textTheme
                                     .bodyMedium
                                     ?.copyWith(
@@ -223,15 +247,17 @@ class _CreateAccountScreenState
                       height: 40,
                     ),
 
-                    // ==================================================
-                    // BACKUP INFORMATION
-                    // ==================================================
+                    // ==========================================
+                    // BACKUP MESSAGE
+                    // ==========================================
 
                     Text(
-                      'Backup your recovery phrase to ensure you do not lose access to Griot when the app is uninstalled or your device is lost.',
+                      'Backup your recovery phrase to ensure '
+                          'you do not lose access to Griot when the '
+                          'app is uninstalled or your device is lost.',
                       textAlign: TextAlign.center,
-                      style: textTheme.bodyMedium
-                          ?.copyWith(
+                      style:
+                      textTheme.bodyMedium?.copyWith(
                         color: colorScheme.onSurface
                             .withValues(
                           alpha: 0.65,
@@ -244,20 +270,18 @@ class _CreateAccountScreenState
                       height: 24,
                     ),
 
-                    // ==================================================
+                    // ==========================================
                     // SECURITY MESSAGE
-                    // ==================================================
+                    // ==========================================
 
                     Row(
                       crossAxisAlignment:
                       CrossAxisAlignment.start,
                       children: [
                         Icon(
-                          Icons
-                              .lock_outline_rounded,
+                          Icons.lock_outline_rounded,
                           size: 20,
-                          color:
-                          colorScheme.primary,
+                          color: colorScheme.primary,
                         ),
 
                         const SizedBox(
@@ -266,7 +290,9 @@ class _CreateAccountScreenState
 
                         Expanded(
                           child: Text(
-                            'Your recovery phrase belongs to you. Griot will never ask you to send it to us.',
+                            'Your recovery phrase belongs '
+                                'to you. Griot will never ask you '
+                                'to send it to us.',
                             style: textTheme
                                 .bodySmall
                                 ?.copyWith(
@@ -286,13 +312,12 @@ class _CreateAccountScreenState
               ),
             ),
 
-            // ====================================================
-            // GENERATE ACCOUNT BUTTON
-            // ====================================================
+            // ==================================================
+            // GENERATE BUTTON
+            // ==================================================
 
             Padding(
-              padding:
-              const EdgeInsets.fromLTRB(
+              padding: const EdgeInsets.fromLTRB(
                 16,
                 8,
                 16,
@@ -302,64 +327,30 @@ class _CreateAccountScreenState
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed:
-                  _isLoading
-                      ? null
-                      : _generateAccount,
-
-                  style:
-                  ElevatedButton.styleFrom(
+                  onPressed: _generateAccount,
+                  style: ElevatedButton.styleFrom(
                     backgroundColor:
                     colorScheme.primary,
                     foregroundColor:
                     colorScheme.onPrimary,
-                    disabledBackgroundColor:
-                    colorScheme.primary
-                        .withValues(
-                      alpha: 0.75,
-                    ),
-                    disabledForegroundColor:
-                    colorScheme.onPrimary,
                     elevation: 0,
                     padding:
-                    const EdgeInsets
-                        .symmetric(
+                    const EdgeInsets.symmetric(
                       horizontal: 20,
                       vertical: 14,
                     ),
                     shape:
                     RoundedRectangleBorder(
                       borderRadius:
-                      BorderRadius.circular(
-                        16,
-                      ),
+                      BorderRadius.circular(16),
                     ),
                   ),
-
-                  // ==================================================
-                  // BUTTON CONTENT
-                  // ==================================================
-
-                  child: _isLoading
-                      ? SizedBox(
-                    width: 22,
-                    height: 22,
-                    child:
-                    CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color:
-                      colorScheme
-                          .onPrimary,
-                    ),
-                  )
-                      : Text(
+                  child: Text(
                     'Generate Account',
-                    style: textTheme
-                        .labelLarge
+                    style: textTheme.labelLarge
                         ?.copyWith(
                       color:
-                      colorScheme
-                          .onPrimary,
+                      colorScheme.onPrimary,
                       fontWeight:
                       FontWeight.w700,
                     ),

@@ -29,7 +29,7 @@ class ChatController extends ChangeNotifier {
 
   List<MessageRequest> _requests = [];
 
-  List<ChatMessage> _messages = [];
+  final List<ChatMessage> _messages = [];
 
   bool _isLoading = false;
 

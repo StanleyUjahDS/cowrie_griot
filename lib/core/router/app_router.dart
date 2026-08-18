@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -22,22 +23,31 @@ import '../../features/chat/screens/chat_home_screen.dart';
 import '../../features/chat/screens/chatting_screen.dart';
 import '../../features/chat/controllers/chat_controller.dart';
 
-import '../../features/settings/pages/theme_settings_page.dart';
-import '../../features/settings/setting_screen.dart';
+import '../../features/settings/screens/setting_screen.dart';
+import '../../features/settings/screens/appearance/theme_settings_screen.dart';
+import '../../features/settings/screens/appearance/accent_color_screen.dart';
+import '../../features/settings/screens/account/account_details_screen.dart';
 
 import '../../features/wallet/screens/wallet_screen.dart';
+import '../../features/wallet/services/wallet_crypto_service.dart';
+
 import '../../features/p2p/screens/peer_2_peer.dart';
 import '../../features/miner/screens/miner_screen.dart';
 
 import '/core/ui/scaffolds/gradient_scaffold.dart';
+import '/core/ui/screens/app_loading_screen.dart';
 
 import 'main_navigation.dart';
 import '../theme/theme_controller.dart';
 
+// ============================================================
+// APP ROUTER
+// ============================================================
+
 class AppRouter {
-  // ============================================================
+  // ==========================================================
   // THEME CONTROLLER
-  // ============================================================
+  // ==========================================================
 
   static late ThemeController themeController;
 
@@ -47,17 +57,17 @@ class AppRouter {
     themeController = controller;
   }
 
-  // ============================================================
+  // ==========================================================
   // ROUTER
-  // ============================================================
+  // ==========================================================
 
   static final GoRouter router = GoRouter(
     initialLocation: '/',
 
     routes: [
-      // ========================================================
+      // ======================================================
       // ROOT
-      // ========================================================
+      // ======================================================
 
       GoRoute(
         path: '/',
@@ -66,15 +76,20 @@ class AppRouter {
         },
       ),
 
-      // ========================================================
+      // ======================================================
       // FULL SCREEN CHAT
-      // ========================================================
+      // ======================================================
 
       GoRoute(
         path: '/chat/:userId',
         builder: (context, state) {
-          final userId =
-          state.pathParameters['userId']!;
+          final userId = state.pathParameters['userId'];
+
+          if (userId == null || userId.isEmpty) {
+            return const _InvalidRoute(
+              message: 'Invalid chat user.',
+            );
+          }
 
           return ChatScreen(
             userId: userId,
@@ -82,9 +97,9 @@ class AppRouter {
         },
       ),
 
-      // ========================================================
+      // ======================================================
       // WELCOME
-      // ========================================================
+      // ======================================================
 
       GoRoute(
         path: '/welcome_one',
@@ -121,9 +136,9 @@ class AppRouter {
         },
       ),
 
-      // ========================================================
+      // ======================================================
       // AUTH
-      // ========================================================
+      // ======================================================
 
       GoRoute(
         path: '/login',
@@ -146,6 +161,36 @@ class AppRouter {
         },
       ),
 
+      // ======================================================
+      // GENERIC APP LOADING
+      // ======================================================
+
+      GoRoute(
+        path: '/loading',
+        builder: (context, state) {
+          final extra = state.extra;
+
+          if (extra is! AppLoadingRouteData) {
+            return const _InvalidRoute(
+              message:
+              'Invalid loading screen configuration.',
+            );
+          }
+
+          return AppLoadingScreen(
+            title: extra.title,
+            message: extra.message,
+            icon: extra.icon,
+            operation: extra.operation,
+            onSuccess: extra.onSuccess,
+          );
+        },
+      ),
+
+      // ======================================================
+      // PASSWORD
+      // ======================================================
+
       GoRoute(
         path: '/set_password',
         builder: (context, state) {
@@ -154,29 +199,59 @@ class AppRouter {
       ),
 
       GoRoute(
+        path: '/confirm_password',
+        builder: (context, state) {
+          final extra = state.extra;
+
+          if (extra is! String) {
+            return const _InvalidRoute(
+              message:
+              'Invalid password configuration.',
+            );
+          }
+
+          return VerifyPassword(
+            input: extra,
+          );
+        },
+      ),
+
+      // ======================================================
+      // RECOVERY PHRASE
+      // ======================================================
+
+      GoRoute(
+        path: '/display_phrase',
+        builder: (context, state) {
+          final extra = state.extra;
+
+          if (extra is! WalletData) {
+            return const _InvalidRoute(
+              message:
+              'Wallet data was not provided.',
+            );
+          }
+
+          return DisplayPhraseScreen(
+            wallet: extra,
+          );
+        },
+      ),
+
+      // ======================================================
+      // VERIFY PHRASE
+      // ======================================================
+
+      GoRoute(
         path: '/verify_phrase',
         builder: (context, state) {
           return const VerifySeed();
         },
       ),
 
-      GoRoute(
-        path: '/display_phrase',
-        builder: (context, state) {
-          return const DisplayPhraseScreen();
-        },
-      ),
-
-      GoRoute(
-        path: '/confirm_password',
-        builder: (context, state) {
-          final input = state.extra as String;
-
-          return VerifyPassword(
-            input: input,
-          );
-        },
-      ),
+      // ======================================================
+      // BIOMETRICS
+      // ======================================================
 
       GoRoute(
         path: '/enable_biometrics',
@@ -185,9 +260,9 @@ class AppRouter {
         },
       ),
 
-      // ========================================================
-      // THEME SETTINGS
-      // ========================================================
+      // ======================================================
+      // SETTINGS — THEME
+      // ======================================================
 
       GoRoute(
         path: '/settings/theme',
@@ -196,9 +271,31 @@ class AppRouter {
         },
       ),
 
-      // ========================================================
+      // ======================================================
+      // SETTINGS — ACCENT COLOR
+      // ======================================================
+
+      GoRoute(
+        path: '/settings/accent-color',
+        builder: (context, state) {
+          return const AccentColorScreen();
+        },
+      ),
+
+      // ======================================================
+      // SETTINGS — USER DETAILS
+      // ======================================================
+
+      GoRoute(
+        path: '/settings/user-details',
+        builder: (context, state) {
+          return const AccountDetailsScreen();
+        },
+      ),
+
+      // ======================================================
       // MAIN NAVIGATION SHELL
-      // ========================================================
+      // ======================================================
 
       StatefulShellRoute.indexedStack(
         builder: (
@@ -212,18 +309,18 @@ class AppRouter {
             ),
           );
         },
-
         branches: [
-          // ====================================================
+          // ==================================================
           // CHAT
-          // ====================================================
+          // ==================================================
 
           StatefulShellBranch(
             routes: [
               GoRoute(
                 path: '/chat',
                 builder: (context, state) {
-                  return ChangeNotifierProvider<ChatController>(
+                  return ChangeNotifierProvider<
+                      ChatController>(
                     create: (_) =>
                     ChatController()..initialize(),
                     child: const ChatHomeScreen(),
@@ -233,9 +330,9 @@ class AppRouter {
             ],
           ),
 
-          // ====================================================
+          // ==================================================
           // MINER
-          // ====================================================
+          // ==================================================
 
           StatefulShellBranch(
             routes: [
@@ -248,9 +345,9 @@ class AppRouter {
             ],
           ),
 
-          // ====================================================
+          // ==================================================
           // WALLET
-          // ====================================================
+          // ==================================================
 
           StatefulShellBranch(
             routes: [
@@ -263,9 +360,9 @@ class AppRouter {
             ],
           ),
 
-          // ====================================================
+          // ==================================================
           // P2P
-          // ====================================================
+          // ==================================================
 
           StatefulShellBranch(
             routes: [
@@ -278,9 +375,9 @@ class AppRouter {
             ],
           ),
 
-          // ====================================================
+          // ==================================================
           // SETTINGS
-          // ====================================================
+          // ==================================================
 
           StatefulShellBranch(
             routes: [
@@ -296,4 +393,34 @@ class AppRouter {
       ),
     ],
   );
+}
+
+// ============================================================
+// INVALID ROUTE
+// ============================================================
+
+class _InvalidRoute extends StatelessWidget {
+  final String message;
+
+  const _InvalidRoute({
+    required this.message,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            message,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyLarge,
+          ),
+        ),
+      ),
+    );
+  }
 }

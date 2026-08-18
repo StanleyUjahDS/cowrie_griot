@@ -4,106 +4,35 @@ import 'package:go_router/go_router.dart';
 import 'package:overlay_support/overlay_support.dart';
 
 import '/core/ui/scaffolds/gradient_scaffold.dart';
-import '/features/wallet/services/wallet_service.dart';
-import '/features/wallet/services/wallet_crypto_service.dart';
-import '/features/wallet/services/wallet_storage_service.dart';
 
-class DisplayPhraseScreen extends StatefulWidget {
+import '/features/wallet/services/wallet_crypto_service.dart';
+
+class DisplayPhraseScreen extends StatelessWidget {
+  // ==========================================================
+  // WALLET
+  // ==========================================================
+
+  final WalletData wallet;
+
   const DisplayPhraseScreen({
     super.key,
+    required this.wallet,
   });
 
-  @override
-  State<DisplayPhraseScreen> createState() =>
-      _DisplayPhraseScreenState();
-}
-
-class _DisplayPhraseScreenState
-    extends State<DisplayPhraseScreen> {
-  // ============================================================
-  // WALLET SERVICE
-  // ============================================================
-
-  late final WalletService _walletService;
-
-  // ============================================================
-  // GENERATED WALLET
-  // ============================================================
-
-  WalletData? _wallet;
-
-  bool _isGenerating = true;
-
-  String? _error;
-
-  // ============================================================
-  // INIT
-  // ============================================================
-
-  @override
-  void initState() {
-    super.initState();
-
-    _walletService = WalletService(
-      cryptoService: WalletCryptoService(),
-      storageService: WalletStorageService(),
-    );
-
-    _generateWallet();
-  }
-
-  // ============================================================
-  // GENERATE WALLET
-  // ============================================================
-
-  Future<void> _generateWallet() async {
-    try {
-      final WalletData wallet =
-      await _walletService.createWallet();
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _wallet = wallet;
-        _isGenerating = false;
-        _error = null;
-      });
-    } catch (error) {
-      debugPrint(
-        'Wallet generation error: $error',
-      );
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _error = 'Unable to create your wallet.';
-        _isGenerating = false;
-      });
-    }
-  }
-
-  // ============================================================
+  // ==========================================================
   // COPY RECOVERY PHRASE
-  // ============================================================
+  // ==========================================================
 
-  Future<void> _copyPhrase() async {
-    final wallet = _wallet;
-
-    if (wallet == null) {
-      return;
-    }
-
+  Future<void> _copyPhrase(
+      BuildContext context,
+      ) async {
     await Clipboard.setData(
       ClipboardData(
         text: wallet.mnemonic,
       ),
     );
 
-    if (!mounted) {
+    if (!context.mounted) {
       return;
     }
 
@@ -119,28 +48,33 @@ class _DisplayPhraseScreenState
       position: NotificationPosition.top,
       background: theme.colorScheme.surface,
       foreground: theme.colorScheme.onSurface,
-      duration: const Duration(seconds: 2),
+      duration: const Duration(
+        seconds: 2,
+      ),
     );
   }
 
-  // ============================================================
+  // ==========================================================
   // CONTINUE
-  // ============================================================
+  // ==========================================================
 
-  void _continue() {
-    if (_wallet == null) {
-      return;
-    }
-
-    context.push('/verify_phrase');
+  void _continue(
+      BuildContext context,
+      ) {
+    context.push(
+      '/verify_phrase',
+      extra: wallet,
+    );
   }
 
-  // ============================================================
+  // ==========================================================
   // BUILD
-  // ============================================================
+  // ==========================================================
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+      BuildContext context,
+      ) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
@@ -148,132 +82,50 @@ class _DisplayPhraseScreenState
     final bool isDark =
         theme.brightness == Brightness.dark;
 
-    // ==========================================================
+    // ========================================================
     // COLORS
-    // ==========================================================
+    // ========================================================
 
     final Color cardColor = isDark
-        ? Colors.white.withValues(alpha: 0.035)
-        : Colors.black.withValues(alpha: 0.018);
+        ? Colors.white.withValues(
+      alpha: 0.035,
+    )
+        : Colors.black.withValues(
+      alpha: 0.018,
+    );
 
     final Color wordColor = isDark
-        ? Colors.white.withValues(alpha: 0.055)
-        : Colors.black.withValues(alpha: 0.025);
+        ? Colors.white.withValues(
+      alpha: 0.055,
+    )
+        : Colors.black.withValues(
+      alpha: 0.025,
+    );
 
     final Color borderColor = isDark
-        ? Colors.white.withValues(alpha: 0.10)
-        : Colors.black.withValues(alpha: 0.08);
+        ? Colors.white.withValues(
+      alpha: 0.10,
+    )
+        : Colors.black.withValues(
+      alpha: 0.08,
+    );
 
     final Color mutedColor = colorScheme
         .onSurfaceVariant
-        .withValues(alpha: 0.78);
+        .withValues(
+      alpha: 0.78,
+    );
 
-    // ==========================================================
-    // GENERATING
-    // ==========================================================
-
-    if (_isGenerating) {
-      return GradientScaffold(
-        appBar: AppBar(
-          title: Text(
-            'Recovery Phrase',
-            style: textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          backgroundColor: Colors.transparent,
-          foregroundColor: colorScheme.onSurface,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          surfaceTintColor: Colors.transparent,
-        ),
-        child: const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
-    // ==========================================================
-    // ERROR
-    // ==========================================================
-
-    if (_error != null) {
-      return GradientScaffold(
-        appBar: AppBar(
-          title: Text(
-            'Recovery Phrase',
-            style: textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          backgroundColor: Colors.transparent,
-          foregroundColor: colorScheme.onSurface,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          surfaceTintColor: Colors.transparent,
-        ),
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.error_outline_rounded,
-                  size: 48,
-                  color: colorScheme.error,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  _error!,
-                  textAlign: TextAlign.center,
-                  style: textTheme.bodyLarge,
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _error = null;
-                        _isGenerating = true;
-                      });
-
-                      _generateWallet();
-                    },
-                    child: const Text(
-                      'Try Again',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    // ==========================================================
-    // WALLET
-    // ==========================================================
-
-    final wallet = _wallet;
-
-    if (wallet == null) {
-      return const SizedBox.shrink();
-    }
-
-    // ==========================================================
-    // MNEMONIC -> WORD LIST
-    // ==========================================================
+    // ========================================================
+    // MNEMONIC
+    // ========================================================
 
     final List<String> seedPhrase =
     wallet.mnemonic.split(' ');
 
-    // ==========================================================
+    // ========================================================
     // SCREEN
-    // ==========================================================
+    // ========================================================
 
     return GradientScaffold(
       appBar: AppBar(
@@ -311,7 +163,9 @@ class _DisplayPhraseScreenState
                 ),
               ),
 
-              const SizedBox(height: 8),
+              const SizedBox(
+                height: 8,
+              ),
 
               Text(
                 'These 12 words are the only way to recover '
@@ -323,7 +177,9 @@ class _DisplayPhraseScreenState
                 ),
               ),
 
-              const SizedBox(height: 18),
+              const SizedBox(
+                height: 18,
+              ),
 
               // ==================================================
               // CONTENT
@@ -339,11 +195,15 @@ class _DisplayPhraseScreenState
 
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(
+                          12,
+                        ),
                         decoration: BoxDecoration(
                           color: cardColor,
                           borderRadius:
-                          BorderRadius.circular(18),
+                          BorderRadius.circular(
+                            18,
+                          ),
                           border: Border.all(
                             color: borderColor,
                           ),
@@ -352,7 +212,8 @@ class _DisplayPhraseScreenState
                           shrinkWrap: true,
                           physics:
                           const NeverScrollableScrollPhysics(),
-                          itemCount: seedPhrase.length,
+                          itemCount:
+                          seedPhrase.length,
                           gridDelegate:
                           const SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 2,
@@ -360,8 +221,10 @@ class _DisplayPhraseScreenState
                             crossAxisSpacing: 9,
                             childAspectRatio: 3.2,
                           ),
-                          itemBuilder:
-                              (context, index) {
+                          itemBuilder: (
+                              context,
+                              index,
+                              ) {
                             final String word =
                             seedPhrase[index];
 
@@ -370,19 +233,22 @@ class _DisplayPhraseScreenState
                               const EdgeInsets.symmetric(
                                 horizontal: 12,
                               ),
-                              decoration: BoxDecoration(
+                              decoration:
+                              BoxDecoration(
                                 color: wordColor,
                                 borderRadius:
-                                BorderRadius.circular(12),
+                                BorderRadius.circular(
+                                  12,
+                                ),
                                 border: Border.all(
                                   color: borderColor,
                                 ),
                               ),
                               child: Row(
                                 children: [
-                                  // ============================
+                                  // =================================
                                   // NUMBER
-                                  // ============================
+                                  // =================================
 
                                   SizedBox(
                                     width: 25,
@@ -391,18 +257,22 @@ class _DisplayPhraseScreenState
                                       style: textTheme
                                           .bodySmall
                                           ?.copyWith(
-                                        color: mutedColor,
+                                        color:
+                                        mutedColor,
                                         fontWeight:
-                                        FontWeight.w600,
+                                        FontWeight
+                                            .w600,
                                       ),
                                     ),
                                   ),
 
-                                  const SizedBox(width: 6),
+                                  const SizedBox(
+                                    width: 6,
+                                  ),
 
-                                  // ============================
+                                  // =================================
                                   // WORD
-                                  // ============================
+                                  // =================================
 
                                   Expanded(
                                     child: Text(
@@ -411,12 +281,15 @@ class _DisplayPhraseScreenState
                                           .bodyMedium
                                           ?.copyWith(
                                         color:
-                                        colorScheme.onSurface,
+                                        colorScheme
+                                            .onSurface,
                                         fontWeight:
-                                        FontWeight.w500,
+                                        FontWeight
+                                            .w500,
                                       ),
                                       overflow:
-                                      TextOverflow.ellipsis,
+                                      TextOverflow
+                                          .ellipsis,
                                     ),
                                   ),
                                 ],
@@ -426,14 +299,20 @@ class _DisplayPhraseScreenState
                         ),
                       ),
 
-                      const SizedBox(height: 14),
+                      const SizedBox(
+                        height: 14,
+                      ),
 
                       // ==========================================
                       // COPY
                       // ==========================================
 
                       OutlinedButton.icon(
-                        onPressed: _copyPhrase,
+                        onPressed: () {
+                          _copyPhrase(
+                            context,
+                          );
+                        },
                         icon: const Icon(
                           Icons.copy_rounded,
                           size: 18,
@@ -456,12 +335,16 @@ class _DisplayPhraseScreenState
                           shape:
                           RoundedRectangleBorder(
                             borderRadius:
-                            BorderRadius.circular(14),
+                            BorderRadius.circular(
+                              14,
+                            ),
                           ),
                         ),
                       ),
 
-                      const SizedBox(height: 18),
+                      const SizedBox(
+                        height: 18,
+                      ),
 
                       // ==========================================
                       // SECURITY NOTICE
@@ -470,23 +353,32 @@ class _DisplayPhraseScreenState
                       Container(
                         width: double.infinity,
                         padding:
-                        const EdgeInsets.all(15),
-                        decoration: BoxDecoration(
+                        const EdgeInsets.all(
+                          15,
+                        ),
+                        decoration:
+                        BoxDecoration(
                           color: cardColor,
                           borderRadius:
-                          BorderRadius.circular(15),
+                          BorderRadius.circular(
+                            15,
+                          ),
                           border: Border.all(
                             color: borderColor,
                           ),
                         ),
                         child: Row(
                           crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                          CrossAxisAlignment
+                              .start,
                           children: [
                             Container(
                               padding:
-                              const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
+                              const EdgeInsets.all(
+                                8,
+                              ),
+                              decoration:
+                              BoxDecoration(
                                 color: isDark
                                     ? Colors.white
                                     .withValues(
@@ -496,22 +388,27 @@ class _DisplayPhraseScreenState
                                     .withValues(
                                   alpha: 0.04,
                                 ),
-                                shape: BoxShape.circle,
+                                shape:
+                                BoxShape.circle,
                               ),
                               child: Icon(
                                 Icons
                                     .lock_outline_rounded,
                                 size: 19,
-                                color: mutedColor,
+                                color:
+                                mutedColor,
                               ),
                             ),
 
-                            const SizedBox(width: 11),
+                            const SizedBox(
+                              width: 11,
+                            ),
 
                             Expanded(
                               child: Column(
                                 crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                                CrossAxisAlignment
+                                    .start,
                                 children: [
                                   Text(
                                     'Keep it private',
@@ -519,11 +416,14 @@ class _DisplayPhraseScreenState
                                         .bodyMedium
                                         ?.copyWith(
                                       fontWeight:
-                                      FontWeight.w700,
+                                      FontWeight
+                                          .w700,
                                     ),
                                   ),
 
-                                  const SizedBox(height: 4),
+                                  const SizedBox(
+                                    height: 4,
+                                  ),
 
                                   Text(
                                     'Never share your recovery phrase. '
@@ -531,7 +431,8 @@ class _DisplayPhraseScreenState
                                     style: textTheme
                                         .bodySmall
                                         ?.copyWith(
-                                      color: mutedColor,
+                                      color:
+                                      mutedColor,
                                       height: 1.4,
                                     ),
                                   ),
@@ -542,13 +443,17 @@ class _DisplayPhraseScreenState
                         ),
                       ),
 
-                      const SizedBox(height: 10),
+                      const SizedBox(
+                        height: 10,
+                      ),
                     ],
                   ),
                 ),
               ),
 
-              const SizedBox(height: 12),
+              const SizedBox(
+                height: 12,
+              ),
 
               // ==================================================
               // CONTINUE
@@ -558,7 +463,11 @@ class _DisplayPhraseScreenState
                 width: double.infinity,
                 height: 54,
                 child: ElevatedButton(
-                  onPressed: _continue,
+                  onPressed: () {
+                    _continue(
+                      context,
+                    );
+                  },
                   style:
                   ElevatedButton.styleFrom(
                     backgroundColor:
@@ -573,12 +482,15 @@ class _DisplayPhraseScreenState
                     shape:
                     RoundedRectangleBorder(
                       borderRadius:
-                      BorderRadius.circular(16),
+                      BorderRadius.circular(
+                        16,
+                      ),
                     ),
                   ),
                   child: Text(
                     'Continue',
-                    style: textTheme.labelLarge?.copyWith(
+                    style: textTheme.labelLarge
+                        ?.copyWith(
                       color:
                       colorScheme.onPrimary,
                       fontWeight:

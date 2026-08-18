@@ -1,21 +1,54 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:wallet/wallet.dart' as wallet;
 import 'package:web3dart/web3dart.dart' as web3;
 
 class WalletCryptoService {
-  // ============================================================
-  // EVM DERIVATION PATH
-  // ============================================================
-
   static const String derivationPath = "m/44'/60'/0'/0/0";
 
   // ============================================================
   // CREATE WALLET
   // ============================================================
 
-  WalletData createWallet() {
+  Future<WalletData> createWallet() async {
+    return compute(
+      _createWalletIsolate,
+      null,
+    );
+  }
+
+  // ============================================================
+  // RESTORE WALLET
+  // ============================================================
+
+  Future<WalletData> restoreWallet(
+      String mnemonic,
+      ) async {
+    final normalizedMnemonic = mnemonic
+        .trim()
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .toLowerCase();
+
+    if (normalizedMnemonic.isEmpty) {
+      throw Exception(
+        'Mnemonic phrase cannot be empty.',
+      );
+    }
+
+    return compute(
+      _restoreWalletIsolate,
+      normalizedMnemonic,
+    );
+  }
+
+  // ============================================================
+  // ISOLATE: CREATE
+  // ============================================================
+
+  static WalletData _createWalletIsolate(
+      dynamic _,
+      ) {
     final mnemonicWords = wallet.generateMnemonic(
       strength: 128,
     );
@@ -26,52 +59,52 @@ class WalletCryptoService {
   }
 
   // ============================================================
-  // RESTORE WALLET
+  // ISOLATE: RESTORE
   // ============================================================
 
-  WalletData restoreWallet(String mnemonic) {
-    final normalizedMnemonic = mnemonic
-        .trim()
-        .replaceAll(RegExp(r'\s+'), ' ');
-
-    if (normalizedMnemonic.isEmpty) {
-      throw Exception('Mnemonic phrase cannot be empty.');
-    }
-
-    final words = normalizedMnemonic.split(' ');
+  static WalletData _restoreWalletIsolate(
+      String mnemonic,
+      ) {
+    final words = mnemonic.split(' ');
 
     if (!wallet.validateMnemonic(words)) {
-      throw Exception('Invalid mnemonic phrase.');
+      throw Exception(
+        'Invalid mnemonic phrase.',
+      );
     }
 
-    return _fromMnemonic(normalizedMnemonic);
+    return _fromMnemonic(mnemonic);
   }
 
   // ============================================================
   // DERIVE WALLET
   // ============================================================
 
-  WalletData _fromMnemonic(String mnemonic) {
+  static WalletData _fromMnemonic(
+      String mnemonic,
+      ) {
     final words = mnemonic.split(' ');
 
     // ----------------------------------------------------------
     // BIP-39
     // ----------------------------------------------------------
 
-    final seed = wallet.mnemonicToSeed(words);
+    final seed = wallet.mnemonicToSeed(
+      words,
+    );
 
     // ----------------------------------------------------------
     // BIP-32
     // ----------------------------------------------------------
 
-    final master = wallet.ExtendedPrivateKey.master(
+    final master =
+    wallet.ExtendedPrivateKey.master(
       seed,
       wallet.xprv,
     );
 
     // ----------------------------------------------------------
-    // BIP-44 ETHEREUM
-    // m/44'/60'/0'/0/0
+    // BIP-44
     // ----------------------------------------------------------
 
     final derived = master.forPath(
@@ -96,7 +129,8 @@ class WalletCryptoService {
     // PUBLIC KEY
     // ----------------------------------------------------------
 
-    final publicKey = wallet.ethereum.createPublicKey(
+    final publicKey =
+    wallet.ethereum.createPublicKey(
       privateKey,
     );
 
@@ -104,7 +138,8 @@ class WalletCryptoService {
     // ADDRESS
     // ----------------------------------------------------------
 
-    final address = wallet.ethereum.createAddress(
+    final address =
+    wallet.ethereum.createAddress(
       publicKey,
     );
 
@@ -131,14 +166,6 @@ class WalletCryptoService {
   // ============================================================
   // SIGN MESSAGE
   // ============================================================
-  //
-  // Uses Ethereum personal-sign / EIP-191.
-  //
-  // Backend verification:
-  //
-  // ethers.verifyMessage(message, signature)
-  //
-  // ============================================================
 
   String signMessage({
     required String privateKey,
@@ -159,11 +186,13 @@ class WalletCryptoService {
       );
     }
 
-    final credentials = web3.EthPrivateKey.fromHex(
+    final credentials =
+    web3.EthPrivateKey.fromHex(
       normalizedPrivateKey,
     );
 
-    final messageBytes = Uint8List.fromList(
+    final messageBytes =
+    Uint8List.fromList(
       utf8.encode(message),
     );
 
@@ -186,7 +215,9 @@ class WalletCryptoService {
   // VALIDATE ADDRESS
   // ============================================================
 
-  bool isValidAddress(String address) {
+  bool isValidAddress(
+      String address,
+      ) {
     return RegExp(
       r'^0x[a-fA-F0-9]{40}$',
     ).hasMatch(
@@ -198,7 +229,9 @@ class WalletCryptoService {
   // BIGINT -> HEX
   // ============================================================
 
-  String _bigIntToHex(BigInt value) {
+  static String _bigIntToHex(
+      BigInt value,
+      ) {
     return value
         .toRadixString(16)
         .padLeft(64, '0');
@@ -208,7 +241,9 @@ class WalletCryptoService {
   // BYTES -> HEX
   // ============================================================
 
-  String _bytesToHex(Uint8List bytes) {
+  static String _bytesToHex(
+      Uint8List bytes,
+      ) {
     final buffer = StringBuffer();
 
     for (final byte in bytes) {
@@ -233,7 +268,7 @@ class WalletData {
   final String publicKey;
   final String address;
 
-  WalletData({
+  const WalletData({
     required this.mnemonic,
     required this.privateKey,
     required this.publicKey,

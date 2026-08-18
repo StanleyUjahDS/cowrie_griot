@@ -28,6 +28,23 @@ class ThemeSettingsPage extends StatelessWidget {
   }
 
   // ============================================================
+  // THEME MODE DESCRIPTION
+  // ============================================================
+
+  String _themeModeDescription(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.system:
+        return 'Follow your device appearance';
+
+      case ThemeMode.light:
+        return 'Always use light appearance';
+
+      case ThemeMode.dark:
+        return 'Always use dark appearance';
+    }
+  }
+
+  // ============================================================
   // THEME MODE ICON
   // ============================================================
 
@@ -41,76 +58,6 @@ class ThemeSettingsPage extends StatelessWidget {
 
       case ThemeMode.dark:
         return Icons.dark_mode_rounded;
-    }
-  }
-
-  // ============================================================
-  // THEME STYLE LABEL
-  // ============================================================
-
-  String _themeStyleLabel(AppThemeStyle style) {
-    switch (style) {
-      case AppThemeStyle.griot:
-        return 'Griot';
-
-      case AppThemeStyle.ocean:
-        return 'Ocean';
-
-      case AppThemeStyle.emerald:
-        return 'Emerald';
-
-      case AppThemeStyle.violet:
-        return 'Violet';
-
-      case AppThemeStyle.lavender:
-        return 'Lavender';
-
-      case AppThemeStyle.rose:
-        return 'Rose';
-
-      case AppThemeStyle.gold:
-        return 'Gold';
-
-      case AppThemeStyle.midnight:
-        return 'Midnight';
-
-      case AppThemeStyle.slate:
-        return 'Slate';
-    }
-  }
-
-  // ============================================================
-  // THEME STYLE DESCRIPTION
-  // ============================================================
-
-  String _themeStyleDescription(AppThemeStyle style) {
-    switch (style) {
-      case AppThemeStyle.griot:
-        return 'The official Griot sea-green and gold theme';
-
-      case AppThemeStyle.ocean:
-        return 'A clean modern blue interface';
-
-      case AppThemeStyle.emerald:
-        return 'A fresh and energetic green interface';
-
-      case AppThemeStyle.violet:
-        return 'A bold modern purple interface';
-
-      case AppThemeStyle.lavender:
-        return 'A soft and elegant lavender interface';
-
-      case AppThemeStyle.rose:
-        return 'A soft elegant rose and pink interface';
-
-      case AppThemeStyle.gold:
-        return 'A premium black and gold interface';
-
-      case AppThemeStyle.midnight:
-        return 'A deep blue midnight interface';
-
-      case AppThemeStyle.slate:
-        return 'A neutral modern grey interface';
     }
   }
 
@@ -189,14 +136,14 @@ class ThemeSettingsPage extends StatelessWidget {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(
         horizontal: 16,
-        vertical: 4,
+        vertical: 5,
       ),
       onTap: () {
         controller.setTheme(mode);
       },
       leading: Container(
-        width: 42,
-        height: 42,
+        width: 44,
+        height: 44,
         decoration: BoxDecoration(
           color: selected
               ? colorScheme.primary.withValues(
@@ -205,7 +152,7 @@ class ThemeSettingsPage extends StatelessWidget {
               : colorScheme.onSurface.withValues(
             alpha: 0.05,
           ),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(13),
         ),
         child: Icon(
           _themeModeIcon(mode),
@@ -222,65 +169,8 @@ class ThemeSettingsPage extends StatelessWidget {
               : FontWeight.w500,
         ),
       ),
-      trailing: Icon(
-        selected
-            ? Icons.check_circle_rounded
-            : Icons.radio_button_unchecked_rounded,
-        color: selected
-            ? colorScheme.primary
-            : colorScheme.onSurfaceVariant,
-      ),
-    );
-  }
-
-  // ============================================================
-  // THEME STYLE TILE
-  // ============================================================
-
-  Widget _themeStyleTile({
-    required BuildContext context,
-    required ThemeController controller,
-    required AppThemeStyle style,
-  }) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    final selected = controller.themeStyle == style;
-
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: 4,
-      ),
-      onTap: () {
-        controller.setThemeStyle(style);
-      },
-      leading: Container(
-        width: 42,
-        height: 42,
-        decoration: BoxDecoration(
-          color: colorScheme.primary.withValues(
-            alpha: selected ? 0.16 : 0.08,
-          ),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Icon(
-          Icons.palette_outlined,
-          color: selected
-              ? colorScheme.primary
-              : colorScheme.onSurfaceVariant,
-        ),
-      ),
-      title: Text(
-        _themeStyleLabel(style),
-        style: theme.textTheme.bodyLarge?.copyWith(
-          fontWeight: selected
-              ? FontWeight.w700
-              : FontWeight.w500,
-        ),
-      ),
       subtitle: Text(
-        _themeStyleDescription(style),
+        _themeModeDescription(mode),
         style: theme.textTheme.bodySmall?.copyWith(
           color: colorScheme.onSurfaceVariant,
         ),
@@ -329,7 +219,6 @@ class ThemeSettingsPage extends StatelessWidget {
           ) {
         final theme = Theme.of(context);
         final colorScheme = theme.colorScheme;
-        final textTheme = theme.textTheme;
 
         return GradientScaffold(
           appBar: AppBar(
@@ -353,6 +242,7 @@ class ThemeSettingsPage extends StatelessWidget {
           ),
           child: SafeArea(
             child: ListView(
+              physics: const BouncingScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(
                 18,
                 8,
@@ -361,7 +251,7 @@ class ThemeSettingsPage extends StatelessWidget {
               ),
               children: [
                 // ==================================================
-                // APPEARANCE MODE
+                // APPEARANCE
                 // ==================================================
 
                 _sectionTitle(
@@ -403,106 +293,7 @@ class ThemeSettingsPage extends StatelessWidget {
                 ),
 
                 // ==================================================
-                // THEME STYLE
-                // ==================================================
-
-                _sectionTitle(
-                  context,
-                  'Theme Style',
-                ),
-
-                _settingContainer(
-                  context: context,
-                  child: Column(
-                    children: [
-                      // GRIOT
-                      _themeStyleTile(
-                        context: context,
-                        controller: controller,
-                        style: AppThemeStyle.griot,
-                      ),
-
-                      _divider(context),
-
-                      // OCEAN
-                      _themeStyleTile(
-                        context: context,
-                        controller: controller,
-                        style: AppThemeStyle.ocean,
-                      ),
-
-                      _divider(context),
-
-                      // EMERALD
-                      _themeStyleTile(
-                        context: context,
-                        controller: controller,
-                        style: AppThemeStyle.emerald,
-                      ),
-
-                      _divider(context),
-
-                      // VIOLET
-                      _themeStyleTile(
-                        context: context,
-                        controller: controller,
-                        style: AppThemeStyle.violet,
-                      ),
-
-                      _divider(context),
-
-                      // LAVENDER
-                      _themeStyleTile(
-                        context: context,
-                        controller: controller,
-                        style: AppThemeStyle.lavender,
-                      ),
-
-                      _divider(context),
-
-                      // ROSE
-                      _themeStyleTile(
-                        context: context,
-                        controller: controller,
-                        style: AppThemeStyle.rose,
-                      ),
-
-                      _divider(context),
-
-                      // GOLD
-                      _themeStyleTile(
-                        context: context,
-                        controller: controller,
-                        style: AppThemeStyle.gold,
-                      ),
-
-                      _divider(context),
-
-                      // MIDNIGHT
-                      _themeStyleTile(
-                        context: context,
-                        controller: controller,
-                        style: AppThemeStyle.midnight,
-                      ),
-
-                      _divider(context),
-
-                      // SLATE
-                      _themeStyleTile(
-                        context: context,
-                        controller: controller,
-                        style: AppThemeStyle.slate,
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(
-                  height: 20,
-                ),
-
-                // ==================================================
-                // CURRENT THEME
+                // INFORMATION
                 // ==================================================
 
                 Container(
@@ -519,9 +310,11 @@ class ThemeSettingsPage extends StatelessWidget {
                     ),
                   ),
                   child: Row(
+                    crossAxisAlignment:
+                    CrossAxisAlignment.start,
                     children: [
                       Icon(
-                        Icons.palette_outlined,
+                        Icons.info_outline_rounded,
                         color: colorScheme.primary,
                         size: 21,
                       ),
@@ -530,13 +323,12 @@ class ThemeSettingsPage extends StatelessWidget {
                       ),
                       Expanded(
                         child: Text(
-                          'Using '
-                              '${_themeStyleLabel(controller.themeStyle)}'
-                              ' · '
-                              '${_themeModeLabel(controller.themeMode)}',
-                          style: textTheme.bodySmall?.copyWith(
+                          'Theme controls the overall light or dark '
+                              'appearance of Griot. Accent colors can be '
+                              'changed separately.',
+                          style: theme.textTheme.bodySmall?.copyWith(
                             color: colorScheme.onSurface,
-                            fontWeight: FontWeight.w600,
+                            height: 1.45,
                           ),
                         ),
                       ),

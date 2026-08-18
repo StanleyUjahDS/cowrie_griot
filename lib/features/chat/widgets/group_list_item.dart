@@ -18,7 +18,7 @@ class GroupListItem extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
 
-    final description = group.description?.trim() ?? '';
+    final description = group.description.trim() ?? '';
 
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(

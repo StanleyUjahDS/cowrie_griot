@@ -1,3 +1,5 @@
+// biometrics_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
@@ -6,9 +8,14 @@ import 'package:overlay_support/overlay_support.dart';
 
 import '/core/network/api_client.dart';
 import '/core/ui/scaffolds/gradient_scaffold.dart';
+import '/core/ui/screens/app_loading_screen.dart';
 
 import '/features/auth/services/auth_api_service.dart';
+import '/features/auth/services/auth_storage_service.dart';
 import '/features/auth/services/wallet_auth_service.dart';
+
+import '/features/users/providers/user_provider.dart';
+import '/features/users/services/user_api_service.dart';
 
 import '/features/wallet/services/wallet_crypto_service.dart';
 import '/features/wallet/services/wallet_service.dart';
@@ -33,14 +40,20 @@ class _BiometricsScreenState
   final LocalAuthentication _auth =
   LocalAuthentication();
 
-  final FlutterSecureStorage _storage =
-  const FlutterSecureStorage();
+  static const FlutterSecureStorage _storage =
+  FlutterSecureStorage();
 
   late final WalletService _walletService;
+
+  late final AuthStorageService _authStorageService;
 
   late final AuthApiService _authApiService;
 
   late final WalletAuthService _walletAuthService;
+
+  late final UserApiService _userApiService;
+
+  late final UserProvider _userProvider;
 
   // ============================================================
   // STATE
@@ -61,29 +74,68 @@ class _BiometricsScreenState
     super.initState();
 
     // ----------------------------------------------------------
+    // API CLIENT
+    // ----------------------------------------------------------
+
+    final apiClient = ApiClient();
+
+    // ----------------------------------------------------------
+    // WALLET STORAGE
+    // ----------------------------------------------------------
+
+    final walletStorageService =
+    WalletStorageService();
+
+    // ----------------------------------------------------------
     // WALLET SERVICE
     // ----------------------------------------------------------
 
     _walletService = WalletService(
       cryptoService: WalletCryptoService(),
-      storageService: WalletStorageService(),
+      storageService: walletStorageService,
     );
 
     // ----------------------------------------------------------
-    // API SERVICE
+    // AUTH STORAGE
+    // ----------------------------------------------------------
+
+    _authStorageService =
+        AuthStorageService();
+
+    // ----------------------------------------------------------
+    // AUTH API SERVICE
     // ----------------------------------------------------------
 
     _authApiService = AuthApiService(
-      apiClient: ApiClient(),
+      apiClient: apiClient,
+      authStorageService:
+      _authStorageService,
     );
 
     // ----------------------------------------------------------
     // WALLET AUTH SERVICE
     // ----------------------------------------------------------
 
-    _walletAuthService = WalletAuthService(
-      walletService: _walletService,
-      authApiService: _authApiService,
+    _walletAuthService =
+        WalletAuthService(
+          walletService: _walletService,
+          authApiService: _authApiService,
+        );
+
+    // ----------------------------------------------------------
+    // USER API SERVICE
+    // ----------------------------------------------------------
+
+    _userApiService = UserApiService(
+      apiClient: apiClient,
+    );
+
+    // ----------------------------------------------------------
+    // USER PROVIDER
+    // ----------------------------------------------------------
+
+    _userProvider = UserProvider(
+      userApiService: _userApiService,
     );
 
     // ----------------------------------------------------------
@@ -97,7 +149,8 @@ class _BiometricsScreenState
   // CHECK BIOMETRICS
   // ============================================================
 
-  Future<void> _checkBiometricsAvailability() async {
+  Future<void>
+  _checkBiometricsAvailability() async {
     try {
       final canCheck =
       await _auth.canCheckBiometrics;
@@ -118,7 +171,9 @@ class _BiometricsScreenState
       }
 
       setState(() {
-        _biometricsAvailable = available;
+        _biometricsAvailable =
+            available;
+
         _loading = false;
       });
     } catch (_) {
@@ -137,21 +192,55 @@ class _BiometricsScreenState
   // BACKEND WALLET AUTHENTICATION
   // ============================================================
   //
-  // This is used regardless of whether the user enables
-  // biometrics.
+  // This is the function passed to AppLoadingRouteData.
   //
-  // WalletAuthService handles:
+  // Flow:
   //
-  // 1. Get wallet address
-  // 2. Request backend nonce
-  // 3. Sign nonce with wallet private key
-  // 4. Verify signature with backend
-  // 5. Store authentication state/token
+  // Wallet
+  //   ↓
+  // WalletAuthService
+  //   ↓
+  // /auth/nonce
+  //   ↓
+  // Sign authentication message
+  //   ↓
+  // /auth/verify
+  //   ↓
+  // Access + refresh tokens stored
+  //
+  // This function ONLY establishes the backend session.
+  // User loading happens afterwards.
   //
   // ============================================================
 
-  Future<void> _authenticateWalletWithBackend() async {
-    await _walletAuthService.authenticateWallet();
+  Future<void>
+  _authenticateWalletWithBackend() async {
+    await _walletAuthService
+        .authenticateWallet();
+  }
+
+  // ============================================================
+  // LOAD CURRENT USER
+  // ============================================================
+  //
+  // Called AFTER backend wallet authentication succeeds.
+  //
+  // GET /api/users/me
+  //
+  // The authenticated access token is automatically attached
+  // by ApiClient.
+  //
+  // ============================================================
+
+  Future<void>
+  _loadCurrentUser() async {
+    await _userProvider.loadUser();
+
+    if (!_userProvider.hasUser) {
+      throw Exception(
+        'Unable to load current user.',
+      );
+    }
   }
 
   // ============================================================
@@ -168,10 +257,10 @@ class _BiometricsScreenState
     });
 
     try {
-      // --------------------------------------------------------
+      // ========================================================
       // STEP 1
       // DEVICE BIOMETRIC AUTHENTICATION
-      // --------------------------------------------------------
+      // ========================================================
 
       final authenticated =
       await _auth.authenticate(
@@ -185,9 +274,9 @@ class _BiometricsScreenState
         ),
       );
 
-      // --------------------------------------------------------
+      // ========================================================
       // BIOMETRIC AUTHENTICATION CANCELLED
-      // --------------------------------------------------------
+      // ========================================================
 
       if (!authenticated) {
         if (!mounted) {
@@ -205,47 +294,67 @@ class _BiometricsScreenState
         return;
       }
 
-      // --------------------------------------------------------
+      // ========================================================
       // STEP 2
       // BACKEND WALLET AUTHENTICATION
-      // --------------------------------------------------------
-      //
-      // The loading spinner remains visible here while:
-      //
-      // biometric -> nonce -> signature -> backend
-      //
-      // --------------------------------------------------------
-
-      await _authenticateWalletWithBackend();
-
-      // --------------------------------------------------------
-      // STEP 3
-      // SAVE BIOMETRIC PREFERENCE
-      // --------------------------------------------------------
-
-      await _storage.write(
-        key: 'biometrics_enabled',
-        value: 'true',
-      );
-
-      // --------------------------------------------------------
-      // STEP 4
-      // COMPLETE
-      // --------------------------------------------------------
+      // ========================================================
 
       if (!mounted) {
         return;
       }
 
-      setState(() {
-        _authenticating = false;
-      });
+      context.push(
+        '/loading',
+        extra: AppLoadingRouteData(
+          icon:
+          Icons.fingerprint_rounded,
+          title:
+          'Securing your account',
+          message:
+          'Authenticating your wallet securely...',
+          operation: () async {
+            // --------------------------------------------------
+            // AUTHENTICATE WALLET WITH BACKEND
+            // --------------------------------------------------
 
-      _showSuccess(
-        'Biometrics enabled.',
+            await _authenticateWalletWithBackend();
+
+            return true;
+          },
+          onSuccess: (
+              BuildContext context,
+              dynamic result,
+              ) async {
+            // --------------------------------------------------
+            // STEP 3
+            // LOAD CURRENT USER
+            // --------------------------------------------------
+
+            await _loadCurrentUser();
+
+            // --------------------------------------------------
+            // STEP 4
+            // SAVE BIOMETRIC PREFERENCE
+            // --------------------------------------------------
+
+            await _storage.write(
+              key: 'biometrics_enabled',
+              value: 'true',
+            );
+
+            // --------------------------------------------------
+            // STEP 5
+            // GO TO APP
+            // --------------------------------------------------
+
+            if (!context.mounted) {
+              return;
+            }
+
+            context.go('/chat');
+          },
+        ),
       );
-
-      context.go('/chat');
     } catch (e) {
       if (!mounted) {
         return;
@@ -264,25 +373,9 @@ class _BiometricsScreenState
   // ============================================================
   // CONTINUE WITHOUT BIOMETRICS
   // ============================================================
-  //
-  // IMPORTANT:
-  //
-  // The user can skip biometrics, but they cannot skip
-  // backend wallet authentication.
-  //
-  // Flow:
-  //
-  // Continue without biometrics
-  //          ↓
-  // Backend wallet authentication
-  //          ↓
-  // Save biometrics_enabled = false
-  //          ↓
-  // Home
-  //
-  // ============================================================
 
-  Future<void> _continueWithoutBiometrics() async {
+  Future<void>
+  _continueWithoutBiometrics() async {
     if (_authenticating) {
       return;
     }
@@ -292,41 +385,63 @@ class _BiometricsScreenState
     });
 
     try {
-      // --------------------------------------------------------
-      // STEP 1
-      // BACKEND WALLET AUTHENTICATION
-      // --------------------------------------------------------
-
-      await _authenticateWalletWithBackend();
-
-      // --------------------------------------------------------
-      // STEP 2
-      // SAVE BIOMETRIC PREFERENCE
-      // --------------------------------------------------------
-
-      await _storage.write(
-        key: 'biometrics_enabled',
-        value: 'false',
-      );
-
-      // --------------------------------------------------------
-      // STEP 3
-      // COMPLETE
-      // --------------------------------------------------------
+      // ========================================================
+      // BACKEND AUTHENTICATION
+      // ========================================================
 
       if (!mounted) {
         return;
       }
 
-      setState(() {
-        _authenticating = false;
-      });
+      context.push(
+        '/loading',
+        extra: AppLoadingRouteData(
+          icon:
+          Icons.lock_outline_rounded,
+          title:
+          'Securing your account',
+          message:
+          'Authenticating your wallet securely...',
+          operation: () async {
+            // --------------------------------------------------
+            // AUTHENTICATE WALLET WITH BACKEND
+            // --------------------------------------------------
 
-      _showInfo(
-        'Continuing without biometrics.',
+            await _authenticateWalletWithBackend();
+
+            return true;
+          },
+          onSuccess: (
+              BuildContext context,
+              dynamic result,
+              ) async {
+            // --------------------------------------------------
+            // LOAD CURRENT USER
+            // --------------------------------------------------
+
+            await _loadCurrentUser();
+
+            // --------------------------------------------------
+            // SAVE BIOMETRIC PREFERENCE
+            // --------------------------------------------------
+
+            await _storage.write(
+              key: 'biometrics_enabled',
+              value: 'false',
+            );
+
+            // --------------------------------------------------
+            // GO TO APP
+            // --------------------------------------------------
+
+            if (!context.mounted) {
+              return;
+            }
+
+            context.go('/chat');
+          },
+        ),
       );
-
-      context.go('/chat');
     } catch (e) {
       if (!mounted) {
         return;
@@ -365,28 +480,6 @@ class _BiometricsScreenState
   }
 
   // ============================================================
-  // SUCCESS MESSAGE
-  // ============================================================
-
-  void _showSuccess(
-      String message,
-      ) {
-    showSimpleNotification(
-      Text(message),
-      leading: const Icon(
-        Icons.check_circle_outline_rounded,
-        color: Colors.white,
-      ),
-      position: NotificationPosition.top,
-      background: Colors.black87,
-      foreground: Colors.white,
-      duration: const Duration(
-        seconds: 2,
-      ),
-    );
-  }
-
-  // ============================================================
   // INFO MESSAGE
   // ============================================================
 
@@ -399,12 +492,14 @@ class _BiometricsScreenState
         Icons.info_outline_rounded,
         color: Colors.white,
       ),
-      position: NotificationPosition.top,
-      background: Colors.black87,
-      foreground: Colors.white,
-      duration: const Duration(
-        seconds: 2,
-      ),
+      position:
+      NotificationPosition.top,
+      background:
+      Colors.black87,
+      foreground:
+      Colors.white,
+      duration:
+      const Duration(seconds: 2),
     );
   }
 
@@ -421,12 +516,14 @@ class _BiometricsScreenState
         Icons.error_outline_rounded,
         color: Colors.white,
       ),
-      position: NotificationPosition.top,
-      background: Colors.black87,
-      foreground: Colors.white,
-      duration: const Duration(
-        seconds: 3,
-      ),
+      position:
+      NotificationPosition.top,
+      background:
+      Colors.black87,
+      foreground:
+      Colors.white,
+      duration:
+      const Duration(seconds: 3),
     );
   }
 
@@ -487,7 +584,8 @@ class _BiometricsScreenState
           // ======================================================
 
           Expanded(
-            child: SingleChildScrollView(
+            child:
+            SingleChildScrollView(
               padding:
               const EdgeInsets.symmetric(
                 horizontal: 20,
@@ -515,7 +613,8 @@ class _BiometricsScreenState
                         child:
                         CircularProgressIndicator(
                           color:
-                          colorScheme.primary,
+                          colorScheme
+                              .primary,
                         ),
                       )
 
@@ -530,9 +629,11 @@ class _BiometricsScreenState
 
                       Container(
                         width:
-                        screenWidth * 0.45,
+                        screenWidth *
+                            0.45,
                         height:
-                        screenWidth * 0.45,
+                        screenWidth *
+                            0.45,
                         decoration:
                         BoxDecoration(
                           shape:
@@ -563,7 +664,8 @@ class _BiometricsScreenState
                               .fingerprint_rounded,
                           size: 80,
                           color:
-                          colorScheme.primary,
+                          colorScheme
+                              .primary,
                         ),
                       ),
 
@@ -649,7 +751,8 @@ class _BiometricsScreenState
                               color: colorScheme
                                   .error
                                   .withValues(
-                                alpha: 0.20,
+                                alpha:
+                                0.20,
                               ),
                             ),
                           ),
@@ -738,16 +841,20 @@ class _BiometricsScreenState
                     ElevatedButton
                         .styleFrom(
                       backgroundColor:
-                      colorScheme.primary,
+                      colorScheme
+                          .primary,
                       foregroundColor:
-                      colorScheme.onPrimary,
+                      colorScheme
+                          .onPrimary,
                       disabledBackgroundColor:
-                      colorScheme.primary
+                      colorScheme
+                          .primary
                           .withValues(
                         alpha: 0.65,
                       ),
                       disabledForegroundColor:
-                      colorScheme.onPrimary,
+                      colorScheme
+                          .onPrimary,
                       elevation: 0,
                       shape:
                       RoundedRectangleBorder(
@@ -758,45 +865,10 @@ class _BiometricsScreenState
                         ),
                       ),
                     ),
-                    child:
-                    _authenticating
-                        ? Row(
-                      mainAxisAlignment:
-                      MainAxisAlignment
-                          .center,
-                      children: [
-                        SizedBox(
-                          width: 20,
-                          height: 20,
-                          child:
-                          CircularProgressIndicator(
-                            strokeWidth:
-                            2.5,
-                            color:
-                            colorScheme
-                                .onPrimary,
-                          ),
-                        ),
-                        const SizedBox(
-                          width: 10,
-                        ),
-                        Text(
-                          'Authenticating...',
-                          style: textTheme
-                              .labelLarge
-                              ?.copyWith(
-                            color:
-                            colorScheme
-                                .onPrimary,
-                            fontWeight:
-                            FontWeight
-                                .w600,
-                          ),
-                        ),
-                      ],
-                    )
-                        : Text(
-                      'Enable',
+                    child: Text(
+                      _authenticating
+                          ? 'Securing...'
+                          : 'Enable',
                       style: textTheme
                           .labelLarge
                           ?.copyWith(
@@ -804,8 +876,7 @@ class _BiometricsScreenState
                         colorScheme
                             .onPrimary,
                         fontWeight:
-                        FontWeight
-                            .w600,
+                        FontWeight.w600,
                       ),
                     ),
                   ),
@@ -857,53 +928,10 @@ class _BiometricsScreenState
                       ),
                     ),
                     child:
-                    _authenticating
-                        ? Row(
-                      mainAxisAlignment:
-                      MainAxisAlignment
-                          .center,
-                      children: [
-                        SizedBox(
-                          width: 20,
-                          height: 20,
-                          child:
-                          CircularProgressIndicator(
-                            strokeWidth:
-                            2.5,
-                            color:
-                            colorScheme
-                                .onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(
-                          width: 10,
-                        ),
-                        Text(
-                          'Authenticating...',
-                          style: textTheme
-                              .labelLarge
-                              ?.copyWith(
-                            color:
-                            colorScheme
-                                .onSurfaceVariant,
-                            fontWeight:
-                            FontWeight
-                                .w500,
-                          ),
-                        ),
-                      ],
-                    )
-                        : Text(
+                    const Text(
                       'Continue without biometrics',
                       textAlign:
                       TextAlign.center,
-                      style: textTheme
-                          .labelLarge
-                          ?.copyWith(
-                        fontWeight:
-                        FontWeight
-                            .w500,
-                      ),
                     ),
                   ),
                 ),

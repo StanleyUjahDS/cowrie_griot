@@ -79,7 +79,7 @@ class MessageRequestCard extends StatelessWidget {
                 backgroundImage:
                 hasProfileImage
                     ? NetworkImage(
-                  profileUrl!,
+                  profileUrl,
                 )
                     : null,
 

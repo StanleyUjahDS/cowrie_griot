@@ -40,7 +40,7 @@ enum AppThemeStyle {
 
   // ============================================================
   // ROSE
-  // Elegant feminine pink
+  // Elegant pink / rose
   // ============================================================
 
   rose,
@@ -66,6 +66,48 @@ enum AppThemeStyle {
   // ============================================================
 
   slate,
+
+  // ============================================================
+  // TELEGRAM
+  // Telegram-style blue
+  // ============================================================
+
+  telegram,
+
+  // ============================================================
+  // SIGNAL
+  // Signal-style blue
+  // ============================================================
+
+  signal,
+
+  // ============================================================
+  // DISCORD
+  // Discord-style blurple
+  // ============================================================
+
+  discord,
+
+  // ============================================================
+  // TEAL
+  // Clean modern teal
+  // ============================================================
+
+  teal,
+
+  // ============================================================
+  // ORANGE
+  // Warm modern orange
+  // ============================================================
+
+  orange,
+
+  // ============================================================
+  // RED
+  // Strong modern red
+  // ============================================================
+
+  red,
 }
 
 class ThemeController extends ChangeNotifier {
@@ -185,6 +227,30 @@ class ThemeController extends ChangeNotifier {
         _themeStyle = AppThemeStyle.slate;
         break;
 
+      case 'telegram':
+        _themeStyle = AppThemeStyle.telegram;
+        break;
+
+      case 'signal':
+        _themeStyle = AppThemeStyle.signal;
+        break;
+
+      case 'discord':
+        _themeStyle = AppThemeStyle.discord;
+        break;
+
+      case 'teal':
+        _themeStyle = AppThemeStyle.teal;
+        break;
+
+      case 'orange':
+        _themeStyle = AppThemeStyle.orange;
+        break;
+
+      case 'red':
+        _themeStyle = AppThemeStyle.red;
+        break;
+
       default:
         _themeStyle = AppThemeStyle.griot;
         break;
@@ -233,6 +299,12 @@ class ThemeController extends ChangeNotifier {
       AppThemeStyle.gold => 'gold',
       AppThemeStyle.midnight => 'midnight',
       AppThemeStyle.slate => 'slate',
+      AppThemeStyle.telegram => 'telegram',
+      AppThemeStyle.signal => 'signal',
+      AppThemeStyle.discord => 'discord',
+      AppThemeStyle.teal => 'teal',
+      AppThemeStyle.orange => 'orange',
+      AppThemeStyle.red => 'red',
     };
 
     await prefs.setString(

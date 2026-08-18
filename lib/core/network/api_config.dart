@@ -5,7 +5,9 @@ class ApiConfig {
   // BASE API
   // ============================================================
 
-  static const String baseUrl = 'http://192.168.1.95:5001/api';
+  static const String baseUrl =
+      'http://192.168.1.95:5001/api';
+
   // ============================================================
   // AUTHENTICATION
   // ============================================================
@@ -23,12 +25,18 @@ class ApiConfig {
       '$baseUrl/auth/logout';
 
   // ============================================================
-  // PROFILE
+  // USERS
   // ============================================================
 
-  static const String profile =
-      '$baseUrl/profile';
+  static const String usersMe =
+      '$baseUrl/users/me';
 
-  static const String updateProfile =
-      '$baseUrl/profile';
+  static const String usersUpdate =
+      '$baseUrl/users/me';
+
+  static const String usersSearch =
+      '$baseUrl/users/search';
+
+  static const String usernameAvailability =
+      '$baseUrl/users/username/availability';
 }

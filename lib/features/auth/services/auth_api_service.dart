@@ -1,23 +1,23 @@
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_config.dart';
 
 import '../models/authentication_response.dart';
 import '../models/nonce_response.dart';
+import 'auth_storage_service.dart';
+
+// ============================================================
+// AUTH API SERVICE
+// ============================================================
 
 class AuthApiService {
   final ApiClient _apiClient;
-
-  static const FlutterSecureStorage _storage =
-  FlutterSecureStorage();
-
-  static const String _refreshTokenKey =
-      'auth_refresh_token';
+  final AuthStorageService _authStorageService;
 
   AuthApiService({
     required ApiClient apiClient,
-  }) : _apiClient = apiClient;
+    required AuthStorageService authStorageService,
+  })  : _apiClient = apiClient,
+        _authStorageService = authStorageService;
 
   // ============================================================
   // REQUEST NONCE
@@ -61,7 +61,14 @@ class AuthApiService {
       data['data'] as Map<String, dynamic>,
     );
 
-    await saveRefreshToken(
+    // ----------------------------------------------------------
+    // SAVE BOTH TOKENS
+    // ----------------------------------------------------------
+
+    await _authStorageService.saveSession(
+      accessToken:
+      authenticationResponse.accessToken,
+      refreshToken:
       authenticationResponse.refreshToken,
     );
 
@@ -87,11 +94,34 @@ class AuthApiService {
       data['data'] as Map<String, dynamic>,
     );
 
-    await saveRefreshToken(
+    // ----------------------------------------------------------
+    // SAVE ROTATED TOKENS
+    // ----------------------------------------------------------
+
+    await _authStorageService.saveSession(
+      accessToken:
+      authenticationResponse.accessToken,
+      refreshToken:
       authenticationResponse.refreshToken,
     );
 
     return authenticationResponse;
+  }
+
+  // ============================================================
+  // GET STORED ACCESS TOKEN
+  // ============================================================
+
+  Future<String?> getStoredAccessToken() {
+    return _authStorageService.getAccessToken();
+  }
+
+  // ============================================================
+  // GET STORED REFRESH TOKEN
+  // ============================================================
+
+  Future<String?> getStoredRefreshToken() {
+    return _authStorageService.getRefreshToken();
   }
 
   // ============================================================
@@ -101,46 +131,25 @@ class AuthApiService {
   Future<void> logout({
     required String refreshToken,
   }) async {
-    await _apiClient.post(
-      ApiConfig.authLogout,
-      body: {
-        'refreshToken': refreshToken,
-      },
-    );
-
-    await deleteRefreshToken();
+    try {
+      await _apiClient.post(
+        ApiConfig.authLogout,
+        body: {
+          'refreshToken': refreshToken,
+        },
+      );
+    } finally {
+      // Always remove local session credentials,
+      // even if the backend logout request fails.
+      await _authStorageService.clearSession();
+    }
   }
 
   // ============================================================
-  // SAVE REFRESH TOKEN
+  // CLEAR LOCAL SESSION
   // ============================================================
 
-  Future<void> saveRefreshToken(
-      String refreshToken,
-      ) async {
-    await _storage.write(
-      key: _refreshTokenKey,
-      value: refreshToken,
-    );
-  }
-
-  // ============================================================
-  // GET STORED REFRESH TOKEN
-  // ============================================================
-
-  Future<String?> getStoredRefreshToken() async {
-    return _storage.read(
-      key: _refreshTokenKey,
-    );
-  }
-
-  // ============================================================
-  // DELETE REFRESH TOKEN
-  // ============================================================
-
-  Future<void> deleteRefreshToken() async {
-    await _storage.delete(
-      key: _refreshTokenKey,
-    );
+  Future<void> clearSession() {
+    return _authStorageService.clearSession();
   }
 }

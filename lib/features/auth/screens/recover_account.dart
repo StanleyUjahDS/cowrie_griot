@@ -10,6 +10,8 @@ import '../../wallet/services/wallet_storage_service.dart';
 import '../../wallet/services/wallet_service.dart';
 
 import '/core/ui/scaffolds/gradient_scaffold.dart';
+import '/core/ui/screens/app_loading_screen.dart';
+
 class RecoverAccountScreen extends StatefulWidget {
   const RecoverAccountScreen({
     super.key,
@@ -46,13 +48,10 @@ class _RecoverAccountScreenState
   // ============================================================
 
   final List<bool> _validWords =
-  List.generate(12, (_) => false);
-
-  // ============================================================
-  // LOADING STATE
-  // ============================================================
-
-  bool _isRecovering = false;
+  List.generate(
+    12,
+        (_) => false,
+  );
 
   // ============================================================
   // INIT
@@ -93,8 +92,7 @@ class _RecoverAccountScreenState
       return;
     }
 
-    final colors =
-        Theme.of(context).colorScheme;
+    final colors = Theme.of(context).colorScheme;
 
     showSimpleNotification(
       Text(
@@ -109,7 +107,9 @@ class _RecoverAccountScreenState
       ),
       position: NotificationPosition.top,
       background: colors.surface,
-      duration: const Duration(seconds: 2),
+      duration: const Duration(
+        seconds: 2,
+      ),
     );
   }
 
@@ -154,7 +154,7 @@ class _RecoverAccountScreenState
     }
 
     // ----------------------------------------------------------
-    // VALIDATE THIS WORD ONLY
+    // VALIDATE WORD
     // ----------------------------------------------------------
 
     final isValid =
@@ -204,13 +204,12 @@ class _RecoverAccountScreenState
     }
 
     // ----------------------------------------------------------
-    // NORMALIZE WORDS
+    // NORMALIZE
     // ----------------------------------------------------------
 
     final normalizedWords = words
         .map(
-          (word) =>
-          word.trim().toLowerCase(),
+          (word) => word.trim().toLowerCase(),
     )
         .toList();
 
@@ -314,19 +313,11 @@ class _RecoverAccountScreenState
   // RECOVER ACCOUNT
   // ============================================================
 
-  Future<void> _recoverAccount() async {
-    // ----------------------------------------------------------
-    // PREVENT DOUBLE TAP
-    // ----------------------------------------------------------
-
-    if (_isRecovering) {
-      return;
-    }
-
+  void _recoverAccount() {
     final words = _getWords();
 
     // ----------------------------------------------------------
-    // CHECK FOR EMPTY WORD
+    // CHECK EMPTY WORD
     // ----------------------------------------------------------
 
     final emptyIndex =
@@ -344,12 +335,8 @@ class _RecoverAccountScreenState
     }
 
     // ----------------------------------------------------------
-    // VALIDATE EVERY WORD AGAIN
+    // VALIDATE EVERY WORD
     // ----------------------------------------------------------
-    //
-    // Do not rely only on _validWords.
-    // Validate the actual controller contents.
-    //
 
     final invalidIndex =
     words.indexWhere(
@@ -373,7 +360,7 @@ class _RecoverAccountScreenState
     }
 
     // ----------------------------------------------------------
-    // VALIDATE COMPLETE BIP-39 PHRASE
+    // VALIDATE COMPLETE PHRASE
     // ----------------------------------------------------------
 
     final isValidPhrase =
@@ -398,128 +385,46 @@ class _RecoverAccountScreenState
     words.join(' ');
 
     // ----------------------------------------------------------
-    // START RECOVERY
+    // GO TO GENERIC LOADING SCREEN
     // ----------------------------------------------------------
 
-    setState(() {
-      _isRecovering = true;
-    });
+    context.push(
+      '/loading',
+      extra: AppLoadingRouteData(
+        icon: Icons.restore_rounded,
+        title: 'Recovering your wallet',
+        message:
+        'Restoring your secure wallet from your recovery phrase...',
 
-    try {
-      // --------------------------------------------------------
-      // RESTORE WALLET
-      // --------------------------------------------------------
-      //
-      // THIS IS THE IMPORTANT PART.
-      //
-      // WalletService.restoreWallet():
-      //
-      // 1. Normalizes the mnemonic.
-      // 2. Derives the wallet from the mnemonic.
-      // 3. Saves the newly derived wallet.
-      // 4. Overwrites the existing secure-storage values.
-      //
-      // This means the OLD wallet address/private/public key
-      // will be replaced by the recovered wallet.
-      //
+        // ----------------------------------------------------
+        // OPERATION
+        // ----------------------------------------------------
 
-      final wallet =
-      await _walletService.restoreWallet(
-        mnemonic,
-      );
+        operation: () async {
+          return await _walletService.restoreWallet(
+            mnemonic,
+          );
+        },
 
-      // --------------------------------------------------------
-      // OPTIONAL DEBUG
-      // --------------------------------------------------------
+        // ----------------------------------------------------
+        // SUCCESS
+        // ----------------------------------------------------
 
-      debugPrint('');
-      debugPrint(
-          '========== WALLET RECOVERY =========='
-      );
-      debugPrint(
-        'Recovered wallet address: ${wallet.address}',
-      );
-      debugPrint(
-        'Recovered wallet public key: ${wallet.publicKey}',
-      );
-      debugPrint(
-        'Wallet storage overwritten successfully.',
-      );
-      debugPrint(
-          '===================================='
-      );
-      debugPrint('');
+        onSuccess: (
+            BuildContext context,
+            dynamic result,
+            ) {
+          if (!context.mounted) {
+            return;
+          }
 
-      if (!mounted) {
-        return;
-      }
-
-      // --------------------------------------------------------
-      // SUCCESS
-      // --------------------------------------------------------
-
-      _showNotification(
-        'Wallet recovered successfully.',
-        icon: Icons.check_circle_outline_rounded,
-      );
-
-      // --------------------------------------------------------
-      // NEXT STEP
-      // --------------------------------------------------------
-      //
-      // Recovery is now complete.
-      //
-      // Next:
-      //   Create Password
-      //   Confirm Password
-      //   Enable Biometrics
-      //
-      // The mnemonic is still passed to the password screen
-      // because your existing flow expects it there.
-      //
-
-      await Future<void>.delayed(
-        const Duration(
-          milliseconds: 300,
-        ),
-      );
-
-      if (!mounted) {
-        return;
-      }
-
-      context.push(
-        '/set_password',
-        extra: mnemonic,
-      );
-    } catch (e, stackTrace) {
-      // --------------------------------------------------------
-      // RECOVERY ERROR
-      // --------------------------------------------------------
-
-      debugPrint(
-        'Wallet recovery failed: $e',
-      );
-
-      debugPrint(
-        stackTrace.toString(),
-      );
-
-      if (!mounted) {
-        return;
-      }
-
-      _showNotification(
-        'Unable to recover wallet. Please check your recovery phrase.',
-        icon: Icons.error_outline_rounded,
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isRecovering = false;
-        });
-      }
-    }
+          context.pushReplacement(
+            '/set_password',
+            extra: mnemonic,
+          );
+        },
+      ),
+    );
   }
 
   // ============================================================
@@ -669,7 +574,8 @@ class _RecoverAccountScreenState
                 ),
                 child: Row(
                   crossAxisAlignment:
-                  CrossAxisAlignment.start,
+                  CrossAxisAlignment
+                      .start,
                   children: [
                     Icon(
                       Icons
@@ -793,9 +699,7 @@ class _RecoverAccountScreenState
                     child:
                     OutlinedButton.icon(
                       onPressed:
-                      _isRecovering
-                          ? null
-                          : _clearAll,
+                      _clearAll,
                       icon:
                       const Icon(
                         Icons.clear_rounded,
@@ -839,9 +743,7 @@ class _RecoverAccountScreenState
                     child:
                     OutlinedButton.icon(
                       onPressed:
-                      _isRecovering
-                          ? null
-                          : _pasteFromClipboard,
+                      _pasteFromClipboard,
                       icon:
                       const Icon(
                         Icons
@@ -895,20 +797,13 @@ class _RecoverAccountScreenState
                 child:
                 ElevatedButton(
                   onPressed:
-                  _isRecovering
-                      ? null
-                      : _recoverAccount,
+                  _recoverAccount,
                   style:
                   ElevatedButton.styleFrom(
                     backgroundColor:
                     colors.primary,
                     foregroundColor:
                     colors.onPrimary,
-                    disabledBackgroundColor:
-                    colors.primary
-                        .withValues(
-                      alpha: 0.55,
-                    ),
                     elevation: 0,
                     padding:
                     const EdgeInsets
@@ -924,18 +819,7 @@ class _RecoverAccountScreenState
                       ),
                     ),
                   ),
-                  child: _isRecovering
-                      ? SizedBox(
-                    width: 22,
-                    height: 22,
-                    child:
-                    CircularProgressIndicator(
-                      strokeWidth: 2.2,
-                      color:
-                      colors.onPrimary,
-                    ),
-                  )
-                      : Text(
+                  child: Text(
                     'Recover Wallet',
                     style: text
                         .labelLarge
@@ -1021,21 +905,15 @@ class _SeedWordField
 
     return TextField(
       controller: controller,
-
       onChanged: onChanged,
-
       textInputAction:
       index == 11
           ? TextInputAction.done
           : TextInputAction.next,
-
       autocorrect: false,
-
       enableSuggestions: false,
-
       textCapitalization:
       TextCapitalization.none,
-
       style: textTheme.bodyMedium
           ?.copyWith(
         color:
@@ -1043,13 +921,10 @@ class _SeedWordField
         fontWeight:
         FontWeight.w500,
       ),
-
       decoration:
       InputDecoration(
         filled: true,
-
-        fillColor:
-        fieldColor,
+        fillColor: fieldColor,
 
         // ======================================================
         // NUMBER

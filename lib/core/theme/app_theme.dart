@@ -55,6 +55,10 @@ class AppTheme {
         onSurface: dark
             ? AppColors.darkTextPrimary
             : AppColors.lightTextPrimary,
+
+        onSurfaceVariant: dark
+            ? AppColors.darkTextSecondary
+            : AppColors.lightTextSecondary,
       ),
 
       // ============================================================
@@ -146,28 +150,19 @@ class AppTheme {
 
         surfaceTintColor: Colors.transparent,
 
-        // ==========================================================
-        // STATUS BAR + NAVIGATION BAR
-        // ==========================================================
-
         systemOverlayStyle: SystemUiOverlayStyle(
-          // Status bar background follows theme
           statusBarColor: colors.background,
 
-          // Android status bar icons
           statusBarIconBrightness: dark
               ? Brightness.light
               : Brightness.dark,
 
-          // iOS status bar appearance
           statusBarBrightness: dark
               ? Brightness.dark
               : Brightness.light,
 
-          // Navigation bar follows theme
           systemNavigationBarColor: colors.background,
 
-          // Navigation bar icons
           systemNavigationBarIconBrightness: dark
               ? Brightness.light
               : Brightness.dark,
@@ -183,9 +178,7 @@ class AppTheme {
 
       cardTheme: CardThemeData(
         color: colors.surface,
-
         elevation: 0,
-
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
         ),
@@ -202,13 +195,11 @@ class AppTheme {
 
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-
           borderSide: BorderSide.none,
         ),
 
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-
           borderSide: BorderSide(
             color: colors.border,
           ),
@@ -216,10 +207,8 @@ class AppTheme {
 
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-
           borderSide: BorderSide(
             color: colors.primary,
-
             width: 1.5,
           ),
         ),
@@ -237,9 +226,7 @@ class AppTheme {
 
       dividerTheme: DividerThemeData(
         color: colors.border,
-
         thickness: 1,
-
         space: 1,
       ),
 
@@ -249,7 +236,6 @@ class AppTheme {
 
       dialogTheme: DialogThemeData(
         backgroundColor: colors.surface,
-
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(22),
         ),
@@ -266,7 +252,6 @@ class AppTheme {
           color: dark
               ? AppColors.darkTextPrimary
               : AppColors.lightTextPrimary,
-
           fontFamily: AppText.fontFamily,
         ),
 
@@ -331,7 +316,6 @@ class AppTheme {
       bool dark,
       ) {
     switch (style) {
-
     // ==========================================================
     // GRIOT
     //
@@ -422,15 +406,13 @@ class AppTheme {
 
     // ==========================================================
     // VIOLET
-    //
-    // MODERN PURPLE
     // ==========================================================
 
       case AppThemeStyle.violet:
         return _ThemeColors(
           primary: dark
-              ? const Color(0xFF8B6CFF)
-              : const Color(0xFF6548D8),
+              ? AppColors.violetPrimary
+              : AppColors.violetPrimaryDark,
 
           background: dark
               ? const Color(0xFF08070D)
@@ -442,7 +424,7 @@ class AppTheme {
 
           variant: dark
               ? const Color(0xFF1A1827)
-              : const Color(0xFFF0EDFF),
+              : AppColors.violetPrimarySoft,
 
           border: dark
               ? const Color(0xFF302C46)
@@ -451,15 +433,13 @@ class AppTheme {
 
     // ==========================================================
     // LAVENDER
-    //
-    // SOFT PURPLE / PASTEL
     // ==========================================================
 
       case AppThemeStyle.lavender:
         return _ThemeColors(
           primary: dark
-              ? const Color(0xFFB59CFF)
-              : const Color(0xFF8064D8),
+              ? AppColors.lavenderPrimary
+              : AppColors.lavenderPrimaryDark,
 
           background: dark
               ? const Color(0xFF0A0910)
@@ -471,7 +451,7 @@ class AppTheme {
 
           variant: dark
               ? const Color(0xFF211C2B)
-              : const Color(0xFFF1ECFF),
+              : AppColors.lavenderPrimarySoft,
 
           border: dark
               ? const Color(0xFF352E45)
@@ -480,27 +460,25 @@ class AppTheme {
 
     // ==========================================================
     // ROSE
-    //
-    // FEMININE PINK / ROSE
     // ==========================================================
 
       case AppThemeStyle.rose:
         return _ThemeColors(
           primary: dark
-              ? const Color(0xFFFF4F87)
-              : const Color(0xFFD92F68),
+              ? AppColors.rosePrimary
+              : AppColors.rosePrimaryDark,
 
           background: dark
-              ? const Color(0xFF0D070A)
-              : const Color(0xFFFFF8FB),
+              ? AppColors.roseDarkBackground
+              : AppColors.roseLightBackground,
 
           surface: dark
-              ? const Color(0xFF160C11)
-              : Colors.white,
+              ? AppColors.roseDarkSurface
+              : AppColors.roseLightSurface,
 
           variant: dark
-              ? const Color(0xFF24121A)
-              : const Color(0xFFFCEBF2),
+              ? AppColors.roseDarkVariant
+              : AppColors.roseLightVariant,
 
           border: dark
               ? const Color(0xFF43202D)
@@ -517,20 +495,20 @@ class AppTheme {
       case AppThemeStyle.gold:
         return _ThemeColors(
           primary: dark
-              ? const Color(0xFFE2B85B)
-              : const Color(0xFF9A6F24),
+              ? AppColors.goldPrimary
+              : AppColors.goldPrimaryDark,
 
           background: dark
-              ? const Color(0xFF0B0A07)
-              : const Color(0xFFFFFCF5),
+              ? AppColors.goldDarkBackground
+              : AppColors.goldLightBackground,
 
           surface: dark
-              ? const Color(0xFF15120C)
-              : Colors.white,
+              ? AppColors.goldDarkSurface
+              : AppColors.goldLightSurface,
 
           variant: dark
-              ? const Color(0xFF211B0F)
-              : const Color(0xFFF8F0D9),
+              ? AppColors.goldDarkVariant
+              : AppColors.goldLightVariant,
 
           border: dark
               ? const Color(0xFF40351E)
@@ -539,15 +517,13 @@ class AppTheme {
 
     // ==========================================================
     // MIDNIGHT
-    //
-    // DARK BLUE / INDIGO
     // ==========================================================
 
       case AppThemeStyle.midnight:
         return _ThemeColors(
           primary: dark
-              ? const Color(0xFF6D8CFF)
-              : const Color(0xFF5069D8),
+              ? AppColors.midnightPrimary
+              : AppColors.midnightPrimaryDark,
 
           background: dark
               ? const Color(0xFF070912)
@@ -559,7 +535,7 @@ class AppTheme {
 
           variant: dark
               ? const Color(0xFF171D30)
-              : const Color(0xFFEEF1FF),
+              : AppColors.midnightPrimarySoft,
 
           border: dark
               ? const Color(0xFF29324D)
@@ -568,15 +544,13 @@ class AppTheme {
 
     // ==========================================================
     // SLATE
-    //
-    // NEUTRAL MODERN
     // ==========================================================
 
       case AppThemeStyle.slate:
         return _ThemeColors(
           primary: dark
-              ? const Color(0xFFB0B7C3)
-              : const Color(0xFF59636F),
+              ? AppColors.slatePrimary
+              : AppColors.slatePrimaryDark,
 
           background: dark
               ? const Color(0xFF090A0B)
@@ -588,11 +562,179 @@ class AppTheme {
 
           variant: dark
               ? const Color(0xFF1B1E21)
-              : const Color(0xFFEEF0F2),
+              : AppColors.slatePrimarySoft,
 
           border: dark
               ? const Color(0xFF2C3034)
               : const Color(0xFFDDE4E8),
+        );
+
+    // ==========================================================
+    // TELEGRAM
+    // Familiar messaging blue
+    // ==========================================================
+
+      case AppThemeStyle.telegram:
+        return _ThemeColors(
+          primary: dark
+              ? AppColors.telegramPrimary
+              : AppColors.telegramPrimaryDark,
+
+          background: dark
+              ? AppColors.telegramDarkBackground
+              : AppColors.telegramLightBackground,
+
+          surface: dark
+              ? AppColors.telegramDarkSurface
+              : AppColors.telegramLightSurface,
+
+          variant: dark
+              ? AppColors.telegramDarkVariant
+              : AppColors.telegramLightVariant,
+
+          border: dark
+              ? const Color(0xFF394A5A)
+              : const Color(0xFFD6E1E8),
+        );
+
+    // ==========================================================
+    // SIGNAL
+    // Clean communication blue
+    // ==========================================================
+
+      case AppThemeStyle.signal:
+        return _ThemeColors(
+          primary: dark
+              ? AppColors.signalPrimary
+              : AppColors.signalPrimaryDark,
+
+          background: dark
+              ? AppColors.signalDarkBackground
+              : AppColors.signalLightBackground,
+
+          surface: dark
+              ? AppColors.signalDarkSurface
+              : AppColors.signalLightSurface,
+
+          variant: dark
+              ? AppColors.signalDarkVariant
+              : AppColors.signalLightVariant,
+
+          border: dark
+              ? const Color(0xFF3A3A3A)
+              : const Color(0xFFDCE0E7),
+        );
+
+    // ==========================================================
+    // DISCORD
+    // Modern indigo
+    // ==========================================================
+
+      case AppThemeStyle.discord:
+        return _ThemeColors(
+          primary: dark
+              ? AppColors.discordPrimary
+              : AppColors.discordPrimaryDark,
+
+          background: dark
+              ? AppColors.discordDarkBackground
+              : AppColors.discordLightBackground,
+
+          surface: dark
+              ? AppColors.discordDarkSurface
+              : AppColors.discordLightSurface,
+
+          variant: dark
+              ? AppColors.discordDarkVariant
+              : AppColors.discordLightVariant,
+
+          border: dark
+              ? const Color(0xFF44464C)
+              : const Color(0xFFD9DBDF),
+        );
+
+    // ==========================================================
+    // TEAL
+    // Classic modern communication teal
+    // ==========================================================
+
+      case AppThemeStyle.teal:
+        return _ThemeColors(
+          primary: dark
+              ? AppColors.tealPrimary
+              : AppColors.tealPrimaryDark,
+
+          background: dark
+              ? AppColors.tealDarkBackground
+              : AppColors.tealLightBackground,
+
+          surface: dark
+              ? AppColors.tealDarkSurface
+              : AppColors.tealLightSurface,
+
+          variant: dark
+              ? AppColors.tealDarkVariant
+              : AppColors.tealLightVariant,
+
+          border: dark
+              ? const Color(0xFF2E4744)
+              : const Color(0xFFD3E5E2),
+        );
+
+    // ==========================================================
+    // ORANGE
+    // Warm and energetic
+    // ==========================================================
+
+      case AppThemeStyle.orange:
+        return _ThemeColors(
+          primary: dark
+              ? AppColors.orangePrimary
+              : AppColors.orangePrimaryDark,
+
+          background: dark
+              ? AppColors.orangeDarkBackground
+              : AppColors.orangeLightBackground,
+
+          surface: dark
+              ? AppColors.orangeDarkSurface
+              : AppColors.orangeLightSurface,
+
+          variant: dark
+              ? AppColors.orangeDarkVariant
+              : AppColors.orangeLightVariant,
+
+          border: dark
+              ? const Color(0xFF49341F)
+              : const Color(0xFFF0D7C0),
+        );
+
+    // ==========================================================
+    // RED
+    // Classic strong communication colour
+    // ==========================================================
+
+      case AppThemeStyle.red:
+        return _ThemeColors(
+          primary: dark
+              ? AppColors.redPrimary
+              : AppColors.redPrimaryDark,
+
+          background: dark
+              ? AppColors.redDarkBackground
+              : AppColors.redLightBackground,
+
+          surface: dark
+              ? AppColors.redDarkSurface
+              : AppColors.redLightSurface,
+
+          variant: dark
+              ? AppColors.redDarkVariant
+              : AppColors.redLightVariant,
+
+          border: dark
+              ? const Color(0xFF4A2929)
+              : const Color(0xFFF0D4D3),
         );
     }
   }
