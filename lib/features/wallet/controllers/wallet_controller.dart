@@ -1,3 +1,4 @@
+import '../data/wallet_data.dart';
 import '../models/wallet_models.dart';
 import '../services/wallet_api_service.dart';
 import '../state/wallet_state.dart';
@@ -6,7 +7,7 @@ class WalletController {
   final WalletState state;
   final WalletApiService apiService;
 
-  List<WalletToken> _tokens = const [];
+  List<WalletToken> _tokens = List<WalletToken>.from(mockTokens);
   num totalBalanceUsd = 0;
   bool isLoading = false;
   String? errorMessage;
