@@ -39,4 +39,33 @@ class ApiConfig {
 
   static const String usernameAvailability =
       '$baseUrl/users/username/availability';
+
+  // ============================================================
+  // WALLET
+  // ============================================================
+
+  static const String walletNetworks =
+      '$baseUrl/crypto/wallets/networks';
+
+  static const String walletAssets =
+      '$baseUrl/crypto/wallets/assets';
+
+  static String walletAssetsByNetwork(
+    String network,
+  ) => '$baseUrl/crypto/wallets/assets/$network';
+
+  static String walletCustomToken(
+    String network,
+    String tokenAddress,
+  ) => '$baseUrl/crypto/wallets/custom-token/$network/$tokenAddress';
+
+  static const String walletNativeBalances =
+      '$baseUrl/crypto/wallets/balances';
+
+  static String walletNativeBalance(
+    String network,
+  ) => '$baseUrl/crypto/wallets/balance/$network';
+
+  static const String walletTokens =
+      '$baseUrl/crypto/wallets/tokens';
 }
