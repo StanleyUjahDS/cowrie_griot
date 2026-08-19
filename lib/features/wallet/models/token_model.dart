@@ -30,7 +30,8 @@ class TokenModel {
   double get value => valueUsd.toDouble();
 
   factory TokenModel.fromJson(Map<String, dynamic> json) {
-    final hasPrice = json['priceUsd'] != null || json['price'] != null;
+    final hasPrice =
+        json['priceUsd'] != null || json['price'] != null;
     final hasChange =
         json['changePercent24h'] != null ||
         json['changePercent'] != null ||
