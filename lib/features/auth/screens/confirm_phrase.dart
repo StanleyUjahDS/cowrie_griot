@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:overlay_support/overlay_support.dart';
 
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
+import '../../../core/ui/widgets/griot_loader.dart';
+import '../../../core/services/notification_service.dart';
 import '../../wallet/services/wallet_service.dart';
 import '../../wallet/services/wallet_crypto_service.dart';
 import '../../wallet/services/wallet_storage_service.dart';
@@ -210,60 +212,7 @@ class _VerifySeedState extends State<VerifySeed> {
   // ==========================================================
 
   void _showIncorrectSelection() {
-    showOverlayNotification(
-          (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Material(
-              color: const Color(0xFF111111),
-              borderRadius:
-              BorderRadius.circular(14),
-              child: Padding(
-                padding:
-                const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.error_outline_rounded,
-                      color: Colors.white,
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text(
-                        'Incorrect selection. Please try again.',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight:
-                          FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () {
-                        OverlaySupportEntry
-                            .of(context)
-                            ?.dismiss();
-                      },
-                      icon: const Icon(
-                        Icons.close_rounded,
-                        color: Colors.white70,
-                        size: 20,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-      duration:
-      const Duration(seconds: 2),
-    );
+    NotificationService.showError('Incorrect selection. Please try again.');
   }
 
   // ==========================================================
@@ -271,48 +220,7 @@ class _VerifySeedState extends State<VerifySeed> {
   // ==========================================================
 
   void _showWalletError() {
-    showOverlayNotification(
-          (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Material(
-              color: const Color(0xFF111111),
-              borderRadius:
-              BorderRadius.circular(14),
-              child: const Padding(
-                padding:
-                EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.error_outline_rounded,
-                      color: Colors.white,
-                    ),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Wallet could not be loaded.',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight:
-                          FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-      duration:
-      const Duration(seconds: 3),
-    );
+    NotificationService.showError('Wallet could not be loaded.');
   }
 
   // ==========================================================
@@ -363,7 +271,7 @@ class _VerifySeedState extends State<VerifySeed> {
           ),
         ),
         child: const Center(
-          child: CircularProgressIndicator(),
+          child: GriotLoader(),
         ),
       );
     }

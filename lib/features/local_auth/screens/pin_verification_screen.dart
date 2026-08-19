@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:overlay_support/overlay_support.dart';
 
+import '../../../core/ui/widgets/griot_loader.dart';
+import '../../../core/services/notification_service.dart';
 import '../services/local_auth_service.dart';
 
 class PinVerificationScreen extends StatefulWidget {
@@ -126,19 +128,7 @@ class _PinVerificationScreenState
     }
 
     if (success) {
-      showSimpleNotification(
-        const Text('Unlocked'),
-        leading: const Icon(
-          Icons.check_circle_outline_rounded,
-          color: Colors.white,
-        ),
-        position:
-        NotificationPosition.top,
-        background: Colors.black87,
-        foreground: Colors.white,
-        duration:
-        const Duration(seconds: 1),
-      );
+      NotificationService.showSuccess('Unlocked');
 
       if (widget.onSuccess != null) {
         await widget.onSuccess!();
@@ -160,19 +150,7 @@ class _PinVerificationScreenState
       _loading = false;
     });
 
-    showSimpleNotification(
-      const Text('Incorrect PIN'),
-      leading: const Icon(
-        Icons.error_outline_rounded,
-        color: Colors.white,
-      ),
-      position:
-      NotificationPosition.top,
-      background: Colors.black87,
-      foreground: Colors.white,
-      duration:
-      const Duration(seconds: 2),
-    );
+    NotificationService.showError('Incorrect PIN');
   }
 
   // ============================================================
@@ -368,7 +346,7 @@ class _PinVerificationScreenState
                     bottom: 20,
                   ),
                   child:
-                  CircularProgressIndicator(),
+                  GriotLoader(size: 28),
                 )
               else
                 const SizedBox(

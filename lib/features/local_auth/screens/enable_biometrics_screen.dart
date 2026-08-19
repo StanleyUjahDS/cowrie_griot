@@ -7,6 +7,8 @@ import 'package:local_auth/local_auth.dart';
 import 'package:overlay_support/overlay_support.dart';
 
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
+import '../../../core/ui/widgets/griot_loader.dart';
+import '../../../core/services/notification_service.dart';
 
 class BiometricsScreen extends StatefulWidget {
   const BiometricsScreen({
@@ -284,21 +286,7 @@ class _BiometricsScreenState
   void _showInfo(
       String message,
       ) {
-    showSimpleNotification(
-      Text(message),
-      leading: const Icon(
-        Icons.info_outline_rounded,
-        color: Colors.white,
-      ),
-      position:
-      NotificationPosition.top,
-      background:
-      Colors.black87,
-      foreground:
-      Colors.white,
-      duration:
-      const Duration(seconds: 2),
-    );
+    NotificationService.showInfo(message);
   }
 
   // ============================================================
@@ -308,21 +296,7 @@ class _BiometricsScreenState
   void _showError(
       String message,
       ) {
-    showSimpleNotification(
-      Text(message),
-      leading: const Icon(
-        Icons.error_outline_rounded,
-        color: Colors.white,
-      ),
-      position:
-      NotificationPosition.top,
-      background:
-      Colors.black87,
-      foreground:
-      Colors.white,
-      duration:
-      const Duration(seconds: 3),
-    );
+    NotificationService.showError(message);
   }
 
   // ============================================================
@@ -403,16 +377,13 @@ class _BiometricsScreenState
                     // ==================================================
 
                     if (_loading)
-                      Padding(
+                      const Padding(
                         padding:
-                        const EdgeInsets.only(
+                        EdgeInsets.only(
                           top: 100,
                         ),
                         child:
-                        CircularProgressIndicator(
-                          color:
-                          colorScheme.primary,
-                        ),
+                        GriotLoader(),
                       )
 
                     // ==================================================

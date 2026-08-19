@@ -34,4 +34,14 @@ class AppConfig {
     }
     return '';
   }
+
+  // Replace these with your actual Native Ad Unit IDs from AdMob console
+  static String get nativeAdUnitId {
+    if (Platform.isAndroid) {
+      return 'ca-app-pub-3940256099942544/2247696110'; // Android Test Native
+    } else if (Platform.isIOS) {
+      return 'ca-app-pub-3940256099942544/3986624511'; // iOS Test Native
+    }
+    return '';
+  }
 }

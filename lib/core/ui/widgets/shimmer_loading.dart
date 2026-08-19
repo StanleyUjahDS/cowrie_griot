@@ -1,24 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
-class WalletLoading extends StatelessWidget {
-  const WalletLoading({super.key});
+class ShimmerList extends StatelessWidget {
+  final int itemCount;
+  final double itemHeight;
+  final double padding;
+  final double topPadding;
+
+  const ShimmerList({
+    super.key,
+    this.itemCount = 6,
+    this.itemHeight = 72,
+    this.padding = 16.0,
+    this.topPadding = 0.0,
+  });
 
   @override
   Widget build(BuildContext context) {
     return ListView.builder(
+      padding: EdgeInsets.only(top: topPadding, left: padding, right: padding),
+      itemCount: itemCount,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: 8,
-      padding: const EdgeInsets.only(top: 8),
       itemBuilder: (context, index) {
-        return const _ShimmerItem();
+        return const _ShimmerListItem();
       },
     );
   }
 }
 
-class _ShimmerItem extends StatelessWidget {
-  const _ShimmerItem();
+class _ShimmerListItem extends StatelessWidget {
+  const _ShimmerListItem();
 
   @override
   Widget build(BuildContext context) {
@@ -26,42 +37,31 @@ class _ShimmerItem extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
 
-    final Color borderColor = colorScheme.outline.withValues(
-      alpha: isDark ? 0.20 : 0.12,
-    );
-
     final Color shimmerBase = colorScheme.surfaceContainerHighest.withValues(
       alpha: isDark ? 0.3 : 0.5,
     );
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          // Icon Skeleton
           Container(
-            width: 44,
-            height: 44,
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
               color: shimmerBase,
               shape: BoxShape.circle,
             ),
           ),
           const SizedBox(width: 12),
-          // Content Skeleton
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 120,
-                  height: 16,
+                  width: double.infinity,
+                  height: 14,
+                  margin: const EdgeInsets.only(right: 40),
                   decoration: BoxDecoration(
                     color: shimmerBase,
                     borderRadius: BorderRadius.circular(4),
@@ -69,8 +69,8 @@ class _ShimmerItem extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Container(
-                  width: 80,
-                  height: 12,
+                  width: 120,
+                  height: 10,
                   decoration: BoxDecoration(
                     color: shimmerBase,
                     borderRadius: BorderRadius.circular(4),
@@ -78,30 +78,6 @@ class _ShimmerItem extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-          const SizedBox(width: 12),
-          // End Skeleton
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Container(
-                width: 60,
-                height: 16,
-                decoration: BoxDecoration(
-                  color: shimmerBase,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                width: 40,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: shimmerBase,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-            ],
           ),
         ],
       ),

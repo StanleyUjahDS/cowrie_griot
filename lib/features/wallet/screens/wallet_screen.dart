@@ -14,7 +14,8 @@ import '../widgets/token_list.dart';
 import '../widgets/wallet_loading.dart';
 import '../utils/wallet_formatters.dart';
 import '../utils/wallet_layout_utils.dart';
-import '../../../core/ui/widgets/ad_banner.dart';
+import '../../../core/ui/widgets/native_ad.dart';
+import '../../../core/services/notification_service.dart';
 
 class WalletScreen extends StatelessWidget {
   const WalletScreen({super.key});
@@ -150,12 +151,7 @@ class WalletScreen extends StatelessWidget {
     await Clipboard.setData(ClipboardData(text: address));
     if (!context.mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Wallet address copied'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+    NotificationService.showSuccess('Wallet address copied');
   }
 
   Widget _buildTabs(BuildContext context, WalletProvider provider) {
@@ -288,7 +284,7 @@ class _AdSpace extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Padding(
       padding: EdgeInsets.fromLTRB(14, 20, 14, 10),
-      child: GriotAdBanner(),
+      child: GriotNativeAd(),
     );
   }
 }

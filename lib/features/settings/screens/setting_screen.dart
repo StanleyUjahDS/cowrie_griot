@@ -8,7 +8,8 @@ import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../auth/services/auth_session_service.dart';
 import '../../users/providers/user_provider.dart';
 import '../../wallet/providers/wallet_provider.dart';
-import '../../../core/ui/widgets/ad_banner.dart';
+import '../../../core/ui/widgets/native_ad.dart';
+import '../../../core/ui/widgets/griot_loader.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({
@@ -61,8 +62,8 @@ class SettingsScreen extends StatelessWidget {
       context: context,
       useRootNavigator: true,
       barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(),
+      builder: (context) => const GriotOverlayLoader(
+        message: 'Logging out...',
       ),
     );
 
@@ -980,7 +981,7 @@ class SettingsScreen extends StatelessWidget {
             // AD
             // ==================================================
 
-            const GriotAdBanner(),
+            const GriotNativeAd(),
 
             const SizedBox(height: 26),
 

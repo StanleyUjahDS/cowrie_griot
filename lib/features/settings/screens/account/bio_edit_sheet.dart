@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../../core/ui/widgets/griot_loader.dart';
 
 class BioEditSheet extends StatefulWidget {
   final String initialValue;
@@ -362,14 +363,11 @@ class _BioEditSheetState extends State<BioEditSheet> {
                       ),
                     ),
                     child: _isSaving
-                        ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child:
-                      CircularProgressIndicator(
-                        strokeWidth: 2.4,
-                      ),
-                    )
+                        ? const GriotLoader(
+                            size: 22,
+                            strokeWidth: 2.4,
+                            color: Colors.white,
+                          )
                         : const Text(
                       'Save Bio',
                       style: TextStyle(

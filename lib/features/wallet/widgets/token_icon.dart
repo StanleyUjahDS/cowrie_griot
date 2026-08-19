@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 import '../utils/chain_assets.dart';
 
@@ -73,7 +72,7 @@ class TokenIcon extends StatelessWidget {
         width: radius * 2,
         height: radius * 2,
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => _initialFallback(context),
+        errorBuilder: (context, error, stackTrace) => _initialFallback(context),
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/ui/widgets/griot_avatar.dart';
 
 class WalletHeader extends StatelessWidget {
   final String displayName;
@@ -25,7 +26,10 @@ class WalletHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 4, 10, 0),
       child: Row(
         children: [
-          _buildAvatar(colors),
+          GriotAvatar(
+            avatarUrl: avatarUrl,
+            radius: 23,
+          ),
           const SizedBox(width: 11),
           Expanded(
             child: Column(
@@ -63,33 +67,6 @@ class WalletHeader extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildAvatar(ColorScheme colors) {
-    if (avatarUrl != null && avatarUrl!.trim().isNotEmpty) {
-      return CircleAvatar(
-        radius: 23,
-        backgroundColor: colors.surfaceContainerHighest,
-        backgroundImage: NetworkImage(avatarUrl!),
-      );
-    }
-
-    return Container(
-      width: 46,
-      height: 46,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: colors.primary.withValues(alpha: 0.10),
-        border: Border.all(
-          color: colors.primary.withValues(alpha: 0.16),
-        ),
-      ),
-      child: Icon(
-        Icons.person_outline_rounded,
-        color: colors.primary,
-        size: 23,
       ),
     );
   }

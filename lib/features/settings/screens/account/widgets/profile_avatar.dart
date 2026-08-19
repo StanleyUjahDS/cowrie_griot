@@ -3,8 +3,12 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
+
+import '../../../../../core/ui/widgets/griot_loader.dart';
+import '../../../../../core/ui/widgets/griot_avatar.dart';
 
 class ProfileAvatar extends StatefulWidget {
   final String? avatarUrl;
@@ -42,7 +46,7 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
   // ============================================================
 
   static const String _defaultProfileImage =
-      'assets/coins_logo/hbadgerlogo.png';
+      'assets/chains/Hbadger.svg';
 
   // ============================================================
   // HAS PENDING IMAGE
@@ -325,13 +329,13 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
                         error,
                         stackTrace,
                         ) {
-                      return Image.asset(
+                      return SvgPicture.asset(
                         _defaultProfileImage,
                         fit: BoxFit.contain,
                       );
                     },
                   )
-                      : Image.asset(
+                      : SvgPicture.asset(
                     _defaultProfileImage,
                     fit: BoxFit.contain,
                   ),
@@ -639,15 +643,11 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
                       await _savePendingImage();
                     },
                     child: _isSaving
-                        ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child:
-                      CircularProgressIndicator(
-                        strokeWidth:
-                        2.3,
-                      ),
-                    )
+                        ? const GriotLoader(
+                            size: 22,
+                            strokeWidth: 2.3,
+                            color: Colors.white,
+                          )
                         : const Text(
                       'Use This Photo',
                       style:
@@ -806,77 +806,6 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
   }
 
   // ============================================================
-  // IMAGE
-  // ============================================================
-
-  Widget _image(
-      BuildContext context,
-      ) {
-    // ==========================================================
-    // PENDING IMAGE
-    // ==========================================================
-
-    if (_pendingImage != null) {
-      return Image.file(
-        _pendingImage!,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-      );
-    }
-
-    // ==========================================================
-    // CONFIRMED LOCAL IMAGE
-    // ==========================================================
-
-    if (_savedLocalImage != null) {
-      return Image.file(
-        _savedLocalImage!,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-      );
-    }
-
-    // ==========================================================
-    // BACKEND AVATAR
-    // ==========================================================
-
-    if (widget.avatarUrl != null &&
-        widget.avatarUrl!.trim().isNotEmpty) {
-      return Image.network(
-        widget.avatarUrl!,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        errorBuilder:
-            (context, error, stackTrace) {
-          return _defaultImage();
-        },
-      );
-    }
-
-    // ==========================================================
-    // DEFAULT PROFILE IMAGE
-    // ==========================================================
-
-    return _defaultImage();
-  }
-
-  // ============================================================
-  // DEFAULT IMAGE
-  // ============================================================
-
-  Widget _defaultImage() {
-    return Image.asset(
-      _defaultProfileImage,
-      fit: BoxFit.cover,
-      width: double.infinity,
-      height: double.infinity,
-    );
-  }
-
-  // ============================================================
   // BUILD
   // ============================================================
 
@@ -942,18 +871,22 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
                 child:
                 ClipOval(
                   child: _isPicking
-                      ? Center(
+                      ? const Center(
                     child:
-                    CircularProgressIndicator(
-                      strokeWidth:
-                      2.5,
-                      color:
-                      colorScheme.primary,
+                    GriotLoader(
+                      size: 28,
+                      strokeWidth: 2.5,
                     ),
                   )
-                      : _image(
-                    context,
-                  ),
+                      : _pendingImage != null 
+                        ? Image.file(_pendingImage!, fit: BoxFit.cover)
+                        : _savedLocalImage != null
+                          ? Image.file(_savedLocalImage!, fit: BoxFit.cover)
+                          : GriotAvatar(
+                              avatarUrl: widget.avatarUrl,
+                              radius: 50,
+                              backgroundColor: Colors.transparent,
+                            ),
                 ),
               ),
             ),

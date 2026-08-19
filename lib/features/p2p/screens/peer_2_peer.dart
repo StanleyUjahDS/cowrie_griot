@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../../core/ui/widgets/ad_banner.dart';
+import '../../../core/services/notification_service.dart';
+import '../../../core/ui/widgets/native_ad.dart';
+import '../widgets/p2p_loading.dart';
 
 class P2PScreen extends StatefulWidget {
   const P2PScreen({
@@ -13,6 +15,21 @@ class P2PScreen extends StatefulWidget {
 class _P2PScreenState extends State<P2PScreen> {
   bool _buyMode = true;
   String _selectedAsset = 'USDT';
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInitialData();
+  }
+
+  Future<void> _loadInitialData() async {
+    setState(() => _isLoading = true);
+    await Future.delayed(const Duration(milliseconds: 1500));
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
+  }
 
   final List<Map<String, dynamic>> _offers = [
     {
@@ -137,11 +154,15 @@ class _P2PScreenState extends State<P2PScreen> {
         color: colors.primary,
         backgroundColor: colors.surface,
         onRefresh: () async {
+          setState(() => _isLoading = true);
           await Future<void>.delayed(
             const Duration(
-              milliseconds: 700,
+              milliseconds: 1200,
             ),
           );
+          if (mounted) {
+            setState(() => _isLoading = false);
+          }
         },
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(
@@ -172,19 +193,22 @@ class _P2PScreenState extends State<P2PScreen> {
               ),
             ),
 
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                    (
-                    context,
-                    index,
-                    ) {
+            if (_isLoading)
+              const P2PLoading()
+            else
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                      (
+                      context,
+                      index,
+                      ) {
                   // Show an ad after every 3 items
                   if (index > 0 && index % 3 == 0) {
                     return const Column(
                       children: [
                         Padding(
                           padding: EdgeInsets.symmetric(vertical: 8.0),
-                          child: GriotAdBanner(),
+                          child: GriotNativeAd(),
                         ),
                       ],
                     );
@@ -910,16 +934,10 @@ class _P2PScreenState extends State<P2PScreen> {
                       context,
                     );
 
-                    ScaffoldMessenger.of(
-                      this.context,
-                    ).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          _buyMode
-                              ? 'Buy order started'
-                              : 'Sell order started',
-                        ),
-                      ),
+                    NotificationService.showSuccess(
+                      _buyMode
+                          ? 'Buy order started'
+                          : 'Sell order started',
                     );
                   },
                   child: Text(
@@ -1154,15 +1172,7 @@ class _P2PScreenState extends State<P2PScreen> {
                     Navigator.pop(
                       context,
                     );
-                    ScaffoldMessenger.of(
-                      this.context,
-                    ).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'P2P offer created',
-                        ),
-                      ),
-                    );
+                    NotificationService.showSuccess('P2P offer created');
                   },
                   child: const Text(
                     'Publish Offer',

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../scaffolds/gradient_scaffold.dart';
+import '../widgets/griot_loader.dart';
 
 // ============================================================
 // TYPES
@@ -569,22 +570,10 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
         'loading',
       ),
       children: [
-        SizedBox(
-          width: 34,
-          height: 34,
-          child: CircularProgressIndicator(
-            strokeWidth: 3,
-            color: colorScheme.primary,
-          ),
-        )
-            .animate(
-              onPlay: (controller) {
-                controller.repeat();
-              },
-            )
-            .rotate(
-              duration: 1200.ms,
-            ),
+        const GriotLoader(
+          size: 40,
+          strokeWidth: 3.5,
+        ),
 
         const SizedBox(
           height: 22,

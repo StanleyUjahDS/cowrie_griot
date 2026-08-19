@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/startup/app_startup_service.dart';
+import '../../../core/services/notification_service.dart';
 import '../controllers/chat_controller.dart';
 
 import '../models/chat_user.dart';
@@ -9,7 +10,9 @@ import '../models/message_request.dart';
 import '../models/chat_group.dart';
 import '../models/chat_channel.dart';
 
+import '../../../core/ui/widgets/shimmer_loading.dart';
 import '../widgets/chat_list_item.dart';
+import '../widgets/chat_loading.dart';
 import '../widgets/group_list_item.dart' as group_widgets;
 import '../widgets/channel_list_item.dart';
 import '../widgets/message_request_card.dart' as request_widgets;
@@ -195,13 +198,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
 
       Navigator.of(context).pop();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Message request accepted',
-          ),
-        ),
-      );
+      NotificationService.showSuccess('Message request accepted');
     } catch (_) {
       // Controller handles the underlying error.
     }
@@ -226,13 +223,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
 
       Navigator.of(context).pop();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Message request declined',
-          ),
-        ),
-      );
+      NotificationService.showSuccess('Message request declined');
     } catch (_) {
       // Controller handles the underlying error.
     }
@@ -497,15 +488,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
                 navigator.pop();
               }
 
-              if (mounted) {
-                messenger.showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Message request sent to ${user.displayName ?? 'user'}',
-                    ),
-                  ),
-                );
-              }
+              NotificationService.showSuccess('Message request sent to ${user.displayName ?? 'user'}');
             } catch (_) {
               // Controller handles the underlying error.
             }
@@ -603,15 +586,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
                       sheetContext,
                     ).pop();
 
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Group "$name" created',
-                        ),
-                      ),
-                    );
+                    NotificationService.showSuccess('Group "$name" created');
                   },
                   child:
                   const Text('Create Group'),
@@ -713,15 +688,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
                       sheetContext,
                     ).pop();
 
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Channel "$name" created',
-                        ),
-                      ),
-                    );
+                    NotificationService.showSuccess('Channel "$name" created');
                   },
                   child: const Text(
                     'Create Channel',
@@ -1076,10 +1043,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
           ) {
         if (controller.isLoading &&
             controller.users.isEmpty) {
-          return const Center(
-            child:
-            CircularProgressIndicator(),
-          );
+          return const ChatLoading();
         }
 
         if (controller.error != null &&
@@ -1742,10 +1706,11 @@ class _NewChatSheetState
 
             Expanded(
               child: isSearching
-                  ? const Center(
-                child:
-                CircularProgressIndicator(),
-              )
+                  ? const ShimmerList(
+                      padding: 20,
+                      topPadding: 10,
+                      itemCount: 5,
+                    )
                   : results.isEmpty
                   ? const _EmptyState(
                 icon: Icons

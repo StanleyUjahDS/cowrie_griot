@@ -3,7 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../core/services/ad_service.dart';
-import '../../../core/ui/widgets/ad_banner.dart';
+import '../../../core/services/notification_service.dart';
+import '../../../core/ui/widgets/native_ad.dart';
 
 class MinerScreen extends StatefulWidget {
   const MinerScreen({
@@ -225,14 +226,7 @@ class _MinerScreenState extends State<MinerScreen>
       sessionElapsed = sessionDuration;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Mining session completed.',
-        ),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    NotificationService.showSuccess('Mining session completed.');
   }
 
   void _addActivityPoints(double points) {
@@ -251,14 +245,7 @@ class _MinerScreenState extends State<MinerScreen>
       onRewardEarned: (reward) {
         _addActivityPoints(50);
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Reward earned: +50 points!',
-            ),
-            backgroundColor: Colors.green,
-          ),
-        );
+        NotificationService.showSuccess('Reward earned: +50 points!');
       },
     );
   }
@@ -1961,7 +1948,7 @@ class _AdPlaceholder extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Padding(
       padding: EdgeInsets.symmetric(vertical: 10),
-      child: GriotAdBanner(),
+      child: GriotNativeAd(),
     );
   }
 }

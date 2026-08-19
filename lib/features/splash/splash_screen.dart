@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
+import '../../../core/ui/widgets/griot_loader.dart';
 
 import '../wallet/services/wallet_crypto_service.dart';
 import '../wallet/services/wallet_service.dart';
@@ -308,10 +309,7 @@ class _SplashScreenState
                   // LOADER
                   // ==================================================
 
-                  CircularProgressIndicator(
-                    color:
-                    colorScheme.primary,
-                  ),
+                  const GriotLoader(),
 
                   const SizedBox(
                     height: 16,
