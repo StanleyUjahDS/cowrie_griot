@@ -3,11 +3,10 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 class ChainAssets {
   static const String _chainPath = 'assets/chains';
-  static const String _legacyLogoPath = 'assets/coins_logo';
 
   static const Map<String, String> _chainLogos = {
     'ethereum': '$_chainPath/Ethereum.svg',
-    'bnb': '$_legacyLogoPath/Ellipse 111-3.png',
+    'bnb': '$_chainPath/Binance.svg',
     'polygon': '$_chainPath/Polygon.svg',
     'arbitrum': '$_chainPath/Arbitrum.svg',
     'optimism': '$_chainPath/Optimism.svg',
@@ -21,15 +20,16 @@ class ChainAssets {
     if (value == 'bsc' ||
         value == 'bnb chain' ||
         value == 'binance smart chain' ||
-        value == 'binance') {
+        value == 'binance' ||
+        value == 'binance-smart-chain') {
       return 'bnb';
     }
 
-    if (value == 'eth') return 'ethereum';
+    if (value == 'eth' || value == 'ethereum mainnet') return 'ethereum';
     if (value == 'matic' || value == 'matic/polygon') return 'polygon';
-    if (value == 'arb') return 'arbitrum';
-    if (value == 'op') return 'optimism';
-    if (value == 'avax') return 'avalanche';
+    if (value == 'arb' || value == 'arbitrum-one') return 'arbitrum';
+    if (value == 'op' || value == 'optimistic-ethereum') return 'optimism';
+    if (value == 'avax' || value == 'avalanche-c-chain') return 'avalanche';
 
     return value;
   }
@@ -45,20 +45,7 @@ class ChainAssets {
       return Icon(Icons.link_rounded, size: size);
     }
 
-    if (assetPath.toLowerCase().endsWith('.svg')) {
-      return SvgPicture.asset(
-        assetPath,
-        width: size,
-        height: size,
-        fit: BoxFit.contain,
-        errorBuilder: (context, error, stackTrace) => Icon(
-          Icons.link_rounded,
-          size: size,
-        ),
-      );
-    }
-
-    return Image.asset(
+    return SvgPicture.asset(
       assetPath,
       width: size,
       height: size,
