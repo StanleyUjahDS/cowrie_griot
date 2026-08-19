@@ -12,6 +12,7 @@ import '../widgets/wallet_address_card.dart';
 import '../widgets/wallet_actions.dart';
 import '../widgets/token_list.dart';
 import '../widgets/wallet_loading.dart';
+import '../utils/wallet_formatters.dart';
 import '../utils/wallet_layout_utils.dart';
 
 class WalletScreen extends StatelessWidget {
@@ -71,11 +72,11 @@ class WalletScreen extends StatelessWidget {
                 ),
 
                 // Balance
-                const SliverToBoxAdapter(
+                SliverToBoxAdapter(
                   child: WalletBalanceCard(
-                    balance: '\$12,450.00',
-                    change: '+3.5%',
-                    isProfit: true,
+                    balance: WalletFormatters.formatCurrency(provider.wallet?.totalBalance ?? 0),
+                    change: '${(provider.wallet?.changePercent ?? 0) >= 0 ? '+' : ''}${provider.wallet?.changePercent ?? 0}%',
+                    isProfit: (provider.wallet?.changePercent ?? 0) >= 0,
                   ),
                 ),
 

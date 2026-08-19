@@ -76,12 +76,15 @@ class WalletProvider extends ChangeNotifier {
     try {
       final address = await _walletService.getAddress();
       if (address != null) {
-        _wallet = WalletModel(
-          address: address,
-          displayName: 'Your Griot Account',
-        );
+        // 1. Fetch Native Balances
+        final nativeBalances = await _walletApiService.getNativeBalances(address: address);
+        
+        num totalNativeBalance = 0;
+        for (var bal in nativeBalances) {
+          totalNativeBalance += (bal['balanceUsd'] ?? 0);
+        }
 
-        // Fetch tokens and native balances from API
+        // 2. Fetch Tokens
         final tokenData = await _walletApiService.getTokens(address: address);
         
         _tokens = tokenData.map((json) => TokenModel(
@@ -93,6 +96,19 @@ class WalletProvider extends ChangeNotifier {
           contractAddress: json['contractAddress']?.toString() ?? '',
           imageUrl: json['imageUrl']?.toString() ?? '',
         )).toList();
+
+        num totalTokenBalance = 0;
+        for (var token in _tokens) {
+          // Assuming token model will eventually have valueUsd, for now we mock it or calculate if price exists
+          // totalTokenBalance += token.value; 
+        }
+
+        _wallet = WalletModel(
+          address: address,
+          displayName: 'Your Griot Account',
+          totalBalance: totalNativeBalance + totalTokenBalance,
+          changePercent: 3.5, // Mock change for now
+        );
       }
       
       _error = null;
