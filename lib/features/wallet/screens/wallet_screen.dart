@@ -14,6 +14,7 @@ import '../widgets/token_list.dart';
 import '../widgets/wallet_loading.dart';
 import '../utils/wallet_formatters.dart';
 import '../utils/wallet_layout_utils.dart';
+import '../../../core/ui/widgets/ad_banner.dart';
 
 class WalletScreen extends StatelessWidget {
   const WalletScreen({super.key});
@@ -285,36 +286,9 @@ class _AdSpace extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 20, 14, 10),
-      child: Container(
-        height: 90,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: colors.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: colors.outlineVariant.withValues(alpha: 0.35),
-          ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.campaign_outlined, size: 22, color: colors.onSurfaceVariant),
-            const SizedBox(height: 5),
-            Text(
-              'Advertisement',
-              style: text.labelSmall?.copyWith(
-                color: colors.onSurfaceVariant,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return const Padding(
+      padding: EdgeInsets.fromLTRB(14, 20, 14, 10),
+      child: GriotAdBanner(),
     );
   }
 }

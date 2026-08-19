@@ -8,6 +8,7 @@ import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../auth/services/auth_session_service.dart';
 import '../../users/providers/user_provider.dart';
 import '../../wallet/providers/wallet_provider.dart';
+import '../../../core/ui/widgets/ad_banner.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({
@@ -972,6 +973,14 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ],
             ),
+
+            const SizedBox(height: 20),
+
+            // ==================================================
+            // AD
+            // ==================================================
+
+            const GriotAdBanner(),
 
             const SizedBox(height: 26),
 

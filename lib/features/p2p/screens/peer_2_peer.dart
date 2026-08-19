@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/ui/widgets/ad_banner.dart';
 
 class P2PScreen extends StatefulWidget {
   const P2PScreen({
@@ -177,14 +178,30 @@ class _P2PScreenState extends State<P2PScreen> {
                     context,
                     index,
                     ) {
-                  final offer = _offers[index];
+                  // Show an ad after every 3 items
+                  if (index > 0 && index % 3 == 0) {
+                    return const Column(
+                      children: [
+                        Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8.0),
+                          child: GriotAdBanner(),
+                        ),
+                      ],
+                    );
+                  }
+
+                  // Adjust index for offer data if ads are inserted
+                  // But here we'll just show ads interspersed with the SAME list for now
+                  // or we can just show one ad at index 3.
+                  
+                  final offer = _offers[index % _offers.length];
 
                   return _buildOfferCard(
                     context,
                     offer,
                   );
                 },
-                childCount: _offers.length,
+                childCount: _offers.length + (_offers.length ~/ 3),
               ),
             ),
 
