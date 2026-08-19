@@ -12,6 +12,42 @@ class TokenListItem extends StatelessWidget {
     this.onTap,
   });
 
+  String _formatPrice(num value) {
+    final double price = value.toDouble();
+
+    if (price == 0) {
+      return '--';
+    }
+
+    if (price >= 1) {
+      return price.toStringAsFixed(2);
+    }
+
+    if (price >= 0.01) {
+      return price.toStringAsFixed(4);
+    }
+
+    if (price >= 0.0001) {
+      return price.toStringAsFixed(6);
+    }
+
+    return price.toStringAsFixed(8);
+  }
+
+  String _formatUsd(num value) {
+    final double amount = value.toDouble();
+
+    if (amount.abs() >= 1000) {
+      return '\$${amount.toStringAsFixed(2)}';
+    }
+
+    if (amount.abs() >= 0.01) {
+      return '\$${amount.toStringAsFixed(2)}';
+    }
+
+    return '\$${amount.toStringAsFixed(4)}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -61,15 +97,32 @@ class TokenListItem extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 3),
-                  Text(
-                    token.symbol,
-                    style: textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          token.symbol,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '\$${_formatPrice(token.priceUsd)}',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
+            const SizedBox(width: 12),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
@@ -80,12 +133,27 @@ class TokenListItem extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 3),
-                Text(
-                  "${isPositive ? '+' : ''}${token.changePercent}%",
-                  style: textTheme.bodySmall?.copyWith(
-                    color: isPositive ? colorScheme.tertiary : colorScheme.error,
-                    fontWeight: FontWeight.w600,
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _formatUsd(token.valueUsd),
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      "${isPositive ? '+' : ''}${token.changePercent}%",
+                      style: textTheme.bodySmall?.copyWith(
+                        color: isPositive
+                            ? colorScheme.tertiary
+                            : colorScheme.error,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
