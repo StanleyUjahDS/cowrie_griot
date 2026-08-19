@@ -41,23 +41,7 @@ class TokenIcon extends StatelessWidget {
     );
   }
 
-  Widget _localHbadg() {
-    return ClipOval(
-      child: SvgPicture.asset(
-        _hbadgAsset,
-        width: radius * 2,
-        height: radius * 2,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _tokenFallback(_context!),
-      ),
-    );
-  }
-
-  BuildContext? _context;
-
   Widget _tokenImage(BuildContext context) {
-    _context = context;
-
     if (_isHbadg) {
       return ClipOval(
         child: SvgPicture.asset(
