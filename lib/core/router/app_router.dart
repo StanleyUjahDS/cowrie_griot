@@ -29,6 +29,7 @@ import '../../features/settings/screens/appearance/accent_color_screen.dart';
 import '../../features/settings/screens/account/account_details_screen.dart';
 
 import '../../features/wallet/screens/wallet_screen.dart';
+import '../../features/wallet/screens/scanner_screen.dart';
 import '../../features/wallet/services/wallet_crypto_service.dart';
 
 import '../../features/p2p/screens/peer_2_peer.dart';
@@ -257,6 +258,17 @@ class AppRouter {
         path: '/enable_biometrics',
         builder: (context, state) {
           return const BiometricsScreen();
+        },
+      ),
+
+      // ======================================================
+      // WALLET SCAN
+      // ======================================================
+
+      GoRoute(
+        path: '/wallet/scan',
+        builder: (context, state) {
+          return const ScannerScreen();
         },
       ),
 

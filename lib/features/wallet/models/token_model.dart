@@ -1,4 +1,4 @@
-class WalletToken {
+class TokenModel {
   final String name;
   final String symbol;
   final num balance;
@@ -7,7 +7,7 @@ class WalletToken {
   final String contractAddress;
   final String imageUrl;
 
-  const WalletToken({
+  const TokenModel({
     required this.name,
     required this.symbol,
     required this.balance,
@@ -18,4 +18,6 @@ class WalletToken {
   });
 
   bool get isProfit => changePercent >= 0;
+
+  double get value => 0.0; // Placeholder for future price logic
 }

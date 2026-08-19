@@ -17,26 +17,27 @@ import 'features/wallet/services/wallet_crypto_service.dart';
 import 'features/wallet/services/wallet_service.dart';
 import 'features/wallet/services/wallet_storage_service.dart';
 
+import 'features/wallet/services/wallet_api_service.dart';
+import 'features/wallet/providers/wallet_provider.dart';
+
 class GriotCowrieApp extends StatefulWidget {
   const GriotCowrieApp({
     super.key,
   });
 
   @override
-  State<GriotCowrieApp> createState() =>
-      _GriotCowrieAppState();
+  State<GriotCowrieApp> createState() => _GriotCowrieAppState();
 }
 
-class _GriotCowrieAppState
-    extends State<GriotCowrieApp> {
-  final ThemeController _themeController =
-      ThemeController.instance;
+class _GriotCowrieAppState extends State<GriotCowrieApp> {
+  final ThemeController _themeController = ThemeController.instance;
 
   late final ApiClient _apiClient;
   late final UserApiService _userApiService;
   late final WalletService _walletService;
   late final AuthApiService _authApiService;
   late final AuthSessionService _authSessionService;
+  late final WalletApiService _walletApiService;
 
   @override
   void initState() {
@@ -57,6 +58,10 @@ class _GriotCowrieAppState
     );
 
     _userApiService = UserApiService(
+      apiClient: _apiClient,
+    );
+
+    _walletApiService = WalletApiService(
       apiClient: _apiClient,
     );
 
@@ -94,8 +99,8 @@ class _GriotCowrieAppState
 
   @override
   Widget build(
-      BuildContext context,
-      ) {
+    BuildContext context,
+  ) {
     return MultiProvider(
       providers: [
         // ======================================================
@@ -104,6 +109,7 @@ class _GriotCowrieAppState
 
         Provider<WalletService>.value(value: _walletService),
         Provider<AuthSessionService>.value(value: _authSessionService),
+        Provider<WalletApiService>.value(value: _walletApiService),
 
         // ======================================================
         // USER PROVIDER
@@ -116,11 +122,22 @@ class _GriotCowrieAppState
         ),
 
         // ======================================================
+        // WALLET PROVIDER
+        // ======================================================
+
+        ChangeNotifierProvider<WalletProvider>(
+          create: (_) => WalletProvider(
+            walletService: _walletService,
+            walletApiService: _walletApiService,
+          )..loadWallet(),
+        ),
+
+        // ======================================================
         // STARTUP SERVICE
         // ======================================================
 
         ProxyProvider2<AuthSessionService, UserProvider, AppStartupService>(
-          update: (_, auth, user, __) => AppStartupService(
+          update: (_, auth, user, previous) => AppStartupService(
             authSessionService: auth,
             userProvider: user,
           ),
@@ -134,9 +151,9 @@ class _GriotCowrieAppState
       child: AnimatedBuilder(
         animation: _themeController,
         builder: (
-            context,
-            _,
-            ) {
+          context,
+          _,
+        ) {
           return MaterialApp.router(
             debugShowCheckedModeBanner: false,
 
@@ -162,8 +179,7 @@ class _GriotCowrieAppState
             // CURRENT THEME MODE
             // ==================================================
 
-            themeMode:
-            _themeController.themeMode,
+            themeMode: _themeController.themeMode,
 
             // ==================================================
             // ROUTER

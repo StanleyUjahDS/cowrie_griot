@@ -115,10 +115,10 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
       (user.displayName ?? '').toLowerCase();
 
       final walletAddress =
-      (user.walletAddress ?? '').toLowerCase();
+      user.walletAddress.toLowerCase();
 
       final lastMessage =
-      (user.lastMessage ?? '').toLowerCase();
+      user.lastMessage.toLowerCase();
 
       return displayName.contains(query) ||
           walletAddress.contains(query) ||
@@ -141,10 +141,10 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
 
     return groups.where((group) {
       final name =
-      (group.name ?? '').toLowerCase();
+      group.name.toLowerCase();
 
       final description =
-      (group.description ?? '').toLowerCase();
+      group.description.toLowerCase();
 
       return name.contains(query) ||
           description.contains(query);
@@ -166,10 +166,10 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
 
     return channels.where((channel) {
       final name =
-      (channel.name ?? '').toLowerCase();
+      channel.name.toLowerCase();
 
       final description =
-      (channel.description ?? '').toLowerCase();
+      channel.description.toLowerCase();
 
       return name.contains(query) ||
           description.contains(query);
@@ -481,32 +481,31 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
       builder: (sheetContext) {
         return _NewChatSheet(
           onSendRequest: (user) async {
-            final controller =
-            context.read<ChatController>();
+            final controller = context.read<ChatController>();
+            final messenger = ScaffoldMessenger.of(context);
+            final navigator = Navigator.of(context);
 
             try {
               await controller.sendMessageRequest(
-                senderWalletAddress:
-                user.walletAddress ?? '',
-                receiverWalletAddress:
-                user.walletAddress ?? '',
+                senderWalletAddress: user.walletAddress,
+                receiverWalletAddress: user.walletAddress,
               );
 
-              if (!mounted) {
-                return;
+              if (!mounted) return;
+
+              if (sheetContext.mounted) {
+                navigator.pop();
               }
 
-              Navigator.of(sheetContext).pop();
-
-              ScaffoldMessenger.of(context)
-                  .showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Message request sent to '
-                        '${user.displayName ?? 'user'}',
+              if (mounted) {
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Message request sent to ${user.displayName ?? 'user'}',
+                    ),
                   ),
-                ),
-              );
+                );
+              }
             } catch (_) {
               // Controller handles the underlying error.
             }
@@ -1821,8 +1820,7 @@ class _NewChatSheetState
 
                     subtitle:
                     Text(
-                      user.walletAddress ??
-                          '',
+                      user.walletAddress,
                       overflow:
                       TextOverflow
                           .ellipsis,

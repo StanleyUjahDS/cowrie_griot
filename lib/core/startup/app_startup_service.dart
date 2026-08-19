@@ -1,6 +1,25 @@
+// app_startup_service.dart
+
 import 'package:flutter/foundation.dart';
+
 import '../../features/auth/services/auth_session_service.dart';
 import '../../features/users/providers/user_provider.dart';
+
+// ============================================================
+// APP STARTUP SERVICE
+// ============================================================
+//
+// THIS IS NOW THE SINGLE OWNER OF APPLICATION STARTUP.
+//
+// Startup:
+//
+// 1. Load local user
+// 2. Restore backend session
+// 3. Load current user from backend
+//
+// There is NO second restoreSession() elsewhere during startup.
+//
+// ============================================================
 
 class AppStartupService {
   final AuthSessionService _authSessionService;
@@ -16,25 +35,81 @@ class AppStartupService {
   // INITIALIZE APPLICATION
   // ============================================================
 
-  Future<void> initialize() async {
+  Future<bool> initialize() async {
     try {
-      // 1. Restore local user state immediately
+      // --------------------------------------------------------
+      // STEP 1
+      // RESTORE LOCAL USER
+      // --------------------------------------------------------
+
       await _userProvider.loadLocalUser();
 
-      // 2. Establish backend session in background
-      final sessionRestored = await _authSessionService.restoreSession();
+      // --------------------------------------------------------
+      // STEP 2
+      // RESTORE BACKEND SESSION
+      // --------------------------------------------------------
+      //
+      // This happens exactly once.
+      //
+      // AuthSessionService internally:
+      //
+      // refresh token
+      //      ↓
+      // if failed
+      //      ↓
+      // wallet authentication
+      //
+      // --------------------------------------------------------
 
-      if (sessionRestored) {
-        // 3. Synchronize user data if session is active
-        await _userProvider.loadUser();
+      final sessionRestored =
+      await _authSessionService.restoreSession();
+
+      if (!sessionRestored) {
+        // ------------------------------------------------------
+        // No valid backend session could be established.
+        //
+        // We do not delete the wallet or local user.
+        // ------------------------------------------------------
+
+        return false;
       }
 
-      // TODO: Initialize other services (messaging, sockets, etc.)
-      
+      // --------------------------------------------------------
+      // STEP 3
+      // LOAD CURRENT USER
+      // --------------------------------------------------------
+      //
+      // At this point ApiClient has a valid access token.
+      //
+      // GET /users/me
+      //
+      // --------------------------------------------------------
+
+      await _userProvider.loadUser();
+
+      if (!_userProvider.hasUser) {
+        return false;
+      }
+
+      // --------------------------------------------------------
+      // STEP 4
+      // STARTUP SUCCESSFUL
+      // --------------------------------------------------------
+
+      // TODO:
+      // Initialize messaging.
+      // Initialize sockets.
+      // Initialize notifications.
+      // Initialize wallet live-data services.
+      // etc.
+
+      return true;
     } catch (e) {
-      debugPrint('AppStartupService initialization error: $e');
-      // We don't rethrow here because the app can still work 
-      // partially with local data or prompt for login if needed.
+      debugPrint(
+        'AppStartupService initialization error: $e',
+      );
+
+      return false;
     }
   }
 }

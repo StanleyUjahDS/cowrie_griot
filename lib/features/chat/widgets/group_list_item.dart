@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-
 import '../models/chat_group.dart';
 
+// Group list item component for the chat home screen.
 class GroupListItem extends StatelessWidget {
   final ChatGroup group;
   final VoidCallback? onTap;
@@ -18,7 +18,7 @@ class GroupListItem extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
 
-    final description = group.description.trim() ?? '';
+    final description = group.description.trim();
 
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(
@@ -27,8 +27,7 @@ class GroupListItem extends StatelessWidget {
       ),
       leading: CircleAvatar(
         radius: 27,
-        backgroundColor:
-        colorScheme.surfaceContainerHighest,
+        backgroundColor: colorScheme.surfaceContainerHighest,
         child: Icon(
           Icons.groups_rounded,
           size: 27,
@@ -46,9 +45,7 @@ class GroupListItem extends StatelessWidget {
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 3),
         child: Text(
-          description.isNotEmpty
-              ? description
-              : 'Group conversation',
+          description.isNotEmpty ? description : 'Group conversation',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: textTheme.bodySmall?.copyWith(

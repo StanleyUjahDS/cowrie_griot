@@ -2,13 +2,101 @@
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
-import '/core/ui/scaffolds/gradient_scaffold.dart';
+import '../../../core/ui/scaffolds/gradient_scaffold.dart';
+import '../../auth/services/auth_session_service.dart';
+import '../../users/providers/user_provider.dart';
+import '../../wallet/providers/wallet_provider.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({
     super.key,
   });
+
+  // ============================================================
+  // LOGOUT
+  // ============================================================
+
+  Future<void> _handleLogout(BuildContext context) async {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Log Out'),
+        content: const Text(
+          'Are you sure you want to log out of your account?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: colorScheme.onSurfaceVariant),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(
+              'Log Out',
+              style: TextStyle(
+                color: colorScheme.error,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    if (!context.mounted) return;
+
+    // Show loading indicator
+    showDialog(
+      context: context,
+      useRootNavigator: true,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
+    try {
+      final authSessionService = context.read<AuthSessionService>();
+      final userProvider = context.read<UserProvider>();
+      final walletProvider = context.read<WalletProvider>();
+
+      // 1. Perform backend logout & full local wipe
+      await authSessionService.logout();
+
+      // 2. Clear memory provider state
+      userProvider.clearUser();
+      walletProvider.reset();
+
+      if (!context.mounted) return;
+
+      // 3. Pop loading dialog and navigate to root
+      // We use the root navigator to ensure the dialog is dismissed
+      Navigator.of(context, rootNavigator: true).pop();
+      
+      // Navigate to / which will re-run the Splash logic
+      // and take the user to Onboarding since the wallet is gone.
+      context.go('/');
+    } catch (e) {
+      if (!context.mounted) return;
+      
+      // Ensure dialog is popped on error
+      Navigator.of(context, rootNavigator: true).pop();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Logout failed: $e')),
+      );
+    }
+  }
 
   // ============================================================
   // SECTION LABEL
@@ -865,11 +953,8 @@ class SettingsScreen extends StatelessWidget {
                   context: context,
                   icon: Icons.logout_rounded,
                   title: 'Log Out',
-                  subtitle:
-                  'Sign out of your Griot account',
-                  onTap: () {
-                    // Connect to auth provider.
-                  },
+                  subtitle: 'Sign out of your Griot account',
+                  onTap: () => _handleLogout(context),
                 ),
                 _divider(context),
                 _settingTile(

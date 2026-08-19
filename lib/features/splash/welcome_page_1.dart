@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '/widgets/onboarding/welcome_page_widget.dart';
-import '/widgets/onboarding/animated_progress_bar.dart';
-import '/core/ui/scaffolds/gradient_scaffold.dart';
+import '../../widgets/onboarding/welcome_page_widget.dart';
+import '../../widgets/onboarding/animated_progress_bar.dart';
+import '../../core/ui/scaffolds/gradient_scaffold.dart';
 
 class WelcomePage1 extends StatelessWidget {
   const WelcomePage1({super.key});

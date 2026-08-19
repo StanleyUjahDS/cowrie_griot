@@ -6,20 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:overlay_support/overlay_support.dart';
 
-import '../../../core/network/api_client.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
-import '../../../core/ui/screens/app_loading_screen.dart';
-
-import '../../auth/services/auth_api_service.dart';
-import '../../auth/services/auth_storage_service.dart';
-import '../../auth/services/wallet_auth_service.dart';
-
-import '../../users/providers/user_provider.dart';
-import '../../users/services/user_api_service.dart';
-
-import '../../wallet/services/wallet_crypto_service.dart';
-import '../../wallet/services/wallet_service.dart';
-import '../../wallet/services/wallet_storage_service.dart';
 
 class BiometricsScreen extends StatefulWidget {
   const BiometricsScreen({
@@ -43,18 +30,6 @@ class _BiometricsScreenState
   static const FlutterSecureStorage _storage =
   FlutterSecureStorage();
 
-  late final WalletService _walletService;
-
-  late final AuthStorageService _authStorageService;
-
-  late final AuthApiService _authApiService;
-
-  late final WalletAuthService _walletAuthService;
-
-  late final UserApiService _userApiService;
-
-  late final UserProvider _userProvider;
-
   // ============================================================
   // STATE
   // ============================================================
@@ -73,84 +48,14 @@ class _BiometricsScreenState
   void initState() {
     super.initState();
 
-    // ----------------------------------------------------------
-    // API CLIENT
-    // ----------------------------------------------------------
-
-    final apiClient = ApiClient();
-
-    // ----------------------------------------------------------
-    // WALLET STORAGE
-    // ----------------------------------------------------------
-
-    final walletStorageService =
-    WalletStorageService();
-
-    // ----------------------------------------------------------
-    // WALLET SERVICE
-    // ----------------------------------------------------------
-
-    _walletService = WalletService(
-      cryptoService: WalletCryptoService(),
-      storageService: walletStorageService,
-    );
-
-    // ----------------------------------------------------------
-    // AUTH STORAGE
-    // ----------------------------------------------------------
-
-    _authStorageService =
-        AuthStorageService();
-
-    // ----------------------------------------------------------
-    // AUTH API SERVICE
-    // ----------------------------------------------------------
-
-    _authApiService = AuthApiService(
-      apiClient: apiClient,
-      authStorageService:
-      _authStorageService,
-    );
-
-    // ----------------------------------------------------------
-    // WALLET AUTH SERVICE
-    // ----------------------------------------------------------
-
-    _walletAuthService =
-        WalletAuthService(
-          walletService: _walletService,
-          authApiService: _authApiService,
-        );
-
-    // ----------------------------------------------------------
-    // USER API SERVICE
-    // ----------------------------------------------------------
-
-    _userApiService = UserApiService(
-      apiClient: apiClient,
-    );
-
-    // ----------------------------------------------------------
-    // USER PROVIDER
-    // ----------------------------------------------------------
-
-    _userProvider = UserProvider(
-      userApiService: _userApiService,
-    );
-
-    // ----------------------------------------------------------
-    // CHECK BIOMETRICS
-    // ----------------------------------------------------------
-
     _checkBiometricsAvailability();
   }
 
   // ============================================================
-  // CHECK BIOMETRICS
+  // CHECK BIOMETRICS AVAILABILITY
   // ============================================================
 
-  Future<void>
-  _checkBiometricsAvailability() async {
+  Future<void> _checkBiometricsAvailability() async {
     try {
       final canCheck =
       await _auth.canCheckBiometrics;
@@ -171,9 +76,7 @@ class _BiometricsScreenState
       }
 
       setState(() {
-        _biometricsAvailable =
-            available;
-
+        _biometricsAvailable = available;
         _loading = false;
       });
     } catch (_) {
@@ -189,62 +92,23 @@ class _BiometricsScreenState
   }
 
   // ============================================================
-  // BACKEND WALLET AUTHENTICATION
-  // ============================================================
-  //
-  // This is the function passed to AppLoadingRouteData.
-  //
-  // Flow:
-  //
-  // Wallet
-  //   ↓
-  // WalletAuthService
-  //   ↓
-  // /auth/nonce
-  //   ↓
-  // Sign authentication message
-  //   ↓
-  // /auth/verify
-  //   ↓
-  // Access + refresh tokens stored
-  //
-  // This function ONLY establishes the backend session.
-  // User loading happens afterwards.
-  //
-  // ============================================================
-
-  Future<void>
-  _authenticateWalletWithBackend() async {
-    await _walletAuthService
-        .authenticateWallet();
-  }
-
-  // ============================================================
-  // LOAD CURRENT USER
-  // ============================================================
-  //
-  // Called AFTER backend wallet authentication succeeds.
-  //
-  // GET /api/users/me
-  //
-  // The authenticated access token is automatically attached
-  // by ApiClient.
-  //
-  // ============================================================
-
-  Future<void>
-  _loadCurrentUser() async {
-    await _userProvider.loadUser();
-
-    if (!_userProvider.hasUser) {
-      throw Exception(
-        'Unable to load current user.',
-      );
-    }
-  }
-
-  // ============================================================
   // ENABLE BIOMETRICS
+  // ============================================================
+  //
+  // IMPORTANT:
+  //
+  // This screen does NOT:
+  //
+  // - authenticate the wallet with the backend
+  // - request a nonce
+  // - sign a backend authentication message
+  // - load the current user
+  // - load chats
+  // - restore the backend session
+  //
+  // AppStartupService handles application startup after we
+  // enter the main application.
+  //
   // ============================================================
 
   Future<void> _enableBiometrics() async {
@@ -258,8 +122,7 @@ class _BiometricsScreenState
 
     try {
       // ========================================================
-      // STEP 1
-      // DEVICE BIOMETRIC AUTHENTICATION
+      // DEVICE BIOMETRIC VERIFICATION
       // ========================================================
 
       final authenticated =
@@ -295,66 +158,32 @@ class _BiometricsScreenState
       }
 
       // ========================================================
-      // STEP 2
-      // BACKEND WALLET AUTHENTICATION
+      // SAVE BIOMETRIC PREFERENCE
+      // ========================================================
+
+      await _storage.write(
+        key: 'biometrics_enabled',
+        value: 'true',
+      );
+
+      // ========================================================
+      // CONTINUE TO APPLICATION
+      // ========================================================
+      //
+      // AppStartupService will now handle:
+      //
+      // 1. Local user restoration
+      // 2. Backend session restoration
+      // 3. Wallet authentication if required
+      // 4. Current user synchronization
+      //
       // ========================================================
 
       if (!mounted) {
         return;
       }
 
-      context.push(
-        '/loading',
-        extra: AppLoadingRouteData(
-          icon:
-          Icons.fingerprint_rounded,
-          title:
-          'Securing your account',
-          message:
-          'Authenticating your wallet securely...',
-          operation: () async {
-            // --------------------------------------------------
-            // AUTHENTICATE WALLET WITH BACKEND
-            // --------------------------------------------------
-
-            await _authenticateWalletWithBackend();
-
-            return true;
-          },
-          onSuccess: (
-              BuildContext context,
-              dynamic result,
-              ) async {
-            // --------------------------------------------------
-            // STEP 3
-            // LOAD CURRENT USER
-            // --------------------------------------------------
-
-            await _loadCurrentUser();
-
-            // --------------------------------------------------
-            // STEP 4
-            // SAVE BIOMETRIC PREFERENCE
-            // --------------------------------------------------
-
-            await _storage.write(
-              key: 'biometrics_enabled',
-              value: 'true',
-            );
-
-            // --------------------------------------------------
-            // STEP 5
-            // GO TO APP
-            // --------------------------------------------------
-
-            if (!context.mounted) {
-              return;
-            }
-
-            context.go('/chat');
-          },
-        ),
-      );
+      context.go('/chat');
     } catch (e) {
       if (!mounted) {
         return;
@@ -373,9 +202,17 @@ class _BiometricsScreenState
   // ============================================================
   // CONTINUE WITHOUT BIOMETRICS
   // ============================================================
+  //
+  // No backend authentication happens here either.
+  //
+  // We simply record that the user chose not to enable
+  // biometrics and enter the application.
+  //
+  // AppStartupService handles the actual application startup.
+  //
+  // ============================================================
 
-  Future<void>
-  _continueWithoutBiometrics() async {
+  Future<void> _continueWithoutBiometrics() async {
     if (_authenticating) {
       return;
     }
@@ -386,62 +223,23 @@ class _BiometricsScreenState
 
     try {
       // ========================================================
-      // BACKEND AUTHENTICATION
+      // SAVE BIOMETRIC PREFERENCE
+      // ========================================================
+
+      await _storage.write(
+        key: 'biometrics_enabled',
+        value: 'false',
+      );
+
+      // ========================================================
+      // CONTINUE TO APPLICATION
       // ========================================================
 
       if (!mounted) {
         return;
       }
 
-      context.push(
-        '/loading',
-        extra: AppLoadingRouteData(
-          icon:
-          Icons.lock_outline_rounded,
-          title:
-          'Securing your account',
-          message:
-          'Authenticating your wallet securely...',
-          operation: () async {
-            // --------------------------------------------------
-            // AUTHENTICATE WALLET WITH BACKEND
-            // --------------------------------------------------
-
-            await _authenticateWalletWithBackend();
-
-            return true;
-          },
-          onSuccess: (
-              BuildContext context,
-              dynamic result,
-              ) async {
-            // --------------------------------------------------
-            // LOAD CURRENT USER
-            // --------------------------------------------------
-
-            await _loadCurrentUser();
-
-            // --------------------------------------------------
-            // SAVE BIOMETRIC PREFERENCE
-            // --------------------------------------------------
-
-            await _storage.write(
-              key: 'biometrics_enabled',
-              value: 'false',
-            );
-
-            // --------------------------------------------------
-            // GO TO APP
-            // --------------------------------------------------
-
-            if (!context.mounted) {
-              return;
-            }
-
-            context.go('/chat');
-          },
-        ),
-      );
+      context.go('/chat');
     } catch (e) {
       if (!mounted) {
         return;
@@ -613,8 +411,7 @@ class _BiometricsScreenState
                         child:
                         CircularProgressIndicator(
                           color:
-                          colorScheme
-                              .primary,
+                          colorScheme.primary,
                         ),
                       )
 
@@ -867,7 +664,7 @@ class _BiometricsScreenState
                     ),
                     child: Text(
                       _authenticating
-                          ? 'Securing...'
+                          ? 'Continuing...'
                           : 'Enable',
                       style: textTheme
                           .labelLarge

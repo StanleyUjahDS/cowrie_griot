@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 class MinerScreen extends StatefulWidget {
@@ -49,9 +48,7 @@ class _MinerScreenState extends State<MinerScreen>
   double get totalMiningWeight {
     final plus = isPlusUser ? plusMultiplier : 1.0;
 
-    return baseMiningWeight *
-        reputationMultiplier *
-        plus;
+    return baseMiningWeight * reputationMultiplier * plus;
   }
 
   double get sessionProgress {
@@ -59,18 +56,14 @@ class _MinerScreenState extends State<MinerScreen>
       return 0;
     }
 
-    return (sessionElapsed.inSeconds /
-        sessionDuration.inSeconds)
+    return (sessionElapsed.inSeconds / sessionDuration.inSeconds)
         .clamp(0.0, 1.0);
   }
 
   Duration get remainingSession {
-    final remaining =
-        sessionDuration - sessionElapsed;
+    final remaining = sessionDuration - sessionElapsed;
 
-    return remaining.isNegative
-        ? Duration.zero
-        : remaining;
+    return remaining.isNegative ? Duration.zero : remaining;
   }
 
   double get activityProgress {
@@ -78,8 +71,7 @@ class _MinerScreenState extends State<MinerScreen>
       return 0;
     }
 
-    return (todayPoints / dailyPointsAvailable)
-        .clamp(0.0, 1.0);
+    return (todayPoints / dailyPointsAvailable).clamp(0.0, 1.0);
   }
 
   double get estimatedCycleShare {
@@ -141,17 +133,15 @@ class _MinerScreenState extends State<MinerScreen>
   void _setupPayoutCountdown() {
     final now = DateTime.now();
 
-    nextPayoutDate =
-        _calculateNextPayout(now);
+    nextPayoutDate = _calculateNextPayout(now);
 
-    payoutCountdown =
-        nextPayoutDate.difference(now);
+    payoutCountdown = nextPayoutDate.difference(now);
 
     _payoutTimer?.cancel();
 
     _payoutTimer = Timer.periodic(
       const Duration(seconds: 1),
-          (_) {
+      (_) {
         if (!mounted) {
           return;
         }
@@ -160,23 +150,20 @@ class _MinerScreenState extends State<MinerScreen>
 
         if (!nextPayoutDate.isAfter(currentTime)) {
           setState(() {
-            nextPayoutDate =
-                _calculateNextPayout(currentTime);
+            nextPayoutDate = _calculateNextPayout(currentTime);
 
-            payoutCountdown =
-                nextPayoutDate.difference(
-                  currentTime,
-                );
+            payoutCountdown = nextPayoutDate.difference(
+              currentTime,
+            );
           });
 
           return;
         }
 
         setState(() {
-          payoutCountdown =
-              nextPayoutDate.difference(
-                currentTime,
-              );
+          payoutCountdown = nextPayoutDate.difference(
+            currentTime,
+          );
         });
       },
     );
@@ -201,18 +188,16 @@ class _MinerScreenState extends State<MinerScreen>
 
     _timer = Timer.periodic(
       const Duration(seconds: 1),
-          (_) {
+      (_) {
         if (!mounted) {
           return;
         }
 
         setState(() {
-          sessionElapsed +=
-          const Duration(seconds: 1);
+          sessionElapsed += const Duration(seconds: 1);
         });
 
-        if (sessionElapsed >=
-            sessionDuration) {
+        if (sessionElapsed >= sessionDuration) {
           _finishMiningSession();
         }
       },
@@ -244,64 +229,32 @@ class _MinerScreenState extends State<MinerScreen>
 
   void _addActivityPoints(double points) {
     setState(() {
-      todayPoints =
-          (todayPoints + points)
-              .clamp(
-            0,
-            dailyPointsAvailable,
-          );
+      todayPoints = (todayPoints + points).clamp(
+        0,
+        dailyPointsAvailable,
+      );
 
       cyclePoints += points;
     });
   }
 
-  String _formatTime(Duration duration) {
-    final days = duration.inDays;
-
-    final hours = duration.inHours
-        .remainder(24)
-        .toString()
-        .padLeft(2, '0');
-
-    final minutes = duration.inMinutes
-        .remainder(60)
-        .toString()
-        .padLeft(2, '0');
-
-    final seconds = duration.inSeconds
-        .remainder(60)
-        .toString()
-        .padLeft(2, '0');
-
-    return '${days}d ${hours}h ${minutes}m ${seconds}s';
-  }
-
   String _formatShortCountdown(
-      Duration duration,
-      ) {
+    Duration duration,
+  ) {
     final days = duration.inDays;
 
-    final hours = duration.inHours
-        .remainder(24)
-        .toString()
-        .padLeft(2, '0');
+    final hours = duration.inHours.remainder(24).toString().padLeft(2, '0');
 
-    final minutes = duration.inMinutes
-        .remainder(60)
-        .toString()
-        .padLeft(2, '0');
+    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
 
-    final seconds = duration.inSeconds
-        .remainder(60)
-        .toString()
-        .padLeft(2, '0');
+    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
 
     return '${days}d $hours:$minutes:$seconds';
   }
 
   String _formatPayoutDate(
-      DateTime date,
-      ) {
+    DateTime date,
+  ) {
     const months = [
       'Jan',
       'Feb',
@@ -353,20 +306,17 @@ class _MinerScreenState extends State<MinerScreen>
       ),
       body: SafeArea(
         child: CustomScrollView(
-          physics:
-          const BouncingScrollPhysics(),
+          physics: const BouncingScrollPhysics(),
           slivers: [
             SliverPadding(
-              padding:
-              const EdgeInsets.fromLTRB(
+              padding: const EdgeInsets.fromLTRB(
                 18,
                 8,
                 18,
                 30,
               ),
               sliver: SliverList(
-                delegate:
-                SliverChildListDelegate(
+                delegate: SliverChildListDelegate(
                   [
                     // ==================================================
                     // MINING HERO
@@ -374,16 +324,11 @@ class _MinerScreenState extends State<MinerScreen>
 
                     _MiningHero(
                       isMining: isMining,
-                      progress:
-                      sessionProgress,
-                      remaining:
-                      remainingSession,
-                      totalWeight:
-                      totalMiningWeight,
-                      pulse:
-                      _pulseController,
-                      onStart:
-                      _startMining,
+                      progress: sessionProgress,
+                      remaining: remainingSession,
+                      totalWeight: totalMiningWeight,
+                      pulse: _pulseController,
+                      onStart: _startMining,
                     ),
 
                     const SizedBox(
@@ -395,24 +340,15 @@ class _MinerScreenState extends State<MinerScreen>
                     // ==================================================
 
                     _PayoutCountdownCard(
-                      countdown:
-                      payoutCountdown,
-                      payoutDate:
-                      nextPayoutDate,
-                      cyclePoints:
-                      cyclePoints,
-                      networkPoints:
-                      networkCyclePoints,
-                      rewardPool:
-                      cycleRewardPool,
-                      estimatedReward:
-                      estimatedReward,
-                      share:
-                      estimatedCycleShare,
-                      formatCountdown:
-                      _formatShortCountdown,
-                      formatDate:
-                      _formatPayoutDate,
+                      countdown: payoutCountdown,
+                      payoutDate: nextPayoutDate,
+                      cyclePoints: cyclePoints,
+                      networkPoints: networkCyclePoints,
+                      rewardPool: cycleRewardPool,
+                      estimatedReward: estimatedReward,
+                      share: estimatedCycleShare,
+                      formatCountdown: _formatShortCountdown,
+                      formatDate: _formatPayoutDate,
                     ),
 
                     const SizedBox(
@@ -425,8 +361,7 @@ class _MinerScreenState extends State<MinerScreen>
 
                     _BalanceCard(
                       balance: 1248.42,
-                      cycleReward:
-                      estimatedReward,
+                      cycleReward: estimatedReward,
                     ),
 
                     const SizedBox(
@@ -441,12 +376,9 @@ class _MinerScreenState extends State<MinerScreen>
                       children: [
                         Expanded(
                           child: _StatCard(
-                            icon:
-                            Icons.bolt_rounded,
-                            label:
-                            'Mining weight',
-                            value:
-                            '${totalMiningWeight.toStringAsFixed(2)}×',
+                            icon: Icons.bolt_rounded,
+                            label: 'Mining weight',
+                            value: '${totalMiningWeight.toStringAsFixed(2)}×',
                           ),
                         ),
                         const SizedBox(
@@ -454,12 +386,9 @@ class _MinerScreenState extends State<MinerScreen>
                         ),
                         Expanded(
                           child: _StatCard(
-                            icon:
-                            Icons.stars_rounded,
-                            label:
-                            'Today',
-                            value:
-                            '${todayPoints.toStringAsFixed(0)} pts',
+                            icon: Icons.stars_rounded,
+                            label: 'Today',
+                            value: '${todayPoints.toStringAsFixed(0)} pts',
                           ),
                         ),
                       ],
@@ -474,10 +403,9 @@ class _MinerScreenState extends State<MinerScreen>
                     // ==================================================
 
                     _SectionTitle(
-                      title:
-                      'Today\'s progress',
+                      title: 'Today\'s progress',
                       trailing:
-                      '${todayPoints.toStringAsFixed(0)} / ${dailyPointsAvailable.toStringAsFixed(0)}',
+                          '${todayPoints.toStringAsFixed(0)} / ${dailyPointsAvailable.toStringAsFixed(0)}',
                     ),
 
                     const SizedBox(
@@ -485,12 +413,9 @@ class _MinerScreenState extends State<MinerScreen>
                     ),
 
                     _DailyProgressCard(
-                      progress:
-                      activityProgress,
-                      points:
-                      todayPoints,
-                      available:
-                      dailyPointsAvailable,
+                      progress: activityProgress,
+                      points: todayPoints,
+                      available: dailyPointsAvailable,
                     ),
 
                     const SizedBox(
@@ -502,10 +427,8 @@ class _MinerScreenState extends State<MinerScreen>
                     // ==================================================
 
                     _SectionTitle(
-                      title:
-                      'Current reward cycle',
-                      trailing:
-                      '3 months',
+                      title: 'Current reward cycle',
+                      trailing: '3 months',
                     ),
 
                     const SizedBox(
@@ -513,16 +436,11 @@ class _MinerScreenState extends State<MinerScreen>
                     ),
 
                     _CyclePointsCard(
-                      cyclePoints:
-                      cyclePoints,
-                      networkPoints:
-                      networkCyclePoints,
-                      rewardPool:
-                      cycleRewardPool,
-                      estimatedReward:
-                      estimatedReward,
-                      share:
-                      estimatedCycleShare,
+                      cyclePoints: cyclePoints,
+                      networkPoints: networkCyclePoints,
+                      rewardPool: cycleRewardPool,
+                      estimatedReward: estimatedReward,
+                      share: estimatedCycleShare,
                     ),
 
                     const SizedBox(
@@ -534,8 +452,7 @@ class _MinerScreenState extends State<MinerScreen>
                     // ==================================================
 
                     _SectionTitle(
-                      title:
-                      'Your mining power',
+                      title: 'Your mining power',
                     ),
 
                     const SizedBox(
@@ -543,16 +460,11 @@ class _MinerScreenState extends State<MinerScreen>
                     ),
 
                     _MiningPowerCard(
-                      base:
-                      baseMiningWeight,
-                      reputation:
-                      reputationMultiplier,
-                      plus:
-                      plusMultiplier,
-                      isPlus:
-                      isPlusUser,
-                      total:
-                      totalMiningWeight,
+                      base: baseMiningWeight,
+                      reputation: reputationMultiplier,
+                      plus: plusMultiplier,
+                      isPlus: isPlusUser,
+                      total: totalMiningWeight,
                     ),
 
                     const SizedBox(
@@ -564,10 +476,8 @@ class _MinerScreenState extends State<MinerScreen>
                     // ==================================================
 
                     _SectionTitle(
-                      title:
-                      'Earn more points',
-                      trailing:
-                      'Daily activities',
+                      title: 'Earn more points',
+                      trailing: 'Daily activities',
                     ),
 
                     const SizedBox(
@@ -575,14 +485,10 @@ class _MinerScreenState extends State<MinerScreen>
                     ),
 
                     _ActivityTile(
-                      icon: Icons
-                          .play_circle_fill_rounded,
-                      title:
-                      'Follow Griot on YouTube',
-                      subtitle:
-                      'Follow the official Griot channel',
-                      reward:
-                      '+20 pts',
+                      icon: Icons.play_circle_fill_rounded,
+                      title: 'Follow Griot on YouTube',
+                      subtitle: 'Follow the official Griot channel',
+                      reward: '+20 pts',
                       onTap: () {
                         _addActivityPoints(
                           20,
@@ -595,14 +501,10 @@ class _MinerScreenState extends State<MinerScreen>
                     ),
 
                     _ActivityTile(
-                      icon: Icons
-                          .alternate_email_rounded,
-                      title:
-                      'Follow Griot on X',
-                      subtitle:
-                      'Follow the official Griot account',
-                      reward:
-                      '+15 pts',
+                      icon: Icons.alternate_email_rounded,
+                      title: 'Follow Griot on X',
+                      subtitle: 'Follow the official Griot account',
+                      reward: '+15 pts',
                       onTap: () {
                         _addActivityPoints(
                           15,
@@ -615,14 +517,10 @@ class _MinerScreenState extends State<MinerScreen>
                     ),
 
                     _ActivityTile(
-                      icon: Icons
-                          .person_add_alt_1_rounded,
-                      title:
-                      'Invite a friend',
-                      subtitle:
-                      'Bring someone into Griot',
-                      reward:
-                      '+50 pts',
+                      icon: Icons.person_add_alt_1_rounded,
+                      title: 'Invite a friend',
+                      subtitle: 'Bring someone into Griot',
+                      reward: '+50 pts',
                       completed: true,
                     ),
 
@@ -631,14 +529,10 @@ class _MinerScreenState extends State<MinerScreen>
                     ),
 
                     _ActivityTile(
-                      icon: Icons
-                          .account_circle_rounded,
-                      title:
-                      'Complete your profile',
-                      subtitle:
-                      'Finish setting up your account',
-                      reward:
-                      '+10 pts',
+                      icon: Icons.account_circle_rounded,
+                      title: 'Complete your profile',
+                      subtitle: 'Finish setting up your account',
+                      reward: '+10 pts',
                       onTap: () {
                         _addActivityPoints(
                           10,
@@ -654,7 +548,7 @@ class _MinerScreenState extends State<MinerScreen>
                     // HOW IT WORKS
                     // ==================================================
 
-                    _HowMiningWorksCard(),
+                    const _HowMiningWorksCard(),
 
                     const SizedBox(
                       height: 20,
@@ -664,7 +558,7 @@ class _MinerScreenState extends State<MinerScreen>
                     // AD
                     // ==================================================
 
-                    _AdPlaceholder(),
+                    const _AdPlaceholder(),
                   ],
                 ),
               ),
@@ -704,16 +598,14 @@ class _MiningHero extends StatelessWidget {
     final text = theme.textTheme;
 
     return Container(
-      padding:
-      const EdgeInsets.fromLTRB(
+      padding: const EdgeInsets.fromLTRB(
         20,
         24,
         20,
         20,
       ),
       decoration: BoxDecoration(
-        borderRadius:
-        BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(30),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -721,40 +613,30 @@ class _MiningHero extends StatelessWidget {
             colors.primary.withValues(
               alpha: 0.18,
             ),
-            colors.primaryContainer
-                .withValues(
+            colors.primaryContainer.withValues(
               alpha: 0.12,
             ),
-            colors.surfaceContainerHighest
-                .withValues(
+            colors.surfaceContainerHighest.withValues(
               alpha: 0.55,
             ),
           ],
         ),
         border: Border.all(
-          color: colors.primary
-              .withValues(alpha: 0.16),
+          color: colors.primary.withValues(alpha: 0.16),
         ),
       ),
       child: Column(
         children: [
           Row(
-            mainAxisAlignment:
-            MainAxisAlignment
-                .spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Column(
-                crossAxisAlignment:
-                CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    isMining
-                        ? 'Mining is active'
-                        : 'Ready to mine',
-                    style: text.titleLarge
-                        ?.copyWith(
-                      fontWeight:
-                      FontWeight.w800,
+                    isMining ? 'Mining is active' : 'Ready to mine',
+                    style: text.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                   const SizedBox(
@@ -764,32 +646,26 @@ class _MiningHero extends StatelessWidget {
                     isMining
                         ? 'Keep the session running'
                         : 'Start your daily mining session',
-                    style: text.bodySmall
-                        ?.copyWith(
-                      color: colors
-                          .onSurfaceVariant,
+                    style: text.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
                     ),
                   ),
                 ],
               ),
               Container(
-                padding:
-                const EdgeInsets.symmetric(
+                padding: const EdgeInsets.symmetric(
                   horizontal: 10,
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
                   color: isMining
-                      ? Colors.green
-                      .withValues(
-                    alpha: 0.12,
-                  )
-                      : colors.surface
-                      .withValues(
-                    alpha: 0.55,
-                  ),
-                  borderRadius:
-                  BorderRadius.circular(
+                      ? Colors.green.withValues(
+                          alpha: 0.12,
+                        )
+                      : colors.surface.withValues(
+                          alpha: 0.55,
+                        ),
+                  borderRadius: BorderRadius.circular(
                     30,
                   ),
                 ),
@@ -798,27 +674,18 @@ class _MiningHero extends StatelessWidget {
                     Container(
                       width: 7,
                       height: 7,
-                      decoration:
-                      BoxDecoration(
-                        color: isMining
-                            ? Colors.green
-                            : colors
-                            .onSurfaceVariant,
-                        shape:
-                        BoxShape.circle,
+                      decoration: BoxDecoration(
+                        color: isMining ? Colors.green : colors.onSurfaceVariant,
+                        shape: BoxShape.circle,
                       ),
                     ),
                     const SizedBox(
                       width: 6,
                     ),
                     Text(
-                      isMining
-                          ? 'ACTIVE'
-                          : 'IDLE',
-                      style: text.labelSmall
-                          ?.copyWith(
-                        fontWeight:
-                        FontWeight.w800,
+                      isMining ? 'ACTIVE' : 'IDLE',
+                      style: text.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ],
@@ -831,12 +698,8 @@ class _MiningHero extends StatelessWidget {
           ),
           AnimatedBuilder(
             animation: pulse,
-            builder:
-                (context, child) {
-              final scale = isMining
-                  ? 1.0 +
-                  (pulse.value * 0.045)
-                  : 1.0;
+            builder: (context, child) {
+              final scale = isMining ? 1.0 + (pulse.value * 0.045) : 1.0;
 
               return Transform.scale(
                 scale: scale,
@@ -844,24 +707,17 @@ class _MiningHero extends StatelessWidget {
               );
             },
             child: Stack(
-              alignment:
-              Alignment.center,
+              alignment: Alignment.center,
               children: [
                 Container(
                   width: 178,
                   height: 178,
-                  decoration:
-                  BoxDecoration(
-                    shape:
-                    BoxShape.circle,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: colors
-                            .primary
-                            .withValues(
-                          alpha: isMining
-                              ? 0.25
-                              : 0.10,
+                        color: colors.primary.withValues(
+                          alpha: isMining ? 0.25 : 0.10,
                         ),
                         blurRadius: 45,
                         spreadRadius: 4,
@@ -872,20 +728,13 @@ class _MiningHero extends StatelessWidget {
                 SizedBox(
                   width: 164,
                   height: 164,
-                  child:
-                  CircularProgressIndicator(
-                    value: isMining
-                        ? progress
-                        : 0,
+                  child: CircularProgressIndicator(
+                    value: isMining ? progress : 0,
                     strokeWidth: 8,
-                    backgroundColor:
-                    colors.surface
-                        .withValues(
+                    backgroundColor: colors.surface.withValues(
                       alpha: 0.55,
                     ),
-                    valueColor:
-                    AlwaysStoppedAnimation<
-                        Color>(
+                    valueColor: AlwaysStoppedAnimation<Color>(
                       colors.primary,
                     ),
                   ),
@@ -893,70 +742,46 @@ class _MiningHero extends StatelessWidget {
                 Container(
                   width: 138,
                   height: 138,
-                  decoration:
-                  BoxDecoration(
-                    shape:
-                    BoxShape.circle,
-                    gradient:
-                    RadialGradient(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
                       colors: [
-                        colors.primary
-                            .withValues(
+                        colors.primary.withValues(
                           alpha: 0.24,
                         ),
-                        colors.primary
-                            .withValues(
+                        colors.primary.withValues(
                           alpha: 0.06,
                         ),
                       ],
                     ),
                     border: Border.all(
-                      color: colors
-                          .primary
-                          .withValues(
+                      color: colors.primary.withValues(
                         alpha: 0.18,
                       ),
                     ),
                   ),
                   child: Column(
-                    mainAxisAlignment:
-                    MainAxisAlignment
-                        .center,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        Icons
-                            .bolt_rounded,
+                        Icons.bolt_rounded,
                         size: 32,
-                        color:
-                        colors.primary,
+                        color: colors.primary,
                       ),
                       const SizedBox(
                         height: 5,
                       ),
                       Text(
-                        isMining
-                            ? '${(progress * 100).toInt()}%'
-                            : '0%',
-                        style: text
-                            .headlineSmall
-                            ?.copyWith(
-                          fontWeight:
-                          FontWeight.w900,
+                        isMining ? '${(progress * 100).toInt()}%' : '0%',
+                        style: text.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
                       Text(
-                        isMining
-                            ? _formatRemaining(
-                          remaining,
-                        )
-                            : '2 HOURS',
-                        style: text
-                            .labelSmall
-                            ?.copyWith(
-                          color: colors
-                              .onSurfaceVariant,
-                          fontWeight:
-                          FontWeight.w700,
+                        isMining ? _formatRemaining(remaining) : '2 HOURS',
+                        style: text.labelSmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ],
@@ -969,8 +794,7 @@ class _MiningHero extends StatelessWidget {
             height: 20,
           ),
           Row(
-            mainAxisAlignment:
-            MainAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
                 Icons.insights_rounded,
@@ -982,18 +806,14 @@ class _MiningHero extends StatelessWidget {
               ),
               Text(
                 'Mining power ',
-                style:
-                text.bodySmall?.copyWith(
-                  color: colors
-                      .onSurfaceVariant,
+                style: text.bodySmall?.copyWith(
+                  color: colors.onSurfaceVariant,
                 ),
               ),
               Text(
                 '${totalWeight.toStringAsFixed(2)}×',
-                style:
-                text.bodySmall?.copyWith(
-                  fontWeight:
-                  FontWeight.w800,
+                style: text.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ],
@@ -1005,41 +825,27 @@ class _MiningHero extends StatelessWidget {
             width: double.infinity,
             height: 54,
             child: FilledButton(
-              onPressed:
-              isMining ? null : onStart,
-              style:
-              FilledButton.styleFrom(
-                shape:
-                RoundedRectangleBorder(
-                  borderRadius:
-                  BorderRadius.circular(
+              onPressed: isMining ? null : onStart,
+              style: FilledButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(
                     17,
                   ),
                 ),
               ),
               child: Row(
-                mainAxisAlignment:
-                MainAxisAlignment
-                    .center,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    isMining
-                        ? Icons
-                        .hourglass_top_rounded
-                        : Icons
-                        .play_arrow_rounded,
+                    isMining ? Icons.hourglass_top_rounded : Icons.play_arrow_rounded,
                   ),
                   const SizedBox(
                     width: 8,
                   ),
                   Text(
-                    isMining
-                        ? 'Mining in progress'
-                        : 'Start mining',
-                    style:
-                    const TextStyle(
-                      fontWeight:
-                      FontWeight.w800,
+                    isMining ? 'Mining in progress' : 'Start mining',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                 ],
@@ -1052,16 +858,11 @@ class _MiningHero extends StatelessWidget {
   }
 
   static String _formatRemaining(
-      Duration duration,
-      ) {
-    final hours = duration.inHours
-        .toString()
-        .padLeft(2, '0');
+    Duration duration,
+  ) {
+    final hours = duration.inHours.toString().padLeft(2, '0');
 
-    final minutes = duration.inMinutes
-        .remainder(60)
-        .toString()
-        .padLeft(2, '0');
+    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
 
     return '$hours:$minutes';
   }
@@ -1071,8 +872,7 @@ class _MiningHero extends StatelessWidget {
 // QUARTERLY PAYOUT COUNTDOWN
 // ============================================================================
 
-class _PayoutCountdownCard
-    extends StatelessWidget {
+class _PayoutCountdownCard extends StatelessWidget {
   final Duration countdown;
   final DateTime payoutDate;
   final double cyclePoints;
@@ -1081,11 +881,9 @@ class _PayoutCountdownCard
   final double estimatedReward;
   final double share;
 
-  final String Function(Duration)
-  formatCountdown;
+  final String Function(Duration) formatCountdown;
 
-  final String Function(DateTime)
-  formatDate;
+  final String Function(DateTime) formatDate;
 
   const _PayoutCountdownCard({
     required this.countdown,
@@ -1101,17 +899,13 @@ class _PayoutCountdownCard
 
   @override
   Widget build(BuildContext context) {
-    final colors =
-        Theme.of(context).colorScheme;
-    final text =
-        Theme.of(context).textTheme;
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
 
     return Container(
-      padding:
-      const EdgeInsets.all(19),
+      padding: const EdgeInsets.all(19),
       decoration: BoxDecoration(
-        borderRadius:
-        BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(24),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -1119,15 +913,13 @@ class _PayoutCountdownCard
             colors.primary.withValues(
               alpha: 0.13,
             ),
-            colors.surfaceContainerHighest
-                .withValues(
+            colors.surfaceContainerHighest.withValues(
               alpha: 0.50,
             ),
           ],
         ),
         border: Border.all(
-          color: colors.primary
-              .withValues(alpha: 0.15),
+          color: colors.primary.withValues(alpha: 0.15),
         ),
       ),
       child: Column(
@@ -1138,20 +930,16 @@ class _PayoutCountdownCard
                 width: 46,
                 height: 46,
                 decoration: BoxDecoration(
-                  color: colors.primary
-                      .withValues(
+                  color: colors.primary.withValues(
                     alpha: 0.12,
                   ),
-                  borderRadius:
-                  BorderRadius.circular(
+                  borderRadius: BorderRadius.circular(
                     15,
                   ),
                 ),
                 child: Icon(
-                  Icons
-                      .account_balance_rounded,
-                  color:
-                  colors.primary,
+                  Icons.account_balance_rounded,
+                  color: colors.primary,
                 ),
               ),
               const SizedBox(
@@ -1159,17 +947,12 @@ class _PayoutCountdownCard
               ),
               Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                  CrossAxisAlignment
-                      .start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Next payout',
-                      style: text
-                          .titleMedium
-                          ?.copyWith(
-                        fontWeight:
-                        FontWeight.w800,
+                      style: text.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                     const SizedBox(
@@ -1179,41 +962,31 @@ class _PayoutCountdownCard
                       formatDate(
                         payoutDate,
                       ),
-                      style: text
-                          .bodySmall
-                          ?.copyWith(
-                        color: colors
-                            .onSurfaceVariant,
+                      style: text.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
                       ),
                     ),
                   ],
                 ),
               ),
               Container(
-                padding:
-                const EdgeInsets.symmetric(
+                padding: const EdgeInsets.symmetric(
                   horizontal: 10,
                   vertical: 7,
                 ),
                 decoration: BoxDecoration(
-                  color: colors.primary
-                      .withValues(
+                  color: colors.primary.withValues(
                     alpha: 0.10,
                   ),
-                  borderRadius:
-                  BorderRadius.circular(
+                  borderRadius: BorderRadius.circular(
                     12,
                   ),
                 ),
                 child: Text(
                   'QUARTERLY',
-                  style: text
-                      .labelSmall
-                      ?.copyWith(
-                    color:
-                    colors.primary,
-                    fontWeight:
-                    FontWeight.w900,
+                  style: text.labelSmall?.copyWith(
+                    color: colors.primary,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
               ),
@@ -1226,18 +999,15 @@ class _PayoutCountdownCard
 
           Container(
             width: double.infinity,
-            padding:
-            const EdgeInsets.symmetric(
+            padding: const EdgeInsets.symmetric(
               vertical: 16,
               horizontal: 12,
             ),
             decoration: BoxDecoration(
-              color: colors.surface
-                  .withValues(
+              color: colors.surface.withValues(
                 alpha: 0.48,
               ),
-              borderRadius:
-              BorderRadius.circular(
+              borderRadius: BorderRadius.circular(
                 17,
               ),
             ),
@@ -1245,12 +1015,9 @@ class _PayoutCountdownCard
               children: [
                 Text(
                   'PAYOUT IN',
-                  style: text.labelSmall
-                      ?.copyWith(
-                    color: colors
-                        .onSurfaceVariant,
-                    fontWeight:
-                    FontWeight.w800,
+                  style: text.labelSmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    fontWeight: FontWeight.w800,
                     letterSpacing: 1.1,
                   ),
                 ),
@@ -1262,11 +1029,8 @@ class _PayoutCountdownCard
                     formatCountdown(
                       countdown,
                     ),
-                    style: text
-                        .headlineSmall
-                        ?.copyWith(
-                      fontWeight:
-                      FontWeight.w900,
+                    style: text.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
                       letterSpacing: 0.5,
                     ),
                   ),
@@ -1283,11 +1047,8 @@ class _PayoutCountdownCard
             children: [
               Expanded(
                 child: _PayoutMetric(
-                  label:
-                  'Your points',
-                  value:
-                  cyclePoints
-                      .toStringAsFixed(
+                  label: 'Your points',
+                  value: cyclePoints.toStringAsFixed(
                     0,
                   ),
                 ),
@@ -1295,33 +1056,27 @@ class _PayoutCountdownCard
               Container(
                 width: 1,
                 height: 38,
-                color: colors.outline
-                    .withValues(
+                color: colors.outline.withValues(
                   alpha: 0.12,
                 ),
               ),
               Expanded(
                 child: _PayoutMetric(
-                  label:
-                  'Your share',
-                  value:
-                  '${(share * 100).toStringAsFixed(3)}%',
+                  label: 'Your share',
+                  value: '${(share * 100).toStringAsFixed(3)}%',
                 ),
               ),
               Container(
                 width: 1,
                 height: 38,
-                color: colors.outline
-                    .withValues(
+                color: colors.outline.withValues(
                   alpha: 0.12,
                 ),
               ),
               Expanded(
                 child: _PayoutMetric(
-                  label:
-                  'Est. reward',
-                  value:
-                  '${estimatedReward.toStringAsFixed(2)} GRT',
+                  label: 'Est. reward',
+                  value: '${estimatedReward.toStringAsFixed(2)} GRT',
                 ),
               ),
             ],
@@ -1333,13 +1088,11 @@ class _PayoutCountdownCard
 
           Text(
             'Your final reward is calculated from your '
-                'share of all eligible points at the end '
-                'of the three-month cycle.',
-            textAlign:
-            TextAlign.center,
+            'share of all eligible points at the end '
+            'of the three-month cycle.',
+            textAlign: TextAlign.center,
             style: text.bodySmall?.copyWith(
-              color:
-              colors.onSurfaceVariant,
+              color: colors.onSurfaceVariant,
               height: 1.35,
             ),
           ),
@@ -1349,8 +1102,7 @@ class _PayoutCountdownCard
   }
 }
 
-class _PayoutMetric
-    extends StatelessWidget {
+class _PayoutMetric extends StatelessWidget {
   final String label;
   final String value;
 
@@ -1361,29 +1113,22 @@ class _PayoutMetric
 
   @override
   Widget build(BuildContext context) {
-    final colors =
-        Theme.of(context).colorScheme;
-    final text =
-        Theme.of(context).textTheme;
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
 
     return Padding(
-      padding:
-      const EdgeInsets.symmetric(
+      padding: const EdgeInsets.symmetric(
         horizontal: 5,
       ),
       child: Column(
         children: [
           Text(
             label,
-            textAlign:
-            TextAlign.center,
+            textAlign: TextAlign.center,
             maxLines: 1,
-            overflow:
-            TextOverflow.ellipsis,
-            style: text.labelSmall
-                ?.copyWith(
-              color: colors
-                  .onSurfaceVariant,
+            overflow: TextOverflow.ellipsis,
+            style: text.labelSmall?.copyWith(
+              color: colors.onSurfaceVariant,
             ),
           ),
           const SizedBox(
@@ -1391,15 +1136,11 @@ class _PayoutMetric
           ),
           Text(
             value,
-            textAlign:
-            TextAlign.center,
+            textAlign: TextAlign.center,
             maxLines: 1,
-            overflow:
-            TextOverflow.ellipsis,
-            style: text.bodyMedium
-                ?.copyWith(
-              fontWeight:
-              FontWeight.w900,
+            overflow: TextOverflow.ellipsis,
+            style: text.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w900,
             ),
           ),
         ],
@@ -1412,8 +1153,7 @@ class _PayoutMetric
 // BALANCE
 // ============================================================================
 
-class _BalanceCard
-    extends StatelessWidget {
+class _BalanceCard extends StatelessWidget {
   final double balance;
   final double cycleReward;
 
@@ -1424,23 +1164,16 @@ class _BalanceCard
 
   @override
   Widget build(BuildContext context) {
-    final colors =
-        Theme.of(context).colorScheme;
-    final text =
-        Theme.of(context).textTheme;
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
 
     return Container(
-      padding:
-      const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: colors
-            .surfaceContainerHighest
-            .withValues(alpha: 0.55),
-        borderRadius:
-        BorderRadius.circular(22),
+        color: colors.surfaceContainerHighest.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: colors.outline
-              .withValues(alpha: 0.12),
+          color: colors.outline.withValues(alpha: 0.12),
         ),
       ),
       child: Column(
@@ -1450,22 +1183,17 @@ class _BalanceCard
               Container(
                 width: 52,
                 height: 52,
-                decoration:
-                BoxDecoration(
-                  color: colors.primary
-                      .withValues(
+                decoration: BoxDecoration(
+                  color: colors.primary.withValues(
                     alpha: 0.12,
                   ),
-                  borderRadius:
-                  BorderRadius.circular(
+                  borderRadius: BorderRadius.circular(
                     17,
                   ),
                 ),
                 child: Icon(
-                  Icons
-                      .account_balance_wallet_rounded,
-                  color:
-                  colors.primary,
+                  Icons.account_balance_wallet_rounded,
+                  color: colors.primary,
                 ),
               ),
               const SizedBox(
@@ -1473,17 +1201,12 @@ class _BalanceCard
               ),
               Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                  CrossAxisAlignment
-                      .start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Mining balance',
-                      style: text
-                          .bodySmall
-                          ?.copyWith(
-                        color: colors
-                            .onSurfaceVariant,
+                      style: text.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(
@@ -1491,11 +1214,8 @@ class _BalanceCard
                     ),
                     Text(
                       '${balance.toStringAsFixed(2)} GRT',
-                      style: text
-                          .titleLarge
-                          ?.copyWith(
-                        fontWeight:
-                        FontWeight.w900,
+                      style: text.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
                   ],
@@ -1507,29 +1227,24 @@ class _BalanceCard
             height: 15,
           ),
           Container(
-            padding:
-            const EdgeInsets.symmetric(
+            padding: const EdgeInsets.symmetric(
               horizontal: 13,
               vertical: 11,
             ),
             decoration: BoxDecoration(
-              color: colors.primary
-                  .withValues(
+              color: colors.primary.withValues(
                 alpha: 0.07,
               ),
-              borderRadius:
-              BorderRadius.circular(
+              borderRadius: BorderRadius.circular(
                 14,
               ),
             ),
             child: Row(
               children: [
                 Icon(
-                  Icons
-                      .auto_awesome_rounded,
+                  Icons.auto_awesome_rounded,
                   size: 18,
-                  color:
-                  colors.primary,
+                  color: colors.primary,
                 ),
                 const SizedBox(
                   width: 8,
@@ -1537,21 +1252,16 @@ class _BalanceCard
                 Expanded(
                   child: Text(
                     'Estimated next payout',
-                    style: text.bodySmall
-                        ?.copyWith(
-                      color: colors
-                          .onSurfaceVariant,
+                    style: text.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
                     ),
                   ),
                 ),
                 Text(
                   '${cycleReward.toStringAsFixed(2)} GRT',
-                  style: text.bodyMedium
-                      ?.copyWith(
-                    color:
-                    colors.primary,
-                    fontWeight:
-                    FontWeight.w900,
+                  style: text.bodyMedium?.copyWith(
+                    color: colors.primary,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
               ],
@@ -1567,8 +1277,7 @@ class _BalanceCard
 // STAT CARD
 // ============================================================================
 
-class _StatCard
-    extends StatelessWidget {
+class _StatCard extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
@@ -1581,23 +1290,16 @@ class _StatCard
 
   @override
   Widget build(BuildContext context) {
-    final colors =
-        Theme.of(context).colorScheme;
-    final text =
-        Theme.of(context).textTheme;
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
 
     return Container(
-      padding:
-      const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: colors
-            .surfaceContainerHighest
-            .withValues(alpha: 0.45),
-        borderRadius:
-        BorderRadius.circular(20),
+        color: colors.surfaceContainerHighest.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: colors.outline
-              .withValues(alpha: 0.10),
+          color: colors.outline.withValues(alpha: 0.10),
         ),
       ),
       child: Row(
@@ -1612,18 +1314,14 @@ class _StatCard
           ),
           Expanded(
             child: Column(
-              crossAxisAlignment:
-              CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   label,
                   maxLines: 1,
-                  overflow:
-                  TextOverflow.ellipsis,
-                  style: text.labelSmall
-                      ?.copyWith(
-                    color: colors
-                        .onSurfaceVariant,
+                  overflow: TextOverflow.ellipsis,
+                  style: text.labelSmall?.copyWith(
+                    color: colors.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(
@@ -1631,10 +1329,8 @@ class _StatCard
                 ),
                 Text(
                   value,
-                  style: text.bodyLarge
-                      ?.copyWith(
-                    fontWeight:
-                    FontWeight.w800,
+                  style: text.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ],
@@ -1650,8 +1346,7 @@ class _StatCard
 // SECTION TITLE
 // ============================================================================
 
-class _SectionTitle
-    extends StatelessWidget {
+class _SectionTitle extends StatelessWidget {
   final String title;
   final String? trailing;
 
@@ -1662,31 +1357,24 @@ class _SectionTitle
 
   @override
   Widget build(BuildContext context) {
-    final text =
-        Theme.of(context).textTheme;
-    final colors =
-        Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    final colors = Theme.of(context).colorScheme;
 
     return Row(
-      mainAxisAlignment:
-      MainAxisAlignment.spaceBetween,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
           title,
-          style:
-          text.titleMedium?.copyWith(
-            fontWeight:
-            FontWeight.w800,
+          style: text.titleMedium?.copyWith(
+            fontWeight: FontWeight.w800,
           ),
         ),
         if (trailing != null)
           Text(
             trailing!,
-            style:
-            text.bodySmall?.copyWith(
+            style: text.bodySmall?.copyWith(
               color: colors.primary,
-              fontWeight:
-              FontWeight.w700,
+              fontWeight: FontWeight.w700,
             ),
           ),
       ],
@@ -1698,8 +1386,7 @@ class _SectionTitle
 // DAILY PROGRESS
 // ============================================================================
 
-class _DailyProgressCard
-    extends StatelessWidget {
+class _DailyProgressCard extends StatelessWidget {
   final double progress;
   final double points;
   final double available;
@@ -1712,23 +1399,16 @@ class _DailyProgressCard
 
   @override
   Widget build(BuildContext context) {
-    final colors =
-        Theme.of(context).colorScheme;
-    final text =
-        Theme.of(context).textTheme;
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
 
     return Container(
-      padding:
-      const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: colors
-            .surfaceContainerHighest
-            .withValues(alpha: 0.45),
-        borderRadius:
-        BorderRadius.circular(22),
+        color: colors.surfaceContainerHighest.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: colors.outline
-              .withValues(alpha: 0.10),
+          color: colors.outline.withValues(alpha: 0.10),
         ),
       ),
       child: Column(
@@ -1737,20 +1417,16 @@ class _DailyProgressCard
             children: [
               Text(
                 '${points.toStringAsFixed(0)} pts',
-                style: text.titleMedium
-                    ?.copyWith(
-                  fontWeight:
-                  FontWeight.w900,
+                style: text.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
                 ),
               ),
               const Spacer(),
               Text(
                 '${(progress * 100).toStringAsFixed(0)}%',
-                style: text.bodySmall
-                    ?.copyWith(
+                style: text.bodySmall?.copyWith(
                   color: colors.primary,
-                  fontWeight:
-                  FontWeight.w800,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ],
@@ -1759,19 +1435,14 @@ class _DailyProgressCard
             height: 12,
           ),
           ClipRRect(
-            borderRadius:
-            BorderRadius.circular(
+            borderRadius: BorderRadius.circular(
               20,
             ),
-            child:
-            LinearProgressIndicator(
+            child: LinearProgressIndicator(
               value: progress,
               minHeight: 9,
-              backgroundColor:
-              colors.surface,
-              valueColor:
-              AlwaysStoppedAnimation<
-                  Color>(
+              backgroundColor: colors.surface,
+              valueColor: AlwaysStoppedAnimation<Color>(
                 colors.primary,
               ),
             ),
@@ -1783,19 +1454,15 @@ class _DailyProgressCard
             children: [
               Text(
                 'Daily activity',
-                style: text.bodySmall
-                    ?.copyWith(
-                  color: colors
-                      .onSurfaceVariant,
+                style: text.bodySmall?.copyWith(
+                  color: colors.onSurfaceVariant,
                 ),
               ),
               const Spacer(),
               Text(
                 '${available.toStringAsFixed(0)} max points',
-                style: text.bodySmall
-                    ?.copyWith(
-                  color: colors
-                      .onSurfaceVariant,
+                style: text.bodySmall?.copyWith(
+                  color: colors.onSurfaceVariant,
                 ),
               ),
             ],
@@ -1810,8 +1477,7 @@ class _DailyProgressCard
 // CURRENT CYCLE
 // ============================================================================
 
-class _CyclePointsCard
-    extends StatelessWidget {
+class _CyclePointsCard extends StatelessWidget {
   final double cyclePoints;
   final double networkPoints;
   final double rewardPool;
@@ -1828,27 +1494,18 @@ class _CyclePointsCard
 
   @override
   Widget build(BuildContext context) {
-    final colors =
-        Theme.of(context).colorScheme;
-    final text =
-        Theme.of(context).textTheme;
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
 
-    final progress =
-    (cyclePoints / networkPoints)
-        .clamp(0.0, 1.0);
+    final progress = (cyclePoints / networkPoints).clamp(0.0, 1.0);
 
     return Container(
-      padding:
-      const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: colors
-            .surfaceContainerHighest
-            .withValues(alpha: 0.45),
-        borderRadius:
-        BorderRadius.circular(22),
+        color: colors.surfaceContainerHighest.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: colors.outline
-              .withValues(alpha: 0.10),
+          color: colors.outline.withValues(alpha: 0.10),
         ),
       ),
       child: Column(
@@ -1859,20 +1516,16 @@ class _CyclePointsCard
                 width: 46,
                 height: 46,
                 decoration: BoxDecoration(
-                  color: colors.primary
-                      .withValues(
+                  color: colors.primary.withValues(
                     alpha: 0.10,
                   ),
-                  borderRadius:
-                  BorderRadius.circular(
+                  borderRadius: BorderRadius.circular(
                     14,
                   ),
                 ),
                 child: Icon(
-                  Icons
-                      .donut_large_rounded,
-                  color:
-                  colors.primary,
+                  Icons.donut_large_rounded,
+                  color: colors.primary,
                 ),
               ),
               const SizedBox(
@@ -1880,46 +1533,35 @@ class _CyclePointsCard
               ),
               Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                  CrossAxisAlignment
-                      .start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Your cycle points',
-                      style: text.bodySmall
-                          ?.copyWith(
-                        color: colors
-                            .onSurfaceVariant,
+                      style: text.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(
                       height: 3,
                     ),
                     Text(
-                      cyclePoints
-                          .toStringAsFixed(
+                      cyclePoints.toStringAsFixed(
                         0,
                       ),
-                      style: text
-                          .titleLarge
-                          ?.copyWith(
-                        fontWeight:
-                        FontWeight.w900,
+                      style: text.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
                   ],
                 ),
               ),
               Column(
-                crossAxisAlignment:
-                CrossAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
                     'Reward pool',
-                    style: text.labelSmall
-                        ?.copyWith(
-                      color: colors
-                          .onSurfaceVariant,
+                    style: text.labelSmall?.copyWith(
+                      color: colors.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(
@@ -1927,12 +1569,9 @@ class _CyclePointsCard
                   ),
                   Text(
                     '${rewardPool.toStringAsFixed(0)} GRT',
-                    style: text.bodyMedium
-                        ?.copyWith(
-                      color:
-                      colors.primary,
-                      fontWeight:
-                      FontWeight.w900,
+                    style: text.bodyMedium?.copyWith(
+                      color: colors.primary,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
                 ],
@@ -1943,19 +1582,14 @@ class _CyclePointsCard
             height: 17,
           ),
           ClipRRect(
-            borderRadius:
-            BorderRadius.circular(
+            borderRadius: BorderRadius.circular(
               20,
             ),
-            child:
-            LinearProgressIndicator(
+            child: LinearProgressIndicator(
               value: progress,
               minHeight: 8,
-              backgroundColor:
-              colors.surface,
-              valueColor:
-              AlwaysStoppedAnimation<
-                  Color>(
+              backgroundColor: colors.surface,
+              valueColor: AlwaysStoppedAnimation<Color>(
                 colors.primary,
               ),
             ),
@@ -1967,29 +1601,22 @@ class _CyclePointsCard
             children: [
               Expanded(
                 child: _CycleMetric(
-                  label:
-                  'Network points',
-                  value:
-                  networkPoints
-                      .toStringAsFixed(
+                  label: 'Network points',
+                  value: networkPoints.toStringAsFixed(
                     0,
                   ),
                 ),
               ),
               Expanded(
                 child: _CycleMetric(
-                  label:
-                  'Your share',
-                  value:
-                  '${(share * 100).toStringAsFixed(3)}%',
+                  label: 'Your share',
+                  value: '${(share * 100).toStringAsFixed(3)}%',
                 ),
               ),
               Expanded(
                 child: _CycleMetric(
-                  label:
-                  'Est. reward',
-                  value:
-                  '${estimatedReward.toStringAsFixed(2)} GRT',
+                  label: 'Est. reward',
+                  value: '${estimatedReward.toStringAsFixed(2)} GRT',
                 ),
               ),
             ],
@@ -1999,12 +1626,10 @@ class _CyclePointsCard
           ),
           Text(
             'More points increase your share of the '
-                'available reward pool.',
-            textAlign:
-            TextAlign.center,
+            'available reward pool.',
+            textAlign: TextAlign.center,
             style: text.bodySmall?.copyWith(
-              color:
-              colors.onSurfaceVariant,
+              color: colors.onSurfaceVariant,
             ),
           ),
         ],
@@ -2013,8 +1638,7 @@ class _CyclePointsCard
   }
 }
 
-class _CycleMetric
-    extends StatelessWidget {
+class _CycleMetric extends StatelessWidget {
   final String label;
   final String value;
 
@@ -2025,23 +1649,18 @@ class _CycleMetric
 
   @override
   Widget build(BuildContext context) {
-    final colors =
-        Theme.of(context).colorScheme;
-    final text =
-        Theme.of(context).textTheme;
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
 
     return Column(
       children: [
         Text(
           label,
-          textAlign:
-          TextAlign.center,
+          textAlign: TextAlign.center,
           maxLines: 1,
-          overflow:
-          TextOverflow.ellipsis,
+          overflow: TextOverflow.ellipsis,
           style: text.labelSmall?.copyWith(
-            color:
-            colors.onSurfaceVariant,
+            color: colors.onSurfaceVariant,
           ),
         ),
         const SizedBox(
@@ -2049,14 +1668,11 @@ class _CycleMetric
         ),
         Text(
           value,
-          textAlign:
-          TextAlign.center,
+          textAlign: TextAlign.center,
           maxLines: 1,
-          overflow:
-          TextOverflow.ellipsis,
+          overflow: TextOverflow.ellipsis,
           style: text.bodySmall?.copyWith(
-            fontWeight:
-            FontWeight.w900,
+            fontWeight: FontWeight.w900,
           ),
         ),
       ],
@@ -2068,8 +1684,7 @@ class _CycleMetric
 // MINING POWER
 // ============================================================================
 
-class _MiningPowerCard
-    extends StatelessWidget {
+class _MiningPowerCard extends StatelessWidget {
   final double base;
   final double reputation;
   final double plus;
@@ -2086,23 +1701,16 @@ class _MiningPowerCard
 
   @override
   Widget build(BuildContext context) {
-    final colors =
-        Theme.of(context).colorScheme;
-    final text =
-        Theme.of(context).textTheme;
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
 
     return Container(
-      padding:
-      const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: colors
-            .surfaceContainerHighest
-            .withValues(alpha: 0.45),
-        borderRadius:
-        BorderRadius.circular(22),
+        color: colors.surfaceContainerHighest.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: colors.outline
-              .withValues(alpha: 0.10),
+          color: colors.outline.withValues(alpha: 0.10),
         ),
       ),
       child: Column(
@@ -2110,36 +1718,29 @@ class _MiningPowerCard
           _PowerRow(
             icon: Icons.bolt_rounded,
             label: 'Base mining',
-            value:
-            '${base.toStringAsFixed(2)}×',
+            value: '${base.toStringAsFixed(2)}×',
           ),
           const SizedBox(
             height: 14,
           ),
           _PowerRow(
-            icon: Icons
-                .workspace_premium_rounded,
+            icon: Icons.workspace_premium_rounded,
             label: 'Reputation',
-            value:
-            '${reputation.toStringAsFixed(2)}×',
+            value: '${reputation.toStringAsFixed(2)}×',
           ),
           const SizedBox(
             height: 14,
           ),
           _PowerRow(
-            icon:
-            Icons.auto_awesome_rounded,
+            icon: Icons.auto_awesome_rounded,
             label: 'Griot Plus',
-            value: isPlus
-                ? '${plus.toStringAsFixed(2)}×'
-                : '1.00×',
+            value: isPlus ? '${plus.toStringAsFixed(2)}×' : '1.00×',
           ),
           const SizedBox(
             height: 16,
           ),
           Divider(
-            color: colors.outline
-                .withValues(alpha: 0.12),
+            color: colors.outline.withValues(alpha: 0.12),
             height: 1,
           ),
           const SizedBox(
@@ -2149,21 +1750,16 @@ class _MiningPowerCard
             children: [
               Text(
                 'Total mining weight',
-                style: text.bodyMedium
-                    ?.copyWith(
-                  fontWeight:
-                  FontWeight.w700,
+                style: text.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
                 ),
               ),
               const Spacer(),
               Text(
                 '${total.toStringAsFixed(2)}×',
-                style: text.titleMedium
-                    ?.copyWith(
-                  color:
-                  colors.primary,
-                  fontWeight:
-                  FontWeight.w900,
+                style: text.titleMedium?.copyWith(
+                  color: colors.primary,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
             ],
@@ -2174,8 +1770,7 @@ class _MiningPowerCard
   }
 }
 
-class _PowerRow
-    extends StatelessWidget {
+class _PowerRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
@@ -2188,10 +1783,8 @@ class _PowerRow
 
   @override
   Widget build(BuildContext context) {
-    final colors =
-        Theme.of(context).colorScheme;
-    final text =
-        Theme.of(context).textTheme;
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
 
     return Row(
       children: [
@@ -2199,10 +1792,8 @@ class _PowerRow
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            color: colors.primary
-                .withValues(alpha: 0.09),
-            borderRadius:
-            BorderRadius.circular(
+            color: colors.primary.withValues(alpha: 0.09),
+            borderRadius: BorderRadius.circular(
               11,
             ),
           ),
@@ -2236,8 +1827,7 @@ class _PowerRow
 // ACTIVITY
 // ============================================================================
 
-class _ActivityTile
-    extends StatelessWidget {
+class _ActivityTile extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
@@ -2256,30 +1846,21 @@ class _ActivityTile
 
   @override
   Widget build(BuildContext context) {
-    final colors =
-        Theme.of(context).colorScheme;
-    final text =
-        Theme.of(context).textTheme;
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap:
-        completed ? null : onTap,
-        borderRadius:
-        BorderRadius.circular(20),
+        onTap: completed ? null : onTap,
+        borderRadius: BorderRadius.circular(20),
         child: Ink(
-          padding:
-          const EdgeInsets.all(15),
+          padding: const EdgeInsets.all(15),
           decoration: BoxDecoration(
-            color: colors
-                .surfaceContainerHighest
-                .withValues(alpha: 0.42),
-            borderRadius:
-            BorderRadius.circular(20),
+            color: colors.surfaceContainerHighest.withValues(alpha: 0.42),
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: colors.outline
-                  .withValues(alpha: 0.10),
+              color: colors.outline.withValues(alpha: 0.10),
             ),
           ),
           child: Row(
@@ -2287,21 +1868,17 @@ class _ActivityTile
               Container(
                 width: 46,
                 height: 46,
-                decoration:
-                BoxDecoration(
-                  color: colors.primary
-                      .withValues(
+                decoration: BoxDecoration(
+                  color: colors.primary.withValues(
                     alpha: 0.10,
                   ),
-                  borderRadius:
-                  BorderRadius.circular(
+                  borderRadius: BorderRadius.circular(
                     14,
                   ),
                 ),
                 child: Icon(
                   icon,
-                  color:
-                  colors.primary,
+                  color: colors.primary,
                   size: 22,
                 ),
               ),
@@ -2310,19 +1887,14 @@ class _ActivityTile
               ),
               Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                  CrossAxisAlignment
-                      .start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       title,
                       maxLines: 1,
-                      overflow:
-                      TextOverflow.ellipsis,
-                      style: text.bodyLarge
-                          ?.copyWith(
-                        fontWeight:
-                        FontWeight.w700,
+                      overflow: TextOverflow.ellipsis,
+                      style: text.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                     const SizedBox(
@@ -2331,12 +1903,9 @@ class _ActivityTile
                     Text(
                       subtitle,
                       maxLines: 1,
-                      overflow:
-                      TextOverflow.ellipsis,
-                      style: text.bodySmall
-                          ?.copyWith(
-                        color: colors
-                            .onSurfaceVariant,
+                      overflow: TextOverflow.ellipsis,
+                      style: text.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(
@@ -2344,12 +1913,9 @@ class _ActivityTile
                     ),
                     Text(
                       reward,
-                      style: text.labelMedium
-                          ?.copyWith(
-                        color:
-                        colors.primary,
-                        fontWeight:
-                        FontWeight.w800,
+                      style: text.labelMedium?.copyWith(
+                        color: colors.primary,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ],
@@ -2362,29 +1928,23 @@ class _ActivityTile
                 Container(
                   width: 34,
                   height: 34,
-                  decoration:
-                  BoxDecoration(
-                    color: Colors.green
-                        .withValues(
+                  decoration: BoxDecoration(
+                    color: Colors.green.withValues(
                       alpha: 0.10,
                     ),
-                    shape:
-                    BoxShape.circle,
+                    shape: BoxShape.circle,
                   ),
                   child: const Icon(
                     Icons.check_rounded,
                     size: 19,
-                    color:
-                    Colors.green,
+                    color: Colors.green,
                   ),
                 )
               else
                 Icon(
-                  Icons
-                      .arrow_forward_ios_rounded,
+                  Icons.arrow_forward_ios_rounded,
                   size: 15,
-                  color: colors
-                      .onSurfaceVariant,
+                  color: colors.onSurfaceVariant,
                 ),
             ],
           ),
@@ -2398,55 +1958,42 @@ class _ActivityTile
 // HOW IT WORKS
 // ============================================================================
 
-class _HowMiningWorksCard
-    extends StatelessWidget {
+class _HowMiningWorksCard extends StatelessWidget {
   const _HowMiningWorksCard();
 
   @override
   Widget build(BuildContext context) {
-    final colors =
-        Theme.of(context).colorScheme;
-    final text =
-        Theme.of(context).textTheme;
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
 
     return Container(
-      padding:
-      const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: colors.primary
-            .withValues(alpha: 0.07),
-        borderRadius:
-        BorderRadius.circular(22),
+        color: colors.primary.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: colors.primary
-              .withValues(alpha: 0.12),
+          color: colors.primary.withValues(alpha: 0.12),
         ),
       ),
       child: Column(
-        crossAxisAlignment:
-        CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
                 width: 40,
                 height: 40,
-                decoration:
-                BoxDecoration(
-                  color: colors.primary
-                      .withValues(
+                decoration: BoxDecoration(
+                  color: colors.primary.withValues(
                     alpha: 0.10,
                   ),
-                  borderRadius:
-                  BorderRadius.circular(
+                  borderRadius: BorderRadius.circular(
                     13,
                   ),
                 ),
                 child: Icon(
-                  Icons
-                      .auto_awesome_rounded,
-                  color:
-                  colors.primary,
+                  Icons.auto_awesome_rounded,
+                  color: colors.primary,
                 ),
               ),
               const SizedBox(
@@ -2454,10 +2001,8 @@ class _HowMiningWorksCard
               ),
               Text(
                 'How mining works',
-                style: text.titleMedium
-                    ?.copyWith(
-                  fontWeight:
-                  FontWeight.w800,
+                style: text.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ],
@@ -2467,40 +2012,32 @@ class _HowMiningWorksCard
           ),
           const _Step(
             number: '01',
-            title:
-            'Start a session',
-            description:
-            'Activate mining for up to two hours.',
+            title: 'Start a session',
+            description: 'Activate mining for up to two hours.',
           ),
           const SizedBox(
             height: 14,
           ),
           const _Step(
             number: '02',
-            title:
-            'Earn points',
-            description:
-            'Mining activity, reputation and eligible activities build your points.',
+            title: 'Earn points',
+            description: 'Mining activity, reputation and eligible activities build your points.',
           ),
           const SizedBox(
             height: 14,
           ),
           const _Step(
             number: '03',
-            title:
-            'Build your share',
-            description:
-            'Your points determine your percentage of the available reward pool.',
+            title: 'Build your share',
+            description: 'Your points determine your percentage of the available reward pool.',
           ),
           const SizedBox(
             height: 14,
           ),
           const _Step(
             number: '04',
-            title:
-            'Receive quarterly payout',
-            description:
-            'At the end of every three-month cycle, the reward pool is distributed to eligible users.',
+            title: 'Receive quarterly payout',
+            description: 'At the end of every three-month cycle, the reward pool is distributed to eligible users.',
           ),
         ],
       ),
@@ -2521,22 +2058,17 @@ class _Step extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors =
-        Theme.of(context).colorScheme;
-    final text =
-        Theme.of(context).textTheme;
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
 
     return Row(
-      crossAxisAlignment:
-      CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           number,
-          style:
-          text.labelMedium?.copyWith(
+          style: text.labelMedium?.copyWith(
             color: colors.primary,
-            fontWeight:
-            FontWeight.w900,
+            fontWeight: FontWeight.w900,
           ),
         ),
         const SizedBox(
@@ -2544,16 +2076,12 @@ class _Step extends StatelessWidget {
         ),
         Expanded(
           child: Column(
-            crossAxisAlignment:
-            CrossAxisAlignment
-                .start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 title,
-                style: text.bodyMedium
-                    ?.copyWith(
-                  fontWeight:
-                  FontWeight.w700,
+                style: text.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
                 ),
               ),
               const SizedBox(
@@ -2561,10 +2089,8 @@ class _Step extends StatelessWidget {
               ),
               Text(
                 description,
-                style: text.bodySmall
-                    ?.copyWith(
-                  color: colors
-                      .onSurfaceVariant,
+                style: text.bodySmall?.copyWith(
+                  color: colors.onSurfaceVariant,
                   height: 1.35,
                 ),
               ),
@@ -2580,39 +2106,30 @@ class _Step extends StatelessWidget {
 // AD
 // ============================================================================
 
-class _AdPlaceholder
-    extends StatelessWidget {
+class _AdPlaceholder extends StatelessWidget {
   const _AdPlaceholder();
 
   @override
   Widget build(BuildContext context) {
-    final colors =
-        Theme.of(context).colorScheme;
-    final text =
-        Theme.of(context).textTheme;
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
 
     return Container(
       height: 86,
       decoration: BoxDecoration(
-        color: colors
-            .surfaceContainerHighest
-            .withValues(alpha: 0.35),
-        borderRadius:
-        BorderRadius.circular(20),
+        color: colors.surfaceContainerHighest.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: colors.outline
-              .withValues(alpha: 0.08),
+          color: colors.outline.withValues(alpha: 0.08),
         ),
       ),
       child: Row(
-        mainAxisAlignment:
-        MainAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
             Icons.ads_click_rounded,
             size: 20,
-            color:
-            colors.onSurfaceVariant,
+            color: colors.onSurfaceVariant,
           ),
           const SizedBox(
             width: 8,
@@ -2620,10 +2137,8 @@ class _AdPlaceholder
           Text(
             'Advertisement',
             style: text.bodySmall?.copyWith(
-              color: colors
-                  .onSurfaceVariant,
-              fontWeight:
-              FontWeight.w600,
+              color: colors.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
