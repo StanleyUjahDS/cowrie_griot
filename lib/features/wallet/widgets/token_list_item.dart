@@ -112,10 +112,7 @@ class TokenListItem extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 6,
-        ),
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: colorScheme.surface,
@@ -127,7 +124,9 @@ class TokenListItem extends StatelessWidget {
             TokenIcon(
               imageUrl: token.imageUrl,
               symbol: token.symbol,
+              name: token.name,
               chainName: token.chain,
+              isNative: token.isNative,
               radius: 22,
             ),
             const SizedBox(width: 12),
@@ -139,9 +138,7 @@ class TokenListItem extends StatelessWidget {
                     token.name.isEmpty ? token.symbol : token.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 3),
                   Row(
@@ -175,9 +172,7 @@ class TokenListItem extends StatelessWidget {
               children: [
                 Text(
                   _formatBalance(token.balance),
-                  style: textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 3),
                 Row(
