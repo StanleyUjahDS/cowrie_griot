@@ -95,12 +95,12 @@ class WalletProvider extends ChangeNotifier {
           chain: json['chain']?.toString() ?? '',
           contractAddress: json['contractAddress']?.toString() ?? '',
           imageUrl: json['imageUrl']?.toString() ?? '',
+          valueUsd: json['valueUsd'] ?? 0,
         )).toList();
 
         num totalTokenBalance = 0;
         for (var token in _tokens) {
-          // Assuming token model will eventually have valueUsd, for now we mock it or calculate if price exists
-          // totalTokenBalance += token.value; 
+          totalTokenBalance += token.valueUsd; 
         }
 
         _wallet = WalletModel(

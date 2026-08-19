@@ -6,6 +6,7 @@ class TokenModel {
   final String chain;
   final String contractAddress;
   final String imageUrl;
+  final num valueUsd;
 
   const TokenModel({
     required this.name,
@@ -15,9 +16,10 @@ class TokenModel {
     required this.chain,
     required this.contractAddress,
     required this.imageUrl,
+    this.valueUsd = 0,
   });
 
   bool get isProfit => changePercent >= 0;
 
-  double get value => 0.0; // Placeholder for future price logic
+  double get value => valueUsd.toDouble(); 
 }
