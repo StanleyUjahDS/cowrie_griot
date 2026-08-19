@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../utils/chain_assets.dart';
-import '../utils/token_assets.dart';
 
 class TokenIcon extends StatelessWidget {
   final String imageUrl;
@@ -76,18 +75,6 @@ class TokenIcon extends StatelessWidget {
     );
   }
 
-  Widget _localTokenImage(BuildContext context, String assetPath) {
-    return ClipOval(
-      child: SvgPicture.asset(
-        assetPath,
-        width: radius * 2,
-        height: radius * 2,
-        fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => _initialFallback(context),
-      ),
-    );
-  }
-
   Widget _remoteTokenImage(BuildContext context) {
     final url = imageUrl.trim();
 
@@ -101,34 +88,21 @@ class TokenIcon extends StatelessWidget {
         width: radius * 2,
         height: radius * 2,
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => _localOrInitialFallback(context),
+        errorBuilder: (_, __, ___) => _initialFallback(context),
       ),
     );
   }
 
-  Widget _localOrInitialFallback(BuildContext context) {
-    final localLogo = TokenAssets.getLogo(symbol);
-    if (localLogo != null) {
-      return _localTokenImage(context, localLogo);
-    }
-
-    return _initialFallback(context);
-  }
-
   Widget _tokenImage(BuildContext context) {
-    // Native assets always use the frontend-owned chain logo.
+    // Native tokens always use the frontend-owned chain logo.
     if (isNative) {
       return _nativeChainImage(context);
     }
 
-    // CoinGecko/backend-provided token image is the first choice.
-    // If it is unavailable or fails to load, use the frontend-owned
-    // registry, then finally the token's own initials.
-    if (imageUrl.trim().isNotEmpty) {
-      return _remoteTokenImage(context);
-    }
-
-    return _localOrInitialFallback(context);
+    // For every non-native token, use ONLY the image URL supplied by the
+    // backend/CoinGecko. If there is no URL, or the URL fails, use the
+    // token's own initials. Never substitute another token's logo.
+    return _remoteTokenImage(context);
   }
 
   @override
