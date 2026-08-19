@@ -88,22 +88,47 @@ class TokenIcon extends StatelessWidget {
     );
   }
 
-  Widget _tokenImage(BuildContext context) {
-    // Native assets always use the local chain logo.
-    if (isNative) {
-      return _nativeChainImage(context);
+  Widget _remoteTokenImage(BuildContext context) {
+    final url = imageUrl.trim();
+
+    if (url.isEmpty) {
+      return _initialFallback(context);
     }
 
-    // Token logos are controlled by the frontend registry. We deliberately
-    // do not use backend/remote logo URLs as a generic fallback because an
-    // incorrectly supplied URL could make unrelated tokens share one logo.
+    return ClipOval(
+      child: Image.network(
+        url,
+        width: radius * 2,
+        height: radius * 2,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => _localOrInitialFallback(context),
+      ),
+    );
+  }
+
+  Widget _localOrInitialFallback(BuildContext context) {
     final localLogo = TokenAssets.getLogo(symbol);
     if (localLogo != null) {
       return _localTokenImage(context, localLogo);
     }
 
-    // Unknown/unregistered tokens get their own initials.
     return _initialFallback(context);
+  }
+
+  Widget _tokenImage(BuildContext context) {
+    // Native assets always use the frontend-owned chain logo.
+    if (isNative) {
+      return _nativeChainImage(context);
+    }
+
+    // CoinGecko/backend-provided token image is the first choice.
+    // If it is unavailable or fails to load, use the frontend-owned
+    // registry, then finally the token's own initials.
+    if (imageUrl.trim().isNotEmpty) {
+      return _remoteTokenImage(context);
+    }
+
+    return _localOrInitialFallback(context);
   }
 
   @override
