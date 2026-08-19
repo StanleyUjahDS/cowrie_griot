@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
 import '../utils/chain_assets.dart';
 
 class TokenIcon extends StatelessWidget {
@@ -14,6 +16,10 @@ class TokenIcon extends StatelessWidget {
     this.chainName,
     this.radius = 24,
   });
+
+  static const String _hbadgAsset = 'assets/chains/Hbadger.svg';
+
+  bool get _isHbadg => symbol.trim().toUpperCase() == 'HBADG';
 
   Widget _tokenFallback(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -35,7 +41,35 @@ class TokenIcon extends StatelessWidget {
     );
   }
 
+  Widget _localHbadg() {
+    return ClipOval(
+      child: SvgPicture.asset(
+        _hbadgAsset,
+        width: radius * 2,
+        height: radius * 2,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _tokenFallback(_context!),
+      ),
+    );
+  }
+
+  BuildContext? _context;
+
   Widget _tokenImage(BuildContext context) {
+    _context = context;
+
+    if (_isHbadg) {
+      return ClipOval(
+        child: SvgPicture.asset(
+          _hbadgAsset,
+          width: radius * 2,
+          height: radius * 2,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _tokenFallback(context),
+        ),
+      );
+    }
+
     if (imageUrl.trim().isNotEmpty) {
       return ClipOval(
         child: Image.network(
