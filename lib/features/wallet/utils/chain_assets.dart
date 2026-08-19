@@ -2,15 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 class ChainAssets {
-  static const String _basePath = 'assets/chains';
+  static const String _chainPath = 'assets/chains';
+  static const String _legacyLogoPath = 'assets/coins_logo';
 
   static const Map<String, String> _chainLogos = {
-    'ethereum': '$_basePath/Ethereum.svg',
-    'polygon': '$_basePath/Polygon.svg',
-    'arbitrum': '$_basePath/Arbitrum.svg',
-    'optimism': '$_basePath/Optimism.svg',
-    'base': '$_basePath/Base.svg',
-    'avalanche': '$_basePath/Avalanche_AvaxToken 1.svg',
+    'ethereum': '$_chainPath/Ethereum.svg',
+    'bnb': '$_legacyLogoPath/Ellipse 111-3.png',
+    'polygon': '$_chainPath/Polygon.svg',
+    'arbitrum': '$_chainPath/Arbitrum.svg',
+    'optimism': '$_chainPath/Optimism.svg',
+    'base': '$_chainPath/Base.svg',
+    'avalanche': '$_chainPath/Avalanche_AvaxToken 1.svg',
   };
 
   static String normalize(String chainName) {
@@ -43,7 +45,20 @@ class ChainAssets {
       return Icon(Icons.link_rounded, size: size);
     }
 
-    return SvgPicture.asset(
+    if (assetPath.toLowerCase().endsWith('.svg')) {
+      return SvgPicture.asset(
+        assetPath,
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) => Icon(
+          Icons.link_rounded,
+          size: size,
+        ),
+      );
+    }
+
+    return Image.asset(
       assetPath,
       width: size,
       height: size,
