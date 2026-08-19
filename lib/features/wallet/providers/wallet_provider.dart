@@ -15,6 +15,17 @@ class WalletProvider extends ChangeNotifier {
   })  : _walletService = walletService,
         _walletApiService = walletApiService;
 
+  static const List<String> _prioritySymbols = [
+    'HBADG',
+    'ETH',
+    'BNB',
+    'USDT',
+    'USDC',
+    'BTC',
+    'MATIC',
+    'POL',
+  ];
+
   WalletModel? _wallet;
   List<TokenModel> _tokens = [];
   int _selectedTab = 0;
@@ -34,11 +45,10 @@ class WalletProvider extends ChangeNotifier {
   bool get onlyProfit => _onlyProfit;
   bool get onlyLoss => _onlyLoss;
 
-  Set<String> get selectedChains =>
-      Set.unmodifiable(_selectedChains);
+  Set<String> get selectedChains => Set.unmodifiable(_selectedChains);
 
   List<TokenModel> get filteredTokens {
-    return _tokens.where((token) {
+    final result = _tokens.where((token) {
       if (_hideZeroBalance && token.balance <= 0) {
         return false;
       }
@@ -58,11 +68,27 @@ class WalletProvider extends ChangeNotifier {
 
       return true;
     }).toList();
+
+    result.sort((a, b) {
+      final aPriority = _priorityIndex(a.symbol);
+      final bPriority = _priorityIndex(b.symbol);
+
+      if (aPriority != bPriority) {
+        return aPriority.compareTo(bPriority);
+      }
+
+      // After priority assets, show larger holdings first.
+      return b.valueUsd.compareTo(a.valueUsd);
+    });
+
+    return result;
   }
 
-  // ============================================================
-  // LOAD WALLET
-  // ============================================================
+  int _priorityIndex(String symbol) {
+    final normalized = symbol.trim().toUpperCase();
+    final index = _prioritySymbols.indexOf(normalized);
+    return index == -1 ? _prioritySymbols.length : index;
+  }
 
   Future<void> loadWallet() async {
     if (_isLoading) {
@@ -82,8 +108,6 @@ class WalletProvider extends ChangeNotifier {
         return;
       }
 
-      // The backend now returns one normalized wallet-assets
-      // response containing balances, prices and USD values.
       final assetData = await _walletApiService.getAssets();
 
       final parsedTokens = assetData
@@ -95,8 +119,6 @@ class WalletProvider extends ChangeNotifier {
         (total, token) => total + token.valueUsd,
       );
 
-      // The backend does not currently provide historical
-      // portfolio performance, so do not invent a percentage.
       const changePercent = 0;
 
       _wallet = WalletModel(
@@ -114,18 +136,10 @@ class WalletProvider extends ChangeNotifier {
     }
   }
 
-  // ============================================================
-  // TAB
-  // ============================================================
-
   void setTab(int index) {
     _selectedTab = index;
     notifyListeners();
   }
-
-  // ============================================================
-  // FILTERS
-  // ============================================================
 
   void setHideZeroBalance(bool value) {
     _hideZeroBalance = value;
@@ -134,21 +148,17 @@ class WalletProvider extends ChangeNotifier {
 
   void setOnlyProfit(bool value) {
     _onlyProfit = value;
-
     if (value) {
       _onlyLoss = false;
     }
-
     notifyListeners();
   }
 
   void setOnlyLoss(bool value) {
     _onlyLoss = value;
-
     if (value) {
       _onlyProfit = false;
     }
-
     notifyListeners();
   }
 
@@ -158,7 +168,6 @@ class WalletProvider extends ChangeNotifier {
     } else {
       _selectedChains.add(chain);
     }
-
     notifyListeners();
   }
 
@@ -170,18 +179,10 @@ class WalletProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ============================================================
-  // LOADING
-  // ============================================================
-
   void _setLoading(bool value) {
     _isLoading = value;
     notifyListeners();
   }
-
-  // ============================================================
-  // RESET
-  // ============================================================
 
   void reset() {
     _wallet = null;
