@@ -19,6 +19,7 @@ import 'features/wallet/services/wallet_storage_service.dart';
 
 import 'features/wallet/services/wallet_api_service.dart';
 import 'features/wallet/providers/wallet_provider.dart';
+import 'core/services/navigation_scroll_service.dart';
 
 class GriotCowrieApp extends StatefulWidget {
   const GriotCowrieApp({
@@ -110,6 +111,7 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
         Provider<WalletService>.value(value: _walletService),
         Provider<AuthSessionService>.value(value: _authSessionService),
         Provider<WalletApiService>.value(value: _walletApiService),
+        ChangeNotifierProvider<NavigationScrollService>.value(value: NavigationScrollService.instance),
 
         // ======================================================
         // USER PROVIDER

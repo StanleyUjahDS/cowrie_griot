@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../../core/services/ad_service.dart';
 import '../../../core/services/notification_service.dart';
-import '../../../core/ui/widgets/native_ad.dart';
+import '../../../core/services/navigation_scroll_service.dart';
+import '../../../core/ui/widgets/banner_ad.dart';
 
 class MinerScreen extends StatefulWidget {
   const MinerScreen({
@@ -18,6 +19,7 @@ class MinerScreen extends StatefulWidget {
 class _MinerScreenState extends State<MinerScreen>
     with SingleTickerProviderStateMixin {
   static const Duration sessionDuration = Duration(hours: 2);
+  final ScrollController _scrollController = ScrollController();
 
   bool isMining = false;
   DateTime? sessionStartedAt;
@@ -96,6 +98,19 @@ class _MinerScreenState extends State<MinerScreen>
     _setupPayoutCountdown();
 
     AdService.instance.addListener(_onAdServiceChange);
+    NavigationScrollService.instance.addListener(_onNavTap);
+  }
+
+  void _onNavTap() {
+    if (NavigationScrollService.instance.tappedIndex == 1) { // Index 1 is Miner
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    }
   }
 
   void _onAdServiceChange() {
@@ -107,11 +122,13 @@ class _MinerScreenState extends State<MinerScreen>
   @override
   void dispose() {
     AdService.instance.removeListener(_onAdServiceChange);
+    NavigationScrollService.instance.removeListener(_onNavTap);
 
     _timer?.cancel();
     _payoutTimer?.cancel();
 
     _pulseController.dispose();
+    _scrollController.dispose();
 
     super.dispose();
   }
@@ -327,6 +344,7 @@ class _MinerScreenState extends State<MinerScreen>
       ),
       body: SafeArea(
         child: CustomScrollView(
+          controller: _scrollController,
           physics: const BouncingScrollPhysics(),
           slivers: [
             SliverPadding(
@@ -1947,8 +1965,8 @@ class _AdPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 10),
-      child: GriotNativeAd(),
+      padding: EdgeInsets.symmetric(vertical: 20),
+      child: GriotBannerAd(),
     );
   }
 }

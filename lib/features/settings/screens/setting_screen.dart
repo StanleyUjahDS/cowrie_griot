@@ -8,13 +8,46 @@ import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../auth/services/auth_session_service.dart';
 import '../../users/providers/user_provider.dart';
 import '../../wallet/providers/wallet_provider.dart';
-import '../../../core/ui/widgets/native_ad.dart';
+import '../../../core/ui/widgets/banner_ad.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
+import '../../../core/services/navigation_scroll_service.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
     super.key,
   });
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    NavigationScrollService.instance.addListener(_onNavTap);
+  }
+
+  @override
+  void dispose() {
+    NavigationScrollService.instance.removeListener(_onNavTap);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onNavTap() {
+    if (NavigationScrollService.instance.tappedIndex == 4) { // Index 4 is Settings
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    }
+  }
 
   // ============================================================
   // LOGOUT
@@ -537,8 +570,8 @@ class SettingsScreen extends StatelessWidget {
   Widget build(
       BuildContext context,
       ) {
-    final colorScheme =
-        Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return GradientScaffold(
       appBar: AppBar(
@@ -553,6 +586,7 @@ class SettingsScreen extends StatelessWidget {
       ),
       child: SafeArea(
         child: ListView(
+          controller: _scrollController,
           physics:
           const BouncingScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(
@@ -981,9 +1015,12 @@ class SettingsScreen extends StatelessWidget {
             // AD
             // ==================================================
 
-            const GriotNativeAd(),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 20),
+              child: GriotBannerAd(),
+            ),
 
-            const SizedBox(height: 26),
+            const SizedBox(height: 16),
 
             // ==================================================
             // FOOTER

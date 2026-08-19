@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../services/navigation_scroll_service.dart';
 
 class MainNavigationShell extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
@@ -16,9 +17,15 @@ class MainNavigationShell extends StatelessWidget {
   // ============================================================
 
   void _goBranch(int index) {
+    if (index == navigationShell.currentIndex) {
+      // Tap current tab: trigger scroll to top
+      NavigationScrollService.instance.scrollToTop(index);
+      return;
+    }
+    
     navigationShell.goBranch(
       index,
-      initialLocation: index == navigationShell.currentIndex,
+      initialLocation: false, // Default is usually false unless we specifically want to reset
     );
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/services/notification_service.dart';
-import '../../../core/ui/widgets/native_ad.dart';
+import '../../../core/services/navigation_scroll_service.dart';
+import '../../../core/ui/widgets/banner_ad.dart';
 import '../widgets/p2p_loading.dart';
 
 class P2PScreen extends StatefulWidget {
@@ -16,11 +17,32 @@ class _P2PScreenState extends State<P2PScreen> {
   bool _buyMode = true;
   String _selectedAsset = 'USDT';
   bool _isLoading = false;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
     _loadInitialData();
+    NavigationScrollService.instance.addListener(_onNavTap);
+  }
+
+  @override
+  void dispose() {
+    NavigationScrollService.instance.removeListener(_onNavTap);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onNavTap() {
+    if (NavigationScrollService.instance.tappedIndex == 3) { // Index 3 is P2P
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    }
   }
 
   Future<void> _loadInitialData() async {
@@ -165,6 +187,7 @@ class _P2PScreenState extends State<P2PScreen> {
           }
         },
         child: CustomScrollView(
+          controller: _scrollController,
           physics: const AlwaysScrollableScrollPhysics(
             parent: BouncingScrollPhysics(),
           ),
@@ -202,15 +225,11 @@ class _P2PScreenState extends State<P2PScreen> {
                       context,
                       index,
                       ) {
-                  // Show an ad after every 3 items
-                  if (index > 0 && index % 3 == 0) {
-                    return const Column(
-                      children: [
-                        Padding(
-                          padding: EdgeInsets.symmetric(vertical: 8.0),
-                          child: GriotNativeAd(),
-                        ),
-                      ],
+                  // Show an ad after every 4 items
+                  if (index > 0 && index % 4 == 0) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 20),
+                      child: GriotBannerAd(),
                     );
                   }
 

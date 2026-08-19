@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/startup/app_startup_service.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/services/navigation_scroll_service.dart';
 import '../controllers/chat_controller.dart';
 
 import '../models/chat_user.dart';
@@ -48,12 +49,14 @@ class _ChatHomeView extends StatefulWidget {
 
 class _ChatHomeViewState extends State<_ChatHomeView> {
   String searchQuery = '';
+  final ScrollController _scrollController = ScrollController();
 
   ChatSection selectedSection = ChatSection.chats;
 
   @override
   void initState() {
     super.initState();
+    NavigationScrollService.instance.addListener(_onNavTap);
 
     // ==============================================================
     // APPLICATION STARTUP
@@ -71,6 +74,25 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AppStartupService>().initialize();
     });
+  }
+
+  @override
+  void dispose() {
+    NavigationScrollService.instance.removeListener(_onNavTap);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onNavTap() {
+    if (NavigationScrollService.instance.tappedIndex == 0) { // Index 0 is Chat
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    }
   }
 
   // ==============================================================
@@ -1076,6 +1098,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
           onRefresh:
           controller.refresh,
           child: ListView.separated(
+            controller: _scrollController,
             padding:
             const EdgeInsets.only(
               top: 116,
@@ -1134,6 +1157,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
     }
 
     return ListView.separated(
+      controller: _scrollController,
       padding:
       const EdgeInsets.only(
         top: 116,
@@ -1182,6 +1206,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
     }
 
     return ListView.separated(
+      controller: _scrollController,
       padding:
       const EdgeInsets.only(
         top: 116,

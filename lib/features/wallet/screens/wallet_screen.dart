@@ -16,9 +16,42 @@ import '../utils/wallet_formatters.dart';
 import '../utils/wallet_layout_utils.dart';
 import '../../../core/ui/widgets/native_ad.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/services/navigation_scroll_service.dart';
 
-class WalletScreen extends StatelessWidget {
+class WalletScreen extends StatefulWidget {
   const WalletScreen({super.key});
+
+  @override
+  State<WalletScreen> createState() => _WalletScreenState();
+}
+
+class _WalletScreenState extends State<WalletScreen> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    NavigationScrollService.instance.addListener(_onNavTap);
+  }
+
+  @override
+  void dispose() {
+    NavigationScrollService.instance.removeListener(_onNavTap);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onNavTap() {
+    if (NavigationScrollService.instance.tappedIndex == 2) { // Index 2 is Wallet
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,6 +87,7 @@ class WalletScreen extends StatelessWidget {
             color: colors.primary,
             backgroundColor: colors.surface,
             child: CustomScrollView(
+              controller: _scrollController,
               physics: const AlwaysScrollableScrollPhysics(
                 parent: BouncingScrollPhysics(),
               ),
@@ -282,9 +316,39 @@ class _AdSpace extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.fromLTRB(14, 20, 14, 10),
-      child: GriotNativeAd(),
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+
+    return Column(
+      children: [
+        const SizedBox(height: 32),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          child: Row(
+            children: [
+              Text(
+                'Promoted',
+                style: text.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: colors.onSurfaceVariant.withValues(alpha: 0.6),
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Divider(
+                  color: colors.outline.withValues(alpha: 0.1),
+                  thickness: 1,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(14, 16, 14, 10),
+          child: GriotNativeAd(),
+        ),
+      ],
     );
   }
 }
