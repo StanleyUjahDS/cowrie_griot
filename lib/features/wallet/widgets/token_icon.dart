@@ -60,21 +60,6 @@ class TokenIcon extends StatelessWidget {
     );
   }
 
-  Widget _nativeChainImage(BuildContext context) {
-    final chainLogo = ChainAssets.getLogo(chainName ?? '');
-    if (chainLogo == null) return _initialFallback(context);
-
-    return ClipOval(
-      child: SvgPicture.asset(
-        chainLogo,
-        width: radius * 2,
-        height: radius * 2,
-        fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => _initialFallback(context),
-      ),
-    );
-  }
-
   Widget _remoteTokenImage(BuildContext context) {
     final url = imageUrl.trim();
 
@@ -94,14 +79,11 @@ class TokenIcon extends StatelessWidget {
   }
 
   Widget _tokenImage(BuildContext context) {
-    // Native tokens always use the frontend-owned chain logo.
-    if (isNative) {
-      return _nativeChainImage(context);
-    }
-
-    // For every non-native token, use ONLY the image URL supplied by the
-    // backend/CoinGecko. If there is no URL, or the URL fails, use the
-    // token's own initials. Never substitute another token's logo.
+    // The backend/CoinGecko image is the primary token logo for BOTH
+    // native and non-native assets.
+    //
+    // ChainAssets is intentionally NOT used as the main token image.
+    // It is used only for the small chain-identification badge below.
     return _remoteTokenImage(context);
   }
 
