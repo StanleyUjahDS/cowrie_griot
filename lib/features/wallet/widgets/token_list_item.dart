@@ -72,14 +72,13 @@ class TokenListItem extends StatelessWidget {
         decoration: BoxDecoration(
           color: colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: borderColor,
-          ),
+          border: Border.all(color: borderColor),
         ),
         child: Row(
           children: [
             TokenIcon(
               imageUrl: token.imageUrl,
+              symbol: token.symbol,
               chainName: token.chain,
               radius: 22,
             ),
