@@ -42,7 +42,11 @@ class TokenListItem extends StatelessWidget {
         ),
         child: Row(
           children: [
-            TokenIcon(imageUrl: token.imageUrl, radius: 22),
+            TokenIcon(
+              imageUrl: token.imageUrl,
+              chainName: token.chain,
+              radius: 22,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(

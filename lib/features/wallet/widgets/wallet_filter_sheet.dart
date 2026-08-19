@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../providers/wallet_provider.dart';
+import '../utils/chain_assets.dart';
 
 void openWalletFilterSheet({
   required BuildContext context,
@@ -334,24 +335,6 @@ Widget _chainChip(String chain, WalletProvider provider, VoidCallback refresh) {
 
 Widget _chainIcon(BuildContext context, String chain, bool selected) {
   final colors = Theme.of(context).colorScheme;
-  IconData icon;
-
-  switch (chain) {
-    case "Ethereum":
-      icon = Icons.diamond_rounded;
-      break;
-    case "Solana":
-      icon = Icons.bolt_rounded;
-      break;
-    case "Polygon":
-      icon = Icons.hexagon_rounded;
-      break;
-    case "BNB Chain":
-      icon = Icons.apps_rounded;
-      break;
-    default:
-      icon = Icons.hub_rounded;
-  }
 
   return Container(
     width: 28,
@@ -360,10 +343,11 @@ Widget _chainIcon(BuildContext context, String chain, bool selected) {
       shape: BoxShape.circle,
       color: selected ? colors.primary.withValues(alpha: 0.14) : colors.surface,
     ),
-    child: Icon(
-      icon,
-      size: 16,
-      color: selected ? colors.primary : colors.onSurfaceVariant,
+    child: Center(
+      child: ChainAssets.getIcon(
+        chain,
+        size: 18,
+      ),
     ),
   );
 }
