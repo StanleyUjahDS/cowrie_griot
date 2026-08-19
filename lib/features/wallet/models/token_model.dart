@@ -1,29 +1,14 @@
 class TokenModel {
   final String name;
   final String symbol;
-
-  /// Human-readable token balance.
   final num balance;
-
-  /// Current USD price of one token.
   final num priceUsd;
-
-  /// Current USD value of this wallet holding.
   final num valueUsd;
-
-  /// Percentage price change over 24 hours.
   final num changePercent;
-
-  /// Network/chain identifier.
   final String chain;
-
-  /// Token contract address.
-  ///
-  /// Empty string means this is a native asset.
   final String contractAddress;
-
-  /// Token logo URL.
   final String imageUrl;
+  final bool hasMarketData;
 
   const TokenModel({
     required this.name,
@@ -35,86 +20,62 @@ class TokenModel {
     required this.chain,
     required this.contractAddress,
     required this.imageUrl,
+    this.hasMarketData = false,
   });
 
-  bool get isNative =>
-      contractAddress.isEmpty;
+  bool get isNative => contractAddress.isEmpty;
 
-  bool get isProfit =>
-      changePercent >= 0;
+  bool get isProfit => changePercent >= 0;
 
-  double get value =>
-      valueUsd.toDouble();
+  double get value => valueUsd.toDouble();
 
-  factory TokenModel.fromJson(
-    Map<String, dynamic> json,
-  ) {
+  factory TokenModel.fromJson(Map<String, dynamic> json) {
+    final hasPrice = json['priceUsd'] != null || json['price'] != null;
+    final hasChange =
+        json['changePercent24h'] != null ||
+        json['changePercent'] != null ||
+        json['priceChangePercent'] != null;
+    final hasValue =
+        json['valueUsd'] != null ||
+        json['balanceUsd'] != null ||
+        json['usdValue'] != null;
+
     return TokenModel(
       name: _string(json['name']),
       symbol: _string(json['symbol']),
-
-      balance: _num(
-        json['balance'],
-      ),
-
-      priceUsd: _num(
-        json['priceUsd'] ??
-        json['price'] ??
-        0,
-      ),
-
+      balance: _num(json['balance']),
+      priceUsd: _num(json['priceUsd'] ?? json['price']),
       valueUsd: _num(
         json['valueUsd'] ??
-        json['balanceUsd'] ??
-        json['usdValue'] ??
-        0,
+            json['balanceUsd'] ??
+            json['usdValue'],
       ),
-
       changePercent: _num(
         json['changePercent24h'] ??
-        json['changePercent'] ??
-        json['priceChangePercent'] ??
-        0,
+            json['changePercent'] ??
+            json['priceChangePercent'],
       ),
-
-      chain: _string(
-        json['chain'] ??
-        json['network'],
-      ),
-
+      chain: _string(json['chain'] ?? json['network']),
       contractAddress: _string(
-        json['contractAddress'] ??
-        json['tokenAddress'],
+        json['contractAddress'] ?? json['tokenAddress'],
       ),
-
       imageUrl: _string(
         json['imageUrl'] ??
-        json['logo'] ??
-        json['logoUrl'],
+            json['logo'] ??
+            json['logoUrl'],
       ),
+      hasMarketData: hasPrice || hasChange || hasValue,
     );
   }
 
   static String _string(dynamic value) {
-    if (value == null) {
-      return '';
-    }
-
+    if (value == null) return '';
     return value.toString();
   }
 
   static num _num(dynamic value) {
-    if (value == null) {
-      return 0;
-    }
-
-    if (value is num) {
-      return value;
-    }
-
-    return num.tryParse(
-          value.toString(),
-        ) ??
-        0;
+    if (value == null) return 0;
+    if (value is num) return value;
+    return num.tryParse(value.toString()) ?? 0;
   }
 }
