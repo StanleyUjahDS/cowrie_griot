@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../utils/chain_assets.dart';
+import '../utils/token_assets.dart';
 
 class TokenIcon extends StatelessWidget {
   final String imageUrl;
@@ -20,10 +21,6 @@ class TokenIcon extends StatelessWidget {
     this.isNative = false,
     this.radius = 24,
   });
-
-  static const String _hbadgAsset = 'assets/chains/Hbadger.svg';
-
-  bool get _isHbadg => symbol.trim().toUpperCase() == 'HBADG';
 
   String _initials() {
     final cleanedName = (name ?? '').trim();
@@ -47,17 +44,18 @@ class TokenIcon extends StatelessWidget {
 
   Widget _initialFallback(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final initials = _initials();
 
     return CircleAvatar(
       radius: radius,
       backgroundColor: colors.surfaceContainerHighest,
       child: Text(
-        _initials(),
+        initials,
         textAlign: TextAlign.center,
         style: TextStyle(
           color: colors.onSurfaceVariant,
           fontWeight: FontWeight.w800,
-          fontSize: radius * (_initials().length > 1 ? 0.48 : 0.65),
+          fontSize: radius * (initials.length > 1 ? 0.48 : 0.65),
         ),
       ),
     );
@@ -78,39 +76,33 @@ class TokenIcon extends StatelessWidget {
     );
   }
 
+  Widget _localTokenImage(BuildContext context, String assetPath) {
+    return ClipOval(
+      child: SvgPicture.asset(
+        assetPath,
+        width: radius * 2,
+        height: radius * 2,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => _initialFallback(context),
+      ),
+    );
+  }
+
   Widget _tokenImage(BuildContext context) {
-    // Native assets use the local chain logo as their primary logo.
+    // Native assets always use the local chain logo.
     if (isNative) {
       return _nativeChainImage(context);
     }
 
-    // HBADG is a canonical local asset.
-    if (_isHbadg) {
-      return ClipOval(
-        child: SvgPicture.asset(
-          _hbadgAsset,
-          width: radius * 2,
-          height: radius * 2,
-          fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) => _initialFallback(context),
-        ),
-      );
+    // Token logos are controlled by the frontend registry. We deliberately
+    // do not use backend/remote logo URLs as a generic fallback because an
+    // incorrectly supplied URL could make unrelated tokens share one logo.
+    final localLogo = TokenAssets.getLogo(symbol);
+    if (localLogo != null) {
+      return _localTokenImage(context, localLogo);
     }
 
-    // Use the token's own remote logo only when it exists.
-    if (imageUrl.trim().isNotEmpty) {
-      return ClipOval(
-        child: Image.network(
-          imageUrl.trim(),
-          width: radius * 2,
-          height: radius * 2,
-          fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) => _initialFallback(context),
-        ),
-      );
-    }
-
-    // Never fall back to another token's image.
+    // Unknown/unregistered tokens get their own initials.
     return _initialFallback(context);
   }
 
