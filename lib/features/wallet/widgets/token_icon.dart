@@ -15,59 +15,40 @@ class TokenIcon extends StatelessWidget {
     this.radius = 24,
   });
 
-  String _tokenAsset() {
-    final key = symbol.trim().toLowerCase();
+  Widget _tokenFallback(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final label = symbol.trim().isEmpty
+        ? '?'
+        : symbol.trim().substring(0, 1).toUpperCase();
 
-    const logos = {
-      'eth': 'assets/coins_logo/eth.png',
-      'ethereum': 'assets/coins_logo/eth.png',
-      'bnb': 'assets/coins_logo/bnb.png',
-      'usdt': 'assets/coins_logo/usdt.png',
-      'usdc': 'assets/coins_logo/usdc.png',
-      'matic': 'assets/coins_logo/matic.png',
-      'pol': 'assets/coins_logo/matic.png',
-      'btc': 'assets/coins_logo/btc.png',
-      'bitcoin': 'assets/coins_logo/btc.png',
-      'hbadg': 'assets/coins_logo/hbadg.png',
-    };
-
-    return logos[key] ?? 'assets/coins_logo/ic_launcher.png';
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: colors.surfaceContainerHighest,
+      child: Text(
+        label,
+        style: TextStyle(
+          color: colors.onSurfaceVariant,
+          fontWeight: FontWeight.w700,
+          fontSize: radius * 0.65,
+        ),
+      ),
+    );
   }
 
   Widget _tokenImage(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
     if (imageUrl.trim().isNotEmpty) {
-      return Image.network(
-        imageUrl,
-        width: radius * 2,
-        height: radius * 2,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => Image.asset(
-          _tokenAsset(),
+      return ClipOval(
+        child: Image.network(
+          imageUrl,
           width: radius * 2,
           height: radius * 2,
-          fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) => Icon(
-            Icons.token_rounded,
-            color: colors.onSurfaceVariant,
-            size: radius,
-          ),
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _tokenFallback(context),
         ),
       );
     }
 
-    return Image.asset(
-      _tokenAsset(),
-      width: radius * 2,
-      height: radius * 2,
-      fit: BoxFit.contain,
-      errorBuilder: (_, __, ___) => Icon(
-        Icons.token_rounded,
-        color: colors.onSurfaceVariant,
-        size: radius,
-      ),
-    );
+    return _tokenFallback(context);
   }
 
   @override
@@ -80,11 +61,7 @@ class TokenIcon extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          CircleAvatar(
-            radius: radius,
-            backgroundColor: colors.surfaceContainerHighest,
-            child: ClipOval(child: _tokenImage(context)),
-          ),
+          _tokenImage(context),
           if (chainName != null && chainName!.trim().isNotEmpty)
             Positioned(
               right: -1,
