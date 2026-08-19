@@ -15,16 +15,14 @@ class WalletProvider extends ChangeNotifier {
   })  : _walletService = walletService,
         _walletApiService = walletApiService;
 
-  static const List<String> _prioritySymbols = [
+  /// Canonical Griot priority assets.
+  ///
+  /// This is metadata/recognition only. It does not affect wallet ordering
+  /// and does not add zero-balance assets to the user's holdings.
+  static const Set<String> _prioritySymbols = {
     'HBADG',
-    'ETH',
     'BNB',
-    'USDT',
-    'USDC',
-    'BTC',
-    'MATIC',
-    'POL',
-  ];
+  };
 
   WalletModel? _wallet;
   List<TokenModel> _tokens = [];
@@ -46,6 +44,10 @@ class WalletProvider extends ChangeNotifier {
   bool get onlyLoss => _onlyLoss;
 
   Set<String> get selectedChains => Set.unmodifiable(_selectedChains);
+
+  bool isPriorityToken(TokenModel token) {
+    return _prioritySymbols.contains(token.symbol.trim().toUpperCase());
+  }
 
   List<TokenModel> get filteredTokens {
     final result = _tokens.where((token) {
@@ -69,25 +71,11 @@ class WalletProvider extends ChangeNotifier {
       return true;
     }).toList();
 
-    result.sort((a, b) {
-      final aPriority = _priorityIndex(a.symbol);
-      final bPriority = _priorityIndex(b.symbol);
-
-      if (aPriority != bPriority) {
-        return aPriority.compareTo(bPriority);
-      }
-
-      // After priority assets, show larger holdings first.
-      return b.valueUsd.compareTo(a.valueUsd);
-    });
+    // Priority assets do not control ordering.
+    // Wallet holdings are shown by current holding value.
+    result.sort((a, b) => b.valueUsd.compareTo(a.valueUsd));
 
     return result;
-  }
-
-  int _priorityIndex(String symbol) {
-    final normalized = symbol.trim().toUpperCase();
-    final index = _prioritySymbols.indexOf(normalized);
-    return index == -1 ? _prioritySymbols.length : index;
   }
 
   Future<void> loadWallet() async {
