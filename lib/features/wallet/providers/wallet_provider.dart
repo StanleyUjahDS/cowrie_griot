@@ -15,86 +15,44 @@ class WalletProvider extends ChangeNotifier {
   })  : _walletService = walletService,
         _walletApiService = walletApiService;
 
-  // ============================================================
-  // STATE
-  // ============================================================
-
   WalletModel? _wallet;
-
   List<TokenModel> _tokens = [];
-
   int _selectedTab = 0;
-
   bool _isLoading = false;
-
   String? _error;
-
   bool _hideZeroBalance = false;
-
   bool _onlyProfit = false;
-
   bool _onlyLoss = false;
-
   final Set<String> _selectedChains = {};
 
-  // ============================================================
-  // GETTERS
-  // ============================================================
-
-  WalletModel? get wallet =>
-      _wallet;
-
-  List<TokenModel> get tokens =>
-      List.unmodifiable(_tokens);
-
-  int get selectedTab =>
-      _selectedTab;
-
-  bool get isLoading =>
-      _isLoading;
-
-  String? get error =>
-      _error;
-
-  bool get hideZeroBalance =>
-      _hideZeroBalance;
-
-  bool get onlyProfit =>
-      _onlyProfit;
-
-  bool get onlyLoss =>
-      _onlyLoss;
+  WalletModel? get wallet => _wallet;
+  List<TokenModel> get tokens => List.unmodifiable(_tokens);
+  int get selectedTab => _selectedTab;
+  bool get isLoading => _isLoading;
+  String? get error => _error;
+  bool get hideZeroBalance => _hideZeroBalance;
+  bool get onlyProfit => _onlyProfit;
+  bool get onlyLoss => _onlyLoss;
 
   Set<String> get selectedChains =>
-      Set.unmodifiable(
-        _selectedChains,
-      );
-
-  // ============================================================
-  // FILTERED TOKENS
-  // ============================================================
+      Set.unmodifiable(_selectedChains);
 
   List<TokenModel> get filteredTokens {
     return _tokens.where((token) {
-      if (_hideZeroBalance &&
-          token.balance <= 0) {
+      if (_hideZeroBalance && token.balance <= 0) {
         return false;
       }
 
-      if (_onlyProfit &&
-          token.changePercent < 0) {
+      if (_onlyProfit && token.changePercent < 0) {
         return false;
       }
 
-      if (_onlyLoss &&
-          token.changePercent > 0) {
+      if (_onlyLoss && token.changePercent > 0) {
         return false;
       }
 
       if (_selectedChains.isNotEmpty &&
-          !_selectedChains.contains(
-            token.chain,
-          )) {
+          !_selectedChains.contains(token.chain)) {
         return false;
       }
 
@@ -116,157 +74,36 @@ class WalletProvider extends ChangeNotifier {
     try {
       _error = null;
 
-      // --------------------------------------------------------
-      // GET LOCAL WALLET ADDRESS
-      // --------------------------------------------------------
+      final address = await _walletService.getAddress();
 
-      final address =
-          await _walletService.getAddress();
-
-      if (address == null ||
-          address.isEmpty) {
+      if (address == null || address.isEmpty) {
         _wallet = null;
         _tokens = [];
-
         return;
       }
 
-      // --------------------------------------------------------
-      // FETCH NATIVE BALANCES
-      // --------------------------------------------------------
+      // The backend now returns one normalized wallet-assets
+      // response containing balances, prices and USD values.
+      final assetData = await _walletApiService.getAssets();
 
-      final nativeBalances =
-          await _walletApiService
-              .getNativeBalances(
-        address: address,
+      final parsedTokens = assetData
+          .map(TokenModel.fromJson)
+          .toList();
+
+      final totalBalanceUsd = parsedTokens.fold<num>(
+        0,
+        (total, token) => total + token.valueUsd,
       );
 
-      // --------------------------------------------------------
-      // FETCH TOKEN BALANCES
-      // --------------------------------------------------------
-
-      final tokenData =
-          await _walletApiService.getTokens(
-        address: address,
-      );
-
-      // --------------------------------------------------------
-      // CONVERT TOKEN RESPONSES
-      // --------------------------------------------------------
-
-      final parsedTokens =
-          tokenData
-              .map(
-                TokenModel.fromJson,
-              )
-              .toList();
-
-      // --------------------------------------------------------
-      // CALCULATE NATIVE USD VALUE
-      // --------------------------------------------------------
-
-      num totalNativeBalanceUsd = 0;
-
-      for (final native in nativeBalances) {
-        totalNativeBalanceUsd +=
-            _readNumber(
-          native,
-          [
-            'balanceUsd',
-            'valueUsd',
-            'usdValue',
-          ],
-        );
-      }
-
-      // --------------------------------------------------------
-      // CALCULATE TOKEN USD VALUE
-      // --------------------------------------------------------
-
-      num totalTokenBalanceUsd = 0;
-
-      for (final token in parsedTokens) {
-        totalTokenBalanceUsd +=
-            token.valueUsd;
-      }
-
-      // --------------------------------------------------------
-      // TOTAL PORTFOLIO VALUE
-      // --------------------------------------------------------
-
-      final totalBalanceUsd =
-          totalNativeBalanceUsd +
-          totalTokenBalanceUsd;
-
-      // --------------------------------------------------------
-      // DEBUGGING
-      // --------------------------------------------------------
-
-      debugPrint(
-        '================================================',
-      );
-
-      debugPrint(
-        'WALLET ADDRESS: $address',
-      );
-
-      debugPrint(
-        'NATIVE BALANCES: $nativeBalances',
-      );
-
-      debugPrint(
-        'TOKEN DATA: $tokenData',
-      );
-
-      debugPrint(
-        'PARSED TOKENS: $parsedTokens',
-      );
-
-      debugPrint(
-        'TOTAL NATIVE USD: $totalNativeBalanceUsd',
-      );
-
-      debugPrint(
-        'TOTAL TOKEN USD: $totalTokenBalanceUsd',
-      );
-
-      debugPrint(
-        'TOTAL WALLET USD: $totalBalanceUsd',
-      );
-
-      debugPrint(
-        '================================================',
-      );
-
-      // --------------------------------------------------------
-      // PORTFOLIO CHANGE
-      // --------------------------------------------------------
-      //
-      // Do NOT leave the old mock 3.5%.
-      //
-      // Until the backend provides an actual portfolio change,
-      // use 0.
-      //
-      // --------------------------------------------------------
-
-      final changePercent =
-          _calculatePortfolioChange(
-        nativeBalances,
-        parsedTokens,
-      );
-
-      // --------------------------------------------------------
-      // BUILD WALLET MODEL
-      // --------------------------------------------------------
+      // The backend does not currently provide historical
+      // portfolio performance, so do not invent a percentage.
+      const changePercent = 0;
 
       _wallet = WalletModel(
         address: address,
-        displayName:
-            'Your Griot Account',
-        totalBalance:
-            totalBalanceUsd,
-        changePercent:
-            changePercent,
+        displayName: 'Your Griot Account',
+        totalBalance: totalBalanceUsd,
+        changePercent: changePercent,
       );
 
       _tokens = parsedTokens;
@@ -278,100 +115,11 @@ class WalletProvider extends ChangeNotifier {
   }
 
   // ============================================================
-  // NUMBER READER
-  // ============================================================
-
-  num _readNumber(
-    Map<String, dynamic> json,
-    List<String> keys,
-  ) {
-    for (final key in keys) {
-      final value = json[key];
-
-      if (value is num) {
-        return value;
-      }
-
-      if (value != null) {
-        final parsed =
-            num.tryParse(
-          value.toString(),
-        );
-
-        if (parsed != null) {
-          return parsed;
-        }
-      }
-    }
-
-    return 0;
-  }
-
-  // ============================================================
-  // PORTFOLIO CHANGE
-  // ============================================================
-  //
-  // Until backend supplies historical portfolio data,
-  // we do not invent a percentage.
-  //
-  // ============================================================
-
-  num _calculatePortfolioChange(
-    List<Map<String, dynamic>>
-        nativeBalances,
-    List<TokenModel> tokens,
-  ) {
-    num weightedValue = 0;
-
-    num weightedChange = 0;
-
-    for (final native in nativeBalances) {
-      final value = _readNumber(
-        native,
-        [
-          'balanceUsd',
-          'valueUsd',
-          'usdValue',
-        ],
-      );
-
-      final change = _readNumber(
-        native,
-        [
-          'changePercent',
-          'priceChangePercent',
-        ],
-      );
-
-      weightedValue += value;
-
-      weightedChange +=
-          value * change;
-    }
-
-    for (final token in tokens) {
-      weightedValue += token.valueUsd;
-
-      weightedChange +=
-          token.valueUsd *
-          token.changePercent;
-    }
-
-    if (weightedValue <= 0) {
-      return 0;
-    }
-
-    return weightedChange /
-        weightedValue;
-  }
-
-  // ============================================================
   // TAB
   // ============================================================
 
   void setTab(int index) {
     _selectedTab = index;
-
     notifyListeners();
   }
 
@@ -379,17 +127,12 @@ class WalletProvider extends ChangeNotifier {
   // FILTERS
   // ============================================================
 
-  void setHideZeroBalance(
-    bool value,
-  ) {
+  void setHideZeroBalance(bool value) {
     _hideZeroBalance = value;
-
     notifyListeners();
   }
 
-  void setOnlyProfit(
-    bool value,
-  ) {
+  void setOnlyProfit(bool value) {
     _onlyProfit = value;
 
     if (value) {
@@ -399,9 +142,7 @@ class WalletProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setOnlyLoss(
-    bool value,
-  ) {
+  void setOnlyLoss(bool value) {
     _onlyLoss = value;
 
     if (value) {
@@ -411,19 +152,11 @@ class WalletProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void toggleChain(
-    String chain,
-  ) {
-    if (_selectedChains.contains(
-      chain,
-    )) {
-      _selectedChains.remove(
-        chain,
-      );
+  void toggleChain(String chain) {
+    if (_selectedChains.contains(chain)) {
+      _selectedChains.remove(chain);
     } else {
-      _selectedChains.add(
-        chain,
-      );
+      _selectedChains.add(chain);
     }
 
     notifyListeners();
@@ -431,13 +164,9 @@ class WalletProvider extends ChangeNotifier {
 
   void clearFilters() {
     _hideZeroBalance = false;
-
     _onlyProfit = false;
-
     _onlyLoss = false;
-
     _selectedChains.clear();
-
     notifyListeners();
   }
 
@@ -445,11 +174,8 @@ class WalletProvider extends ChangeNotifier {
   // LOADING
   // ============================================================
 
-  void _setLoading(
-    bool value,
-  ) {
+  void _setLoading(bool value) {
     _isLoading = value;
-
     notifyListeners();
   }
 
@@ -459,23 +185,14 @@ class WalletProvider extends ChangeNotifier {
 
   void reset() {
     _wallet = null;
-
     _tokens = [];
-
     _selectedTab = 0;
-
     _isLoading = false;
-
     _error = null;
-
     _hideZeroBalance = false;
-
     _onlyProfit = false;
-
     _onlyLoss = false;
-
     _selectedChains.clear();
-
     notifyListeners();
   }
 }
