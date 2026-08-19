@@ -5,10 +5,13 @@ class TokenModel {
   /// Human-readable token balance.
   final num balance;
 
+  /// Current USD price of one token.
+  final num priceUsd;
+
   /// Current USD value of this wallet holding.
   final num valueUsd;
 
-  /// Percentage price change.
+  /// Percentage price change over 24 hours.
   final num changePercent;
 
   /// Network/chain identifier.
@@ -26,6 +29,7 @@ class TokenModel {
     required this.name,
     required this.symbol,
     required this.balance,
+    this.priceUsd = 0,
     required this.valueUsd,
     required this.changePercent,
     required this.chain,
@@ -53,6 +57,12 @@ class TokenModel {
         json['balance'],
       ),
 
+      priceUsd: _num(
+        json['priceUsd'] ??
+        json['price'] ??
+        0,
+      ),
+
       valueUsd: _num(
         json['valueUsd'] ??
         json['balanceUsd'] ??
@@ -61,6 +71,7 @@ class TokenModel {
       ),
 
       changePercent: _num(
+        json['changePercent24h'] ??
         json['changePercent'] ??
         json['priceChangePercent'] ??
         0,
