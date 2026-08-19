@@ -12,40 +12,88 @@ class TokenListItem extends StatelessWidget {
     this.onTap,
   });
 
-  String _formatPrice(num value) {
-    final double price = value.toDouble();
+  String _formatBalance(num value) {
+    final amount = value.toDouble();
 
-    if (price == 0) {
-      return '--';
+    if (amount == 0) return '0';
+
+    if (amount >= 1000000000) {
+      return '${(amount / 1000000000).toStringAsFixed(2)}B';
+    }
+
+    if (amount >= 1000000) {
+      return '${(amount / 1000000).toStringAsFixed(2)}M';
+    }
+
+    if (amount >= 1000) {
+      return '${(amount / 1000).toStringAsFixed(2)}K';
+    }
+
+    if (amount >= 1) {
+      return amount.toStringAsFixed(4).replaceFirst(RegExp(r'\.?0+$'), '');
+    }
+
+    return amount.toStringAsFixed(8).replaceFirst(RegExp(r'\.?0+$'), '');
+  }
+
+  String _formatPrice(num value) {
+    final price = value.toDouble();
+
+    if (!token.hasMarketData || price <= 0) return '--';
+
+    if (price >= 1000000) {
+      return '\$${(price / 1000000).toStringAsFixed(2)}M';
+    }
+
+    if (price >= 1000) {
+      return '\$${(price / 1000).toStringAsFixed(2)}K';
     }
 
     if (price >= 1) {
-      return price.toStringAsFixed(2);
+      return '\$${price.toStringAsFixed(2)}';
     }
 
     if (price >= 0.01) {
-      return price.toStringAsFixed(4);
+      return '\$${price.toStringAsFixed(4)}';
     }
 
     if (price >= 0.0001) {
-      return price.toStringAsFixed(6);
+      return '\$${price.toStringAsFixed(6)}';
     }
 
-    return price.toStringAsFixed(8);
+    return '\$${price.toStringAsFixed(8)}';
   }
 
   String _formatUsd(num value) {
-    final double amount = value.toDouble();
+    final amount = value.toDouble().abs();
 
-    if (amount.abs() >= 1000) {
-      return '\$${amount.toStringAsFixed(2)}';
+    if (!token.hasMarketData) return '--';
+
+    if (amount >= 1000000000) {
+      return '\$${(amount / 1000000000).toStringAsFixed(2)}B';
     }
 
-    if (amount.abs() >= 0.01) {
+    if (amount >= 1000000) {
+      return '\$${(amount / 1000000).toStringAsFixed(2)}M';
+    }
+
+    if (amount >= 1000) {
+      return '\$${(amount / 1000).toStringAsFixed(2)}K';
+    }
+
+    if (amount >= 0.01) {
       return '\$${amount.toStringAsFixed(2)}';
     }
 
     return '\$${amount.toStringAsFixed(4)}';
+  }
+
+  String _formatChange(num value) {
+    if (!token.hasMarketData) return '--';
+
+    final change = value.toDouble();
+    final sign = change > 0 ? '+' : '';
+    return '$sign${change.toStringAsFixed(2)}%';
   }
 
   @override
@@ -88,7 +136,7 @@ class TokenListItem extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    token.name,
+                    token.name.isEmpty ? token.symbol : token.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: textTheme.bodyLarge?.copyWith(
@@ -110,7 +158,7 @@ class TokenListItem extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        '\$${_formatPrice(token.priceUsd)}',
+                        _formatPrice(token.priceUsd),
                         style: textTheme.bodySmall?.copyWith(
                           color: colorScheme.onSurfaceVariant,
                           fontWeight: FontWeight.w500,
@@ -126,7 +174,7 @@ class TokenListItem extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  "${token.balance}",
+                  _formatBalance(token.balance),
                   style: textTheme.bodyLarge?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
@@ -144,11 +192,13 @@ class TokenListItem extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      "${isPositive ? '+' : ''}${token.changePercent}%",
+                      _formatChange(token.changePercent),
                       style: textTheme.bodySmall?.copyWith(
-                        color: isPositive
-                            ? colorScheme.tertiary
-                            : colorScheme.error,
+                        color: !token.hasMarketData
+                            ? colorScheme.onSurfaceVariant
+                            : isPositive
+                                ? colorScheme.tertiary
+                                : colorScheme.error,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
