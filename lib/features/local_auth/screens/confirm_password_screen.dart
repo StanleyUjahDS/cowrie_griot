@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:overlay_support/overlay_support.dart';
 import '/core/ui/scaffolds/gradient_scaffold.dart';
+import '/core/services/notification_service.dart';
 
 class VerifyPassword extends StatefulWidget {
   final String input;
@@ -44,15 +44,7 @@ class _VerifyPasswordState extends State<VerifyPassword> {
 
   void _onContinue() {
     if (confirminput == widget.input) {
-      showSimpleNotification(
-        const Text("Password confirmed"),
-        leading: Icon(Icons.check_circle,
-            color: Theme.of(context).colorScheme.primary),
-        position: NotificationPosition.top,
-        background: Theme.of(context).colorScheme.surface,
-        foreground: Theme.of(context).colorScheme.onSurface,
-        duration: const Duration(seconds: 2),
-      );
+      NotificationService.showSuccess(context, "Password confirmed");
 
       Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted) {
@@ -60,15 +52,7 @@ class _VerifyPasswordState extends State<VerifyPassword> {
         }
       });
     } else {
-      showSimpleNotification(
-        const Text("Wrong password"),
-        leading: Icon(Icons.error_outline,
-            color: Theme.of(context).colorScheme.error),
-        position: NotificationPosition.top,
-        background: Theme.of(context).colorScheme.surface,
-        foreground: Theme.of(context).colorScheme.onSurface,
-        duration: const Duration(seconds: 2),
-      );
+      NotificationService.showError(context, "Wrong password");
 
       setState(() {
         confirminput = '';

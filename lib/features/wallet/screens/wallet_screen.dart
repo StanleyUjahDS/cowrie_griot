@@ -119,9 +119,9 @@ class _WalletScreenState extends State<WalletScreen> {
                 // Actions
                 SliverToBoxAdapter(
                   child: WalletActions(
-                    onSendTap: () {},
-                    onReceiveTap: () {},
-                    onSwapTap: () {},
+                    onSendTap: () => context.push('/wallet/send'),
+                    onReceiveTap: () => context.push('/wallet/receive'),
+                    onSwapTap: () => context.push('/wallet/swap'),
                     onBuyTap: () => openEasyBuySheet(context),
                   ),
                 ),
@@ -139,7 +139,7 @@ class _WalletScreenState extends State<WalletScreen> {
                 // Token List
                 TokenList(
                   tokens: provider.filteredTokens,
-                  onTokenTap: (token) {},
+                  onTokenTap: (token) => context.push('/wallet/asset', extra: token),
                   emptyState: _buildEmptyTokenState(context),
                 ),
 
@@ -185,7 +185,7 @@ class _WalletScreenState extends State<WalletScreen> {
     await Clipboard.setData(ClipboardData(text: address));
     if (!context.mounted) return;
 
-    NotificationService.showSuccess('Wallet address copied');
+    NotificationService.showSuccess(context, 'Wallet address copied');
   }
 
   Widget _buildTabs(BuildContext context, WalletProvider provider) {
@@ -321,7 +321,7 @@ class _AdSpace extends StatelessWidget {
 
     return Column(
       children: [
-        const SizedBox(height: 32),
+        const SizedBox(height: 64), // Increased from 32 to move it lower
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 18),
           child: Row(

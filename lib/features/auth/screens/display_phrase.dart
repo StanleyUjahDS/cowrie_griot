@@ -87,34 +87,20 @@ class DisplayPhraseScreen extends StatelessWidget {
     // ========================================================
 
     final Color cardColor = isDark
-        ? Colors.white.withValues(
-      alpha: 0.035,
-    )
-        : Colors.black.withValues(
-      alpha: 0.018,
-    );
+        ? Colors.white.withValues(alpha: 0.035)
+        : Colors.black.withValues(alpha: 0.018);
 
     final Color wordColor = isDark
-        ? Colors.white.withValues(
-      alpha: 0.055,
-    )
-        : Colors.black.withValues(
-      alpha: 0.025,
-    );
+        ? Colors.white.withValues(alpha: 0.055)
+        : Colors.black.withValues(alpha: 0.025);
 
     final Color borderColor = isDark
-        ? Colors.white.withValues(
-      alpha: 0.10,
-    )
-        : Colors.black.withValues(
-      alpha: 0.08,
-    );
+        ? Colors.white.withValues(alpha: 0.10)
+        : Colors.black.withValues(alpha: 0.08);
 
     final Color mutedColor = colorScheme
         .onSurfaceVariant
-        .withValues(
-      alpha: 0.78,
-    );
+        .withValues(alpha: 0.78);
 
     // ========================================================
     // MNEMONIC
@@ -381,13 +367,9 @@ class DisplayPhraseScreen extends StatelessWidget {
                               BoxDecoration(
                                 color: isDark
                                     ? Colors.white
-                                    .withValues(
-                                  alpha: 0.06,
-                                )
+                                    .withValues(alpha: 0.06)
                                     : Colors.black
-                                    .withValues(
-                                  alpha: 0.04,
-                                ),
+                                    .withValues(alpha: 0.04),
                                 shape:
                                 BoxShape.circle,
                               ),

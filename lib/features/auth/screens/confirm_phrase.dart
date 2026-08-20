@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:overlay_support/overlay_support.dart';
 
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
@@ -212,7 +211,7 @@ class _VerifySeedState extends State<VerifySeed> {
   // ==========================================================
 
   void _showIncorrectSelection() {
-    NotificationService.showError('Incorrect selection. Please try again.');
+    NotificationService.showError(context, 'Incorrect selection. Please try again.');
   }
 
   // ==========================================================
@@ -220,7 +219,7 @@ class _VerifySeedState extends State<VerifySeed> {
   // ==========================================================
 
   void _showWalletError() {
-    NotificationService.showError('Wallet could not be loaded.');
+    NotificationService.showError(context, 'Wallet could not be loaded.');
   }
 
   // ==========================================================
@@ -334,16 +333,12 @@ class _VerifySeedState extends State<VerifySeed> {
                 decoration:
                 BoxDecoration(
                   color: colorScheme.surface
-                      .withValues(
-                    alpha: 0.65,
-                  ),
+                      .withValues(alpha: 0.65),
                   borderRadius:
                   BorderRadius.circular(18),
                   border: Border.all(
                     color: colorScheme.outline
-                        .withValues(
-                      alpha: 0.15,
-                    ),
+                        .withValues(alpha: 0.15),
                   ),
                 ),
                 child: Row(
@@ -356,9 +351,7 @@ class _VerifySeedState extends State<VerifySeed> {
                         shape: BoxShape.circle,
                         color: colorScheme
                             .primary
-                            .withValues(
-                          alpha: 0.12,
-                        ),
+                            .withValues(alpha: 0.12),
                       ),
                       child: Icon(
                         Icons.security_rounded,
@@ -485,9 +478,7 @@ class _VerifySeedState extends State<VerifySeed> {
                                     .primary
                                     : colorScheme
                                     .outline
-                                    .withValues(
-                                  alpha: 0.20,
-                                ),
+                                    .withValues(alpha: 0.20),
                                 width: selected
                                     ? 1.4
                                     : 1,
@@ -498,10 +489,7 @@ class _VerifySeedState extends State<VerifySeed> {
                                 BoxShadow(
                                   color: colorScheme
                                       .primary
-                                      .withValues(
-                                    alpha:
-                                    0.16,
-                                  ),
+                                      .withValues(alpha: 0.16),
                                   blurRadius:
                                   12,
                                   offset:
@@ -529,16 +517,10 @@ class _VerifySeedState extends State<VerifySeed> {
                                     color: selected
                                         ? colorScheme
                                         .onPrimary
-                                        .withValues(
-                                      alpha:
-                                      0.15,
-                                    )
+                                        .withValues(alpha: 0.15)
                                         : colorScheme
                                         .onSurface
-                                        .withValues(
-                                      alpha:
-                                      0.05,
-                                    ),
+                                        .withValues(alpha: 0.05),
                                   ),
                                   child: Text(
                                     '${option.originalIndex + 1}',

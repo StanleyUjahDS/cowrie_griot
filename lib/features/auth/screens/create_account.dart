@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../core/ui/screens/app_loading_screen.dart';
+import '../../../core/services/notification_service.dart';
 
 import '../../wallet/services/wallet_service.dart';
 import '../../wallet/services/wallet_crypto_service.dart';
@@ -84,13 +85,7 @@ class _CreateAccountScreenState
           // We restore the expected type here.
 
           if (result is! WalletData) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Unable to create wallet.',
-                ),
-              ),
-            );
+            NotificationService.showError(context, 'Unable to create wallet.');
 
             return;
           }
@@ -160,9 +155,7 @@ class _CreateAccountScreenState
                           const EdgeInsets.all(20),
                           decoration: BoxDecoration(
                             color: colorScheme.surface
-                                .withValues(
-                              alpha: 0.82,
-                            ),
+                                .withValues(alpha: 0.82),
                             borderRadius:
                             BorderRadius.circular(
                               18,
@@ -170,9 +163,7 @@ class _CreateAccountScreenState
                             border: Border.all(
                               color: colorScheme
                                   .onSurface
-                                  .withValues(
-                                alpha: 0.08,
-                              ),
+                                  .withValues(alpha: 0.08),
                             ),
                           ),
                           child: Column(
@@ -186,9 +177,7 @@ class _CreateAccountScreenState
                                 BoxDecoration(
                                   color: colorScheme
                                       .primary
-                                      .withValues(
-                                    alpha: 0.12,
-                                  ),
+                                      .withValues(alpha: 0.12),
                                   borderRadius:
                                   BorderRadius
                                       .circular(
@@ -231,9 +220,7 @@ class _CreateAccountScreenState
                                     ?.copyWith(
                                   color: colorScheme
                                       .onSurface
-                                      .withValues(
-                                    alpha: 0.70,
-                                  ),
+                                      .withValues(alpha: 0.70),
                                   height: 1.5,
                                 ),
                               ),
@@ -259,9 +246,7 @@ class _CreateAccountScreenState
                       style:
                       textTheme.bodyMedium?.copyWith(
                         color: colorScheme.onSurface
-                            .withValues(
-                          alpha: 0.65,
-                        ),
+                            .withValues(alpha: 0.65),
                         height: 1.5,
                       ),
                     ),
@@ -298,9 +283,7 @@ class _CreateAccountScreenState
                                 ?.copyWith(
                               color: colorScheme
                                   .onSurface
-                                  .withValues(
-                                alpha: 0.60,
-                              ),
+                                  .withValues(alpha: 0.60),
                               height: 1.45,
                             ),
                           ),

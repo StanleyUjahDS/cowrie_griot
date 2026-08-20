@@ -48,21 +48,13 @@ class MainNavigationShell extends StatelessWidget {
 
     final Color navigationSurface = colorScheme.surface;
 
-    final Color inactiveColor = colorScheme.onSurface.withValues(
-      alpha: 0.55,
-    );
+    final Color inactiveColor = colorScheme.onSurface.withValues(alpha: 0.55);
 
-    final Color activeBackground = colorScheme.onSurface.withValues(
-      alpha: isDark ? 0.08 : 0.055,
-    );
+    final Color activeBackground = colorScheme.onSurface.withValues(alpha: isDark ? 0.08 : 0.055);
 
-    final Color borderColor = colorScheme.outline.withValues(
-      alpha: isDark ? 0.12 : 0.10,
-    );
+    final Color borderColor = colorScheme.outline.withValues(alpha: isDark ? 0.12 : 0.10);
 
-    final Color shadowColor = colorScheme.shadow.withValues(
-      alpha: isDark ? 0.30 : 0.10,
-    );
+    final Color shadowColor = colorScheme.shadow.withValues(alpha: isDark ? 0.30 : 0.10);
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -95,9 +87,7 @@ class MainNavigationShell extends StatelessWidget {
                   child: Container(
                     height: 68,
                     decoration: BoxDecoration(
-                      color: navigationSurface.withValues(
-                        alpha: isDark ? 0.88 : 0.92,
-                      ),
+                      color: navigationSurface.withValues(alpha: isDark ? 0.88 : 0.92),
                       borderRadius: BorderRadius.circular(28),
                       border: Border.all(
                         color: borderColor,

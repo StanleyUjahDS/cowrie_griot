@@ -220,7 +220,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
 
       Navigator.of(context).pop();
 
-      NotificationService.showSuccess('Message request accepted');
+      NotificationService.showSuccess(context, 'Message request accepted');
     } catch (_) {
       // Controller handles the underlying error.
     }
@@ -245,7 +245,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
 
       Navigator.of(context).pop();
 
-      NotificationService.showSuccess('Message request declined');
+      NotificationService.showSuccess(context, 'Message request declined');
     } catch (_) {
       // Controller handles the underlying error.
     }
@@ -322,9 +322,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
                             decoration: BoxDecoration(
                               color: colorScheme
                                   .primary
-                                  .withValues(
-                                alpha: 0.10,
-                              ),
+                                  .withValues(alpha: 0.10),
                               shape: BoxShape.circle,
                             ),
                             child: Icon(
@@ -495,7 +493,6 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
         return _NewChatSheet(
           onSendRequest: (user) async {
             final controller = context.read<ChatController>();
-            final messenger = ScaffoldMessenger.of(context);
             final navigator = Navigator.of(context);
 
             try {
@@ -510,7 +507,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
                 navigator.pop();
               }
 
-              NotificationService.showSuccess('Message request sent to ${user.displayName ?? 'user'}');
+              NotificationService.showSuccess(context, 'Message request sent to ${user.displayName ?? 'user'}');
             } catch (_) {
               // Controller handles the underlying error.
             }
@@ -608,7 +605,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
                       sheetContext,
                     ).pop();
 
-                    NotificationService.showSuccess('Group "$name" created');
+                    NotificationService.showSuccess(context, 'Group "$name" created');
                   },
                   child:
                   const Text('Create Group'),
@@ -710,7 +707,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
                       sheetContext,
                     ).pop();
 
-                    NotificationService.showSuccess('Channel "$name" created');
+                    NotificationService.showSuccess(context, 'Channel "$name" created');
                   },
                   child: const Text(
                     'Create Channel',
@@ -1633,9 +1630,7 @@ class _NewChatSheetState
               BoxDecoration(
                 color: colorScheme
                     .onSurfaceVariant
-                    .withValues(
-                  alpha: 0.3,
-                ),
+                    .withValues(alpha: 0.3),
                 borderRadius:
                 BorderRadius.circular(
                   20,
@@ -1711,9 +1706,7 @@ class _NewChatSheetState
                     fillColor:
                     colorScheme
                         .surfaceContainerHighest
-                        .withValues(
-                      alpha: 0.5,
-                    ),
+                        .withValues(alpha: 0.5),
                     border:
                     OutlineInputBorder(
                       borderRadius:

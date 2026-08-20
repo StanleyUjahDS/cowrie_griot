@@ -131,18 +131,14 @@ void openEasyBuySheet(BuildContext context) {
             return Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: colors.surfaceContainerHighest.withValues(
-                  alpha: 0.55,
-                ),
+                color: colors.surfaceContainerHighest.withValues(alpha: 0.55),
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(18),
                   topRight: Radius.circular(18),
                   bottomRight: Radius.circular(18),
                 ),
                 border: Border.all(
-                  color: colors.outline.withValues(
-                    alpha: 0.10,
-                  ),
+                  color: colors.outline.withValues(alpha: 0.10),
                 ),
               ),
               child: Column(
@@ -153,9 +149,7 @@ void openEasyBuySheet(BuildContext context) {
                       CircleAvatar(
                         radius: 23,
                         backgroundColor:
-                        colors.primary.withValues(
-                          alpha: 0.10,
-                        ),
+                        colors.primary.withValues(alpha: 0.10),
                         child: Icon(
                           Icons.token_rounded,
                           color: colors.primary,
@@ -328,9 +322,7 @@ void openEasyBuySheet(BuildContext context) {
               ),
               decoration: BoxDecoration(
                 color: colors.surfaceContainerHighest
-                    .withValues(
-                  alpha: 0.55,
-                ),
+                    .withValues(alpha: 0.55),
                 borderRadius:
                 const BorderRadius.only(
                   topLeft: Radius.circular(18),
@@ -392,9 +384,7 @@ void openEasyBuySheet(BuildContext context) {
                             decoration:
                             BoxDecoration(
                               color: colors.onSurface
-                                  .withValues(
-                                alpha: 0.18,
-                              ),
+                                  .withValues(alpha: 0.18),
                               borderRadius:
                               BorderRadius.circular(
                                 20,
@@ -408,9 +398,7 @@ void openEasyBuySheet(BuildContext context) {
                                 radius: 22,
                                 backgroundColor:
                                 colors.primary
-                                    .withValues(
-                                  alpha: 0.10,
-                                ),
+                                    .withValues(alpha: 0.10),
                                 child: Icon(
                                   Icons
                                       .flash_on_rounded,
@@ -458,9 +446,7 @@ void openEasyBuySheet(BuildContext context) {
                                 decoration:
                                 BoxDecoration(
                                   color: Colors.green
-                                      .withValues(
-                                    alpha: 0.10,
-                                  ),
+                                      .withValues(alpha: 0.10),
                                   borderRadius:
                                   BorderRadius
                                       .circular(
@@ -507,9 +493,7 @@ void openEasyBuySheet(BuildContext context) {
                     Divider(
                       height: 1,
                       color:
-                      colors.outline.withValues(
-                        alpha: 0.10,
-                      ),
+                      colors.outline.withValues(alpha: 0.10),
                     ),
                     Expanded(
                       child: ListView(
@@ -530,9 +514,7 @@ void openEasyBuySheet(BuildContext context) {
                                 radius: 16,
                                 backgroundColor:
                                 colors.primary
-                                    .withValues(
-                                  alpha: 0.10,
-                                ),
+                                    .withValues(alpha: 0.10),
                                 child: Icon(
                                   Icons
                                       .flash_on_rounded,
@@ -554,9 +536,7 @@ void openEasyBuySheet(BuildContext context) {
                                   BoxDecoration(
                                     color: colors
                                         .surfaceContainerHighest
-                                        .withValues(
-                                      alpha: 0.55,
-                                    ),
+                                        .withValues(alpha: 0.55),
                                     borderRadius:
                                     const BorderRadius
                                         .only(
@@ -660,9 +640,7 @@ void openEasyBuySheet(BuildContext context) {
                                   radius: 16,
                                   backgroundColor:
                                   colors.primary
-                                      .withValues(
-                                    alpha: 0.10,
-                                  ),
+                                      .withValues(alpha: 0.10),
                                   child: Icon(
                                     Icons
                                         .flash_on_rounded,
@@ -704,9 +682,7 @@ void openEasyBuySheet(BuildContext context) {
                                 BoxDecoration(
                                   color: colors
                                       .surfaceContainerHighest
-                                      .withValues(
-                                    alpha: 0.45,
-                                  ),
+                                      .withValues(alpha: 0.45),
                                   borderRadius:
                                   BorderRadius
                                       .circular(
@@ -715,9 +691,7 @@ void openEasyBuySheet(BuildContext context) {
                                   border: Border.all(
                                     color: colors
                                         .outline
-                                        .withValues(
-                                      alpha: 0.10,
-                                    ),
+                                        .withValues(alpha: 0.10),
                                   ),
                                 ),
                                 child: TextField(

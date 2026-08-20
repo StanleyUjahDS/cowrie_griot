@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import '../../../../../core/ui/widgets/griot_loader.dart';
+import '../../../../../core/services/notification_service.dart';
 
 class DisplayNameEditSheet extends StatefulWidget {
   final String initialValue;
@@ -165,6 +166,7 @@ class _DisplayNameEditSheetState
       });
 
       _showMessage(
+        context,
         _cleanError(error),
       );
     }
@@ -174,13 +176,8 @@ class _DisplayNameEditSheetState
   // MESSAGE
   // ============================================================
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+  void _showMessage(BuildContext context, String message) {
+    NotificationService.showError(context, message);
   }
 
   // ============================================================
@@ -240,15 +237,11 @@ class _DisplayNameEditSheetState
                 bottom: Radius.circular(30),
               ),
               border: Border.all(
-                color: colorScheme.primary.withValues(
-                  alpha: 0.12,
-                ),
+                color: colorScheme.primary.withValues(alpha: 0.12),
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(
-                    alpha: 0.20,
-                  ),
+                  color: Colors.black.withValues(alpha: 0.20),
                   blurRadius: 35,
                   offset: const Offset(0, 12),
                 ),
@@ -270,9 +263,7 @@ class _DisplayNameEditSheetState
                     decoration: BoxDecoration(
                       color: colorScheme
                           .onSurfaceVariant
-                          .withValues(
-                        alpha: 0.25,
-                      ),
+                          .withValues(alpha: 0.25),
                       borderRadius:
                       BorderRadius.circular(20),
                     ),
@@ -322,14 +313,10 @@ class _DisplayNameEditSheetState
                                     colors: [
                                       colorScheme
                                           .primary
-                                          .withValues(
-                                        alpha: 0.16,
-                                      ),
+                                          .withValues(alpha: 0.16),
                                       colorScheme
                                           .primary
-                                          .withValues(
-                                        alpha: 0.06,
-                                      ),
+                                          .withValues(alpha: 0.06),
                                     ],
                                   ),
                                   borderRadius:
@@ -454,9 +441,7 @@ class _DisplayNameEditSheetState
                                   ?.copyWith(
                                 color: colorScheme
                                     .onSurfaceVariant
-                                    .withValues(
-                                  alpha: 0.55,
-                                ),
+                                    .withValues(alpha: 0.55),
                               ),
                               counterText:
                               '$characterCount/${widget.maxLength}',
@@ -476,9 +461,7 @@ class _DisplayNameEditSheetState
                               filled: true,
                               fillColor: colorScheme
                                   .onSurface
-                                  .withValues(
-                                alpha: 0.035,
-                              ),
+                                  .withValues(alpha: 0.035),
                               prefixIcon: const Icon(
                                 Icons
                                     .person_outline_rounded,
@@ -500,9 +483,7 @@ class _DisplayNameEditSheetState
                                 BorderSide(
                                   color: colorScheme
                                       .outline
-                                      .withValues(
-                                    alpha: 0.12,
-                                  ),
+                                      .withValues(alpha: 0.12),
                                 ),
                               ),
                               enabledBorder:
@@ -516,9 +497,7 @@ class _DisplayNameEditSheetState
                                 BorderSide(
                                   color: colorScheme
                                       .outline
-                                      .withValues(
-                                    alpha: 0.12,
-                                  ),
+                                      .withValues(alpha: 0.12),
                                 ),
                               ),
                               focusedBorder:
@@ -546,9 +525,7 @@ class _DisplayNameEditSheetState
                                 BorderSide(
                                   color: colorScheme
                                       .error
-                                      .withValues(
-                                    alpha: 0.65,
-                                  ),
+                                      .withValues(alpha: 0.65),
                                 ),
                               ),
                               focusedErrorBorder:
@@ -587,9 +564,7 @@ class _DisplayNameEditSheetState
                             BoxDecoration(
                               color: colorScheme
                                   .primary
-                                  .withValues(
-                                alpha: 0.055,
-                              ),
+                                  .withValues(alpha: 0.055),
                               borderRadius:
                               BorderRadius
                                   .circular(

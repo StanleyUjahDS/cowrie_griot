@@ -2,7 +2,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:overlay_support/overlay_support.dart';
 
 import '../../../core/ui/widgets/griot_loader.dart';
 import '../../../core/services/notification_service.dart';
@@ -128,7 +127,7 @@ class _PinVerificationScreenState
     }
 
     if (success) {
-      NotificationService.showSuccess('Unlocked');
+      NotificationService.showSuccess(context, 'Unlocked');
 
       if (widget.onSuccess != null) {
         await widget.onSuccess!();
@@ -150,7 +149,7 @@ class _PinVerificationScreenState
       _loading = false;
     });
 
-    NotificationService.showError('Incorrect PIN');
+    NotificationService.showError(context, 'Incorrect PIN');
   }
 
   // ============================================================
@@ -251,9 +250,7 @@ class _PinVerificationScreenState
                             .onSurface
                             : colors
                             .onSurface
-                            .withValues(
-                          alpha: 0.20,
-                        ),
+                            .withValues(alpha: 0.20),
                       ),
                     );
                   },
@@ -310,9 +307,7 @@ class _PinVerificationScreenState
                         color: pressed
                             ? colors
                             .onSurface
-                            .withValues(
-                          alpha: 0.08,
-                        )
+                            .withValues(alpha: 0.08)
                             : Colors
                             .transparent,
                       ),

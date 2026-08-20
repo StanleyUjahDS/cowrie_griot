@@ -74,9 +74,7 @@ class ProfileField extends StatelessWidget {
               Icon(
                 Icons.chevron_right_rounded,
                 size: 21,
-                color: colorScheme.onSurfaceVariant.withValues(
-                  alpha: 0.75,
-                ),
+                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
               ),
             ],
           ),

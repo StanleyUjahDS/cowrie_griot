@@ -11,6 +11,7 @@ import '../../wallet/providers/wallet_provider.dart';
 import '../../../core/ui/widgets/banner_ad.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
 import '../../../core/services/navigation_scroll_service.dart';
+import '../../../core/services/notification_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
@@ -127,9 +128,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // Ensure dialog is popped on error
       Navigator.of(context, rootNavigator: true).pop();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Logout failed: $e')),
-      );
+      NotificationService.showError(context, 'Logout failed: $e');
     }
   }
 
@@ -196,9 +195,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: effectiveIconColor.withValues(
-                    alpha: 0.085,
-                  ),
+                  color: effectiveIconColor.withValues(alpha: 0.085),
                   borderRadius: BorderRadius.circular(13),
                 ),
                 child: Icon(
@@ -273,9 +270,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Divider(
         height: 1,
         thickness: 0.6,
-        color: colorScheme.onSurface.withValues(
-          alpha: 0.065,
-        ),
+        color: colorScheme.onSurface.withValues(alpha: 0.065),
       ),
     );
   }
@@ -297,14 +292,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         vertical: 2,
       ),
       decoration: BoxDecoration(
-        color: colorScheme.onSurface.withValues(
-          alpha: 0.035,
-        ),
+        color: colorScheme.onSurface.withValues(alpha: 0.035),
         borderRadius: BorderRadius.circular(19),
         border: Border.all(
-          color: colorScheme.onSurface.withValues(
-            alpha: 0.065,
-          ),
+          color: colorScheme.onSurface.withValues(alpha: 0.065),
         ),
       ),
       child: Column(
@@ -336,13 +327,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(22),
-            color: colorScheme.primary.withValues(
-              alpha: 0.055,
-            ),
+            color: colorScheme.primary.withValues(alpha: 0.055),
             border: Border.all(
-              color: colorScheme.primary.withValues(
-                alpha: 0.12,
-              ),
+              color: colorScheme.primary.withValues(alpha: 0.12),
             ),
           ),
           child: Row(
@@ -356,12 +343,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      colorScheme.primary.withValues(
-                        alpha: 0.20,
-                      ),
-                      colorScheme.primary.withValues(
-                        alpha: 0.08,
-                      ),
+                      colorScheme.primary.withValues(alpha: 0.20),
+                      colorScheme.primary.withValues(alpha: 0.08),
                     ],
                   ),
                 ),
@@ -403,9 +386,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: colorScheme.onSurface.withValues(
-                    alpha: 0.055,
-                  ),
+                  color: colorScheme.onSurface.withValues(alpha: 0.055),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -449,18 +430,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                colorScheme.primary.withValues(
-                  alpha: 0.19,
-                ),
-                colorScheme.primary.withValues(
-                  alpha: 0.055,
-                ),
+                colorScheme.primary.withValues(alpha: 0.19),
+                colorScheme.primary.withValues(alpha: 0.055),
               ],
             ),
             border: Border.all(
-              color: colorScheme.primary.withValues(
-                alpha: 0.18,
-              ),
+              color: colorScheme.primary.withValues(alpha: 0.18),
             ),
           ),
           child: Row(
@@ -469,9 +444,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: colorScheme.primary.withValues(
-                    alpha: 0.14,
-                  ),
+                  color: colorScheme.primary.withValues(alpha: 0.14),
                   borderRadius:
                   BorderRadius.circular(15),
                 ),

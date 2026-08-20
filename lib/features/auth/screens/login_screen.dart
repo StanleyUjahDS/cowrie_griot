@@ -26,9 +26,7 @@ class LoginScreen extends StatelessWidget {
 
     final Color secondaryText = colorScheme.onSurfaceVariant;
 
-    final Color borderColor = colorScheme.outline.withValues(
-      alpha: isDark ? 0.22 : 0.18,
-    );
+    final Color borderColor = colorScheme.outline.withValues(alpha: isDark ? 0.22 : 0.18);
 
     final Color subtleSurface = isDark
         ? Colors.white.withValues(alpha: 0.045)

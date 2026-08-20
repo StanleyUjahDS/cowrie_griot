@@ -454,28 +454,17 @@ class _RecoverAccountScreenState
 
     final Color fieldColor =
     colors.surfaceContainerHighest
-        .withValues(
-      alpha:
-      isDark ? 0.35 : 0.55,
-    );
+        .withValues(alpha: isDark ? 0.35 : 0.55);
 
     final Color containerColor =
-    colors.surface.withValues(
-      alpha:
-      isDark ? 0.45 : 0.75,
-    );
+    colors.surface.withValues(alpha: isDark ? 0.45 : 0.75);
 
     final Color borderColor =
-    colors.outline.withValues(
-      alpha:
-      isDark ? 0.35 : 0.45,
-    );
+    colors.outline.withValues(alpha: isDark ? 0.35 : 0.45);
 
     final Color mutedColor =
     colors.onSurfaceVariant
-        .withValues(
-      alpha: 0.75,
-    );
+        .withValues(alpha: 0.75);
 
     // ==========================================================
     // SCREEN
@@ -954,9 +943,7 @@ class _SeedWordField
             ?.copyWith(
           color: colorScheme
               .onSurfaceVariant
-              .withValues(
-            alpha: 0.55,
-          ),
+              .withValues(alpha: 0.55),
         ),
 
         // ======================================================

@@ -34,9 +34,7 @@ class ChannelListItem extends StatelessWidget {
       leading: CircleAvatar(
         radius: 27,
         backgroundColor:
-        colorScheme.secondary.withValues(
-          alpha: 0.12,
-        ),
+        colorScheme.secondary.withValues(alpha: 0.12),
         backgroundImage: hasImage
             ? NetworkImage(imageUrl)
             : null,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/ui/widgets/griot_loader.dart';
+import '../../../../../core/services/notification_service.dart';
 
 class BioEditSheet extends StatefulWidget {
   final String initialValue;
@@ -85,6 +86,7 @@ class _BioEditSheetState extends State<BioEditSheet> {
 
     if (value.length > widget.maxLength) {
       _showMessage(
+        context,
         'Bio must be ${widget.maxLength} characters or less.',
       );
       return;
@@ -116,17 +118,12 @@ class _BioEditSheetState extends State<BioEditSheet> {
         _isSaving = false;
       });
 
-      _showMessage(_cleanError(error));
+      _showMessage(context, _cleanError(error));
     }
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+  void _showMessage(BuildContext context, String message) {
+    NotificationService.showError(context, message);
   }
 
   String _cleanError(Object error) {
@@ -178,15 +175,11 @@ class _BioEditSheetState extends State<BioEditSheet> {
               color: colorScheme.surface,
               borderRadius: BorderRadius.circular(30),
               border: Border.all(
-                color: colorScheme.primary.withValues(
-                  alpha: 0.12,
-                ),
+                color: colorScheme.primary.withValues(alpha: 0.12),
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(
-                    alpha: 0.20,
-                  ),
+                  color: Colors.black.withValues(alpha: 0.20),
                   blurRadius: 35,
                   offset: const Offset(0, 12),
                 ),
@@ -218,12 +211,8 @@ class _BioEditSheetState extends State<BioEditSheet> {
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [
-                            colorScheme.primary.withValues(
-                              alpha: 0.16,
-                            ),
-                            colorScheme.primary.withValues(
-                              alpha: 0.06,
-                            ),
+                            colorScheme.primary.withValues(alpha: 0.16),
+                            colorScheme.primary.withValues(alpha: 0.06),
                           ],
                         ),
                         borderRadius:
@@ -292,15 +281,11 @@ class _BioEditSheetState extends State<BioEditSheet> {
                     theme.textTheme.bodyLarge?.copyWith(
                       color:
                       colorScheme.onSurfaceVariant
-                          .withValues(
-                        alpha: 0.55,
-                      ),
+                          .withValues(alpha: 0.55),
                     ),
                     filled: true,
                     fillColor:
-                    colorScheme.onSurface.withValues(
-                      alpha: 0.035,
-                    ),
+                    colorScheme.onSurface.withValues(alpha: 0.035),
                     alignLabelWithHint: true,
                     contentPadding:
                     const EdgeInsets.all(17),
@@ -314,9 +299,7 @@ class _BioEditSheetState extends State<BioEditSheet> {
                       BorderRadius.circular(20),
                       borderSide: BorderSide(
                         color:
-                        colorScheme.outline.withValues(
-                          alpha: 0.12,
-                        ),
+                        colorScheme.outline.withValues(alpha: 0.12),
                       ),
                     ),
                     focusedBorder:

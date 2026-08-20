@@ -99,9 +99,7 @@ class ThemeSettingsPage extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Material(
-      color: colorScheme.onSurface.withValues(
-        alpha: 0.035,
-      ),
+      color: colorScheme.onSurface.withValues(alpha: 0.035),
       borderRadius: BorderRadius.circular(16),
       clipBehavior: Clip.antiAlias,
       child: Container(
@@ -109,9 +107,7 @@ class ThemeSettingsPage extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: colorScheme.onSurface.withValues(
-              alpha: 0.08,
-            ),
+            color: colorScheme.onSurface.withValues(alpha: 0.08),
           ),
         ),
         child: child,
@@ -146,12 +142,8 @@ class ThemeSettingsPage extends StatelessWidget {
         height: 44,
         decoration: BoxDecoration(
           color: selected
-              ? colorScheme.primary.withValues(
-            alpha: 0.12,
-          )
-              : colorScheme.onSurface.withValues(
-            alpha: 0.05,
-          ),
+              ? colorScheme.primary.withValues(alpha: 0.12)
+              : colorScheme.onSurface.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(13),
         ),
         child: Icon(
@@ -197,9 +189,7 @@ class ThemeSettingsPage extends StatelessWidget {
       height: 1,
       indent: 74,
       endIndent: 16,
-      color: colorScheme.onSurface.withValues(
-        alpha: 0.07,
-      ),
+      color: colorScheme.onSurface.withValues(alpha: 0.07),
     );
   }
 
@@ -299,14 +289,10 @@ class ThemeSettingsPage extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(15),
                   decoration: BoxDecoration(
-                    color: colorScheme.primary.withValues(
-                      alpha: 0.07,
-                    ),
+                    color: colorScheme.primary.withValues(alpha: 0.07),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: colorScheme.primary.withValues(
-                        alpha: 0.14,
-                      ),
+                      color: colorScheme.primary.withValues(alpha: 0.14),
                     ),
                   ),
                   child: Row(

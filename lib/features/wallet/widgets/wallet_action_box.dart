@@ -32,9 +32,7 @@ class WalletActionBox extends StatelessWidget {
             color: colorScheme.surface,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: colorScheme.outline.withValues(
-                alpha: 0.15,
-              ),
+              color: colorScheme.outline.withValues(alpha: 0.15),
             ),
           ),
           child: Column(
@@ -46,9 +44,7 @@ class WalletActionBox extends StatelessWidget {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: colorScheme.primary.withValues(
-                    alpha: 0.09,
-                  ),
+                  color: colorScheme.primary.withValues(alpha: 0.09),
                 ),
                 child: Icon(
                   icon,

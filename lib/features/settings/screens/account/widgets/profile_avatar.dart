@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../../../core/ui/widgets/griot_loader.dart';
 import '../../../../../core/ui/widgets/griot_avatar.dart';
+import '../../../../../core/services/notification_service.dart';
 
 class ProfileAvatar extends StatefulWidget {
   final String? avatarUrl;
@@ -85,9 +86,7 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
               color: colorScheme.surface,
               borderRadius: BorderRadius.circular(28),
               border: Border.all(
-                color: colorScheme.primary.withValues(
-                  alpha: 0.10,
-                ),
+                color: colorScheme.primary.withValues(alpha: 0.10),
               ),
             ),
             child: Column(
@@ -298,9 +297,7 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
 
     showDialog<void>(
       context: context,
-      barrierColor: Colors.black.withValues(
-        alpha: 0.90,
-      ),
+      barrierColor: Colors.black.withValues(alpha: 0.90),
       builder: (dialogContext) {
         return Dialog(
           backgroundColor: Colors.transparent,
@@ -350,9 +347,7 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
                 top: 10,
                 right: 10,
                 child: Material(
-                  color: Colors.black.withValues(
-                    alpha: 0.55,
-                  ),
+                  color: Colors.black.withValues(alpha: 0.55),
                   shape: const CircleBorder(),
                   child: InkWell(
                     customBorder:
@@ -537,9 +532,7 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
                   BoxDecoration(
                     color: colorScheme
                         .onSurfaceVariant
-                        .withValues(
-                      alpha: 0.25,
-                    ),
+                        .withValues(alpha: 0.25),
                     borderRadius:
                     BorderRadius.circular(
                       20,
@@ -603,9 +596,7 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
                             .primary,
                         colorScheme
                             .primary
-                            .withValues(
-                          alpha: 0.35,
-                        ),
+                            .withValues(alpha: 0.35),
                       ],
                     ),
                   ),
@@ -734,17 +725,7 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
         _pendingImage = null;
       });
 
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Profile photo updated',
-            ),
-            behavior:
-            SnackBarBehavior.floating,
-          ),
-        );
+      NotificationService.showSuccess(context, 'Profile photo updated');
     } catch (error) {
       if (!mounted) {
         return;
@@ -779,17 +760,7 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
   // ============================================================
 
   void _showError(Object error) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            _cleanError(error),
-          ),
-          behavior:
-          SnackBarBehavior.floating,
-        ),
-      );
+    NotificationService.showError(context, _cleanError(error));
   }
 
   String _cleanError(Object error) {
@@ -849,14 +820,10 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
                   colors: [
                     colorScheme
                         .primary
-                        .withValues(
-                      alpha: 0.30,
-                    ),
+                        .withValues(alpha: 0.30),
                     colorScheme
                         .primary
-                        .withValues(
-                      alpha: 0.08,
-                    ),
+                        .withValues(alpha: 0.08),
                   ],
                 ),
               ),
@@ -914,9 +881,7 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
                   BoxShadow(
                     color: Colors
                         .black
-                        .withValues(
-                      alpha: 0.16,
-                    ),
+                        .withValues(alpha: 0.16),
                     blurRadius: 8,
                     offset:
                     const Offset(

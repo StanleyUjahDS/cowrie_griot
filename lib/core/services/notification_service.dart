@@ -2,43 +2,61 @@ import 'package:flutter/material.dart';
 import 'package:overlay_support/overlay_support.dart';
 
 class NotificationService {
-  static void showSuccess(String message) {
+  static void showSuccess(BuildContext context, String message) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     showSimpleNotification(
       Text(
         message,
-        style: const TextStyle(fontWeight: FontWeight.w600),
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          color: colorScheme.onSurface,
+        ),
       ),
-      leading: const Icon(Icons.check_circle_rounded, color: Colors.white),
-      background: const Color(0xFF22C55E), // Success green
-      foreground: Colors.white,
+      leading: Icon(Icons.check_circle_rounded, color: colorScheme.primary),
+      background: colorScheme.surface,
+      foreground: colorScheme.onSurface,
       duration: const Duration(seconds: 3),
       position: NotificationPosition.top,
     );
   }
 
-  static void showError(String message) {
+  static void showError(BuildContext context, String message) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     showSimpleNotification(
       Text(
         message,
-        style: const TextStyle(fontWeight: FontWeight.w600),
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          color: colorScheme.onSurface,
+        ),
       ),
-      leading: const Icon(Icons.error_outline_rounded, color: Colors.white),
-      background: const Color(0xFFEF4444), // Error red
-      foreground: Colors.white,
+      leading: Icon(Icons.error_outline_rounded, color: colorScheme.error),
+      background: colorScheme.surface,
+      foreground: colorScheme.onSurface,
       duration: const Duration(seconds: 4),
       position: NotificationPosition.top,
     );
   }
 
-  static void showInfo(String message) {
+  static void showInfo(BuildContext context, String message) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     showSimpleNotification(
       Text(
         message,
-        style: const TextStyle(fontWeight: FontWeight.w600),
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          color: colorScheme.onSurface,
+        ),
       ),
-      leading: const Icon(Icons.info_outline_rounded, color: Colors.white),
-      background: const Color(0xFF3B82F6), // Info blue
-      foreground: Colors.white,
+      leading: Icon(Icons.info_outline_rounded, color: colorScheme.primary),
+      background: colorScheme.surface,
+      foreground: colorScheme.onSurface,
       duration: const Duration(seconds: 3),
       position: NotificationPosition.top,
     );

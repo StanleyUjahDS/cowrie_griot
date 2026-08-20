@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:local_auth/local_auth.dart';
-import 'package:overlay_support/overlay_support.dart';
 
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
@@ -286,7 +285,7 @@ class _BiometricsScreenState
   void _showInfo(
       String message,
       ) {
-    NotificationService.showInfo(message);
+    NotificationService.showInfo(context, message);
   }
 
   // ============================================================
@@ -296,7 +295,7 @@ class _BiometricsScreenState
   void _showError(
       String message,
       ) {
-    NotificationService.showError(message);
+    NotificationService.showError(context, message);
   }
 
   // ============================================================
@@ -408,22 +407,16 @@ class _BiometricsScreenState
                           BoxShape.circle,
                           color: colorScheme
                               .primary
-                              .withValues(
-                            alpha:
-                            isDark
+                              .withOpacity(isDark
                                 ? 0.14
-                                : 0.08,
-                          ),
+                                : 0.08),
                           border:
                           Border.all(
                             color: colorScheme
                                 .primary
-                                .withValues(
-                              alpha:
-                              isDark
+                                .withOpacity(isDark
                                   ? 0.35
-                                  : 0.25,
-                            ),
+                                  : 0.25),
                             width: 1.5,
                           ),
                         ),
@@ -506,9 +499,7 @@ class _BiometricsScreenState
                           BoxDecoration(
                             color: colorScheme
                                 .error
-                                .withValues(
-                              alpha: 0.08,
-                            ),
+                                .withValues(alpha: 0.08),
                             borderRadius:
                             BorderRadius
                                 .circular(
@@ -518,10 +509,7 @@ class _BiometricsScreenState
                             Border.all(
                               color: colorScheme
                                   .error
-                                  .withValues(
-                                alpha:
-                                0.20,
-                              ),
+                                  .withValues(alpha: 0.20),
                             ),
                           ),
                           child: Row(
@@ -617,9 +605,7 @@ class _BiometricsScreenState
                       disabledBackgroundColor:
                       colorScheme
                           .primary
-                          .withValues(
-                        alpha: 0.65,
-                      ),
+                          .withValues(alpha: 0.65),
                       disabledForegroundColor:
                       colorScheme
                           .onPrimary,
@@ -682,9 +668,7 @@ class _BiometricsScreenState
                       BorderSide(
                         color: colorScheme
                             .outline
-                            .withValues(
-                          alpha: 0.35,
-                        ),
+                            .withValues(alpha: 0.35),
                       ),
                       shape:
                       RoundedRectangleBorder(

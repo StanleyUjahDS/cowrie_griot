@@ -30,7 +30,12 @@ import '../../features/settings/screens/account/account_details_screen.dart';
 
 import '../../features/wallet/screens/wallet_screen.dart';
 import '../../features/wallet/screens/scanner_screen.dart';
+import '../../features/wallet/screens/asset_details_screen.dart';
+import '../../features/wallet/screens/send_screen.dart';
+import '../../features/wallet/screens/receive_screen.dart';
+import '../../features/wallet/screens/swap_screen.dart';
 import '../../features/wallet/services/wallet_crypto_service.dart';
+import '../../features/wallet/models/token_model.dart';
 
 import '../../features/p2p/screens/peer_2_peer.dart';
 import '../../features/miner/screens/miner_screen.dart';
@@ -269,6 +274,61 @@ class AppRouter {
         path: '/wallet/scan',
         builder: (context, state) {
           return const ScannerScreen();
+        },
+      ),
+
+      // ======================================================
+      // ASSET DETAILS
+      // ======================================================
+
+      GoRoute(
+        path: '/wallet/asset',
+        builder: (context, state) {
+          final extra = state.extra;
+
+          if (extra is! TokenModel) {
+            return const _InvalidRoute(
+              message: 'Asset data was not provided.',
+            );
+          }
+
+          return AssetDetailsScreen(
+            token: extra,
+          );
+        },
+      ),
+
+      // ======================================================
+      // WALLET ACTIONS
+      // ======================================================
+
+      GoRoute(
+        path: '/wallet/send',
+        builder: (context, state) {
+          final extra = state.extra;
+          return SendScreen(
+            initialToken: extra is TokenModel ? extra : null,
+          );
+        },
+      ),
+
+      GoRoute(
+        path: '/wallet/receive',
+        builder: (context, state) {
+          final extra = state.extra;
+          return ReceiveScreen(
+            token: extra is TokenModel ? extra : null,
+          );
+        },
+      ),
+
+      GoRoute(
+        path: '/wallet/swap',
+        builder: (context, state) {
+          final extra = state.extra;
+          return SwapScreen(
+            initialFromToken: extra is TokenModel ? extra : null,
+          );
         },
       ),
 

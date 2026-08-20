@@ -16,15 +16,11 @@ class SettingsContainer extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: colorScheme.onSurface.withValues(
-          alpha: 0.035,
-        ),
+        color: colorScheme.onSurface.withValues(alpha: 0.035),
         borderRadius:
         BorderRadius.circular(19),
         border: Border.all(
-          color: colorScheme.onSurface.withValues(
-            alpha: 0.065,
-          ),
+          color: colorScheme.onSurface.withValues(alpha: 0.065),
         ),
       ),
       child: Column(
@@ -56,9 +52,7 @@ class SettingsDivider extends StatelessWidget {
       child: Divider(
         height: 1,
         thickness: 0.6,
-        color: colorScheme.onSurface.withValues(
-          alpha: 0.065,
-        ),
+        color: colorScheme.onSurface.withValues(alpha: 0.065),
       ),
     );
   }

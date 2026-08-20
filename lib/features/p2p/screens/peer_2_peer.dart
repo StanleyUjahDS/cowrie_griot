@@ -221,32 +221,33 @@ class _P2PScreenState extends State<P2PScreen> {
             else
               SliverList(
                 delegate: SliverChildBuilderDelegate(
-                      (
+                      (context, index) {
+                    // Show an ad after every 3 items (at index 3, 7, 11...)
+                    if (index > 0 && (index + 1) % 4 == 0) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: GriotBannerAd(),
+                      );
+                    }
+
+                    // Calculate the actual index in the _offers list
+                    int adCountBefore = index ~/ 4;
+                    int offerIndex = index - adCountBefore;
+
+                    if (offerIndex >= _offers.length) {
+                      return null;
+                    }
+
+                    final offer = _offers[offerIndex];
+
+                    return _buildOfferCard(
                       context,
-                      index,
-                      ) {
-                  // Show an ad after every 4 items
-                  if (index > 0 && index % 4 == 0) {
-                    return const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 20),
-                      child: GriotBannerAd(),
+                      offer,
                     );
-                  }
-
-                  // Adjust index for offer data if ads are inserted
-                  // But here we'll just show ads interspersed with the SAME list for now
-                  // or we can just show one ad at index 3.
-                  
-                  final offer = _offers[index % _offers.length];
-
-                  return _buildOfferCard(
-                    context,
-                    offer,
-                  );
-                },
-                childCount: _offers.length + (_offers.length ~/ 3),
+                  },
+                  childCount: _offers.length + (_offers.isNotEmpty ? (_offers.length - 1) ~/ 3 : 0),
+                ),
               ),
-            ),
 
             const SliverToBoxAdapter(
               child: SizedBox(
@@ -299,9 +300,7 @@ class _P2PScreenState extends State<P2PScreen> {
             14,
           ),
           border: Border.all(
-            color: colors.outlineVariant.withValues(
-              alpha: 0.35,
-            ),
+            color: colors.outlineVariant.withValues(alpha: 0.35),
           ),
         ),
         child: Row(
@@ -441,9 +440,7 @@ class _P2PScreenState extends State<P2PScreen> {
                 ),
                 border: Border.all(
                   color: colors.outlineVariant
-                      .withValues(
-                    alpha: 0.4,
-                  ),
+                      .withValues(alpha: 0.4),
                 ),
               ),
               child: Row(
@@ -523,9 +520,7 @@ class _P2PScreenState extends State<P2PScreen> {
             ),
             borderSide: BorderSide(
               color: colors.outlineVariant
-                  .withValues(
-                alpha: 0.35,
-              ),
+                  .withValues(alpha: 0.35),
             ),
           ),
           enabledBorder:
@@ -536,9 +531,7 @@ class _P2PScreenState extends State<P2PScreen> {
             ),
             borderSide: BorderSide(
               color: colors.outlineVariant
-                  .withValues(
-                alpha: 0.35,
-              ),
+                  .withValues(alpha: 0.35),
             ),
           ),
         ),
@@ -604,15 +597,11 @@ class _P2PScreenState extends State<P2PScreen> {
             18,
           ),
           border: Border.all(
-            color: colors.outlineVariant.withValues(
-              alpha: 0.35,
-            ),
+            color: colors.outlineVariant.withValues(alpha: 0.35),
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(
-                alpha: 0.04,
-              ),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 12,
               offset: const Offset(
                 0,
@@ -954,6 +943,7 @@ class _P2PScreenState extends State<P2PScreen> {
                     );
 
                     NotificationService.showSuccess(
+                      context,
                       _buyMode
                           ? 'Buy order started'
                           : 'Sell order started',
@@ -1191,7 +1181,7 @@ class _P2PScreenState extends State<P2PScreen> {
                     Navigator.pop(
                       context,
                     );
-                    NotificationService.showSuccess('P2P offer created');
+                    NotificationService.showSuccess(context, 'P2P offer created');
                   },
                   child: const Text(
                     'Publish Offer',

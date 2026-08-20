@@ -411,14 +411,10 @@ class _ChatScreenState extends State<ChatScreen>
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: colorScheme.primary
-                            .withValues(
-                          alpha: 0.10,
-                        ),
+                            .withValues(alpha: 0.10),
                         border: Border.all(
                           color: colorScheme.primary
-                              .withValues(
-                            alpha: 0.18,
-                          ),
+                              .withValues(alpha: 0.18),
                         ),
                       ),
                       child: Padding(
@@ -491,9 +487,7 @@ class _ChatScreenState extends State<ChatScreen>
                         BoxDecoration(
                           color: colorScheme
                               .onSurface
-                              .withValues(
-                            alpha: 0.035,
-                          ),
+                              .withValues(alpha: 0.035),
                           borderRadius:
                           BorderRadius.circular(
                             18,
@@ -501,9 +495,7 @@ class _ChatScreenState extends State<ChatScreen>
                           border: Border.all(
                             color: colorScheme
                                 .outline
-                                .withValues(
-                              alpha: 0.10,
-                            ),
+                                .withValues(alpha: 0.10),
                           ),
                         ),
                         child: Row(
@@ -517,9 +509,7 @@ class _ChatScreenState extends State<ChatScreen>
                                 BoxShape.circle,
                                 color: colorScheme
                                     .primary
-                                    .withValues(
-                                  alpha: 0.08,
-                                ),
+                                    .withValues(alpha: 0.08),
                               ),
                               child: _selectedToken
                                   .isCowrie
@@ -612,9 +602,7 @@ class _ChatScreenState extends State<ChatScreen>
                       decoration: BoxDecoration(
                         color: colorScheme
                             .onSurface
-                            .withValues(
-                          alpha: 0.045,
-                        ),
+                            .withValues(alpha: 0.045),
                         borderRadius:
                         BorderRadius.circular(
                           14,
@@ -673,9 +661,7 @@ class _ChatScreenState extends State<ChatScreen>
                       BoxDecoration(
                         color: colorScheme
                             .onSurface
-                            .withValues(
-                          alpha: 0.035,
-                        ),
+                            .withValues(alpha: 0.035),
                         borderRadius:
                         BorderRadius.circular(
                           20,
@@ -683,9 +669,7 @@ class _ChatScreenState extends State<ChatScreen>
                         border: Border.all(
                           color: colorScheme
                               .primary
-                              .withValues(
-                            alpha: 0.12,
-                          ),
+                              .withValues(alpha: 0.12),
                         ),
                       ),
                       child: Row(
@@ -736,9 +720,7 @@ class _ChatScreenState extends State<ChatScreen>
                                     ?.copyWith(
                                   color: colorScheme
                                       .onSurfaceVariant
-                                      .withValues(
-                                    alpha: 0.35,
-                                  ),
+                                      .withValues(alpha: 0.35),
                                 ),
                               ),
                             ),
@@ -777,9 +759,7 @@ class _ChatScreenState extends State<ChatScreen>
                         BoxDecoration(
                           color: colorScheme
                               .primary
-                              .withValues(
-                            alpha: 0.055,
-                          ),
+                              .withValues(alpha: 0.055),
                           borderRadius:
                           BorderRadius.circular(
                             15,
@@ -947,9 +927,7 @@ class _ChatScreenState extends State<ChatScreen>
                         shape: BoxShape.circle,
                         color: colorScheme
                             .primary
-                            .withValues(
-                          alpha: 0.08,
-                        ),
+                            .withValues(alpha: 0.08),
                       ),
                       child: token.isCowrie
                           ? Padding(
@@ -1060,21 +1038,15 @@ class _ChatScreenState extends State<ChatScreen>
                         Alignment.bottomRight,
                         colors: [
                           colorScheme.primary
-                              .withValues(
-                            alpha: 0.25,
-                          ),
+                              .withValues(alpha: 0.25),
                           colorScheme.primary
-                              .withValues(
-                            alpha: 0.05,
-                          ),
+                              .withValues(alpha: 0.05),
                         ],
                       ),
                       border: Border.all(
                         color: colorScheme
                             .primary
-                            .withValues(
-                          alpha: 0.20,
-                        ),
+                            .withValues(alpha: 0.20),
                       ),
                     ),
                     child: ClipOval(
@@ -1165,9 +1137,7 @@ class _ChatScreenState extends State<ChatScreen>
               ),
               child: Material(
                 color: colorScheme.primary
-                    .withValues(
-                  alpha: 0.10,
-                ),
+                    .withValues(alpha: 0.10),
                 shape:
                 const CircleBorder(),
                 child: InkWell(
@@ -1316,10 +1286,7 @@ class _ChatScreenState extends State<ChatScreen>
               BorderRadius.circular(26),
               border: Border.all(
                 color: colorScheme.primary
-                    .withValues(
-                  alpha:
-                  isDark ? 0.15 : 0.20,
-                ),
+                    .withValues(alpha: isDark ? 0.15 : 0.20),
               ),
               image:
               const DecorationImage(
@@ -1660,21 +1627,16 @@ class _MessageBubble
               : Border.all(
             color: colorScheme
                 .outline
-                .withValues(
-              alpha:
-              isDark
+                .withOpacity(isDark
                   ? 0.15
-                  : 0.20,
-            ),
+                  : 0.20),
           ),
           boxShadow: isMe
               ? [
             BoxShadow(
               color: colorScheme
                   .primary
-                  .withValues(
-                alpha: 0.12,
-              ),
+                  .withValues(alpha: 0.12),
               blurRadius: 12,
               offset:
               const Offset(0, 4),
@@ -1712,9 +1674,7 @@ class _MessageBubble
                   color: isMe
                       ? colorScheme
                       .onPrimary
-                      .withValues(
-                    alpha: 0.68,
-                  )
+                      .withValues(alpha: 0.68)
                       : colorScheme
                       .onSurfaceVariant,
                 ),
@@ -1806,9 +1766,7 @@ class _MessageInput
                   decoration:
                   BoxDecoration(
                     color: colorScheme.surface
-                        .withValues(
-                      alpha: 0.96,
-                    ),
+                        .withValues(alpha: 0.96),
                     borderRadius:
                     BorderRadius.circular(
                       19,
@@ -1816,21 +1774,15 @@ class _MessageInput
                     border: Border.all(
                       color: isRecording
                           ? colorScheme.error
-                          .withValues(
-                        alpha: 0.45,
-                      )
+                          .withValues(alpha: 0.45)
                           : colorScheme
                           .outline
-                          .withValues(
-                        alpha: 0.18,
-                      ),
+                          .withValues(alpha: 0.18),
                     ),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black
-                            .withValues(
-                          alpha: 0.06,
-                        ),
+                            .withValues(alpha: 0.06),
                         blurRadius: 14,
                         offset:
                         const Offset(0, 5),

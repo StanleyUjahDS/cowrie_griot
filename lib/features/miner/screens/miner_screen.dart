@@ -243,7 +243,7 @@ class _MinerScreenState extends State<MinerScreen>
       sessionElapsed = sessionDuration;
     });
 
-    NotificationService.showSuccess('Mining session completed.');
+    NotificationService.showSuccess(context, 'Mining session completed.');
   }
 
   void _addActivityPoints(double points) {
@@ -262,7 +262,7 @@ class _MinerScreenState extends State<MinerScreen>
       onRewardEarned: (reward) {
         _addActivityPoints(50);
 
-        NotificationService.showSuccess('Reward earned: +50 points!');
+        NotificationService.showSuccess(context, 'Reward earned: +50 points!');
       },
     );
   }
@@ -692,9 +692,7 @@ class _MiningHero extends StatelessWidget {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: colors.primary.withValues(
-                          alpha: isMining ? 0.25 : 0.10,
-                        ),
+                        color: colors.primary.withValues(alpha: isMining ? 0.25 : 0.10),
                         blurRadius: 45,
                         spreadRadius: 4,
                       ),

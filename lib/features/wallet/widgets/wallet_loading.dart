@@ -1,115 +1,35 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
+import 'package:skeletonizer/skeletonizer.dart';
+import '../models/token_model.dart';
+import 'token_list_item.dart';
 
 class WalletLoading extends StatelessWidget {
   const WalletLoading({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    return ListView.builder(
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: 8,
-      padding: const EdgeInsets.only(top: 8),
-      itemBuilder: (context, index) {
-        return const _ShimmerItem();
-      },
-    );
-  }
-}
-
-class _ShimmerItem extends StatelessWidget {
-  const _ShimmerItem();
+  static const _dummyToken = TokenModel(
+    name: 'Token Name Loading',
+    symbol: 'SYMBOL',
+    balance: 0.0000,
+    valueUsd: 0.00,
+    changePercent: 0.00,
+    chain: 'ethereum',
+    contractAddress: '0x',
+    imageUrl: '',
+    hasMarketData: true,
+  );
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-
-    final Color borderColor = colorScheme.outline.withValues(
-      alpha: isDark ? 0.20 : 0.12,
-    );
-
-    final Color shimmerBase = colorScheme.surfaceContainerHighest.withValues(
-      alpha: isDark ? 0.3 : 0.5,
-    );
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor),
+    return Skeletonizer(
+      enabled: true,
+      child: ListView.builder(
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: 8,
+        padding: const EdgeInsets.only(top: 8),
+        itemBuilder: (context, index) {
+          return const TokenListItem(token: _dummyToken);
+        },
       ),
-      child: Row(
-        children: [
-          // Icon Skeleton
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: shimmerBase,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 12),
-          // Content Skeleton
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 120,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    color: shimmerBase,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  width: 80,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: shimmerBase,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          // End Skeleton
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Container(
-                width: 60,
-                height: 16,
-                decoration: BoxDecoration(
-                  color: shimmerBase,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                width: 40,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: shimmerBase,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    )
-        .animate(onPlay: (controller) => controller.repeat())
-        .shimmer(
-          duration: 1500.ms,
-          color: colorScheme.primary.withValues(alpha: 0.05),
-        );
+    );
   }
 }

@@ -286,9 +286,7 @@ class AppTheme {
             if (states.contains(
               WidgetState.selected,
             )) {
-              return colors.primary.withValues(
-                alpha: 0.30,
-              );
+              return colors.primary.withValues(alpha: 0.30);
             }
 
             return colors.variant;

@@ -65,30 +65,30 @@ class _GriotNativeAdState extends State<GriotNativeAd> {
         },
       ),
       nativeTemplateStyle: NativeTemplateStyle(
-        // Switching to Medium template to satisfy the 120x120 MediaView requirement
-        templateType: TemplateType.medium,
+        // Switching back to SMALL template to save space.
+        templateType: TemplateType.small,
         mainBackgroundColor: colorScheme.surface,
-        cornerRadius: 18.0,
+        cornerRadius: 0.0, // Let Flutter handle the card corners for safety
         callToActionTextStyle: NativeTemplateTextStyle(
           textColor: colorScheme.onPrimary,
-          backgroundColor: colorScheme.primary, // Using solid color (no transparency)
+          backgroundColor: colorScheme.primary,
           style: NativeTemplateFontStyle.bold,
-          size: 16.0,
+          size: 15.0,
         ),
         primaryTextStyle: NativeTemplateTextStyle(
           textColor: colorScheme.onSurface,
           style: NativeTemplateFontStyle.bold,
-          size: 16.0,
+          size: 15.0,
         ),
         secondaryTextStyle: NativeTemplateTextStyle(
           textColor: colorScheme.onSurfaceVariant,
           style: NativeTemplateFontStyle.normal,
-          size: 14.0,
+          size: 12.0, // Reduced to prevent "Advertiser outside box" error
         ),
         tertiaryTextStyle: NativeTemplateTextStyle(
           textColor: colorScheme.onSurfaceVariant,
           style: NativeTemplateFontStyle.normal,
-          size: 14.0,
+          size: 12.0, // Reduced to prevent "Advertiser outside box" error
         ),
       ),
     )..load();
@@ -102,45 +102,70 @@ class _GriotNativeAdState extends State<GriotNativeAd> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_isLoaded || _nativeAd == null) {
-      return const SizedBox.shrink();
-    }
-
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
 
-    // Use the exact border logic from your TokenListItem
-    final Color borderColor = colorScheme.outline.withValues(
-      alpha: isDark ? 0.20 : 0.12,
-    );
+    final Color borderColor = colorScheme.outline.withValues(alpha: isDark ? 0.20 : 0.12);
+
+    // COMPACT Height: 155dp is the "Sweet Spot" for the small template.
+    // It passes the 120x120 MediaView requirement without taking too much space.
+    const double adHeight = 155;
+
+    // Placeholder/Loading state
+    if (!_isLoaded || _nativeAd == null) {
+      return Container(
+        height: adHeight,
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderColor),
+        ),
+        child: Center(
+          child: Icon(
+            Icons.ads_click_rounded,
+            color: colorScheme.onSurface.withValues(alpha: 0.05),
+            size: 32,
+          ),
+        ),
+      );
+    }
 
     return Container(
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(20), // Slightly larger radius for the outer container
-        border: Border.all(
-          color: borderColor,
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      height: adHeight,
+      child: Stack(
+        children: [
+          // Background Card
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: borderColor,
+                  width: 1.0,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          // The Ad (Unclipped safety zone)
+          Positioned.fill(
+            child: Padding(
+              padding: const EdgeInsets.all(8), // Padding to keep assets away from borders
+              child: AdWidget(ad: _nativeAd!),
+            ),
           ),
         ],
-      ),
-      // Tiny padding to ensure ad assets (like the "Ad" badge) 
-      // aren't cut off by the border, satisfying the validator.
-      padding: const EdgeInsets.all(1.5), 
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: SizedBox(
-          height: 320, 
-          width: double.infinity,
-          child: AdWidget(ad: _nativeAd!),
-        ),
       ),
     );
   }

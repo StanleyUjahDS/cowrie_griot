@@ -545,9 +545,7 @@ class _ProfileHero extends StatelessWidget {
                     .withValues(alpha: 0.45),
                 borderRadius: BorderRadius.circular(22),
                 border: Border.all(
-                  color: colors.outline.withValues(
-                    alpha: 0.10,
-                  ),
+                  color: colors.outline.withValues(alpha: 0.10),
                 ),
               ),
               child: Row(
@@ -562,9 +560,7 @@ class _ProfileHero extends StatelessWidget {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: colors.primary.withValues(
-                        alpha: 0.10,
-                      ),
+                      color: colors.primary.withValues(alpha: 0.10),
                       borderRadius:
                       BorderRadius.circular(13),
                     ),

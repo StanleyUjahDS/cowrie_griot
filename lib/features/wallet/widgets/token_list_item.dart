@@ -105,9 +105,7 @@ class TokenListItem extends StatelessWidget {
     final bool isPositive = token.changePercent >= 0;
     final bool isDark = theme.brightness == Brightness.dark;
 
-    final Color borderColor = colorScheme.outline.withValues(
-      alpha: isDark ? 0.20 : 0.12,
-    );
+    final Color borderColor = colorScheme.outline.withValues(alpha: isDark ? 0.20 : 0.12);
 
     return InkWell(
       onTap: onTap,

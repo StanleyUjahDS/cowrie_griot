@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../../../../../core/ui/widgets/griot_loader.dart';
+import '../../../../../core/services/notification_service.dart';
 
 class UsernameEditSheet extends StatefulWidget {
   final String initialValue;
@@ -239,6 +240,7 @@ class _UsernameEditSheetState
 
     if (!_isLocallyValidUsername(username)) {
       _showMessage(
+        context,
         'Username must be 3–30 characters and use only letters, numbers and underscores.',
       );
       return;
@@ -255,6 +257,7 @@ class _UsernameEditSheetState
     if (widget.onCheckAvailability != null &&
         _isUsernameAvailable.value != true) {
       _showMessage(
+        context,
         'Please choose an available username.',
       );
       return;
@@ -282,6 +285,7 @@ class _UsernameEditSheetState
       });
 
       _showMessage(
+        context,
         _cleanError(error),
       );
     }
@@ -292,14 +296,10 @@ class _UsernameEditSheetState
   // ============================================================
 
   void _showMessage(
+      BuildContext context,
       String message,
       ) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    NotificationService.showError(context, message);
   }
 
   String _cleanError(
@@ -470,15 +470,11 @@ class _UsernameEditSheetState
               borderRadius:
               BorderRadius.circular(30),
               border: Border.all(
-                color: colorScheme.primary.withValues(
-                  alpha: 0.12,
-                ),
+                color: colorScheme.primary.withValues(alpha: 0.12),
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(
-                    alpha: 0.20,
-                  ),
+                  color: Colors.black.withValues(alpha: 0.20),
                   blurRadius: 35,
                   offset: const Offset(0, 12),
                 ),
@@ -589,9 +585,7 @@ class _UsernameEditSheetState
                     filled: true,
                     fillColor:
                     colorScheme.onSurface
-                        .withValues(
-                      alpha: 0.035,
-                    ),
+                        .withValues(alpha: 0.035),
                     contentPadding:
                     const EdgeInsets.symmetric(
                       horizontal: 17,
@@ -607,9 +601,7 @@ class _UsernameEditSheetState
                       BorderRadius.circular(18),
                       borderSide: BorderSide(
                         color: colorScheme.outline
-                            .withValues(
-                          alpha: 0.12,
-                        ),
+                            .withValues(alpha: 0.12),
                       ),
                     ),
                     focusedBorder:

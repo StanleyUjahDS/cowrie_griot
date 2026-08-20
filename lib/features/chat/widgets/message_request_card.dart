@@ -43,18 +43,14 @@ class MessageRequestCard extends StatelessWidget {
       BoxDecoration(
         color: colorScheme
             .surfaceContainerHighest
-            .withValues(
-          alpha: 0.45,
-        ),
+            .withValues(alpha: 0.45),
 
         borderRadius:
         BorderRadius.circular(18),
 
         border: Border.all(
           color: colorScheme.outline
-              .withValues(
-            alpha: 0.14,
-          ),
+              .withValues(alpha: 0.14),
         ),
       ),
 

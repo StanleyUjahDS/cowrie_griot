@@ -317,9 +317,7 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
                       Icon(
                         Icons.lock_outline_rounded,
                         size: 15,
-                        color: colorScheme.onSurface.withValues(
-                          alpha: 0.40,
-                        ),
+                        color: colorScheme.onSurface.withValues(alpha: 0.40),
                       ),
                       const SizedBox(
                         width: 6,
@@ -329,9 +327,7 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
                             ? 'Something went wrong'
                             : 'Please keep this screen open',
                         style: textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurface.withValues(
-                            alpha: 0.40,
-                          ),
+                          color: colorScheme.onSurface.withValues(alpha: 0.40),
                         ),
                       ),
                     ],
@@ -375,9 +371,7 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: colorScheme.primary.withValues(
-                    alpha: 0.18,
-                  ),
+                  color: colorScheme.primary.withValues(alpha: 0.18),
                   blurRadius: 70,
                   spreadRadius: 15,
                 ),
@@ -418,13 +412,9 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
             height: 122,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: colorScheme.primary.withValues(
-                alpha: 0.07,
-              ),
+              color: colorScheme.primary.withValues(alpha: 0.07),
               border: Border.all(
-                color: colorScheme.primary.withValues(
-                  alpha: 0.18,
-                ),
+                color: colorScheme.primary.withValues(alpha: 0.18),
                 width: 1.5,
               ),
             ),
@@ -461,9 +451,7 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
               color: colorScheme.primary,
               boxShadow: [
                 BoxShadow(
-                  color: colorScheme.primary.withValues(
-                    alpha: 0.30,
-                  ),
+                  color: colorScheme.primary.withValues(alpha: 0.30),
                   blurRadius: 30,
                   spreadRadius: 2,
                 ),
@@ -494,9 +482,7 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
               .then()
               .shimmer(
                 duration: 1800.ms,
-                color: colorScheme.onPrimary.withValues(
-                  alpha: 0.25,
-                ),
+                color: colorScheme.onPrimary.withValues(alpha: 0.25),
               ),
 
           // ==================================================
@@ -514,9 +500,7 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
                 color: colorScheme.primary,
                 boxShadow: [
                   BoxShadow(
-                    color: colorScheme.primary.withValues(
-                      alpha: 0.50,
-                    ),
+                    color: colorScheme.primary.withValues(alpha: 0.50),
                     blurRadius: 12,
                   ),
                 ],
@@ -609,9 +593,7 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
           widget.message,
           textAlign: TextAlign.center,
           style: textTheme.bodyMedium?.copyWith(
-            color: colorScheme.onSurface.withValues(
-              alpha: 0.65,
-            ),
+            color: colorScheme.onSurface.withValues(alpha: 0.65),
             height: 1.45,
           ),
         )
@@ -649,9 +631,7 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
           width: 58,
           height: 58,
           decoration: BoxDecoration(
-            color: colorScheme.primary.withValues(
-              alpha: 0.12,
-            ),
+            color: colorScheme.primary.withValues(alpha: 0.12),
             shape: BoxShape.circle,
           ),
           child: Icon(
@@ -739,9 +719,7 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
           'preparing your request.',
           textAlign: TextAlign.center,
           style: textTheme.bodyMedium?.copyWith(
-            color: colorScheme.onSurface.withValues(
-              alpha: 0.65,
-            ),
+            color: colorScheme.onSurface.withValues(alpha: 0.65),
           ),
         ),
 

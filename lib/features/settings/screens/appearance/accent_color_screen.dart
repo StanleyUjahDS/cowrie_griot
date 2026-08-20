@@ -209,9 +209,7 @@ class AccentColorScreen extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Material(
-      color: colorScheme.onSurface.withValues(
-        alpha: 0.035,
-      ),
+      color: colorScheme.onSurface.withValues(alpha: 0.035),
       borderRadius: BorderRadius.circular(18),
       clipBehavior: Clip.antiAlias,
       child: Container(
@@ -219,9 +217,7 @@ class AccentColorScreen extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: colorScheme.onSurface.withValues(
-              alpha: 0.08,
-            ),
+            color: colorScheme.onSurface.withValues(alpha: 0.08),
           ),
         ),
         child: child,
@@ -256,14 +252,10 @@ class AccentColorScreen extends StatelessWidget {
         width: 44,
         height: 44,
         decoration: BoxDecoration(
-          color: accent.withValues(
-            alpha: 0.13,
-          ),
+          color: accent.withValues(alpha: 0.13),
           borderRadius: BorderRadius.circular(13),
           border: Border.all(
-            color: accent.withValues(
-              alpha: 0.20,
-            ),
+            color: accent.withValues(alpha: 0.20),
           ),
         ),
         child: Center(
@@ -313,9 +305,7 @@ class AccentColorScreen extends StatelessWidget {
       height: 1,
       indent: 76,
       endIndent: 16,
-      color: colorScheme.onSurface.withValues(
-        alpha: 0.07,
-      ),
+      color: colorScheme.onSurface.withValues(alpha: 0.07),
     );
   }
 
@@ -337,14 +327,10 @@ class AccentColorScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: accent.withValues(
-          alpha: 0.07,
-        ),
+        color: accent.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: accent.withValues(
-            alpha: 0.16,
-          ),
+          color: accent.withValues(alpha: 0.16),
         ),
       ),
       child: Row(
@@ -353,9 +339,7 @@ class AccentColorScreen extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: accent.withValues(
-                alpha: 0.12,
-              ),
+              color: accent.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(11),
             ),
             child: Icon(

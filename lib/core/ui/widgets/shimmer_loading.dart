@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 class ShimmerList extends StatelessWidget {
   final int itemCount;
@@ -17,13 +17,16 @@ class ShimmerList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView.builder(
-      padding: EdgeInsets.only(top: topPadding, left: padding, right: padding),
-      itemCount: itemCount,
-      physics: const NeverScrollableScrollPhysics(),
-      itemBuilder: (context, index) {
-        return const _ShimmerListItem();
-      },
+    return Skeletonizer(
+      enabled: true,
+      child: ListView.builder(
+        padding: EdgeInsets.only(top: topPadding, left: padding, right: padding),
+        itemCount: itemCount,
+        physics: const NeverScrollableScrollPhysics(),
+        itemBuilder: (context, index) {
+          return const _ShimmerListItem();
+        },
+      ),
     );
   }
 }
@@ -33,26 +36,11 @@ class _ShimmerListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-
-    final Color shimmerBase = colorScheme.surfaceContainerHighest.withValues(
-      alpha: isDark ? 0.3 : 0.5,
-    );
-
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: shimmerBase,
-              shape: BoxShape.circle,
-            ),
-          ),
+          const CircleAvatar(radius: 24),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -62,30 +50,19 @@ class _ShimmerListItem extends StatelessWidget {
                   width: double.infinity,
                   height: 14,
                   margin: const EdgeInsets.only(right: 40),
-                  decoration: BoxDecoration(
-                    color: shimmerBase,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
+                  color: Colors.grey,
                 ),
                 const SizedBox(height: 8),
                 Container(
                   width: 120,
                   height: 10,
-                  decoration: BoxDecoration(
-                    color: shimmerBase,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
+                  color: Colors.grey,
                 ),
               ],
             ),
           ),
         ],
       ),
-    )
-        .animate(onPlay: (controller) => controller.repeat())
-        .shimmer(
-          duration: 1500.ms,
-          color: colorScheme.primary.withValues(alpha: 0.05),
-        );
+    );
   }
 }

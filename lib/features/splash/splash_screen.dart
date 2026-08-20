@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
+import '../../../core/services/notification_service.dart';
 
 import '../wallet/services/wallet_crypto_service.dart';
 import '../wallet/services/wallet_service.dart';
@@ -184,12 +185,9 @@ class _SplashScreenState
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Unable to load your wallet. Please try again.',
-        ),
-      ),
+    NotificationService.showError(
+      context,
+      'Unable to load your wallet. Please try again.',
     );
 
     // Retry after the current frame.
