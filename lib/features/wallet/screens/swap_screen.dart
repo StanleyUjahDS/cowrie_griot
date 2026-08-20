@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/token_model.dart';
 import '../providers/wallet_provider.dart';
-import '../services/transaction_api_service.dart';
+import '../services/swap_api_service.dart';
 import '../widgets/token_icon.dart';
 import '../utils/wallet_formatters.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
@@ -42,25 +42,54 @@ class _SwapScreenState extends State<SwapScreen> {
 
   Future<void> _getQuote() async {
     if (_fromToken == null || _toToken == null) return;
+
     final amount = _amountController.text.trim();
     if (amount.isEmpty) return;
+
+    final wallet = context.read<WalletProvider>().wallet;
+    final fromAddress = wallet?.address;
+
+    if (fromAddress == null || fromAddress.isEmpty) {
+      NotificationService.showError(
+        context,
+        'Wallet address is not available',
+      );
+      return;
+    }
+
+    if (_fromToken!.contractAddress.isEmpty ||
+        _toToken!.contractAddress.isEmpty) {
+      NotificationService.showError(
+        context,
+        'Swap token address is not available',
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
 
     try {
-      final api = context.read<TransactionApiService>();
-      final quote = await api.getSwapQuote(
-        fromNetwork: _fromToken!.chain,
-        toNetwork: _toToken!.chain,
-        fromTokenAddress: _fromToken!.contractAddress,
-        toTokenAddress: _toToken!.contractAddress,
-        amount: amount,
+      final api = context.read<SwapApiService>();
+      final quote = await api.getQuote(
+        fromChain: _fromToken!.chain,
+        toChain: _toToken!.chain,
+        fromToken: _fromToken!.contractAddress,
+        toToken: _toToken!.contractAddress,
+        fromAmount: amount,
+        fromAddress: fromAddress,
       );
-      setState(() => _quote = quote);
+
+      if (mounted) {
+        setState(() => _quote = quote);
+      }
     } catch (e) {
-      debugPrint('Quote failed: $e');
+      if (mounted) {
+        NotificationService.showError(context, 'Quote failed: $e');
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -121,12 +150,12 @@ class _SwapScreenState extends State<SwapScreen> {
                     width: double.infinity,
                     height: 56,
                     child: FilledButton(
-                      onPressed: (_fromToken != null && _toToken != null && !_isLoading) 
-                        ? () => NotificationService.showSuccess(context, 'Swap Initiated') 
-                        : null,
-                      child: _isLoading 
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text('Swap Assets', style: TextStyle(fontWeight: FontWeight.bold)),
+                      onPressed: (_fromToken != null && _toToken != null && !_isLoading)
+                          ? () => NotificationService.showSuccess(context, 'Swap Initiated')
+                          : null,
+                      child: _isLoading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text('Swap Assets', style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
@@ -146,8 +175,8 @@ class _SwapScreenState extends State<SwapScreen> {
       _fromToken = _toToken;
       _toToken = temp;
       _quote = null;
-      _getQuote();
     });
+    _getQuote();
   }
 
   Widget _buildSwapCard(
@@ -188,21 +217,21 @@ class _SwapScreenState extends State<SwapScreen> {
           Row(
             children: [
               Expanded(
-                child: isReadOnly 
-                  ? Text(value ?? '0.00', style: text.headlineMedium?.copyWith(fontWeight: FontWeight.bold))
-                  : TextField(
-                      controller: controller,
-                      onChanged: onChanged,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      style: text.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
-                      decoration: const InputDecoration(
-                        hintText: '0.00',
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        contentPadding: EdgeInsets.zero,
+                child: isReadOnly
+                    ? Text(value ?? '0.00', style: text.headlineMedium?.copyWith(fontWeight: FontWeight.bold))
+                    : TextField(
+                        controller: controller,
+                        onChanged: onChanged,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        style: text.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+                        decoration: const InputDecoration(
+                          hintText: '0.00',
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          contentPadding: EdgeInsets.zero,
+                        ),
                       ),
-                    ),
               ),
               const SizedBox(width: 12),
               InkWell(
@@ -272,11 +301,11 @@ class _SwapScreenState extends State<SwapScreen> {
       children: [
         Text(label, style: text.bodySmall?.copyWith(color: colors.onSurfaceVariant)),
         Text(
-          value, 
+          value,
           style: text.bodySmall?.copyWith(
             fontWeight: FontWeight.w600,
             color: isWarning ? Colors.orange : null,
-          )
+          ),
         ),
       ],
     );
