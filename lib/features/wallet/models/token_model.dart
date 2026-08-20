@@ -8,6 +8,7 @@ class TokenModel {
   final String chain;
   final String contractAddress;
   final String imageUrl;
+  final int decimals;
   final bool hasMarketData;
 
   const TokenModel({
@@ -20,6 +21,7 @@ class TokenModel {
     required this.chain,
     required this.contractAddress,
     required this.imageUrl,
+    this.decimals = 18,
     this.hasMarketData = false,
   });
 
@@ -65,6 +67,7 @@ class TokenModel {
             json['logo'] ??
             json['logoUrl'],
       ),
+      decimals: _int(json['decimals'], fallback: 18),
       hasMarketData: hasPrice || hasChange || hasValue,
     );
   }
@@ -78,5 +81,11 @@ class TokenModel {
     if (value == null) return 0;
     if (value is num) return value;
     return num.tryParse(value.toString()) ?? 0;
+  }
+
+  static int _int(dynamic value, {required int fallback}) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? fallback;
   }
 }
