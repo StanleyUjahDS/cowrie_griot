@@ -29,10 +29,7 @@ class TransactionApiService {
       body: body,
     );
 
-    final data = _unwrap(response);
-    return data is Map<String, dynamic>
-        ? Map<String, dynamic>.from(data)
-        : {};
+    return _asMap(_unwrap(response));
   }
 
   Future<Map<String, dynamic>> broadcastTransaction({
@@ -49,10 +46,7 @@ class TransactionApiService {
       },
     );
 
-    final data = _unwrap(response);
-    return data is Map<String, dynamic>
-        ? Map<String, dynamic>.from(data)
-        : {};
+    return _asMap(_unwrap(response));
   }
 
   Future<Map<String, dynamic>> getTransactionStatus({
@@ -66,10 +60,7 @@ class TransactionApiService {
       ),
     );
 
-    final data = _unwrap(response);
-    return data is Map<String, dynamic>
-        ? Map<String, dynamic>.from(data)
-        : {};
+    return _asMap(_unwrap(response));
   }
 
   Future<Map<String, dynamic>> getTransaction({
@@ -79,10 +70,7 @@ class TransactionApiService {
       ApiConfig.transactionById(transactionId),
     );
 
-    final data = _unwrap(response);
-    return data is Map<String, dynamic>
-        ? Map<String, dynamic>.from(data)
-        : {};
+    return _asMap(_unwrap(response));
   }
 
   Future<Map<String, dynamic>> getHistory({
@@ -100,59 +88,7 @@ class TransactionApiService {
       ),
     );
 
-    final data = _unwrap(response);
-    return data is Map<String, dynamic>
-        ? Map<String, dynamic>.from(data)
-        : {};
-  }
-
-  // ============================================================
-  // SWAP
-  // ============================================================
-
-  Future<Map<String, dynamic>> getSwapQuote({
-    required String fromNetwork,
-    required String toNetwork,
-    required String fromTokenAddress,
-    required String toTokenAddress,
-    required String amount,
-  }) async {
-    final response = await _apiClient.get(
-      Uri.parse(ApiConfig.swapQuote).replace(queryParameters: {
-        'fromNetwork': fromNetwork,
-        'toNetwork': toNetwork,
-        'fromTokenAddress': fromTokenAddress,
-        'toTokenAddress': toTokenAddress,
-        'amount': amount,
-      }).toString(),
-    );
-
-    final data = _unwrap(response);
-    return data is Map<String, dynamic> ? Map<String, dynamic>.from(data) : {};
-  }
-
-  Future<Map<String, dynamic>> prepareSwap({
-    required String fromNetwork,
-    required String toNetwork,
-    required String fromTokenAddress,
-    required String toTokenAddress,
-    required String amount,
-    required String slippage,
-  }) async {
-    final response = await _apiClient.post(
-      ApiConfig.swapPrepare,
-      body: {
-        'fromNetwork': fromNetwork,
-        'toNetwork': toNetwork,
-        'fromTokenAddress': fromTokenAddress,
-        'toTokenAddress': toTokenAddress,
-        'amount': amount,
-        'slippage': slippage,
-      },
-    );
-
-    final data = _unwrap(response);
-    return data is Map<String, dynamic> ? Map<String, dynamic>.from(data) : {};
+    return _asMap(_unwrap(response));
   }
 
   dynamic _unwrap(dynamic response) {
@@ -161,5 +97,11 @@ class TransactionApiService {
     }
 
     return response;
+  }
+
+  Map<String, dynamic> _asMap(dynamic data) {
+    return data is Map<String, dynamic>
+        ? Map<String, dynamic>.from(data)
+        : {};
   }
 }
