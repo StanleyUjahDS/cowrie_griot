@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:wallet/wallet.dart' as wallet;
@@ -82,7 +81,10 @@ class WalletCryptoService {
       normalizedPrivateKey,
     );
 
-    final messageBytes = Uint8List.fromList(utf8.encode(message));
+    final messageBytes = Uint8List.fromList(
+      utf8.encode(message),
+    );
+
     final signature = credentials.signPersonalMessageToUint8List(
       messageBytes,
     );
@@ -121,14 +123,19 @@ class WalletCryptoService {
 
     final transaction = web3.Transaction(
       to: web3.EthereumAddress.fromHex(to),
-      value: web3.EtherAmount.inWei(BigInt.parse(valueRaw)),
+      value: web3.EtherAmount.inWei(
+        BigInt.parse(valueRaw),
+      ),
       nonce: nonce,
-      gasPrice: web3.EtherAmount.inWei(BigInt.parse(gasPrice)),
+      gasPrice: web3.EtherAmount.inWei(
+        BigInt.parse(gasPrice),
+      ),
       maxGas: int.parse(gasLimit),
     );
 
-    final signed = await credentials.signTransaction(
+    final signed = web3.signTransactionRaw(
       transaction,
+      credentials,
       chainId: chainId,
     );
 
@@ -136,7 +143,9 @@ class WalletCryptoService {
   }
 
   bool isValidAddress(String address) {
-    return RegExp(r'^0x[a-fA-F0-9]{40}$').hasMatch(address.trim());
+    return RegExp(
+      r'^0x[a-fA-F0-9]{40}$',
+    ).hasMatch(address.trim());
   }
 
   static void _validatePrivateKey(String privateKey) {
@@ -153,7 +162,9 @@ class WalletCryptoService {
     final buffer = StringBuffer();
 
     for (final byte in bytes) {
-      buffer.write(byte.toRadixString(16).padLeft(2, '0'));
+      buffer.write(
+        byte.toRadixString(16).padLeft(2, '0'),
+      );
     }
 
     return buffer.toString();
