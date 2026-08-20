@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../core/services/ad_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/services/navigation_scroll_service.dart';
+import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../core/ui/widgets/banner_ad.dart';
 
 class MinerScreen extends StatefulWidget {
@@ -316,11 +317,9 @@ class _MinerScreenState extends State<MinerScreen>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.colorScheme;
     final text = theme.textTheme;
 
-    return Scaffold(
-      backgroundColor: colors.surface,
+    return GradientScaffold(
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
@@ -342,215 +341,213 @@ class _MinerScreenState extends State<MinerScreen>
           const SizedBox(width: 8),
         ],
       ),
-      body: SafeArea(
-        child: CustomScrollView(
-          controller: _scrollController,
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(
-                18,
-                8,
-                18,
-                30,
-              ),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate(
-                  [
-                    _MiningHero(
-                      isMining: isMining,
-                      progress: sessionProgress,
-                      remaining: remainingSession,
-                      totalWeight: totalMiningWeight,
-                      pulse: _pulseController,
-                      onStart: _startMining,
-                    ),
+      child: CustomScrollView(
+        controller: _scrollController,
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(
+              18,
+              8,
+              18,
+              30,
+            ),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate(
+                [
+                  _MiningHero(
+                    isMining: isMining,
+                    progress: sessionProgress,
+                    remaining: remainingSession,
+                    totalWeight: totalMiningWeight,
+                    pulse: _pulseController,
+                    onStart: _startMining,
+                  ),
 
-                    const SizedBox(height: 18),
+                  const SizedBox(height: 18),
 
-                    _PayoutCountdownCard(
-                      countdown: payoutCountdown,
-                      payoutDate: nextPayoutDate,
-                      cyclePoints: cyclePoints,
-                      networkPoints: networkCyclePoints,
-                      rewardPool: cycleRewardPool,
-                      estimatedReward: estimatedReward,
-                      share: estimatedCycleShare,
-                      formatCountdown: _formatShortCountdown,
-                      formatDate: _formatPayoutDate,
-                    ),
+                  _PayoutCountdownCard(
+                    countdown: payoutCountdown,
+                    payoutDate: nextPayoutDate,
+                    cyclePoints: cyclePoints,
+                    networkPoints: networkCyclePoints,
+                    rewardPool: cycleRewardPool,
+                    estimatedReward: estimatedReward,
+                    share: estimatedCycleShare,
+                    formatCountdown: _formatShortCountdown,
+                    formatDate: _formatPayoutDate,
+                  ),
 
-                    const SizedBox(height: 18),
+                  const SizedBox(height: 18),
 
-                    _BalanceCard(
-                      balance: 1248.42,
-                      cycleReward: estimatedReward,
-                    ),
+                  _BalanceCard(
+                    balance: 1248.42,
+                    cycleReward: estimatedReward,
+                  ),
 
-                    const SizedBox(height: 12),
+                  const SizedBox(height: 12),
 
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _StatCard(
-                            icon: Icons.bolt_rounded,
-                            label: 'Mining weight',
-                            value:
-                            '${totalMiningWeight.toStringAsFixed(2)}×',
-                          ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _StatCard(
+                          icon: Icons.bolt_rounded,
+                          label: 'Mining weight',
+                          value:
+                          '${totalMiningWeight.toStringAsFixed(2)}×',
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _StatCard(
-                            icon: Icons.stars_rounded,
-                            label: 'Today',
-                            value:
-                            '${todayPoints.toStringAsFixed(0)} pts',
-                          ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _StatCard(
+                          icon: Icons.stars_rounded,
+                          label: 'Today',
+                          value:
+                          '${todayPoints.toStringAsFixed(0)} pts',
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
+                  ),
 
-                    const SizedBox(height: 22),
+                  const SizedBox(height: 22),
 
-                    _SectionTitle(
-                      title: 'Today\'s progress',
-                      trailing:
-                      '${todayPoints.toStringAsFixed(0)} / '
-                          '${dailyPointsAvailable.toStringAsFixed(0)}',
-                    ),
+                  _SectionTitle(
+                    title: 'Today\'s progress',
+                    trailing:
+                    '${todayPoints.toStringAsFixed(0)} / '
+                        '${dailyPointsAvailable.toStringAsFixed(0)}',
+                  ),
 
-                    const SizedBox(height: 10),
+                  const SizedBox(height: 10),
 
-                    _DailyProgressCard(
-                      progress: activityProgress,
-                      points: todayPoints,
-                      available: dailyPointsAvailable,
-                    ),
+                  _DailyProgressCard(
+                    progress: activityProgress,
+                    points: todayPoints,
+                    available: dailyPointsAvailable,
+                  ),
 
-                    const SizedBox(height: 22),
+                  const SizedBox(height: 22),
 
-                    _SectionTitle(
-                      title: 'Current reward cycle',
-                      trailing: '3 months',
-                    ),
+                  _SectionTitle(
+                    title: 'Current reward cycle',
+                    trailing: '3 months',
+                  ),
 
-                    const SizedBox(height: 10),
+                  const SizedBox(height: 10),
 
-                    _CyclePointsCard(
-                      cyclePoints: cyclePoints,
-                      networkPoints: networkCyclePoints,
-                      rewardPool: cycleRewardPool,
-                      estimatedReward: estimatedReward,
-                      share: estimatedCycleShare,
-                    ),
+                  _CyclePointsCard(
+                    cyclePoints: cyclePoints,
+                    networkPoints: networkCyclePoints,
+                    rewardPool: cycleRewardPool,
+                    estimatedReward: estimatedReward,
+                    share: estimatedCycleShare,
+                  ),
 
-                    const SizedBox(height: 22),
+                  const SizedBox(height: 22),
 
-                    _SectionTitle(
-                      title: 'Your mining power',
-                    ),
+                  _SectionTitle(
+                    title: 'Your mining power',
+                  ),
 
-                    const SizedBox(height: 10),
+                  const SizedBox(height: 10),
 
-                    _MiningPowerCard(
-                      base: baseMiningWeight,
-                      reputation: reputationMultiplier,
-                      plus: plusMultiplier,
-                      isPlus: isPlusUser,
-                      total: totalMiningWeight,
-                    ),
+                  _MiningPowerCard(
+                    base: baseMiningWeight,
+                    reputation: reputationMultiplier,
+                    plus: plusMultiplier,
+                    isPlus: isPlusUser,
+                    total: totalMiningWeight,
+                  ),
 
-                    const SizedBox(height: 22),
+                  const SizedBox(height: 22),
 
-                    _SectionTitle(
-                      title: 'Earn more points',
-                      trailing: 'Daily activities',
-                    ),
+                  _SectionTitle(
+                    title: 'Earn more points',
+                    trailing: 'Daily activities',
+                  ),
 
-                    const SizedBox(height: 10),
+                  const SizedBox(height: 10),
 
-                    _ActivityTile(
-                      icon: Icons.video_library_rounded,
-                      title: 'Watch video for boost',
-                      subtitle: AdService.instance
-                          .isRewardedAdAvailable
-                          ? 'Watch a short video to earn points'
-                          : 'Ad loading... please wait',
-                      reward: '+50 pts',
-                      onTap: AdService.instance
-                          .isRewardedAdAvailable
-                          ? _showRewardedAd
-                          : null,
-                    ),
+                  _ActivityTile(
+                    icon: Icons.video_library_rounded,
+                    title: 'Watch video for boost',
+                    subtitle: AdService.instance
+                        .isRewardedAdAvailable
+                        ? 'Watch a short video to earn points'
+                        : 'Ad loading... please wait',
+                    reward: '+50 pts',
+                    onTap: AdService.instance
+                        .isRewardedAdAvailable
+                        ? _showRewardedAd
+                        : null,
+                  ),
 
-                    const SizedBox(height: 10),
+                  const SizedBox(height: 10),
 
-                    _ActivityTile(
-                      icon: Icons.play_circle_fill_rounded,
-                      title: 'Follow Griot on YouTube',
-                      subtitle:
-                      'Follow the official Griot channel',
-                      reward: '+20 pts',
-                      onTap: () {
-                        _addActivityPoints(20);
-                      },
-                    ),
+                  _ActivityTile(
+                    icon: Icons.play_circle_fill_rounded,
+                    title: 'Follow Griot on YouTube',
+                    subtitle:
+                    'Follow the official Griot channel',
+                    reward: '+20 pts',
+                    onTap: () {
+                      _addActivityPoints(20);
+                    },
+                  ),
 
-                    const SizedBox(height: 10),
+                  const SizedBox(height: 10),
 
-                    _ActivityTile(
-                      icon: Icons.alternate_email_rounded,
-                      title: 'Follow Griot on X',
-                      subtitle:
-                      'Follow the official Griot account',
-                      reward: '+15 pts',
-                      onTap: () {
-                        _addActivityPoints(15);
-                      },
-                    ),
+                  _ActivityTile(
+                    icon: Icons.alternate_email_rounded,
+                    title: 'Follow Griot on X',
+                    subtitle:
+                    'Follow the official Griot account',
+                    reward: '+15 pts',
+                    onTap: () {
+                      _addActivityPoints(15);
+                    },
+                  ),
 
-                    const SizedBox(height: 10),
+                  const SizedBox(height: 10),
 
-                    _ActivityTile(
-                      icon: Icons.person_add_alt_1_rounded,
-                      title: 'Invite a friend',
-                      subtitle:
-                      'Bring someone into Griot',
-                      reward: '+50 pts',
-                      completed: true,
-                    ),
+                  _ActivityTile(
+                    icon: Icons.person_add_alt_1_rounded,
+                    title: 'Invite a friend',
+                    subtitle:
+                    'Bring someone into Griot',
+                    reward: '+50 pts',
+                    completed: true,
+                  ),
 
-                    const SizedBox(height: 10),
+                  const SizedBox(height: 10),
 
-                    _ActivityTile(
-                      icon: Icons.account_circle_rounded,
-                      title: 'Complete your profile',
-                      subtitle:
-                      'Finish setting up your account',
-                      reward: '+10 pts',
-                      onTap: () {
-                        _addActivityPoints(10);
-                      },
-                    ),
+                  _ActivityTile(
+                    icon: Icons.account_circle_rounded,
+                    title: 'Complete your profile',
+                    subtitle:
+                    'Finish setting up your account',
+                    reward: '+10 pts',
+                    onTap: () {
+                      _addActivityPoints(10);
+                    },
+                  ),
 
-                    const SizedBox(height: 22),
+                  const SizedBox(height: 22),
 
-                    const _HowMiningWorksCard(),
+                  const _HowMiningWorksCard(),
 
-                    const SizedBox(height: 20),
+                  const SizedBox(height: 20),
 
-                    // ==================================================
-                    // BANNER AD
-                    // ==================================================
+                  // ==================================================
+                  // BANNER AD
+                  // ==================================================
 
-                    const _AdPlaceholder(),
-                  ],
-                ),
+                  const _AdPlaceholder(),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

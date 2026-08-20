@@ -67,12 +67,12 @@ class _GriotNativeAdState extends State<GriotNativeAd> {
       nativeTemplateStyle: NativeTemplateStyle(
         templateType: TemplateType.medium,
         mainBackgroundColor: colorScheme.surface,
-        cornerRadius: 0.0, // Set to 0 to prevent native-side clipping of assets at corners
+        cornerRadius: 16.0, // Added curvature to internal elements
         callToActionTextStyle: NativeTemplateTextStyle(
           textColor: colorScheme.onPrimary,
           backgroundColor: colorScheme.primary,
           style: NativeTemplateFontStyle.bold,
-          size: 16.0,
+          size: 14.0, // Restored for better proportions
         ),
         primaryTextStyle: NativeTemplateTextStyle(
           textColor: colorScheme.onSurface,
@@ -105,10 +105,10 @@ class _GriotNativeAdState extends State<GriotNativeAd> {
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
 
-    final Color borderColor = colorScheme.outline.withValues(alpha: isDark ? 0.20 : 0.12);
+    final Color borderColor = colorScheme.outline.withOpacity(isDark ? 0.20 : 0.12);
 
-    // Height 340dp is the "Premium" height for Medium templates on Android.
-    const double adHeight = 340;
+    // Height 360dp provides more room for Medium templates to avoid "outside box" errors
+    const double adHeight = 360;
 
     // Placeholder/Loading state
     if (!_isLoaded || _nativeAd == null) {
@@ -133,37 +133,27 @@ class _GriotNativeAdState extends State<GriotNativeAd> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       height: adHeight,
-      child: Stack(
-        children: [
-          // Nice Background Card
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                color: colorScheme.surface,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: borderColor,
-                  width: 1.0,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          
-          // The Ad (Unclipped safety layer)
-          Positioned.fill(
-            child: Padding(
-              padding: const EdgeInsets.all(12), 
-              child: AdWidget(ad: _nativeAd!),
-            ),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: colorScheme.outline.withOpacity(isDark ? 0.20 : 0.12),
+          width: 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.25 : 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.all(12), 
+          child: AdWidget(ad: _nativeAd!),
+        ),
       ),
     );
   }

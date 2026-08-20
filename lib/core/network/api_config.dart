@@ -143,4 +143,53 @@ class ApiConfig {
 
   static const String swapHealth =
       '$swapBase/health';
+
+  // ============================================================
+  // MINING
+  // ============================================================
+
+  static const String miningBase =
+      '$baseUrl/crypto/mining';
+
+  static const String miningStatus =
+      '$miningBase/status';
+
+  static const String miningStart =
+      '$miningBase/start';
+
+  static String miningHistory({
+    int limit = 20,
+    int offset = 0,
+  }) =>
+      Uri.parse(
+        '$miningBase/history',
+      ).replace(
+        queryParameters: {
+          'limit': '$limit',
+          'offset': '$offset',
+        },
+      ).toString();
+
+  // ============================================================
+  // REFERRALS
+  // ============================================================
+
+  static const String referralBase =
+      '$baseUrl/crypto/referrals';
+
+  static const String referralStats =
+      '$referralBase/stats';
+
+  static String referralList({
+    int limit = 20,
+    int offset = 0,
+  }) =>
+      Uri.parse(
+        '$referralBase/list',
+      ).replace(
+        queryParameters: {
+          'limit': '$limit',
+          'offset': '$offset',
+        },
+      ).toString();
 }

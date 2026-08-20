@@ -5,6 +5,7 @@ class GradientScaffold extends StatelessWidget {
   final PreferredSizeWidget? appBar;
   final Widget? bottomNavigationBar;
   final Widget? floatingActionButton;
+  final FloatingActionButtonLocation? floatingActionButtonLocation;
   final bool extendBodyBehindAppBar;
 
   const GradientScaffold({
@@ -13,6 +14,7 @@ class GradientScaffold extends StatelessWidget {
     this.appBar,
     this.bottomNavigationBar,
     this.floatingActionButton,
+    this.floatingActionButtonLocation,
     this.extendBodyBehindAppBar = false,
   });
 
@@ -21,69 +23,67 @@ class GradientScaffold extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
-    final backgroundColor =
-        theme.scaffoldBackgroundColor;
+    final backgroundColor = theme.scaffoldBackgroundColor;
 
     return Scaffold(
-      extendBodyBehindAppBar:
-      extendBodyBehindAppBar,
-
-      backgroundColor:
-      backgroundColor,
-
+      extendBodyBehindAppBar: extendBodyBehindAppBar,
+      backgroundColor: backgroundColor,
       appBar: appBar,
-
-      body: Container(
-        color: backgroundColor,
-
-        child: Stack(
-          children: [
-
-            // ==================================================
-            // BACKGROUND IMAGE
-            // ==================================================
-
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              height:
-              MediaQuery.of(context).size.height * 0.48,
-
-              child: IgnorePointer(
-                child: Image.asset(
-                  'assets/cowrie_images/background_pattern.png',
-
-                  fit: BoxFit.cover,
-
-                  alignment:
-                  Alignment.topCenter,
-
-                  color: colors.onSurface.withValues(
-                      alpha: theme.brightness == Brightness.dark ? 0.06 : 0.025),
-
-                  colorBlendMode:
-                  BlendMode.srcIn,
+      body: Stack(
+        children: [
+          // ==================================================
+          // BACKGROUND GRADIENT & IMAGE
+          // ==================================================
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                color: backgroundColor,
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    backgroundColor,
+                    theme.brightness == Brightness.dark
+                        ? Color.alphaBlend(
+                            Colors.black.withOpacity(0.2),
+                            backgroundColor,
+                          )
+                        : Color.alphaBlend(
+                            colors.primary.withOpacity(0.04),
+                            backgroundColor,
+                          ),
+                  ],
                 ),
               ),
             ),
+          ),
 
-            // ==================================================
-            // CONTENT
-            // ==================================================
-
-            SafeArea(
-              child: child,
+          // SPIRAL (Centered at top)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: MediaQuery.of(context).size.height * 0.45,
+            child: IgnorePointer(
+              child: Image.asset(
+                'assets/cowrie_images/background_spiral.png',
+                fit: BoxFit.fitWidth,
+                alignment: Alignment.topCenter,
+              ),
             ),
-          ],
-        ),
+          ),
+
+          // ==================================================
+          // CONTENT
+          // ==================================================
+          SafeArea(
+            child: child,
+          ),
+        ],
       ),
-
-      bottomNavigationBar:
-      bottomNavigationBar,
-
-      floatingActionButton:
-      floatingActionButton,
+      bottomNavigationBar: bottomNavigationBar,
+      floatingActionButton: floatingActionButton,
+      floatingActionButtonLocation: floatingActionButtonLocation,
     );
   }
 }

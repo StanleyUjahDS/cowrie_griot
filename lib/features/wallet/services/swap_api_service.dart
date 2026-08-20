@@ -45,6 +45,21 @@ class SwapApiService {
     return _asMap(_unwrap(response));
   }
 
+  Future<Map<String, dynamic>> executeSwap({
+    required String quoteId,
+    required String signedTransaction,
+  }) async {
+    final response = await _apiClient.post(
+      '${ApiConfig.swapBase}/execute',
+      body: {
+        'quoteId': quoteId,
+        'signedTransaction': signedTransaction,
+      },
+    );
+
+    return _asMap(_unwrap(response));
+  }
+
   Future<Map<String, dynamic>> getStatus({
     required String transactionId,
     String? provider,

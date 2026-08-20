@@ -131,11 +131,42 @@ class _SwapScreenState extends State<SwapScreen> {
     return raw;
   }
 
+  String _fromBaseUnits(String? baseAmount, int decimals) {
+    if (baseAmount == null || baseAmount.isEmpty || decimals < 0) return '0.00';
+
+    final cleanBase = baseAmount.split('.')[0].replaceAll(RegExp(r'\D'), '');
+    if (cleanBase.isEmpty) return '0.00';
+
+    if (decimals == 0) return cleanBase;
+
+    String whole;
+    String fraction;
+
+    if (cleanBase.length <= decimals) {
+      final padded = cleanBase.padLeft(decimals + 1, '0');
+      final splitIndex = padded.length - decimals;
+      whole = padded.substring(0, splitIndex);
+      fraction = padded.substring(splitIndex);
+    } else {
+      final splitIndex = cleanBase.length - decimals;
+      whole = cleanBase.substring(0, splitIndex);
+      fraction = cleanBase.substring(splitIndex);
+    }
+
+    fraction = fraction.replaceAll(RegExp(r'0+$'), '');
+    if (fraction.isEmpty) return whole;
+
+    if (fraction.length > 8) {
+      fraction = fraction.substring(0, 8);
+    }
+
+    return '$whole.$fraction';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final text = theme.textTheme;
 
     return GradientScaffold(
       appBar: AppBar(
@@ -144,62 +175,80 @@ class _SwapScreenState extends State<SwapScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      child: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            physics: const BouncingScrollPhysics(),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: constraints.maxHeight,
+              ),
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildSwapCard(
-                    context,
-                    label: 'From',
-                    token: _fromToken,
-                    onTokenTap: () => _showTokenPicker(context, isFrom: true),
-                    controller: _amountController,
-                    onChanged: (val) => _getQuote(),
+                  Column(
+                    children: [
+                      const SizedBox(height: 20),
+                      _buildSwapCard(
+                        context,
+                        label: 'From',
+                        token: _fromToken,
+                        onTokenTap: () => _showTokenPicker(context, isFrom: true),
+                        controller: _amountController,
+                        onChanged: (val) => _getQuote(),
+                      ),
+                      const SizedBox(height: 12),
+                      CircleAvatar(
+                        backgroundColor: colors.primary,
+                        child: IconButton(
+                          icon: const Icon(Icons.swap_vert_rounded, color: Colors.white),
+                          onPressed: _swapTokens,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildSwapCard(
+                        context,
+                        label: 'To',
+                        token: _toToken,
+                        onTokenTap: () => _showTokenPicker(context, isFrom: false),
+                        isReadOnly: true,
+                        value: _fromBaseUnits(
+                          _quote?['toAmount']?.toString(),
+                          _toToken?.decimals ?? 18,
+                        ),
+                      ),
+                      if (_quote != null) ...[
+                        const SizedBox(height: 24),
+                        _buildQuoteDetails(context),
+                      ],
+                      const SizedBox(height: 48),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: FilledButton(
+                          onPressed: (_fromToken != null && _toToken != null && !_isLoading)
+                              ? () => NotificationService.showSuccess(context, 'Swap Initiated')
+                              : null,
+                          child: _isLoading
+                              ? const CircularProgressIndicator(color: Colors.white)
+                              : const Text('Swap Assets', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  CircleAvatar(
-                    backgroundColor: colors.primary,
-                    child: IconButton(
-                      icon: const Icon(Icons.swap_vert_rounded, color: Colors.white),
-                      onPressed: _swapTokens,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildSwapCard(
-                    context,
-                    label: 'To',
-                    token: _toToken,
-                    onTokenTap: () => _showTokenPicker(context, isFrom: false),
-                    isReadOnly: true,
-                    value: _quote?['toAmount']?.toString() ?? '0.00',
-                  ),
-                  if (_quote != null) ...[
-                    const SizedBox(height: 24),
-                    _buildQuoteDetails(context),
-                  ],
-                  const SizedBox(height: 48),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: FilledButton(
-                      onPressed: (_fromToken != null && _toToken != null && !_isLoading)
-                          ? () => NotificationService.showSuccess(context, 'Swap Initiated')
-                          : null,
-                      child: _isLoading
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text('Swap Assets', style: TextStyle(fontWeight: FontWeight.bold)),
-                    ),
+                  Column(
+                    children: [
+                      const SizedBox(height: 32),
+                      const GriotBannerAd(),
+                      const SizedBox(height: 32),
+                    ],
                   ),
                 ],
               ),
             ),
-          ),
-          const GriotBannerAd(),
-          const SizedBox(height: 16),
-        ],
+          );
+        },
       ),
     );
   }
@@ -253,12 +302,12 @@ class _SwapScreenState extends State<SwapScreen> {
             children: [
               Expanded(
                 child: isReadOnly
-                    ? Text(value ?? '0.00', style: text.headlineMedium?.copyWith(fontWeight: FontWeight.bold))
+                    ? Text(value ?? '0.00', style: text.headlineSmall?.copyWith(fontWeight: FontWeight.bold))
                     : TextField(
                         controller: controller,
                         onChanged: onChanged,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        style: text.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+                        style: text.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
                         decoration: const InputDecoration(
                           hintText: '0.00',
                           border: InputBorder.none,
@@ -308,7 +357,6 @@ class _SwapScreenState extends State<SwapScreen> {
 
   Widget _buildQuoteDetails(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
     final fee = _quote?['fee'];
 
     return Container(

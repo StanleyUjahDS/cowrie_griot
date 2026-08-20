@@ -20,6 +20,8 @@ import 'features/wallet/services/wallet_storage_service.dart';
 import 'features/wallet/services/wallet_api_service.dart';
 import 'features/wallet/services/transaction_api_service.dart';
 import 'features/wallet/services/swap_api_service.dart';
+import 'features/miner/services/mining_api_service.dart';
+import 'features/miner/services/referral_api_service.dart';
 import 'features/wallet/providers/wallet_provider.dart';
 import 'core/services/navigation_scroll_service.dart';
 
@@ -43,6 +45,8 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
   late final WalletApiService _walletApiService;
   late final TransactionApiService _transactionApiService;
   late final SwapApiService _swapApiService;
+  late final MiningApiService _miningApiService;
+  late final ReferralApiService _referralApiService;
 
   @override
   void initState() {
@@ -75,6 +79,14 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
     );
 
     _swapApiService = SwapApiService(
+      apiClient: _apiClient,
+    );
+
+    _miningApiService = MiningApiService(
+      apiClient: _apiClient,
+    );
+
+    _referralApiService = ReferralApiService(
       apiClient: _apiClient,
     );
 
@@ -125,6 +137,8 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
         Provider<WalletApiService>.value(value: _walletApiService),
         Provider<TransactionApiService>.value(value: _transactionApiService),
         Provider<SwapApiService>.value(value: _swapApiService),
+        Provider<MiningApiService>.value(value: _miningApiService),
+        Provider<ReferralApiService>.value(value: _referralApiService),
         ChangeNotifierProvider<NavigationScrollService>.value(
           value: NavigationScrollService.instance,
         ),

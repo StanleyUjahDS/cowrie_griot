@@ -5,7 +5,7 @@ import '../../../core/startup/app_startup_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/services/navigation_scroll_service.dart';
 import '../controllers/chat_controller.dart';
-
+import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../models/chat_user.dart';
 import '../models/message_request.dart';
 import '../models/chat_group.dart';
@@ -748,9 +748,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Scaffold(
-      backgroundColor:
-      theme.scaffoldBackgroundColor,
+    return GradientScaffold(
       appBar: AppBar(
         title: Text(
           'Chat',
@@ -858,8 +856,6 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
         ],
       ),
 
-      body: _buildFloatingBody(),
-
       floatingActionButtonLocation:
       FloatingActionButtonLocation.endFloat,
 
@@ -894,6 +890,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
           ),
         ),
       ),
+      child: _buildFloatingBody(),
     );
   }
 

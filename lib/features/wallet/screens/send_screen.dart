@@ -72,25 +72,23 @@ class _SendScreenState extends State<SendScreen> {
 
       if (prepared.containsKey('transactionId')) {
         // In a real flow, we would sign here and then broadcast
+        if (!mounted) return;
         NotificationService.showSuccess(context, 'Transaction prepared successfully');
       } else {
         throw Exception('Failed to prepare transaction');
       }
     } catch (e) {
-      if (mounted) {
-        NotificationService.showError(context, 'Send failed: $e');
-      }
+      if (!mounted) return;
+      NotificationService.showError(context, 'Send failed: $e');
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (!mounted) return;
+      setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.colorScheme;
     final text = theme.textTheme;
 
     return GradientScaffold(
@@ -100,71 +98,86 @@ class _SendScreenState extends State<SendScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      child: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            physics: const BouncingScrollPhysics(),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: constraints.maxHeight,
+              ),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Select Asset
-                  Text('Select Asset', style: text.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 12),
-                  _buildAssetSelector(context),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 20),
+                      // Select Asset
+                      Text('Select Asset', style: text.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 12),
+                      _buildAssetSelector(context),
 
-                  const SizedBox(height: 32),
+                      const SizedBox(height: 32),
 
-                  // Recipient
-                  Text('Recipient Address', style: text.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _addressController,
-                    decoration: InputDecoration(
-                      hintText: 'Enter 0x address',
-                      prefixIcon: const Icon(Icons.account_balance_wallet_outlined),
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.qr_code_scanner_rounded),
-                        onPressed: () {}, // TODO: Scan QR
+                      // Recipient
+                      Text('Recipient Address', style: text.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _addressController,
+                        decoration: InputDecoration(
+                          hintText: 'Enter 0x address',
+                          prefixIcon: const Icon(Icons.account_balance_wallet_outlined),
+                          suffixIcon: IconButton(
+                            icon: const Icon(Icons.qr_code_scanner_rounded),
+                            onPressed: () {}, // TODO: Scan QR
+                          ),
+                        ),
                       ),
-                    ),
+
+                      const SizedBox(height: 32),
+
+                      // Amount
+                      Text('Amount', style: text.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _amountController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        style: text.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                        decoration: InputDecoration(
+                          hintText: '0.00',
+                          suffixText: _selectedToken?.symbol ?? '',
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 48),
+
+                      SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: FilledButton(
+                          onPressed: _isLoading ? null : _handleSend,
+                          child: _isLoading 
+                            ? const CircularProgressIndicator(color: Colors.white)
+                            : const Text('Review Transaction', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
                   ),
-
-                  const SizedBox(height: 32),
-
-                  // Amount
-                  Text('Amount', style: text.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _amountController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    style: text.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-                    decoration: InputDecoration(
-                      hintText: '0.00',
-                      suffixText: _selectedToken?.symbol ?? '',
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 48),
-
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: FilledButton(
-                      onPressed: _isLoading ? null : _handleSend,
-                      child: _isLoading 
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text('Review Transaction', style: TextStyle(fontWeight: FontWeight.bold)),
-                    ),
+                  Column(
+                    children: [
+                      const SizedBox(height: 32),
+                      const GriotBannerAd(),
+                      const SizedBox(height: 32),
+                    ],
                   ),
                 ],
               ),
             ),
-          ),
-          const GriotBannerAd(),
-          const SizedBox(height: 16),
-        ],
+          );
+        },
       ),
     );
   }

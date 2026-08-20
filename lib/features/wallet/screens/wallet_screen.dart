@@ -14,6 +14,7 @@ import '../widgets/token_list.dart';
 import '../widgets/wallet_loading.dart';
 import '../utils/wallet_formatters.dart';
 import '../utils/wallet_layout_utils.dart';
+import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../core/ui/widgets/ad_carousel.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/services/navigation_scroll_service.dart';
@@ -62,11 +63,10 @@ class _WalletScreenState extends State<WalletScreen> {
     return Consumer<WalletProvider>(
       builder: (context, provider, child) {
         if (provider.isLoading && provider.wallet == null) {
-          return const Scaffold(body: WalletLoading());
+          return const WalletLoading();
         }
 
-        return Scaffold(
-          backgroundColor: theme.scaffoldBackgroundColor,
+        return GradientScaffold(
           appBar: AppBar(
             title: Text(
               'Wallet',
@@ -80,7 +80,27 @@ class _WalletScreenState extends State<WalletScreen> {
             scrolledUnderElevation: 0,
             surfaceTintColor: Colors.transparent,
           ),
-          body: RefreshIndicator(
+          floatingActionButton: SafeArea(
+            minimum: const EdgeInsets.only(right: 4, bottom: 18),
+            child: FloatingActionButton.extended(
+              heroTag: 'easy_buy_fab',
+              backgroundColor: colors.primary,
+              foregroundColor: colors.onPrimary,
+              elevation: 6,
+              tooltip: 'Buy crypto',
+              onPressed: () => openEasyBuySheet(context),
+              icon: const Icon(Icons.shopping_cart_outlined),
+              label: const Text(
+                'Buy',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+          floatingActionButtonLocation: const RaisedEndFloatLocation(
+            bottomDistance: 82,
+            rightDistance: 16,
+          ),
+          child: RefreshIndicator(
             onRefresh: provider.loadWallet,
             displacement: 30,
             edgeOffset: 0,
@@ -153,26 +173,6 @@ class _WalletScreenState extends State<WalletScreen> {
                 ),
               ],
             ),
-          ),
-          floatingActionButton: SafeArea(
-            minimum: const EdgeInsets.only(right: 4, bottom: 18),
-            child: FloatingActionButton.extended(
-              heroTag: 'easy_buy_fab',
-              backgroundColor: colors.primary,
-              foregroundColor: colors.onPrimary,
-              elevation: 6,
-              tooltip: 'Buy crypto',
-              onPressed: () => openEasyBuySheet(context),
-              icon: const Icon(Icons.shopping_cart_outlined),
-              label: const Text(
-                'Buy',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ),
-          floatingActionButtonLocation: const RaisedEndFloatLocation(
-            bottomDistance: 82,
-            rightDistance: 16,
           ),
         );
       },
@@ -346,7 +346,7 @@ class _AdSpace extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         GriotAdCarousel(
-          height: 300, // Increased to 300 to support the Medium template for video compliance
+          height: 360, // Increased to 360 for better native ad proportions
           items: [
             CarouselItem(
               type: CarouselItemType.feature,
