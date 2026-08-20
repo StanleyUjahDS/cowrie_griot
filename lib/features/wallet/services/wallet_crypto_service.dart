@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:wallet/wallet.dart' as wallet;
@@ -7,165 +8,65 @@ import 'package:web3dart/web3dart.dart' as web3;
 class WalletCryptoService {
   static const String derivationPath = "m/44'/60'/0'/0/0";
 
-  // ============================================================
-  // CREATE WALLET
-  // ============================================================
-
   Future<WalletData> createWallet() async {
-    return compute(
-      _createWalletIsolate,
-      null,
-    );
+    return compute(_createWalletIsolate, null);
   }
 
-  // ============================================================
-  // RESTORE WALLET
-  // ============================================================
-
-  Future<WalletData> restoreWallet(
-      String mnemonic,
-      ) async {
+  Future<WalletData> restoreWallet(String mnemonic) async {
     final normalizedMnemonic = mnemonic
         .trim()
         .replaceAll(RegExp(r'\s+'), ' ')
         .toLowerCase();
 
     if (normalizedMnemonic.isEmpty) {
-      throw Exception(
-        'Mnemonic phrase cannot be empty.',
-      );
+      throw Exception('Mnemonic phrase cannot be empty.');
     }
 
-    return compute(
-      _restoreWalletIsolate,
-      normalizedMnemonic,
-    );
+    return compute(_restoreWalletIsolate, normalizedMnemonic);
   }
 
-  // ============================================================
-  // ISOLATE: CREATE
-  // ============================================================
-
-  static WalletData _createWalletIsolate(
-      dynamic _,
-      ) {
-    final mnemonicWords = wallet.generateMnemonic(
-      strength: 128,
-    );
-
+  static WalletData _createWalletIsolate(dynamic _) {
+    final mnemonicWords = wallet.generateMnemonic(strength: 128);
     final mnemonic = mnemonicWords.join(' ');
-
     return _fromMnemonic(mnemonic);
   }
 
-  // ============================================================
-  // ISOLATE: RESTORE
-  // ============================================================
-
-  static WalletData _restoreWalletIsolate(
-      String mnemonic,
-      ) {
+  static WalletData _restoreWalletIsolate(String mnemonic) {
     final words = mnemonic.split(' ');
 
     if (!wallet.validateMnemonic(words)) {
-      throw Exception(
-        'Invalid mnemonic phrase.',
-      );
+      throw Exception('Invalid mnemonic phrase.');
     }
 
     return _fromMnemonic(mnemonic);
   }
 
-  // ============================================================
-  // DERIVE WALLET
-  // ============================================================
-
-  static WalletData _fromMnemonic(
-      String mnemonic,
-      ) {
+  static WalletData _fromMnemonic(String mnemonic) {
     final words = mnemonic.split(' ');
+    final seed = wallet.mnemonicToSeed(words);
 
-    // ----------------------------------------------------------
-    // BIP-39
-    // ----------------------------------------------------------
-
-    final seed = wallet.mnemonicToSeed(
-      words,
-    );
-
-    // ----------------------------------------------------------
-    // BIP-32
-    // ----------------------------------------------------------
-
-    final master =
-    wallet.ExtendedPrivateKey.master(
+    final master = wallet.ExtendedPrivateKey.master(
       seed,
       wallet.xprv,
     );
 
-    // ----------------------------------------------------------
-    // BIP-44
-    // ----------------------------------------------------------
-
-    final derived = master.forPath(
-      derivationPath,
-    );
+    final derived = master.forPath(derivationPath);
 
     if (derived is! wallet.ExtendedPrivateKey) {
-      throw Exception(
-        'Failed to derive Ethereum private key.',
-      );
+      throw Exception('Failed to derive Ethereum private key.');
     }
 
-    // ----------------------------------------------------------
-    // PRIVATE KEY
-    // ----------------------------------------------------------
-
-    final privateKey = wallet.PrivateKey(
-      derived.key,
-    );
-
-    // ----------------------------------------------------------
-    // PUBLIC KEY
-    // ----------------------------------------------------------
-
-    final publicKey =
-    wallet.ethereum.createPublicKey(
-      privateKey,
-    );
-
-    // ----------------------------------------------------------
-    // ADDRESS
-    // ----------------------------------------------------------
-
-    final address =
-    wallet.ethereum.createAddress(
-      publicKey,
-    );
-
-    // ----------------------------------------------------------
-    // HEX
-    // ----------------------------------------------------------
-
-    final privateKeyHex = _bigIntToHex(
-      privateKey.value,
-    );
-
-    final publicKeyHex = _bytesToHex(
-      publicKey.value,
-    );
+    final privateKey = wallet.PrivateKey(derived.key);
+    final publicKey = wallet.ethereum.createPublicKey(privateKey);
+    final address = wallet.ethereum.createAddress(publicKey);
 
     return WalletData(
       mnemonic: mnemonic,
-      privateKey: privateKeyHex,
-      publicKey: publicKeyHex,
+      privateKey: _bigIntToHex(privateKey.value),
+      publicKey: _bytesToHex(publicKey.value),
       address: address,
     );
   }
-
-  // ============================================================
-  // SIGN MESSAGE
-  // ============================================================
 
   String signMessage({
     required String privateKey,
@@ -173,38 +74,22 @@ class WalletCryptoService {
   }) {
     final normalizedPrivateKey = privateKey
         .trim()
-        .replaceFirst(
-      RegExp(r'^0x'),
-      '',
-    );
+        .replaceFirst(RegExp(r'^0x'), '');
 
-    if (!RegExp(
-      r'^[a-fA-F0-9]{64}$',
-    ).hasMatch(normalizedPrivateKey)) {
-      throw Exception(
-        'Invalid Ethereum private key.',
-      );
-    }
+    _validatePrivateKey(normalizedPrivateKey);
 
-    final credentials =
-    web3.EthPrivateKey.fromHex(
+    final credentials = web3.EthPrivateKey.fromHex(
       normalizedPrivateKey,
     );
 
-    final messageBytes =
-    Uint8List.fromList(
-      utf8.encode(message),
-    );
-
-    final signature =
-    credentials.signPersonalMessageToUint8List(
+    final messageBytes = Uint8List.fromList(utf8.encode(message));
+    final signature = credentials.signPersonalMessageToUint8List(
       messageBytes,
     );
 
     if (signature.length != 65) {
       throw Exception(
-        'Invalid Ethereum signature length: '
-            '${signature.length}. Expected 65 bytes.',
+        'Invalid Ethereum signature length: ${signature.length}. Expected 65 bytes.',
       );
     }
 
@@ -212,55 +97,68 @@ class WalletCryptoService {
   }
 
   // ============================================================
-  // VALIDATE ADDRESS
+  // SIGN NATIVE TRANSACTION
   // ============================================================
 
-  bool isValidAddress(
-      String address,
-      ) {
-    return RegExp(
-      r'^0x[a-fA-F0-9]{40}$',
-    ).hasMatch(
-      address.trim(),
+  Future<String> signNativeTransaction({
+    required String privateKey,
+    required String to,
+    required String valueRaw,
+    required int nonce,
+    required String gasLimit,
+    required String gasPrice,
+    required int chainId,
+  }) async {
+    final normalizedPrivateKey = privateKey
+        .trim()
+        .replaceFirst(RegExp(r'^0x'), '');
+
+    _validatePrivateKey(normalizedPrivateKey);
+
+    final credentials = web3.EthPrivateKey.fromHex(
+      normalizedPrivateKey,
     );
+
+    final transaction = web3.Transaction(
+      to: web3.EthereumAddress.fromHex(to),
+      value: web3.EtherAmount.inWei(BigInt.parse(valueRaw)),
+      nonce: nonce,
+      gasPrice: web3.EtherAmount.inWei(BigInt.parse(gasPrice)),
+      maxGas: int.parse(gasLimit),
+    );
+
+    final signed = await credentials.signTransaction(
+      transaction,
+      chainId: chainId,
+    );
+
+    return '0x${_bytesToHex(signed)}';
   }
 
-  // ============================================================
-  // BIGINT -> HEX
-  // ============================================================
-
-  static String _bigIntToHex(
-      BigInt value,
-      ) {
-    return value
-        .toRadixString(16)
-        .padLeft(64, '0');
+  bool isValidAddress(String address) {
+    return RegExp(r'^0x[a-fA-F0-9]{40}$').hasMatch(address.trim());
   }
 
-  // ============================================================
-  // BYTES -> HEX
-  // ============================================================
+  static void _validatePrivateKey(String privateKey) {
+    if (!RegExp(r'^[a-fA-F0-9]{64}$').hasMatch(privateKey)) {
+      throw Exception('Invalid Ethereum private key.');
+    }
+  }
 
-  static String _bytesToHex(
-      Uint8List bytes,
-      ) {
+  static String _bigIntToHex(BigInt value) {
+    return value.toRadixString(16).padLeft(64, '0');
+  }
+
+  static String _bytesToHex(Uint8List bytes) {
     final buffer = StringBuffer();
 
     for (final byte in bytes) {
-      buffer.write(
-        byte
-            .toRadixString(16)
-            .padLeft(2, '0'),
-      );
+      buffer.write(byte.toRadixString(16).padLeft(2, '0'));
     }
 
     return buffer.toString();
   }
 }
-
-// ============================================================
-// WALLET DATA
-// ============================================================
 
 class WalletData {
   final String mnemonic;
