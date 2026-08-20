@@ -22,6 +22,9 @@ class SwapScreen extends StatefulWidget {
 }
 
 class _SwapScreenState extends State<SwapScreen> {
+  static const String _nativeTokenAddress =
+      '0x0000000000000000000000000000000000000000';
+
   TokenModel? _fromToken;
   TokenModel? _toToken;
   final _amountController = TextEditingController();
@@ -50,19 +53,29 @@ class _SwapScreenState extends State<SwapScreen> {
     final fromAddress = wallet?.address;
 
     if (fromAddress == null || fromAddress.isEmpty) {
-      NotificationService.showError(
-        context,
-        'Wallet address is not available',
-      );
+      NotificationService.showError(context, 'Wallet address is not available');
       return;
     }
 
-    if (_fromToken!.contractAddress.isEmpty ||
-        _toToken!.contractAddress.isEmpty) {
-      NotificationService.showError(
-        context,
-        'Swap token address is not available',
-      );
+    final fromToken = _fromToken!;
+    final toToken = _toToken!;
+
+    final fromTokenAddress = fromToken.isNative
+        ? _nativeTokenAddress
+        : fromToken.contractAddress;
+    final toTokenAddress = toToken.isNative
+        ? _nativeTokenAddress
+        : toToken.contractAddress;
+
+    if (fromTokenAddress.isEmpty || toTokenAddress.isEmpty) {
+      NotificationService.showError(context, 'Swap token address is not available');
+      return;
+    }
+
+    final fromAmount = _toBaseUnits(amount, fromToken.decimals);
+
+    if (fromAmount == null || fromAmount == '0') {
+      NotificationService.showError(context, 'Enter a valid swap amount');
       return;
     }
 
@@ -71,11 +84,11 @@ class _SwapScreenState extends State<SwapScreen> {
     try {
       final api = context.read<SwapApiService>();
       final quote = await api.getQuote(
-        fromChain: _fromToken!.chain,
-        toChain: _toToken!.chain,
-        fromToken: _fromToken!.contractAddress,
-        toToken: _toToken!.contractAddress,
-        fromAmount: amount,
+        fromChain: fromToken.chain,
+        toChain: toToken.chain,
+        fromToken: fromTokenAddress,
+        toToken: toTokenAddress,
+        fromAmount: fromAmount,
         fromAddress: fromAddress,
       );
 
@@ -91,6 +104,31 @@ class _SwapScreenState extends State<SwapScreen> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  String? _toBaseUnits(String value, int decimals) {
+    final normalized = value.trim();
+    if (normalized.isEmpty || decimals < 0) return null;
+
+    final parts = normalized.split('.');
+    if (parts.length > 2) return null;
+
+    final whole = parts[0].isEmpty ? '0' : parts[0];
+    final fraction = parts.length == 2 ? parts[1] : '';
+
+    if (!RegExp(r'^\d+$').hasMatch(whole) ||
+        (fraction.isNotEmpty && !RegExp(r'^\d+$').hasMatch(fraction))) {
+      return null;
+    }
+
+    if (fraction.length > decimals) return null;
+
+    final paddedFraction = fraction.padRight(decimals, '0');
+    final raw = '$whole$paddedFraction'.replaceFirst(RegExp(r'^0+(?=\d)'), '');
+
+    if (!RegExp(r'^\d+$').hasMatch(raw)) return null;
+
+    return raw;
   }
 
   @override
@@ -138,14 +176,11 @@ class _SwapScreenState extends State<SwapScreen> {
                     isReadOnly: true,
                     value: _quote?['toAmount']?.toString() ?? '0.00',
                   ),
-                  
                   if (_quote != null) ...[
                     const SizedBox(height: 24),
                     _buildQuoteDetails(context),
                   ],
-
                   const SizedBox(height: 48),
-
                   SizedBox(
                     width: double.infinity,
                     height: 56,
@@ -274,6 +309,7 @@ class _SwapScreenState extends State<SwapScreen> {
   Widget _buildQuoteDetails(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
+    final fee = _quote?['fee'];
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -283,11 +319,19 @@ class _SwapScreenState extends State<SwapScreen> {
       ),
       child: Column(
         children: [
-          _quoteRow(context, 'Rate', '1 ${_fromToken?.symbol} = ${_quote!['rate']} ${_toToken?.symbol}'),
+          _quoteRow(context, 'Provider', _quote?['provider']?.toString() ?? '-'),
           const SizedBox(height: 8),
-          _quoteRow(context, 'Price Impact', '${_quote!['priceImpact']}%', isWarning: true),
+          _quoteRow(context, 'Type', _quote?['type']?.toString() ?? '-'),
           const SizedBox(height: 8),
-          _quoteRow(context, 'Estimated Fee', '\$${_quote!['feeUsd']}'),
+          _quoteRow(
+            context,
+            'Swap Fee',
+            fee is Map<String, dynamic> ? '${fee['percent'] ?? 0}%' : '-',
+          ),
+          if (fee is Map<String, dynamic> && fee['amount'] != null) ...[
+            const SizedBox(height: 8),
+            _quoteRow(context, 'Fee Amount', fee['amount'].toString()),
+          ],
         ],
       ),
     );
