@@ -381,12 +381,16 @@ class AssetDetailsScreen extends StatelessWidget {
                           children: [
                             Text(
                               item.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                                     fontWeight: FontWeight.w600,
                                   ),
                             ),
                             Text(
                               item.subtitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                     color: colors.onSurfaceVariant,
                                   ),

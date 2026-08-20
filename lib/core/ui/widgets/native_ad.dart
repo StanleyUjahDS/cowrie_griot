@@ -107,7 +107,7 @@ class _GriotNativeAdState extends State<GriotNativeAd> {
 
     final Color borderColor = colorScheme.outline.withValues(alpha: isDark ? 0.20 : 0.12);
 
-    // 340dp is the "Industry Standard" height for Medium templates on Android.
+    // Height 340dp is the "Premium" height for Medium templates on Android.
     const double adHeight = 340;
 
     // Placeholder/Loading state
@@ -126,15 +126,45 @@ class _GriotNativeAdState extends State<GriotNativeAd> {
       );
     }
 
-    // THE ABSOLUTE COMPLIANCE FIX:
-    // 1. We remove ALL decorations, margins, and clipping.
-    // 2. We use a simple SizedBox with an integer height.
-    // 3. We let the AdWidget breathe with NO parent boundaries.
-    // 4. This is the only 100% reliable way to pass "asset outside boundaries" checks.
-    return SizedBox(
+    // THE PREMIUM COMPLIANCE STACK:
+    // 1. Background Card with Nice Border and Shadow.
+    // 2. Large 12pt padding to ensure NO AdMob assets are near the border.
+    // 3. AdWidget remains unclipped by parent boundaries.
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       height: adHeight,
-      width: double.infinity,
-      child: AdWidget(ad: _nativeAd!),
+      child: Stack(
+        children: [
+          // Nice Background Card
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: borderColor,
+                  width: 1.0,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          // The Ad (Unclipped safety layer)
+          Positioned.fill(
+            child: Padding(
+              padding: const EdgeInsets.all(12), 
+              child: AdWidget(ad: _nativeAd!),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

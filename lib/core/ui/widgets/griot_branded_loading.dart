@@ -26,93 +26,95 @@ class GriotBrandedLoading extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     final content = Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          children: [
-            const Spacer(),
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Animation Stack (Exact match of AppLoadingScreen)
+              _buildAnimation(context),
 
-            // Animation Stack (Exact match of AppLoadingScreen)
-            _buildAnimation(context),
+              const SizedBox(height: 28),
 
-            const SizedBox(height: 28),
-
-            // Brand
-            Text(
-              'Griot',
-              style: textTheme.displaySmall?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            )
-                .animate()
-                .fadeIn(duration: 700.ms)
-                .slideY(begin: 0.15, end: 0, duration: 700.ms, curve: Curves.easeOut),
-
-            const SizedBox(height: 6),
-
-            Text(
-              'By Cowrie',
-              style: textTheme.titleSmall?.copyWith(
-                color: colorScheme.primary,
-                fontStyle: FontStyle.italic,
-                fontWeight: FontWeight.w600,
-              ),
-            ).animate().fadeIn(delay: 150.ms, duration: 700.ms),
-
-            const Spacer(),
-
-            // Status
-            Column(
-              children: [
-                const GriotLoader(size: 40, strokeWidth: 3.5),
-                const SizedBox(height: 22),
-                if (title != null) ...[
-                  Text(
-                    title!,
-                    textAlign: TextAlign.center,
-                    style: textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ).animate().fadeIn(duration: 500.ms),
-                  const SizedBox(height: 8),
-                ],
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.onSurface.withValues(alpha: 0.65),
-                    height: 1.45,
-                  ),
-                ).animate().fadeIn(duration: 500.ms).slideY(begin: 0.12, end: 0, duration: 500.ms, curve: Curves.easeOut),
-              ],
-            ),
-
-            const SizedBox(height: 30),
-
-            // Security Message
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.lock_outline_rounded,
-                  size: 15,
-                  color: colorScheme.onSurface.withValues(alpha: 0.40),
+              // Brand
+              Text(
+                'Griot',
+                style: textTheme.displaySmall?.copyWith(
+                  fontWeight: FontWeight.w700,
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  'Please keep this screen open',
-                  style: textTheme.bodySmall?.copyWith(
+              )
+                  .animate()
+                  .fadeIn(duration: 700.ms)
+                  .slideY(begin: 0.15, end: 0, duration: 700.ms, curve: Curves.easeOut),
+
+              const SizedBox(height: 6),
+
+              Text(
+                'By Cowrie',
+                style: textTheme.titleSmall?.copyWith(
+                  color: colorScheme.primary,
+                  fontStyle: FontStyle.italic,
+                  fontWeight: FontWeight.w600,
+                ),
+              ).animate().fadeIn(delay: 150.ms, duration: 700.ms),
+
+              const SizedBox(height: 48),
+
+              // Status
+              Column(
+                children: [
+                  const GriotLoader(size: 40, strokeWidth: 3.5),
+                  const SizedBox(height: 22),
+                  if (title != null) ...[
+                    Text(
+                      title!,
+                      textAlign: TextAlign.center,
+                      style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ).animate().fadeIn(duration: 500.ms),
+                    const SizedBox(height: 8),
+                  ],
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurface.withValues(alpha: 0.65),
+                      height: 1.45,
+                    ),
+                  ).animate().fadeIn(duration: 500.ms).slideY(begin: 0.12, end: 0, duration: 500.ms, curve: Curves.easeOut),
+                ],
+              ),
+
+              const SizedBox(height: 30),
+
+              // Security Message
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.lock_outline_rounded,
+                    size: 15,
                     color: colorScheme.onSurface.withValues(alpha: 0.40),
                   ),
-                ),
-              ],
-            ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Please keep this screen open',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurface.withValues(alpha: 0.40),
+                    ),
+                  ),
+                ],
+              ),
 
-            const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-            // Bottom Spacer / Navigation Bar Compensation
-            if (avoidBottomNav) const SizedBox(height: 80),
-          ],
+              // Bottom Spacer / Navigation Bar Compensation
+              if (avoidBottomNav) const SizedBox(height: 80),
+            ],
+          ),
         ),
       ),
     );

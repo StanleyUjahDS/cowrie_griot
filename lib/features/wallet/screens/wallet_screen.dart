@@ -346,7 +346,7 @@ class _AdSpace extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         GriotAdCarousel(
-          height: 340, // Increased to 340 to match the Medium template requirements
+          height: 300, // Increased to 300 to support the Medium template for video compliance
           items: [
             CarouselItem(
               type: CarouselItemType.feature,

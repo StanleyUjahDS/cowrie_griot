@@ -78,9 +78,7 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
         },
       ),
       nativeTemplateStyle: NativeTemplateStyle(
-        // Switching to MEDIUM template to comfortably pass the 120x120 MediaView requirement.
-        // In Medium, the MediaView is at the top and scales to the full width (~350dp),
-        // easily satisfying the video ad policy.
+        // MEDIUM template satisfies the 120x120 MediaView requirement.
         templateType: TemplateType.medium,
         mainBackgroundColor: colorScheme.surface,
         cornerRadius: 0.0,
@@ -98,12 +96,12 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
         secondaryTextStyle: NativeTemplateTextStyle(
           textColor: colorScheme.onSurfaceVariant,
           style: NativeTemplateFontStyle.normal,
-          size: 11.0,
+          size: 10.0, // Small to prevent "Outside box" errors
         ),
         tertiaryTextStyle: NativeTemplateTextStyle(
           textColor: colorScheme.onSurfaceVariant,
           style: NativeTemplateFontStyle.normal,
-          size: 11.0,
+          size: 10.0, // Small to prevent "Outside box" errors
         ),
       ),
     ).load();
@@ -162,10 +160,11 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
           ),
           
           // Ad Widget (UNCLIPPED to satisfy validator)
-          // We use 0.5pt padding just to keep it off the very edge of the border.
+          // We use 14pt internal padding to ensure "Ad" badge and "i" icon 
+          // are well within the card boundaries, fixing the "outside box" error.
           Positioned.fill(
             child: Padding(
-              padding: const EdgeInsets.all(0.5), 
+              padding: const EdgeInsets.all(14), 
               child: ad != null
                   ? AdWidget(ad: ad)
                   : const Center(
@@ -245,6 +244,8 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
                                   ),
                                   child: Text(
                                     'FEATURE',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                     style: textTheme.labelSmall?.copyWith(
                                       color: Colors.white,
                                       fontWeight: FontWeight.w800,
@@ -255,6 +256,8 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
                                 const SizedBox(height: 12),
                                 Text(
                                   item.title ?? '',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: textTheme.titleLarge?.copyWith(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w800,
@@ -264,6 +267,8 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
                                 const SizedBox(height: 4),
                                 Text(
                                   item.subtitle ?? '',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                   style: textTheme.bodyMedium?.copyWith(
                                     color: Colors.white.withValues(alpha: 0.85),
                                     fontWeight: FontWeight.w500,
