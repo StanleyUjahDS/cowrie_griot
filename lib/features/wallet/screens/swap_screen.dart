@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/token_model.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
+import '../../../core/ui/widgets/banner_ad.dart';
 
 class SwapScreen extends StatefulWidget {
   final TokenModel? initialFromToken;
@@ -24,8 +25,16 @@ class _SwapScreenState extends State<SwapScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      child: const Center(
-        child: Text('Swap Feature Coming Soon'),
+      child: const Column(
+        children: [
+          Expanded(
+            child: Center(
+              child: Text('Swap Feature Coming Soon'),
+            ),
+          ),
+          GriotBannerAd(),
+          SizedBox(height: 16),
+        ],
       ),
     );
   }

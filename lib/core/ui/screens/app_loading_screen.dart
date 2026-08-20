@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../scaffolds/gradient_scaffold.dart';
 import '../widgets/griot_loader.dart';
+import '../widgets/griot_branded_loading.dart';
 
 // ============================================================
 // TYPES
@@ -334,7 +335,7 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
                   ),
 
                   const SizedBox(
-                    height: 24,
+                    height: 60,
                   ),
                 ],
               ),
@@ -554,7 +555,7 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
         'loading',
       ),
       children: [
-        const GriotLoader(
+        GriotLoader(
           size: 40,
           strokeWidth: 3.5,
         ),

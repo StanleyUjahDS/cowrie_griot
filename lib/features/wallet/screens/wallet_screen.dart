@@ -14,7 +14,7 @@ import '../widgets/token_list.dart';
 import '../widgets/wallet_loading.dart';
 import '../utils/wallet_formatters.dart';
 import '../utils/wallet_layout_utils.dart';
-import '../../../core/ui/widgets/native_ad.dart';
+import '../../../core/ui/widgets/ad_carousel.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/services/navigation_scroll_service.dart';
 
@@ -321,13 +321,13 @@ class _AdSpace extends StatelessWidget {
 
     return Column(
       children: [
-        const SizedBox(height: 64), // Increased from 32 to move it lower
+        const SizedBox(height: 64),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 18),
           child: Row(
             children: [
               Text(
-                'Promoted',
+                'Griot Discovery',
                 style: text.labelSmall?.copyWith(
                   fontWeight: FontWeight.w800,
                   color: colors.onSurfaceVariant.withValues(alpha: 0.6),
@@ -344,9 +344,45 @@ class _AdSpace extends StatelessWidget {
             ],
           ),
         ),
-        const Padding(
-          padding: EdgeInsets.fromLTRB(14, 16, 14, 10),
-          child: GriotNativeAd(),
+        const SizedBox(height: 8),
+        GriotAdCarousel(
+          height: 340, // Increased to 340 to match the Medium template requirements
+          items: [
+            CarouselItem(
+              type: CarouselItemType.feature,
+              title: 'Start Mining',
+              subtitle: 'Earn Griot points daily',
+              icon: Icons.bolt_rounded,
+              onTap: () => context.go('/miner'),
+            ),
+            CarouselItem(
+              type: CarouselItemType.ad,
+            ),
+            CarouselItem(
+              type: CarouselItemType.feature,
+              title: 'Private Chat',
+              subtitle: 'Secure end-to-end messaging',
+              icon: Icons.chat_bubble_rounded,
+              onTap: () => context.go('/chat'),
+            ),
+            CarouselItem(
+              type: CarouselItemType.feature,
+              title: 'P2P Trading',
+              subtitle: 'Secure local trade offers',
+              icon: Icons.swap_horiz_rounded,
+              onTap: () => context.go('/p2p'),
+            ),
+            CarouselItem(
+              type: CarouselItemType.ad,
+            ),
+            CarouselItem(
+              type: CarouselItemType.feature,
+              title: 'Refer & Earn',
+              subtitle: 'Invite friends for rewards',
+              icon: Icons.people_rounded,
+              onTap: () => context.push('/settings/user-details'),
+            ),
+          ],
         ),
       ],
     );

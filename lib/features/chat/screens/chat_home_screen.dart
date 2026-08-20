@@ -11,7 +11,7 @@ import '../models/message_request.dart';
 import '../models/chat_group.dart';
 import '../models/chat_channel.dart';
 
-import '../../../core/ui/widgets/shimmer_loading.dart';
+import '../../../core/ui/widgets/griot_loader.dart';
 import '../widgets/chat_list_item.dart';
 import '../widgets/chat_loading.dart';
 import '../widgets/group_list_item.dart' as group_widgets;
@@ -1724,10 +1724,11 @@ class _NewChatSheetState
 
             Expanded(
               child: isSearching
-                  ? const ShimmerList(
-                      padding: 20,
-                      topPadding: 10,
-                      itemCount: 5,
+                  ? const Center(
+                      child: GriotLoader(
+                        size: 40,
+                        strokeWidth: 3.5,
+                      ),
                     )
                   : results.isEmpty
                   ? const _EmptyState(

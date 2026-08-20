@@ -1627,9 +1627,7 @@ class _MessageBubble
               : Border.all(
             color: colorScheme
                 .outline
-                .withOpacity(isDark
-                  ? 0.15
-                  : 0.20),
+                .withValues(alpha: isDark ? 0.15 : 0.20),
           ),
           boxShadow: isMe
               ? [

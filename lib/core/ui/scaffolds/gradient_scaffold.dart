@@ -59,10 +59,8 @@ class GradientScaffold extends StatelessWidget {
                   alignment:
                   Alignment.topCenter,
 
-                  color: colors.onSurface.withOpacity(theme.brightness ==
-                        Brightness.dark
-                        ? 0.06
-                        : 0.025),
+                  color: colors.onSurface.withValues(
+                      alpha: theme.brightness == Brightness.dark ? 0.06 : 0.025),
 
                   colorBlendMode:
                   BlendMode.srcIn,

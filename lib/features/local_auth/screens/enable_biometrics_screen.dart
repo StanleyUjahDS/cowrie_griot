@@ -407,16 +407,12 @@ class _BiometricsScreenState
                           BoxShape.circle,
                           color: colorScheme
                               .primary
-                              .withOpacity(isDark
-                                ? 0.14
-                                : 0.08),
+                              .withValues(alpha: isDark ? 0.14 : 0.08),
                           border:
                           Border.all(
                             color: colorScheme
                                 .primary
-                                .withOpacity(isDark
-                                  ? 0.35
-                                  : 0.25),
+                                .withValues(alpha: isDark ? 0.35 : 0.25),
                             width: 1.5,
                           ),
                         ),

@@ -140,6 +140,10 @@ class _P2PScreenState extends State<P2PScreen> {
     final colors = theme.colorScheme;
     final text = theme.textTheme;
 
+    if (_isLoading) {
+      return const P2PLoading();
+    }
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
 
@@ -216,13 +220,10 @@ class _P2PScreenState extends State<P2PScreen> {
               ),
             ),
 
-            if (_isLoading)
-              const P2PLoading()
-            else
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                    // Show an ad after every 3 items (at index 3, 7, 11...)
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                  // Show an ad after every 3 items (at index 3, 7, 11...)
                     if (index > 0 && (index + 1) % 4 == 0) {
                       return const Padding(
                         padding: EdgeInsets.symmetric(vertical: 20),

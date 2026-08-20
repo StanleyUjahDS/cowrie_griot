@@ -9,6 +9,7 @@ import '../widgets/token_icon.dart';
 import '../utils/wallet_formatters.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/ui/widgets/banner_ad.dart';
 
 class AssetDetailsScreen extends StatelessWidget {
   final TokenModel token;
@@ -240,7 +241,12 @@ class AssetDetailsScreen extends StatelessWidget {
                     const SizedBox(height: 16),
                     _buildEmptyActivity(context),
 
-                    const SizedBox(height: 120),
+                    const SizedBox(height: 48),
+
+                    // Ad Space
+                    const GriotBannerAd(),
+
+                    const SizedBox(height: 80),
                   ],
                 ),
               ),
@@ -315,17 +321,17 @@ class AssetDetailsScreen extends StatelessWidget {
       height: 160,
       width: double.infinity,
       decoration: BoxDecoration(
-        color: colors.surfaceContainerLow.withOpacity(0.5),
+        color: colors.surfaceContainerLow.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: colors.outlineVariant.withOpacity(0.2),
+          color: colors.outlineVariant.withValues(alpha: 0.2),
           style: BorderStyle.solid,
         ),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.history_rounded, size: 32, color: colors.onSurfaceVariant.withOpacity(0.5)),
+          Icon(Icons.history_rounded, size: 32, color: colors.onSurfaceVariant.withValues(alpha: 0.5)),
           const SizedBox(height: 12),
           Text(
             'No transactions yet',

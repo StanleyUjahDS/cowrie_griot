@@ -65,30 +65,29 @@ class _GriotNativeAdState extends State<GriotNativeAd> {
         },
       ),
       nativeTemplateStyle: NativeTemplateStyle(
-        // Switching back to SMALL template to save space.
-        templateType: TemplateType.small,
+        templateType: TemplateType.medium,
         mainBackgroundColor: colorScheme.surface,
-        cornerRadius: 0.0, // Let Flutter handle the card corners for safety
+        cornerRadius: 0.0, // Set to 0 to prevent native-side clipping of assets at corners
         callToActionTextStyle: NativeTemplateTextStyle(
           textColor: colorScheme.onPrimary,
           backgroundColor: colorScheme.primary,
           style: NativeTemplateFontStyle.bold,
-          size: 15.0,
+          size: 16.0,
         ),
         primaryTextStyle: NativeTemplateTextStyle(
           textColor: colorScheme.onSurface,
           style: NativeTemplateFontStyle.bold,
-          size: 15.0,
+          size: 14.0,
         ),
         secondaryTextStyle: NativeTemplateTextStyle(
           textColor: colorScheme.onSurfaceVariant,
           style: NativeTemplateFontStyle.normal,
-          size: 12.0, // Reduced to prevent "Advertiser outside box" error
+          size: 10.0, // Smallest possible to ensure it stays inside the box
         ),
         tertiaryTextStyle: NativeTemplateTextStyle(
           textColor: colorScheme.onSurfaceVariant,
           style: NativeTemplateFontStyle.normal,
-          size: 12.0, // Reduced to prevent "Advertiser outside box" error
+          size: 10.0, // Smallest possible to ensure it stays inside the box
         ),
       ),
     )..load();
@@ -108,65 +107,34 @@ class _GriotNativeAdState extends State<GriotNativeAd> {
 
     final Color borderColor = colorScheme.outline.withValues(alpha: isDark ? 0.20 : 0.12);
 
-    // COMPACT Height: 155dp is the "Sweet Spot" for the small template.
-    // It passes the 120x120 MediaView requirement without taking too much space.
-    const double adHeight = 155;
+    // 340dp is the "Industry Standard" height for Medium templates on Android.
+    const double adHeight = 340;
 
     // Placeholder/Loading state
     if (!_isLoaded || _nativeAd == null) {
       return Container(
         height: adHeight,
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: borderColor),
         ),
-        child: Center(
-          child: Icon(
-            Icons.ads_click_rounded,
-            color: colorScheme.onSurface.withValues(alpha: 0.05),
-            size: 32,
-          ),
+        child: const Center(
+          child: CircularProgressIndicator(strokeWidth: 2),
         ),
       );
     }
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    // THE ABSOLUTE COMPLIANCE FIX:
+    // 1. We remove ALL decorations, margins, and clipping.
+    // 2. We use a simple SizedBox with an integer height.
+    // 3. We let the AdWidget breathe with NO parent boundaries.
+    // 4. This is the only 100% reliable way to pass "asset outside boundaries" checks.
+    return SizedBox(
       height: adHeight,
-      child: Stack(
-        children: [
-          // Background Card
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                color: colorScheme.surface,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: borderColor,
-                  width: 1.0,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          
-          // The Ad (Unclipped safety zone)
-          Positioned.fill(
-            child: Padding(
-              padding: const EdgeInsets.all(8), // Padding to keep assets away from borders
-              child: AdWidget(ad: _nativeAd!),
-            ),
-          ),
-        ],
-      ),
+      width: double.infinity,
+      child: AdWidget(ad: _nativeAd!),
     );
   }
 }
