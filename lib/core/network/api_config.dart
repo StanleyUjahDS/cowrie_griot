@@ -93,12 +93,54 @@ class ApiConfig {
   }
 
   // ============================================================
-  // SWAP
+  // SWAPS
   // ============================================================
 
-  static const String swapBase = '$baseUrl/crypto/swap';
+  static const String swapBase =
+      '$baseUrl/crypto/swap';
 
-  static const String swapQuote = '$swapBase/quote';
+  static const String swapQuote =
+      '$swapBase/quote';
 
-  static const String swapPrepare = '$swapBase/prepare';
+  static String swapStatus({
+    required String transactionId,
+    String? provider,
+    String? fromChain,
+    String? toChain,
+    String? bridge,
+    String? quoteId,
+  }) {
+    final query = <String, String>{
+      'transactionId': transactionId,
+    };
+
+    if (provider != null && provider.isNotEmpty) {
+      query['provider'] = provider;
+    }
+
+    if (fromChain != null && fromChain.isNotEmpty) {
+      query['fromChain'] = fromChain;
+    }
+
+    if (toChain != null && toChain.isNotEmpty) {
+      query['toChain'] = toChain;
+    }
+
+    if (bridge != null && bridge.isNotEmpty) {
+      query['bridge'] = bridge;
+    }
+
+    if (quoteId != null && quoteId.isNotEmpty) {
+      query['quoteId'] = quoteId;
+    }
+
+    return Uri.parse(
+      '$swapBase/status',
+    ).replace(
+      queryParameters: query,
+    ).toString();
+  }
+
+  static const String swapHealth =
+      '$swapBase/health';
 }
