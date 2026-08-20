@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/token_model.dart';
 import '../providers/wallet_provider.dart';
-import '../services/transaction_api_service.dart';
+import '../services/swap_api_service.dart';
 import '../widgets/token_icon.dart';
 import '../utils/wallet_formatters.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
@@ -22,6 +22,9 @@ class SwapScreen extends StatefulWidget {
 }
 
 class _SwapScreenState extends State<SwapScreen> {
+  static const String _nativeTokenAddress =
+      '0x0000000000000000000000000000000000000000';
+
   TokenModel? _fromToken;
   TokenModel? _toToken;
   final _amountController = TextEditingController();
@@ -42,26 +45,90 @@ class _SwapScreenState extends State<SwapScreen> {
 
   Future<void> _getQuote() async {
     if (_fromToken == null || _toToken == null) return;
+
     final amount = _amountController.text.trim();
     if (amount.isEmpty) return;
+
+    final wallet = context.read<WalletProvider>().wallet;
+    final fromAddress = wallet?.address;
+
+    if (fromAddress == null || fromAddress.isEmpty) {
+      NotificationService.showError(context, 'Wallet address is not available');
+      return;
+    }
+
+    final fromToken = _fromToken!;
+    final toToken = _toToken!;
+
+    final fromTokenAddress = fromToken.isNative
+        ? _nativeTokenAddress
+        : fromToken.contractAddress;
+    final toTokenAddress = toToken.isNative
+        ? _nativeTokenAddress
+        : toToken.contractAddress;
+
+    if (fromTokenAddress.isEmpty || toTokenAddress.isEmpty) {
+      NotificationService.showError(context, 'Swap token address is not available');
+      return;
+    }
+
+    final fromAmount = _toBaseUnits(amount, fromToken.decimals);
+
+    if (fromAmount == null || fromAmount == '0') {
+      NotificationService.showError(context, 'Enter a valid swap amount');
+      return;
+    }
 
     setState(() => _isLoading = true);
 
     try {
-      final api = context.read<TransactionApiService>();
-      final quote = await api.getSwapQuote(
-        fromNetwork: _fromToken!.chain,
-        toNetwork: _toToken!.chain,
-        fromTokenAddress: _fromToken!.contractAddress,
-        toTokenAddress: _toToken!.contractAddress,
-        amount: amount,
+      final api = context.read<SwapApiService>();
+      final quote = await api.getQuote(
+        fromChain: fromToken.chain,
+        toChain: toToken.chain,
+        fromToken: fromTokenAddress,
+        toToken: toTokenAddress,
+        fromAmount: fromAmount,
+        fromAddress: fromAddress,
       );
-      setState(() => _quote = quote);
+
+      if (mounted) {
+        setState(() => _quote = quote);
+      }
     } catch (e) {
-      debugPrint('Quote failed: $e');
+      if (mounted) {
+        NotificationService.showError(context, 'Quote failed: $e');
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
+  }
+
+  String? _toBaseUnits(String value, int decimals) {
+    final normalized = value.trim();
+    if (normalized.isEmpty || decimals < 0) return null;
+
+    final parts = normalized.split('.');
+    if (parts.length > 2) return null;
+
+    final whole = parts[0].isEmpty ? '0' : parts[0];
+    final fraction = parts.length == 2 ? parts[1] : '';
+
+    if (!RegExp(r'^\d+$').hasMatch(whole) ||
+        (fraction.isNotEmpty && !RegExp(r'^\d+$').hasMatch(fraction))) {
+      return null;
+    }
+
+    if (fraction.length > decimals) return null;
+
+    final paddedFraction = fraction.padRight(decimals, '0');
+    final raw = '$whole$paddedFraction'.replaceFirst(RegExp(r'^0+(?=\d)'), '');
+
+    if (!RegExp(r'^\d+$').hasMatch(raw)) return null;
+
+    return raw;
   }
 
   @override
@@ -109,24 +176,21 @@ class _SwapScreenState extends State<SwapScreen> {
                     isReadOnly: true,
                     value: _quote?['toAmount']?.toString() ?? '0.00',
                   ),
-                  
                   if (_quote != null) ...[
                     const SizedBox(height: 24),
                     _buildQuoteDetails(context),
                   ],
-
                   const SizedBox(height: 48),
-
                   SizedBox(
                     width: double.infinity,
                     height: 56,
                     child: FilledButton(
-                      onPressed: (_fromToken != null && _toToken != null && !_isLoading) 
-                        ? () => NotificationService.showSuccess(context, 'Swap Initiated') 
-                        : null,
-                      child: _isLoading 
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text('Swap Assets', style: TextStyle(fontWeight: FontWeight.bold)),
+                      onPressed: (_fromToken != null && _toToken != null && !_isLoading)
+                          ? () => NotificationService.showSuccess(context, 'Swap Initiated')
+                          : null,
+                      child: _isLoading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text('Swap Assets', style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
@@ -146,8 +210,8 @@ class _SwapScreenState extends State<SwapScreen> {
       _fromToken = _toToken;
       _toToken = temp;
       _quote = null;
-      _getQuote();
     });
+    _getQuote();
   }
 
   Widget _buildSwapCard(
@@ -188,21 +252,21 @@ class _SwapScreenState extends State<SwapScreen> {
           Row(
             children: [
               Expanded(
-                child: isReadOnly 
-                  ? Text(value ?? '0.00', style: text.headlineMedium?.copyWith(fontWeight: FontWeight.bold))
-                  : TextField(
-                      controller: controller,
-                      onChanged: onChanged,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      style: text.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
-                      decoration: const InputDecoration(
-                        hintText: '0.00',
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        contentPadding: EdgeInsets.zero,
+                child: isReadOnly
+                    ? Text(value ?? '0.00', style: text.headlineMedium?.copyWith(fontWeight: FontWeight.bold))
+                    : TextField(
+                        controller: controller,
+                        onChanged: onChanged,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        style: text.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+                        decoration: const InputDecoration(
+                          hintText: '0.00',
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          contentPadding: EdgeInsets.zero,
+                        ),
                       ),
-                    ),
               ),
               const SizedBox(width: 12),
               InkWell(
@@ -245,6 +309,7 @@ class _SwapScreenState extends State<SwapScreen> {
   Widget _buildQuoteDetails(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
+    final fee = _quote?['fee'];
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -254,11 +319,19 @@ class _SwapScreenState extends State<SwapScreen> {
       ),
       child: Column(
         children: [
-          _quoteRow(context, 'Rate', '1 ${_fromToken?.symbol} = ${_quote!['rate']} ${_toToken?.symbol}'),
+          _quoteRow(context, 'Provider', _quote?['provider']?.toString() ?? '-'),
           const SizedBox(height: 8),
-          _quoteRow(context, 'Price Impact', '${_quote!['priceImpact']}%', isWarning: true),
+          _quoteRow(context, 'Type', _quote?['type']?.toString() ?? '-'),
           const SizedBox(height: 8),
-          _quoteRow(context, 'Estimated Fee', '\$${_quote!['feeUsd']}'),
+          _quoteRow(
+            context,
+            'Swap Fee',
+            fee is Map<String, dynamic> ? '${fee['percent'] ?? 0}%' : '-',
+          ),
+          if (fee is Map<String, dynamic> && fee['amount'] != null) ...[
+            const SizedBox(height: 8),
+            _quoteRow(context, 'Fee Amount', fee['amount'].toString()),
+          ],
         ],
       ),
     );
@@ -272,11 +345,11 @@ class _SwapScreenState extends State<SwapScreen> {
       children: [
         Text(label, style: text.bodySmall?.copyWith(color: colors.onSurfaceVariant)),
         Text(
-          value, 
+          value,
           style: text.bodySmall?.copyWith(
             fontWeight: FontWeight.w600,
             color: isWarning ? Colors.orange : null,
-          )
+          ),
         ),
       ],
     );
