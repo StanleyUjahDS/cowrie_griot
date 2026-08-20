@@ -91,4 +91,14 @@ class ApiConfig {
       queryParameters: query,
     ).toString();
   }
+
+  // ============================================================
+  // SWAP
+  // ============================================================
+
+  static const String swapBase = '$baseUrl/crypto/swap';
+
+  static const String swapQuote = '$swapBase/quote';
+
+  static const String swapPrepare = '$swapBase/prepare';
 }

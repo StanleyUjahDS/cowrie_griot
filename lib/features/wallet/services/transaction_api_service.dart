@@ -106,6 +106,55 @@ class TransactionApiService {
         : {};
   }
 
+  // ============================================================
+  // SWAP
+  // ============================================================
+
+  Future<Map<String, dynamic>> getSwapQuote({
+    required String fromNetwork,
+    required String toNetwork,
+    required String fromTokenAddress,
+    required String toTokenAddress,
+    required String amount,
+  }) async {
+    final response = await _apiClient.get(
+      Uri.parse(ApiConfig.swapQuote).replace(queryParameters: {
+        'fromNetwork': fromNetwork,
+        'toNetwork': toNetwork,
+        'fromTokenAddress': fromTokenAddress,
+        'toTokenAddress': toTokenAddress,
+        'amount': amount,
+      }).toString(),
+    );
+
+    final data = _unwrap(response);
+    return data is Map<String, dynamic> ? Map<String, dynamic>.from(data) : {};
+  }
+
+  Future<Map<String, dynamic>> prepareSwap({
+    required String fromNetwork,
+    required String toNetwork,
+    required String fromTokenAddress,
+    required String toTokenAddress,
+    required String amount,
+    required String slippage,
+  }) async {
+    final response = await _apiClient.post(
+      ApiConfig.swapPrepare,
+      body: {
+        'fromNetwork': fromNetwork,
+        'toNetwork': toNetwork,
+        'fromTokenAddress': fromTokenAddress,
+        'toTokenAddress': toTokenAddress,
+        'amount': amount,
+        'slippage': slippage,
+      },
+    );
+
+    final data = _unwrap(response);
+    return data is Map<String, dynamic> ? Map<String, dynamic>.from(data) : {};
+  }
+
   dynamic _unwrap(dynamic response) {
     if (response is Map<String, dynamic> && response.containsKey('data')) {
       return response['data'];
