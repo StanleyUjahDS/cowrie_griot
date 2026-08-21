@@ -88,6 +88,7 @@ class _SendScreenState extends State<SendScreen> {
     final api = context.read<TransactionApiService>();
     final walletService = context.read<WalletService>();
     final walletProvider = context.read<WalletProvider>();
+    final navigator = Navigator.of(context);
 
     setState(() { _loading = true; _message = 'Preparing...'; });
     try {
@@ -156,10 +157,10 @@ class _SendScreenState extends State<SendScreen> {
       if (mounted) {
         if (status == 'CONFIRMED') {
           NotificationService.showSuccess(context, 'Sent successfully!');
-          Navigator.of(context).pop();
+          navigator.pop();
         } else {
           NotificationService.showInfo(context, 'Transaction pending.');
-          Navigator.of(context).pop();
+          navigator.pop();
         }
       }
     } catch (e) {
@@ -182,24 +183,29 @@ class _SendScreenState extends State<SendScreen> {
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-        decoration: BoxDecoration(color: colors.surface, borderRadius: const BorderRadius.vertical(top: Radius.circular(32))),
+        decoration: BoxDecoration(color: colors.surface, borderRadius: const BorderRadius.vertical(top: Radius.circular(36))),
         child: SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(width: 42, height: 4, decoration: BoxDecoration(color: colors.outlineVariant.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(4))),
-          const SizedBox(height: 24),
-          const Text('Review Transaction', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 24),
-          TokenIcon(imageUrl: token.imageUrl, symbol: token.symbol, name: token.name, chainName: token.chain, isNative: token.isNative, radius: 24),
-          const SizedBox(height: 12),
-          Text('${WalletFormatters.formatBalance(amount)} ${token.symbol}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 4),
-          Text('${recipient.substring(0, 8)}…${recipient.substring(36)}', style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.5), fontSize: 13)),
-          const SizedBox(height: 24),
+          Container(width: 42, height: 4, decoration: BoxDecoration(color: colors.outlineVariant.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 28),
+          const Text('Review Transaction', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 32),
+          TokenIcon(imageUrl: token.imageUrl, symbol: token.symbol, name: token.name, chainName: token.chain, isNative: token.isNative, radius: 28),
+          const SizedBox(height: 16),
+          Text('${WalletFormatters.formatBalance(amount)} ${token.symbol}', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(color: colors.surfaceContainerHighest.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(10)),
+            child: Text('${recipient.substring(0, 8)}…${recipient.substring(32)}', style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.8), fontSize: 13, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+          ),
+          const SizedBox(height: 32),
           _row('Network', token.chain.toUpperCase()),
-          _row('Fee', feeNative == null ? '—' : '${feeNative.toStringAsFixed(6)} ${native?.symbol ?? ''}'),
+          _row('Est. Fee', feeNative == null ? '—' : '${feeNative.toStringAsFixed(6)} ${native?.symbol ?? ''}'),
           if (feeUsd != null) _row('Value', WalletFormatters.formatCurrency(feeUsd)),
           const SizedBox(height: 32),
-          SizedBox(width: double.infinity, height: 56, child: FilledButton(onPressed: () => Navigator.pop(context, true), style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))), child: const Text('Confirm & Send', style: TextStyle(fontWeight: FontWeight.w800)))),
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          SizedBox(width: double.infinity, height: 60, child: FilledButton(onPressed: () => Navigator.pop(context, true), style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))), child: const Text('Confirm & Send', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)))),
+          const SizedBox(height: 8),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.w700))),
         ])),
       ),
     );
@@ -207,8 +213,8 @@ class _SendScreenState extends State<SendScreen> {
   }
 
   Widget _row(String label, String value) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 6),
-    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)), Text(value, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14))]),
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey)), Text(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15))]),
   );
 
   void _pickToken() {
@@ -222,10 +228,10 @@ class _SendScreenState extends State<SendScreen> {
         itemBuilder: (_, i) {
           final token = tokens[i];
           return ListTile(
-            leading: TokenIcon(imageUrl: token.imageUrl, symbol: token.symbol, name: token.name, chainName: token.chain, isNative: token.isNative, radius: 16),
-            title: Text(token.symbol, style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(token.chain.toUpperCase(), style: const TextStyle(fontSize: 11)),
-            trailing: Text(WalletFormatters.formatBalance(token.balance), style: const TextStyle(fontWeight: FontWeight.w600)),
+            leading: TokenIcon(imageUrl: token.imageUrl, symbol: token.symbol, name: token.name, chainName: token.chain, isNative: token.isNative, radius: 18),
+            title: Text(token.symbol, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            subtitle: Text(token.chain.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey)),
+            trailing: Text(WalletFormatters.formatBalance(token.balance), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
             onTap: () { setState(() { _token = token; _amount.clear(); }); Navigator.pop(context); },
           );
         },
@@ -243,7 +249,7 @@ class _SendScreenState extends State<SendScreen> {
       onTap: () => FocusScope.of(context).unfocus(),
       child: GradientScaffold(
         appBar: AppBar(
-          title: Text('Send', style: text.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+          title: Text('Send', style: text.titleMedium?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.2)),
           centerTitle: true,
           backgroundColor: Colors.transparent,
           elevation: 0,
@@ -262,20 +268,20 @@ class _SendScreenState extends State<SendScreen> {
                 child: Row(
                   children: [
                     if (token != null)
-                      TokenIcon(imageUrl: token.imageUrl, symbol: token.symbol, name: token.name, chainName: token.chain, isNative: token.isNative, radius: 18),
-                    if (token != null) const SizedBox(width: 12),
+                      TokenIcon(imageUrl: token.imageUrl, symbol: token.symbol, name: token.name, chainName: token.chain, isNative: token.isNative, radius: 20),
+                    if (token != null) const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(token?.symbol ?? 'Select asset', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                          Text(token?.symbol ?? 'Select asset', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
                           if (token != null)
                             Text('${WalletFormatters.formatBalance(token.balance)} available',
-                              style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.4), fontSize: 12)),
+                              style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.4), fontSize: 13, fontWeight: FontWeight.w600)),
                         ],
                       ),
                     ),
-                    Icon(Icons.keyboard_arrow_down_rounded, color: colors.onSurfaceVariant.withValues(alpha: 0.3)),
+                    Icon(Icons.keyboard_arrow_down_rounded, color: colors.onSurfaceVariant.withValues(alpha: 0.3), size: 24),
                   ],
                 ),
               ),
@@ -290,22 +296,23 @@ class _SendScreenState extends State<SendScreen> {
                     child: TextField(
                       controller: _address,
                       textInputAction: TextInputAction.next,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: -0.2),
                       decoration: InputDecoration(
                         hintText: '0x… or ENS',
                         hintStyle: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.2)),
                         border: InputBorder.none,
-                        isDense: false,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 4),
                       ),
                     ),
                   ),
+                  const SizedBox(width: 8),
                   IconButton(
                     onPressed: () async {
                       final result = await GoRouter.of(context).push<String>('/wallet/scan');
                       if (result != null && mounted) _address.text = result;
                     },
-                    icon: Icon(Icons.qr_code_scanner_rounded, size: 20, color: colors.primary.withValues(alpha: 0.6)),
+                    icon: Icon(Icons.qr_code_scanner_rounded, size: 22, color: colors.primary.withValues(alpha: 0.8)),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
@@ -317,7 +324,7 @@ class _SendScreenState extends State<SendScreen> {
               context,
               label: 'Amount',
               trailing: token != null
-                  ? InkWell(onTap: _useMax, child: Text('MAX', style: TextStyle(color: colors.primary, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 0.5)))
+                  ? InkWell(onTap: _useMax, child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: colors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)), child: Text('MAX', style: TextStyle(color: colors.primary, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 0.5))))
                   : null,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -331,31 +338,31 @@ class _SendScreenState extends State<SendScreen> {
                           onChanged: (_) => setState(() {}),
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                           textInputAction: TextInputAction.done,
-                          style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800, letterSpacing: -0.5),
+                          style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900, letterSpacing: -1.5),
                           decoration: InputDecoration(
                             border: InputBorder.none,
-                            hintText: '0.00',
+                            hintText: '0',
                             hintStyle: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.1)),
-                            isDense: false,
-                            contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                            isDense: true,
+                            contentPadding: EdgeInsets.zero,
                           ),
                         ),
                       ),
                       const SizedBox(width: 12),
                       InkWell(
                         onTap: token == null ? null : () { setState(() => _usdMode = !_usdMode); },
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(14),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(
-                            color: colors.surfaceContainerHighest.withValues(alpha: 0.5),
-                            borderRadius: BorderRadius.circular(12),
+                            color: colors.surfaceContainerHighest.withValues(alpha: 0.6),
+                            borderRadius: BorderRadius.circular(14),
                           ),
                           child: Row(
                             children: [
-                              Text(_usdMode ? 'USD' : (token?.symbol ?? ''), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
-                              const SizedBox(width: 4),
-                              Icon(Icons.swap_horiz_rounded, size: 14, color: colors.onSurfaceVariant.withValues(alpha: 0.4)),
+                              Text(_usdMode ? 'USD' : (token?.symbol ?? ''), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                              const SizedBox(width: 6),
+                              Icon(Icons.swap_horiz_rounded, size: 16, color: colors.onSurfaceVariant.withValues(alpha: 0.5)),
                             ],
                           ),
                         ),
@@ -364,10 +371,10 @@ class _SendScreenState extends State<SendScreen> {
                   ),
                   if (token != null)
                     Padding(
-                      padding: const EdgeInsets.only(top: 4),
+                      padding: const EdgeInsets.only(top: 8),
                       child: Text(
                         _usdMode ? '≈ ${_entered.toStringAsFixed(8)} ${token.symbol}' : '≈ ${WalletFormatters.formatCurrency(_entered * token.priceUsd.toDouble())}',
-                        style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.3), fontSize: 11, fontWeight: FontWeight.w600),
+                        style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.3), fontSize: 13, fontWeight: FontWeight.w700),
                       ),
                     ),
                 ],
@@ -375,24 +382,24 @@ class _SendScreenState extends State<SendScreen> {
             ),
             const SizedBox(height: 32),
             SizedBox(
-              height: 58,
+              height: 62,
               child: FilledButton(
                 onPressed: _loading ? null : _send,
                 style: FilledButton.styleFrom(
                   backgroundColor: colors.primary,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                   elevation: 0,
                 ),
                 child: _loading
                     ? Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white60)),
-                          const SizedBox(width: 14),
-                          Text(_message, style: const TextStyle(fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white60)),
+                          const SizedBox(width: 16),
+                          Text(_message, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
                         ],
                       )
-                    : const Text('Continue', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, letterSpacing: 0.2)),
+                    : const Text('Continue', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 0.2)),
               ),
             ),
           ],
@@ -406,11 +413,11 @@ class _SendScreenState extends State<SendScreen> {
     final text = Theme.of(context).textTheme;
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: colors.surfaceContainerLow.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.08), width: 1),
+        color: colors.surfaceContainerLow.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.1), width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -423,13 +430,13 @@ class _SendScreenState extends State<SendScreen> {
                 style: text.labelSmall?.copyWith(
                   color: colors.onSurfaceVariant.withValues(alpha: 0.4),
                   fontWeight: FontWeight.w900,
-                  letterSpacing: 1.2,
+                  letterSpacing: 1.5,
                 ),
               ),
-              if (trailing != null) trailing,
+              ?trailing,
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           child,
         ],
       ),

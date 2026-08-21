@@ -335,32 +335,10 @@ class _SwapScreenState extends State<SwapScreen> {
         throw Exception('Failed to sign transaction.');
       }
 
-      if (mounted) setState(() => _loadingMessage = 'Broadcasting...');
-
-      final broadcastResult = await swapApi.broadcastSwap(
-        network: fromToken.chain,
-        signedTransaction: signedTx,
-        transactionType: 'swap',
-      );
-
-      final hash = broadcastResult['hash']?.toString();
-      
-      TransactionLogger.log(
-        endpoint: '/crypto/swap/broadcast',
-        network: fromToken.chain,
-        chainId: chainId,
-        transactionHash: hash,
-        backendError: broadcastResult['message'],
-      );
-
-      if (hash == null || hash.isEmpty) {
-        throw Exception('Broadcast failed.');
-      }
-
-      if (mounted) setState(() => _loadingMessage = 'Confirming...');
+      setState(() => _loadingMessage = 'Confirming...');
 
       if (mounted) {
-        _pollSwapStatus(hash);
+        await _pollSwapStatus(hash);
       }
     } catch (e) {
       if (mounted) {
@@ -655,10 +633,6 @@ class _SwapScreenState extends State<SwapScreen> {
         if (status == 'CONFIRMED' || status == 'SUCCESS' || status == 'COMPLETED') {
           if (mounted) {
             NotificationService.showSuccess(context, 'Swap successful!');
-            setState(() {
-              _isLoading = false;
-              _loadingMessage = '';
-            });
             await context.read<WalletProvider>().loadWallet();
             if (mounted) Navigator.of(context).pop();
           }
@@ -667,10 +641,6 @@ class _SwapScreenState extends State<SwapScreen> {
           if (mounted) {
             final msg = statusData['message']?.toString() ?? 'Failed.';
             NotificationService.showError(context, 'Swap failed: $msg');
-            setState(() {
-              _isLoading = false;
-              _loadingMessage = '';
-            });
           }
           return;
         }
@@ -684,10 +654,6 @@ class _SwapScreenState extends State<SwapScreen> {
         context,
         'Swap is still pending. Check your history later.',
       );
-      setState(() {
-        _isLoading = false;
-        _loadingMessage = '';
-      });
       Navigator.of(context).pop();
     }
   }
@@ -1000,13 +966,13 @@ class _SwapScreenState extends State<SwapScreen> {
     final text = Theme.of(context).textTheme;
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: colors.surfaceContainerLow.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(24),
+        color: colors.surfaceContainerLow.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(28),
         border: Border.all(
           color: colors.outlineVariant.withValues(alpha: 0.1),
-          width: 1,
+          width: 1.5,
         ),
       ),
       child: Column(
@@ -1018,9 +984,9 @@ class _SwapScreenState extends State<SwapScreen> {
               Text(
                 label.toUpperCase(),
                 style: text.labelSmall?.copyWith(
-                  color: colors.onSurfaceVariant.withValues(alpha: 0.5),
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.0,
+                  color: colors.onSurfaceVariant.withValues(alpha: 0.4),
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.5,
                 ),
               ),
               if (token != null)
@@ -1028,13 +994,14 @@ class _SwapScreenState extends State<SwapScreen> {
                   'Bal: ${WalletFormatters.formatBalance(token.balance)}',
                   style: text.labelSmall?.copyWith(
                     color: colors.onSurfaceVariant.withValues(alpha: 0.4),
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
                 child: Column(
@@ -1046,8 +1013,9 @@ class _SwapScreenState extends State<SwapScreen> {
                         alignment: Alignment.centerLeft,
                         child: Text(
                           value ?? '0.00',
-                          style: text.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
+                          style: text.headlineMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -1,
                             color: (value == null || value == '0.00')
                                 ? colors.onSurface.withValues(alpha: 0.1)
                                 : colors.onSurface,
@@ -1056,14 +1024,16 @@ class _SwapScreenState extends State<SwapScreen> {
                       )
                     else
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
                         children: [
                           if (showCurrencyToggle && _isUsdMode)
                             Padding(
-                              padding: const EdgeInsets.only(right: 2),
+                              padding: const EdgeInsets.only(right: 4),
                               child: Text(
                                 r'$',
-                                style: text.headlineSmall?.copyWith(
-                                  fontWeight: FontWeight.w800,
+                                style: text.headlineMedium?.copyWith(
+                                  fontWeight: FontWeight.w900,
                                   color: colors.onSurface,
                                 ),
                               ),
@@ -1074,110 +1044,125 @@ class _SwapScreenState extends State<SwapScreen> {
                               onChanged: onChanged,
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
                               textInputAction: TextInputAction.done,
-                              style: text.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.w800,
+                              style: text.headlineMedium?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -1,
                                 color: colors.onSurface,
                               ),
                               decoration: InputDecoration(
-                                hintText: '0.00',
+                                hintText: '0',
                                 hintStyle: TextStyle(color: colors.onSurface.withValues(alpha: 0.1)),
                                 border: InputBorder.none,
-                                isDense: false,
-                                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                                isDense: true,
+                                contentPadding: EdgeInsets.zero,
                               ),
                             ),
                           ),
                         ],
                       ),
+                    const SizedBox(height: 4),
                     if (subValue != null && subValue.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Text(
-                          subValue,
-                          style: text.labelSmall?.copyWith(
-                            color: colors.onSurfaceVariant.withValues(alpha: 0.35),
-                            fontWeight: FontWeight.w500,
-                          ),
+                      Text(
+                        subValue,
+                        style: text.labelMedium?.copyWith(
+                          color: colors.onSurfaceVariant.withValues(alpha: 0.3),
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                   ],
                 ),
               ),
               const SizedBox(width: 12),
-              InkWell(
-                onTap: onTokenTap,
-                borderRadius: BorderRadius.circular(16),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: token == null ? colors.primary : colors.surfaceContainerHighest.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
-                    children: [
-                      if (token != null) ...[
-                        TokenIcon(
-                          imageUrl: token.imageUrl,
-                          symbol: token.symbol,
-                          name: token.name,
-                          chainName: token.chain,
-                          isNative: token.isNative,
-                          radius: 12,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          token.symbol,
-                          style: text.titleSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onTokenTap,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
+                    decoration: BoxDecoration(
+                      color: token == null ? colors.primary : colors.surfaceContainerHighest.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        if (token == null)
+                          BoxShadow(
+                            color: colors.primary.withValues(alpha: 0.2),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
                           ),
-                        ),
-                      ] else
-                        Text(
-                          'Select',
-                          style: text.labelLarge?.copyWith(
-                            color: colors.onPrimary,
-                            fontWeight: FontWeight.bold,
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (token != null) ...[
+                          TokenIcon(
+                            imageUrl: token.imageUrl,
+                            symbol: token.symbol,
+                            name: token.name,
+                            chainName: token.chain,
+                            isNative: token.isNative,
+                            radius: 14,
                           ),
+                          const SizedBox(width: 10),
+                          Text(
+                            token.symbol,
+                            style: text.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                        ] else
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: Text(
+                              'Select',
+                              style: text.titleSmall?.copyWith(
+                                color: colors.onPrimary,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          size: 20,
+                          color: token == null ? colors.onPrimary : colors.onSurfaceVariant.withValues(alpha: 0.5),
                         ),
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        size: 18,
-                        color: token == null ? colors.onPrimary : colors.onSurfaceVariant.withValues(alpha: 0.5),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
             ],
           ),
           if (showCurrencyToggle) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             Row(
               children: [
                 InkWell(
                   onTap: _toggleCurrencyMode,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: colors.secondaryContainer.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
+                      color: colors.secondaryContainer.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: Row(
                       children: [
                         Icon(
                           _isUsdMode ? Icons.toll_rounded : Icons.attach_money_rounded,
-                          size: 12,
+                          size: 14,
                           color: colors.secondary,
                         ),
-                        const SizedBox(width: 4),
+                        const SizedBox(width: 6),
                         Text(
                           _isUsdMode ? 'Use ${token?.symbol ?? "Token"}' : 'Use USD',
                           style: text.labelSmall?.copyWith(
                             color: colors.secondary,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.5,
                           ),
                         ),
                       ],
@@ -1188,19 +1173,18 @@ class _SwapScreenState extends State<SwapScreen> {
                 if (onMaxTap != null)
                   InkWell(
                     onTap: onMaxTap,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(10),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: colors.primary.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(8),
+                        color: colors.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
                         'MAX',
                         style: text.labelSmall?.copyWith(
                           color: colors.primary,
                           fontWeight: FontWeight.w900,
-                          fontSize: 10,
                         ),
                       ),
                     ),
@@ -1258,25 +1242,25 @@ class _SwapScreenState extends State<SwapScreen> {
         providerFee['reportedByProvider'] != true;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: colors.surfaceContainerLowest.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.05)),
+        color: colors.surfaceContainerLowest.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.1)),
       ),
       child: Column(
         children: [
           _quoteRow(context, 'Rate', feePercentDisplay ?? '0.8%', valueColor: colors.primary, isBold: true),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           _quoteRow(context, 'Fee', providerIncluded ? 'Included' :
                 _formatFeeAmount(
                   providerFee['amount']?.toString(),
                   _tokenForAddress(providerFee['token']?.toString()),
                 )),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           _quoteRow(
             context,
-            'Network',
+            'Network Cost',
             gasNative == null
                 ? '-'
                 : WalletFormatters.formatBalance(gasNative, symbol: gasSymbol),
@@ -1295,35 +1279,36 @@ class _SwapScreenState extends State<SwapScreen> {
 
     return InkWell(
       onTap: () => _showSlippagePicker(context),
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         decoration: BoxDecoration(
-          color: colors.surfaceContainerLow.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(16),
+          color: colors.surfaceContainerLow.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(24),
           border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.1)),
         ),
         child: Row(
           children: [
-            Icon(Icons.tune_rounded, size: 18, color: colors.onSurfaceVariant.withValues(alpha: 0.6)),
-            const SizedBox(width: 12),
+            Icon(Icons.tune_rounded, size: 20, color: colors.onSurfaceVariant.withValues(alpha: 0.6)),
+            const SizedBox(width: 14),
             Text(
               'Max Slippage',
               style: text.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant.withValues(alpha: 0.7),
-                fontWeight: FontWeight.w600,
+                color: colors.onSurfaceVariant.withValues(alpha: 0.8),
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.2,
               ),
             ),
             const Spacer(),
             Text(
               '${(_slippage * 100).toStringAsFixed(1)}%',
-              style: text.bodySmall?.copyWith(
+              style: text.bodyMedium?.copyWith(
                 color: colors.primary,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w900,
               ),
             ),
-            const SizedBox(width: 4),
-            Icon(Icons.chevron_right_rounded, size: 18, color: colors.primary.withValues(alpha: 0.6)),
+            const SizedBox(width: 6),
+            Icon(Icons.chevron_right_rounded, size: 20, color: colors.primary.withValues(alpha: 0.6)),
           ],
         ),
       ),
@@ -1342,7 +1327,7 @@ class _SwapScreenState extends State<SwapScreen> {
         padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
         decoration: BoxDecoration(
           color: colors.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1350,7 +1335,7 @@ class _SwapScreenState extends State<SwapScreen> {
           children: [
             Center(
               child: Container(
-                width: 40,
+                width: 42,
                 height: 4,
                 decoration: BoxDecoration(
                   color: colors.onSurfaceVariant.withValues(alpha: 0.2),
@@ -1358,56 +1343,66 @@ class _SwapScreenState extends State<SwapScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 28),
             Text(
               'Swap Settings',
-              style: text.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              style: text.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Text(
-              'Max slippage is the maximum price change you are willing to accept for this swap.',
-              style: text.bodySmall?.copyWith(color: colors.onSurfaceVariant.withValues(alpha: 0.6)),
+              'Maximum price change you are willing to accept. Swaps will revert if the price moves by more than this percentage.',
+              style: text.bodyMedium?.copyWith(color: colors.onSurfaceVariant.withValues(alpha: 0.6), height: 1.4),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: options.map((val) {
                 final isSelected = _slippage == val;
-                return InkWell(
-                  onTap: () {
-                    setState(() => _slippage = val);
-                    Navigator.pop(context);
-                    _getQuote();
-                  },
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: isSelected ? colors.primary : colors.surfaceContainerHighest.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '${(val * 100).toStringAsFixed(1)}%',
-                      style: TextStyle(
-                        color: isSelected ? colors.onPrimary : colors.onSurface,
-                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                        fontSize: 13,
+                return Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: InkWell(
+                      onTap: () {
+                        setState(() => _slippage = val);
+                        Navigator.pop(context);
+                        _getQuote();
+                      },
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          color: isSelected ? colors.primary : colors.surfaceContainerHighest.withValues(alpha: 0.4),
+                          borderRadius: BorderRadius.circular(16),
+                          border: isSelected ? null : Border.all(color: colors.outlineVariant.withValues(alpha: 0.1)),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          '${(val * 100).toStringAsFixed(1)}%',
+                          style: TextStyle(
+                            color: isSelected ? colors.onPrimary : colors.onSurface,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 14,
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 );
               }).toList(),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
             SizedBox(
               width: double.infinity,
-              height: 56,
+              height: 60,
               child: FilledButton(
                 onPressed: () => Navigator.pop(context),
                 style: FilledButton.styleFrom(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  backgroundColor: colors.surfaceContainerHighest,
+                  foregroundColor: colors.onSurface,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                  elevation: 0,
                 ),
-                child: const Text('Close', style: TextStyle(fontWeight: FontWeight.w800)),
+                child: const Text('Done', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
               ),
             ),
           ],
@@ -1439,8 +1434,8 @@ class _SwapScreenState extends State<SwapScreen> {
         Text(
           label,
           style: text.bodySmall?.copyWith(
-            color: colors.onSurfaceVariant.withValues(alpha: 0.5),
-            fontWeight: FontWeight.w600,
+            color: colors.onSurfaceVariant.withValues(alpha: 0.6),
+            fontWeight: FontWeight.w700,
           ),
         ),
         Column(
@@ -1449,7 +1444,7 @@ class _SwapScreenState extends State<SwapScreen> {
             Text(
               value,
               style: text.bodySmall?.copyWith(
-                fontWeight: isBold ? FontWeight.w800 : FontWeight.w700,
+                fontWeight: isBold ? FontWeight.w900 : FontWeight.w800,
                 color: valueColor ?? colors.onSurface,
               ),
             ),
@@ -1457,8 +1452,9 @@ class _SwapScreenState extends State<SwapScreen> {
               Text(
                 subtitle,
                 style: text.labelSmall?.copyWith(
-                  color: colors.onSurfaceVariant.withValues(alpha: 0.3),
-                  fontSize: 9,
+                  color: colors.onSurfaceVariant.withValues(alpha: 0.4),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
           ],
