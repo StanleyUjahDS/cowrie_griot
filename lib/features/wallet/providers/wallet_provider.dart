@@ -15,10 +15,6 @@ class WalletProvider extends ChangeNotifier {
   })  : _walletService = walletService,
         _walletApiService = walletApiService;
 
-  /// Canonical Griot priority assets.
-  ///
-  /// This is metadata/recognition only. It does not affect wallet ordering
-  /// and does not add zero-balance assets to the user's holdings.
   static const Set<String> _prioritySymbols = {
     'HBADG',
     'BNB',
@@ -44,7 +40,6 @@ class WalletProvider extends ChangeNotifier {
   bool get onlyProfit => _onlyProfit;
   bool get onlyLoss => _onlyLoss;
   Set<String> get hiddenTokenKeys => Set.unmodifiable(_hiddenTokenKeys);
-
   Set<String> get selectedChains => Set.unmodifiable(_selectedChains);
 
   bool isPriorityToken(TokenModel token) {
@@ -61,6 +56,12 @@ class WalletProvider extends ChangeNotifier {
 
   List<TokenModel> get filteredTokens {
     final result = _tokens.where((token) {
+      // Negative balances are never valid wallet holdings for presentation.
+      // They must stay hidden regardless of the user's filter settings.
+      if (token.balance < 0) {
+        return false;
+      }
+
       if (_hiddenTokenKeys.contains(_getTokenKey(token))) {
         return false;
       }
@@ -85,17 +86,12 @@ class WalletProvider extends ChangeNotifier {
       return true;
     }).toList();
 
-    // Priority assets do not control ordering.
-    // Wallet holdings are shown by current holding value.
     result.sort((a, b) => b.valueUsd.compareTo(a.valueUsd));
-
     return result;
   }
 
   Future<void> loadWallet() async {
-    if (_isLoading) {
-      return;
-    }
+    if (_isLoading) return;
 
     _setLoading(true);
 
@@ -110,29 +106,23 @@ class WalletProvider extends ChangeNotifier {
         return;
       }
 
-      // Load hidden tokens list from secure storage
       final hiddenList = await _walletService.getHiddenTokens();
       _hiddenTokenKeys.clear();
       _hiddenTokenKeys.addAll(hiddenList);
 
       final assetData = await _walletApiService.getAssets();
-
-      final parsedTokens = assetData
-          .map(TokenModel.fromJson)
-          .toList();
+      final parsedTokens = assetData.map(TokenModel.fromJson).toList();
 
       final totalBalanceUsd = parsedTokens.fold<num>(
         0,
         (total, token) => total + token.valueUsd,
       );
 
-      const changePercent = 0;
-
       _wallet = WalletModel(
         address: address,
         displayName: 'Your Griot Account',
         totalBalance: totalBalanceUsd,
-        changePercent: changePercent,
+        changePercent: 0,
       );
 
       _tokens = parsedTokens;
@@ -169,17 +159,13 @@ class WalletProvider extends ChangeNotifier {
 
   void setOnlyProfit(bool value) {
     _onlyProfit = value;
-    if (value) {
-      _onlyLoss = false;
-    }
+    if (value) _onlyLoss = false;
     notifyListeners();
   }
 
   void setOnlyLoss(bool value) {
     _onlyLoss = value;
-    if (value) {
-      _onlyProfit = false;
-    }
+    if (value) _onlyProfit = false;
     notifyListeners();
   }
 
