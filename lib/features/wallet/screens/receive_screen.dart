@@ -80,9 +80,9 @@ class ReceiveScreen extends StatelessWidget {
                             dataModuleShape: QrDataModuleShape.circle,
                             color: Colors.black,
                           ),
-                          embeddedImage: const AssetImage('assets/cowrie_images/wolrd_cowrie.png'),
+                          embeddedImage: const AssetImage('assets/coins_logo/ic_launcher.png'),
                           embeddedImageStyle: const QrEmbeddedImageStyle(
-                            size: Size(60, 60),
+                            size: Size(56, 56),
                           ),
                         ),
                       ),

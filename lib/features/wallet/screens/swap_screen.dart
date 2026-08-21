@@ -335,7 +335,29 @@ class _SwapScreenState extends State<SwapScreen> {
         throw Exception('Failed to sign transaction.');
       }
 
-      setState(() => _loadingMessage = 'Confirming...');
+      if (mounted) setState(() => _loadingMessage = 'Broadcasting...');
+
+      final broadcastResult = await swapApi.broadcastSwap(
+        network: fromToken.chain,
+        signedTransaction: signedTx,
+        transactionType: 'swap',
+      );
+
+      final hash = broadcastResult['hash']?.toString();
+
+      TransactionLogger.log(
+        endpoint: '/crypto/swap/broadcast',
+        network: fromToken.chain,
+        chainId: chainId,
+        transactionHash: hash,
+        backendError: broadcastResult['message'],
+      );
+
+      if (hash == null || hash.isEmpty) {
+        throw Exception('Broadcast failed.');
+      }
+
+      if (mounted) setState(() => _loadingMessage = 'Confirming...');
 
       if (mounted) {
         await _pollSwapStatus(hash);
@@ -1044,9 +1066,11 @@ class _SwapScreenState extends State<SwapScreen> {
                               onChanged: onChanged,
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
                               textInputAction: TextInputAction.done,
-                              style: text.headlineMedium?.copyWith(
+                              cursorHeight: 28,
+                              cursorWidth: 2,
+                              style: text.headlineSmall?.copyWith(
                                 fontWeight: FontWeight.w900,
-                                letterSpacing: -1,
+                                letterSpacing: -0.5,
                                 color: colors.onSurface,
                               ),
                               decoration: InputDecoration(
@@ -1054,7 +1078,7 @@ class _SwapScreenState extends State<SwapScreen> {
                                 hintStyle: TextStyle(color: colors.onSurface.withValues(alpha: 0.1)),
                                 border: InputBorder.none,
                                 isDense: true,
-                                contentPadding: EdgeInsets.zero,
+                                contentPadding: const EdgeInsets.symmetric(vertical: 4),
                               ),
                             ),
                           ),
