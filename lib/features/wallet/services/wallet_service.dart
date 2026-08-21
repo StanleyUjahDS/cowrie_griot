@@ -152,6 +152,35 @@ class WalletService {
   }
 
   // ============================================================
+  // SIGN NATIVE TRANSACTION
+  // ============================================================
+
+  Future<String?> signNativeTransaction({
+    required String to,
+    required String valueRaw,
+    required int nonce,
+    required String gasLimit,
+    required String gasPrice,
+    required int chainId,
+  }) async {
+    final String? privateKey = await getPrivateKey();
+
+    if (privateKey == null || privateKey.isEmpty) {
+      return null;
+    }
+
+    return _cryptoService.signNativeTransaction(
+      privateKey: privateKey,
+      to: to,
+      valueRaw: valueRaw,
+      nonce: nonce,
+      gasLimit: gasLimit,
+      gasPrice: gasPrice,
+      chainId: chainId,
+    );
+  }
+
+  // ============================================================
   // VALIDATE ADDRESS
   // ============================================================
 

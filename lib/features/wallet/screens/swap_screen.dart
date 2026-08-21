@@ -156,18 +156,42 @@ class _SwapScreenState extends State<SwapScreen> {
         return;
       }
 
-      // 2. Local Wallet Signing & Broadcast
-      // TODO: Call local WalletService to sign 'transaction' and then broadcast.
+      // 2. Local Wallet Signing
+      NotificationService.showInfo(context, 'Signing swap transaction...');
       
-      NotificationService.showInfo(context, 'Processing swap...');
+      final walletService = context.read<WalletService>();
+      final apiService = context.read<TransactionApiService>();
+
+      final signedTx = await walletService.signNativeTransaction(
+        to: transaction['to']?.toString() ?? '',
+        valueRaw: transaction['value']?.toString() ?? '0',
+        nonce: int.tryParse(transaction['nonce']?.toString() ?? '') ?? 0,
+        gasLimit: transaction['gasLimit']?.toString() ?? '250000',
+        gasPrice: transaction['gasPrice']?.toString() ?? '0',
+        chainId: int.tryParse(transaction['chainId']?.toString() ?? '') ?? 1,
+      );
+
+      if (signedTx == null || signedTx.isEmpty) {
+        throw Exception('Failed to sign swap transaction locally');
+      }
+
+      // 3. Broadcast
+      NotificationService.showInfo(context, 'Broadcasting swap...');
       
-      // Simulate network delay for now
-      await Future.delayed(const Duration(seconds: 3));
+      final broadcastResult = await apiService.broadcastTransaction(
+        network: _fromToken!.chain,
+        transactionId: _quote!['transactionId'] ?? 'swap_${DateTime.now().millisecondsSinceEpoch}',
+        signedTransaction: signedTx,
+      );
 
       if (!mounted) return;
-      
-      NotificationService.showSuccess(context, 'Swap broadcasted successfully!');
-      Navigator.of(context).pop();
+
+      if (broadcastResult.containsKey('hash') || broadcastResult.containsKey('transactionHash')) {
+        NotificationService.showSuccess(context, 'Swap broadcasted successfully!');
+        Navigator.of(context).pop();
+      } else {
+        throw Exception('Broadcast failed: No transaction hash returned');
+      }
 
     } catch (e) {
       if (mounted) {

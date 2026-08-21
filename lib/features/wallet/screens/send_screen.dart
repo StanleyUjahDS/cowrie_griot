@@ -143,26 +143,56 @@ class _SendScreenState extends State<SendScreen> {
   }
 
   Future<void> _executeBroadcast(Map<String, dynamic> prepared, TokenModel token) async {
-    // TODO: In a real implementation, we would call the local WalletService 
-    // to sign the 'unsignedTransaction' using the user's private key.
+    setState(() => _isLoading = true);
     
-    NotificationService.showInfo(context, 'Broadcasting transaction...');
+    NotificationService.showInfo(context, 'Signing and broadcasting transaction...');
     
     try {
-      final api = context.read<TransactionApiService>();
+      final walletService = context.read<WalletService>();
+      final apiService = context.read<TransactionApiService>();
       
-      // For now, we simulate success since we don't have the signing logic in this view.
-      // In production, you'd call api.broadcastTransaction here.
-      
-      await Future.delayed(const Duration(seconds: 2));
-      
+      final unsigned = prepared['unsignedTransaction'];
+      if (unsigned == null) {
+        throw Exception('Unsigned transaction data missing');
+      }
+
+      // 1. Sign locally
+      final signedTx = await walletService.signNativeTransaction(
+        to: unsigned['to']?.toString() ?? '',
+        valueRaw: unsigned['value']?.toString() ?? '0',
+        nonce: int.tryParse(unsigned['nonce']?.toString() ?? '') ?? 0,
+        gasLimit: unsigned['gasLimit']?.toString() ?? '21000',
+        gasPrice: unsigned['gasPrice']?.toString() ?? '0',
+        chainId: int.tryParse(unsigned['chainId']?.toString() ?? '') ?? 1,
+      );
+
+      if (signedTx == null || signedTx.isEmpty) {
+        throw Exception('Failed to sign transaction locally');
+      }
+
+      // 2. Broadcast to blockchain
+      final broadcastResult = await apiService.broadcastTransaction(
+        network: token.chain,
+        transactionId: prepared['transactionId'],
+        signedTransaction: signedTx,
+      );
+
       if (!mounted) return;
-      NotificationService.showSuccess(context, 'Transaction broadcasted successfully!');
-      Navigator.of(context).pop(); // Go back after success
+
+      if (broadcastResult.containsKey('hash') || broadcastResult.containsKey('transactionHash')) {
+        NotificationService.showSuccess(context, 'Transaction broadcasted successfully!');
+        Navigator.of(context).pop(); // Return to wallet
+      } else {
+        throw Exception('Broadcast failed: No transaction hash returned');
+      }
       
     } catch (e) {
       if (mounted) {
-        NotificationService.showError(context, 'Broadcast failed: $e');
+        NotificationService.showError(context, 'Transaction failed: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
       }
     }
   }
