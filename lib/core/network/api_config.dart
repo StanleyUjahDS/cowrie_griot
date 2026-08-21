@@ -40,15 +40,14 @@ class ApiConfig {
   static String walletTokens(String address) =>
       '$walletBase/$address/tokens';
 
-  // ============================================================
-  // TRANSACTIONS
-  // ============================================================
-
   static const String transactionBase =
       '$baseUrl/crypto/transactions';
 
   static const String prepareNativeTransaction =
       '$transactionBase/prepare-native';
+
+  static const String prepareTokenTransaction =
+      '$transactionBase/prepare-token';
 
   static const String estimateTransaction =
       '$transactionBase/estimate';
@@ -94,10 +93,6 @@ class ApiConfig {
       queryParameters: query,
     ).toString();
   }
-
-  // ============================================================
-  // SWAPS
-  // ============================================================
 
   static const String swapBase =
       '$baseUrl/crypto/swap';
@@ -147,10 +142,6 @@ class ApiConfig {
   static const String swapHealth =
       '$swapBase/health';
 
-  // ============================================================
-  // MINING
-  // ============================================================
-
   static const String miningBase =
       '$baseUrl/crypto/mining';
 
@@ -172,10 +163,6 @@ class ApiConfig {
           'offset': '$offset',
         },
       ).toString();
-
-  // ============================================================
-  // REFERRALS
-  // ============================================================
 
   static const String referralBase =
       '$baseUrl/crypto/referrals';
