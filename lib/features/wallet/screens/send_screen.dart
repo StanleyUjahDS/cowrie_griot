@@ -70,9 +70,9 @@ class _SendScreenState extends State<SendScreen> {
 
     try {
       final api = context.read<TransactionApiService>();
-      
+
       final Map<String, dynamic> prepared;
-      
+
       if (token.isNative) {
         prepared = await api.prepareNativeSend(
           network: token.chain,
@@ -88,18 +88,20 @@ class _SendScreenState extends State<SendScreen> {
         );
       }
 
-      // 1. Validate the response BEFORE showing any success messages
-      if (!prepared.containsKey('transactionId') || !prepared.containsKey('unsignedTransaction')) {
+      if (!prepared.containsKey('transactionId') ||
+          !prepared.containsKey('unsignedTransaction')) {
         throw Exception('Server returned incomplete transaction data');
       }
 
       if (!mounted) return;
 
       final unsignedTransaction = prepared['unsignedTransaction'];
-      final feeRaw = prepared['estimatedNetworkFeeRaw'];
-      final feeText = feeRaw != null ? '\nEstimated network fee: $feeRaw wei' : '';
+      if (unsignedTransaction is! Map) {
+        throw Exception('Server returned invalid transaction data');
+      }
 
-      // 2. Show confirmation dialog
+      final feeRaw = prepared['estimatedNetworkFeeRaw'];
+
       await showDialog<void>(
         context: context,
         builder: (dialogContext) => AlertDialog(
@@ -113,7 +115,9 @@ class _SendScreenState extends State<SendScreen> {
               Text('Amount: $amount ${token.symbol}'),
               if (feeRaw != null) Text('Fee: $feeRaw wei'),
               const SizedBox(height: 16),
-              const Text('Would you like to proceed with signing and broadcasting this transaction?'),
+              const Text(
+                'Would you like to proceed with signing and broadcasting this transaction?',
+              ),
             ],
           ),
           actions: [
@@ -131,7 +135,6 @@ class _SendScreenState extends State<SendScreen> {
           ],
         ),
       );
-
     } catch (e) {
       if (mounted) {
         NotificationService.showError(context, 'Transaction failed: $e');
@@ -143,21 +146,26 @@ class _SendScreenState extends State<SendScreen> {
     }
   }
 
-  Future<void> _executeBroadcast(Map<String, dynamic> prepared, TokenModel token) async {
+  Future<void> _executeBroadcast(
+    Map<String, dynamic> prepared,
+    TokenModel token,
+  ) async {
     setState(() => _isLoading = true);
-    
-    NotificationService.showInfo(context, 'Signing and broadcasting transaction...');
-    
+
+    NotificationService.showInfo(
+      context,
+      'Signing and broadcasting transaction...',
+    );
+
     try {
       final walletService = context.read<WalletService>();
       final apiService = context.read<TransactionApiService>();
-      
+
       final unsigned = prepared['unsignedTransaction'];
-      if (unsigned == null) {
+      if (unsigned is! Map) {
         throw Exception('Unsigned transaction data missing');
       }
 
-      // 1. Sign locally
       final signedTx = await walletService.signNativeTransaction(
         to: unsigned['to']?.toString() ?? '',
         valueRaw: unsigned['value']?.toString() ?? '0',
@@ -165,28 +173,38 @@ class _SendScreenState extends State<SendScreen> {
         gasLimit: unsigned['gasLimit']?.toString() ?? '21000',
         gasPrice: unsigned['gasPrice']?.toString() ?? '0',
         chainId: int.tryParse(unsigned['chainId']?.toString() ?? '') ?? 1,
+        dataHex: unsigned['data']?.toString(),
       );
 
       if (signedTx == null || signedTx.isEmpty) {
         throw Exception('Failed to sign transaction locally');
       }
 
-      // 2. Broadcast to blockchain
       final broadcastResult = await apiService.broadcastTransaction(
         network: token.chain,
-        transactionId: prepared['transactionId'],
+        transactionId: prepared['transactionId']?.toString() ?? '',
         signedTransaction: signedTx,
       );
 
       if (!mounted) return;
 
-      if (broadcastResult.containsKey('hash') || broadcastResult.containsKey('transactionHash')) {
-        NotificationService.showSuccess(context, 'Transaction broadcasted successfully!');
-        Navigator.of(context).pop(); // Return to wallet
+      final broadcast = broadcastResult['broadcast'];
+      final transaction = broadcastResult['transaction'];
+      final hash = broadcast is Map
+          ? broadcast['hash']
+          : transaction is Map
+              ? transaction['tx_hash']
+              : null;
+
+      if (hash != null && hash.toString().isNotEmpty) {
+        NotificationService.showSuccess(
+          context,
+          'Transaction broadcasted successfully!',
+        );
+        Navigator.of(context).pop();
       } else {
         throw Exception('Broadcast failed: No transaction hash returned');
       }
-      
     } catch (e) {
       if (mounted) {
         NotificationService.showError(context, 'Transaction failed: $e');
