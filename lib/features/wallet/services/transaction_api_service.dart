@@ -32,6 +32,32 @@ class TransactionApiService {
     return _asMap(_unwrap(response));
   }
 
+  Future<Map<String, dynamic>> prepareTokenSend({
+    String? walletAccountId,
+    required String network,
+    required String tokenAddress,
+    required String toAddress,
+    required String amount,
+  }) async {
+    final body = <String, dynamic>{
+      'network': network,
+      'tokenAddress': tokenAddress,
+      'toAddress': toAddress,
+      'amount': amount,
+    };
+
+    if (walletAccountId != null && walletAccountId.isNotEmpty) {
+      body['walletAccountId'] = walletAccountId;
+    }
+
+    final response = await _apiClient.post(
+      ApiConfig.prepareTokenTransaction,
+      body: body,
+    );
+
+    return _asMap(_unwrap(response));
+  }
+
   Future<Map<String, dynamic>> estimateTransaction({
     required String network,
     required Map<String, dynamic> transaction,
