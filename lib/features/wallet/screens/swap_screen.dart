@@ -6,14 +6,13 @@ import 'package:provider/provider.dart';
 import '../models/token_model.dart';
 import '../providers/wallet_provider.dart';
 import '../services/swap_api_service.dart';
-import '../services/wallet_service.dart';
 import '../services/transaction_api_service.dart';
 import '../services/wallet_rpc_service.dart';
-import '../widgets/token_icon.dart';
+import '../services/wallet_service.dart';
 import '../utils/wallet_formatters.dart';
-import '../../../core/ui/scaffolds/gradient_scaffold.dart';
-import '../../../core/ui/widgets/banner_ad.dart';
+import '../widgets/token_icon.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 
 class SwapScreen extends StatefulWidget {
   final TokenModel? initialFromToken;
@@ -25,774 +24,455 @@ class SwapScreen extends StatefulWidget {
 }
 
 class _SwapScreenState extends State<SwapScreen> {
-  static const String _nativeTokenAddress =
-      '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
+  static const _native = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
 
-  TokenModel? _fromToken;
-  TokenModel? _toToken;
-  final _amountController = TextEditingController();
-  final _usdController = TextEditingController();
-  bool _isLoading = false;
-  bool _isApproving = false;
-  bool _isApprovalRequired = false;
-  bool _isUsdMode = false;
-  String _loadingMessage = '';
-  Map<String, dynamic>? _quote;
+  TokenModel? _from;
+  TokenModel? _to;
+  final _amount = TextEditingController();
   Timer? _debounce;
-  int _quoteRequestVersion = 0;
+  Map<String, dynamic>? _quote;
+  bool _loadingQuote = false;
+  bool _processing = false;
+  bool _approvalRequired = false;
+  String _processingText = '';
+  int _quoteVersion = 0;
 
   @override
   void initState() {
     super.initState();
-    _fromToken = widget.initialFromToken;
+    _from = widget.initialFromToken;
+    _amount.addListener(_amountChanged);
   }
 
   @override
   void dispose() {
-    _amountController.dispose();
-    _usdController.dispose();
+    _amount.dispose();
     _debounce?.cancel();
     super.dispose();
   }
 
-  void _onAmountChanged(String value) {
-    if (_fromToken == null) return;
-    
-    _syncControllers(value, sourceIsUsd: _isUsdMode);
-
+  void _amountChanged() {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), _getQuote);
+    _debounce = Timer(const Duration(milliseconds: 500), _requestQuote);
   }
 
-  void _syncControllers(String value, {required bool sourceIsUsd}) {
-    if (_fromToken == null) return;
-    final amount = double.tryParse(value) ?? 0.0;
-    final price = _fromToken!.priceUsd.toDouble();
-
-    if (sourceIsUsd) {
-      if (price > 0) {
-        final tokenAmount = amount / price;
-        _amountController.text = tokenAmount.toStringAsFixed(_fromToken!.decimals > 6 ? 6 : _fromToken!.decimals);
-      } else {
-        _amountController.text = '0';
-      }
-    } else {
-      if (price > 0) {
-        final usdAmount = amount * price;
-        _usdController.text = usdAmount.toStringAsFixed(2);
-      } else {
-        _usdController.text = '0.00';
-      }
+  String _chainId(String chain) {
+    switch (chain.toLowerCase()) {
+      case 'ethereum':
+      case 'eth':
+        return '1';
+      case 'base':
+        return '8453';
+      case 'polygon':
+      case 'matic':
+        return '137';
+      case 'arbitrum':
+      case 'arb':
+        return '42161';
+      case 'optimism':
+      case 'op':
+        return '10';
+      case 'bsc':
+      case 'bnb':
+      case 'binance':
+        return '56';
+      default:
+        return chain;
     }
   }
 
-  void _onMaxPressed() {
-    if (_fromToken == null) return;
-    final maxBalance = _fromToken!.balance.toDouble();
-    
-    if (_isUsdMode) {
-      final price = _fromToken!.priceUsd.toDouble();
-      final maxUsd = maxBalance * price;
-      _usdController.text = maxUsd.toStringAsFixed(2);
-      _syncControllers(_usdController.text, sourceIsUsd: true);
-    } else {
-      _amountController.text = maxBalance.toString();
-      _syncControllers(_amountController.text, sourceIsUsd: false);
-    }
-    
-    _getQuote();
+  String? _baseUnits(String value, int decimals) {
+    final v = value.trim();
+    if (!RegExp(r'^\d+(?:\.\d+)?\$').hasMatch(v)) return null;
+    final p = v.split('.');
+    final whole = p[0];
+    final fraction = p.length == 2 ? p[1] : '';
+    if (fraction.length > decimals) return null;
+    final raw = '$whole${fraction.padRight(decimals, '0')}'
+        .replaceFirst(RegExp(r'^0+(?=\d)'), '');
+    return raw.isEmpty ? '0' : raw;
   }
 
-  void _toggleCurrencyMode() {
-    setState(() {
-      _isUsdMode = !_isUsdMode;
-    });
+  String _displayUnits(dynamic raw, int decimals) {
+    if (raw == null) return '0';
+    final s = raw.toString().split('.').first.replaceAll(RegExp(r'\D'), '');
+    if (s.isEmpty) return '0';
+    if (decimals == 0) return s;
+    final padded = s.padLeft(decimals + 1, '0');
+    final cut = padded.length - decimals;
+    final whole = padded.substring(0, cut);
+    var fraction = padded.substring(cut).replaceFirst(RegExp(r'0+\$'), '');
+    if (fraction.length > 8) fraction = fraction.substring(0, 8);
+    return fraction.isEmpty ? whole : '$whole.$fraction';
   }
 
-  Future<void> _getQuote() async {
-    final fromToken = _fromToken;
-    final toToken = _toToken;
-    if (fromToken == null || toToken == null) return;
-
-    final amount = _amountController.text.trim();
-    if (amount.isEmpty || amount == '0') {
+  Future<void> _requestQuote() async {
+    final from = _from;
+    final to = _to;
+    final wallet = context.read<WalletProvider>().wallet;
+    final input = _amount.text.trim();
+    if (from == null || to == null || wallet?.address == null || input.isEmpty) {
       if (mounted) setState(() => _quote = null);
       return;
     }
 
-    final enteredAmount = double.tryParse(amount) ?? 0.0;
-    final maxBalance = fromToken.balance.toDouble();
-    if (enteredAmount > maxBalance) {
-      if (mounted) {
-        setState(() {
-          _quote = null;
-          _isLoading = false;
-        });
-        NotificationService.showError(
-          context,
-          'Amount exceeds your maximum balance of $maxBalance ${fromToken.symbol}',
-        );
-      }
+    final numeric = double.tryParse(input) ?? 0;
+    if (numeric <= 0 || numeric > from.balance) {
+      if (mounted) setState(() => _quote = null);
       return;
     }
 
-    final fromAddress = context.read<WalletProvider>().wallet?.address;
-    if (fromAddress == null || fromAddress.isEmpty) return;
+    final rawAmount = _baseUnits(input, from.decimals);
+    if (rawAmount == null || rawAmount == '0') return;
 
-    final fromTokenAddress = fromToken.isNative
-        ? _nativeTokenAddress
-        : fromToken.contractAddress;
-    final toTokenAddress = toToken.isNative
-        ? _nativeTokenAddress
-        : toToken.contractAddress;
-
-    if (fromTokenAddress.isEmpty || toTokenAddress.isEmpty) return;
-
-    final fromAmount = _toBaseUnits(amount, fromToken.decimals);
-    if (fromAmount == null || fromAmount == '0') return;
-
-    final requestVersion = ++_quoteRequestVersion;
-    setState(() => _isLoading = true);
+    final version = ++_quoteVersion;
+    setState(() => _loadingQuote = true);
 
     try {
-      final isCrossChain = fromToken.chain.toLowerCase() !=
-          toToken.chain.toLowerCase();
-
+      final crossChain = _chainId(from.chain) != _chainId(to.chain);
       final quote = await context.read<SwapApiService>().getQuote(
-            fromChain: fromToken.chain,
-            toChain: toToken.chain,
-            fromToken: fromTokenAddress,
-            toToken: toTokenAddress,
-            fromAmount: fromAmount,
-            fromAddress: fromAddress,
-            toAddress: isCrossChain ? fromAddress : null,
-          );
+        fromChain: _chainId(from.chain),
+        toChain: _chainId(to.chain),
+        fromToken: from.isNative ? _native : from.contractAddress,
+        toToken: to.isNative ? _native : to.contractAddress,
+        fromAmount: rawAmount,
+        fromAddress: wallet!.address,
+        toAddress: crossChain ? wallet.address : null,
+        slippageMode: 'auto',
+      );
 
-      if (!mounted || requestVersion != _quoteRequestVersion) return;
-      
-      bool approvalNeeded = false;
-      final approvalAddress = quote['approvalAddress']?.toString();
-      if (approvalAddress != null && 
-          approvalAddress.isNotEmpty && 
-          !fromToken.isNative) {
+      if (!mounted || version != _quoteVersion) return;
+      final approval = quote['approvalAddress']?.toString();
+      var needsApproval = false;
+      if (!from.isNative && approval != null && approval.isNotEmpty) {
         try {
-          final rpcService = context.read<WalletRpcService>();
-          final cryptoService = context.read<WalletService>().crypto;
-          final allowanceHex = await rpcService.call(
-            network: fromToken.chain,
-            to: fromToken.contractAddress,
-            data: cryptoService.encodeErc20Allowance(
-              owner: fromAddress,
-              spender: approvalAddress,
+          final rpc = context.read<WalletRpcService>();
+          final crypto = context.read<WalletService>().crypto;
+          final allowanceHex = await rpc.call(
+            network: from.chain,
+            to: from.contractAddress,
+            data: crypto.encodeErc20Allowance(
+              owner: wallet.address,
+              spender: approval,
             ),
           );
-
-          if (!mounted || requestVersion != _quoteRequestVersion) return;
-
-          final allowance = BigInt.tryParse(allowanceHex.replaceFirst('0x', ''), radix: 16) ?? BigInt.zero;
-          final requiredAmount = BigInt.tryParse(fromAmount) ?? BigInt.zero;
-          
-          debugPrint('ALLOWANCE CHECK: token=${fromToken.symbol}, spender=$approvalAddress');
-          debugPrint('ALLOWANCE: $allowance, REQUIRED: $requiredAmount');
-
-          if (allowance < requiredAmount) {
-            approvalNeeded = true;
-          }
+          final clean = allowanceHex.replaceFirst(RegExp(r'^0x'), '');
+          final allowance = BigInt.tryParse(clean, radix: 16) ?? BigInt.zero;
+          needsApproval = allowance < BigInt.parse(rawAmount);
         } catch (e) {
-          debugPrint('Allowance check failed: $e');
+          debugPrint('Swap allowance check failed: $e');
         }
       }
 
       setState(() {
         _quote = quote;
-        _isApprovalRequired = approvalNeeded;
+        _approvalRequired = needsApproval;
       });
     } catch (e) {
-      if (mounted && requestVersion == _quoteRequestVersion) {
-        debugPrint('Quote failed: $e');
-        setState(() => _quote = null);
-      }
-    } finally {
-      if (mounted && requestVersion == _quoteRequestVersion) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  Future<void> _handleSwap() async {
-    final quote = _quote;
-    final fromToken = _fromToken;
-    if (quote == null || fromToken == null) return;
-
-    final fromAddress = context.read<WalletProvider>().wallet?.address;
-    if (fromAddress == null || fromAddress.isEmpty) {
-      NotificationService.showError(context, 'Wallet address not found.');
-      return;
-    }
-
-    final walletService = context.read<WalletService>();
-    final swapApi = context.read<SwapApiService>();
-
-    final rawTransaction = quote['transactionRequest'] ?? quote['transaction'];
-    if (rawTransaction is! Map) {
-      NotificationService.showError(context, 'No transaction data in quote.');
-      return;
-    }
-
-    final transaction = Map<String, dynamic>.from(rawTransaction);
-
-    debugPrint('SWAP TX: $transaction');
-    
-    final to = transaction['to']?.toString();
-    final data = transaction['data']?.toString();
-    final value = transaction['value']?.toString() ?? '0';
-    final chainId = int.tryParse(transaction['chainId']?.toString() ?? '');
-    final nonce = int.tryParse(transaction['nonce']?.toString() ?? '');
-    final gasLimit = transaction['gasLimit']?.toString() ?? transaction['gas']?.toString();
-    final gasPrice = transaction['gasPrice']?.toString();
-    final maxFeePerGas = transaction['maxFeePerGas']?.toString();
-    final maxPriorityFeePerGas = transaction['maxPriorityFeePerGas']?.toString();
-
-    if (to == null || to.isEmpty || 
-        data == null || data.isEmpty || data == '0x' ||
-        chainId == null || 
-        nonce == null || 
-        gasLimit == null || 
-        (gasPrice == null && maxFeePerGas == null)) {
-      NotificationService.showError(
-        context,
-        'Swap transaction data is incomplete. Please request a new quote.',
-      );
-      return;
-    }
-
-    final confirmed = await _showConfirmBottomSheet(
-      context,
-      fromToken: fromToken,
-      toToken: _toToken!,
-      fromAmount: _amountController.text,
-      toAmount: _fromBaseUnits(
-        quote['toAmount']?.toString(),
-        _toToken?.decimals ?? 18,
-      ),
-    );
-
-    if (confirmed != true || !mounted) return;
-
-    setState(() {
-      _isLoading = true;
-      _loadingMessage = 'Signing...';
-    });
-    try {
-      final signedTx = await walletService.signNativeTransaction(
-        to: to,
-        valueRaw: value,
-        nonce: nonce,
-        gasLimit: gasLimit,
-        gasPrice: gasPrice,
-        maxFeePerGas: maxFeePerGas,
-        maxPriorityFeePerGas: maxPriorityFeePerGas,
-        chainId: chainId,
-        dataHex: data,
-      );
-
-      if (!mounted) return;
-
-      if (signedTx == null || signedTx.isEmpty) {
-        throw Exception('Failed to sign swap transaction locally');
-      }
-
-      setState(() => _loadingMessage = 'Broadcasting...');
-
-      final broadcastResult = await swapApi.broadcastSwap(
-        network: fromToken.chain,
-        signedTransaction: signedTx,
-        transactionType: 'swap',
-      );
-
-      if (!mounted) return;
-
-      final hash = broadcastResult['hash']?.toString();
-
-      if (hash == null || hash.isEmpty) {
-        throw Exception('Backend did not return a transaction hash');
-      }
-
-      setState(() => _loadingMessage = 'Confirming...');
-
-      if (mounted) {
-        await _pollSwapStatus(hash);
-      }
-    } catch (e) {
-      if (mounted) {
-        NotificationService.showError(context, 'Swap failed: $e');
-      }
-    } finally {
-      if (mounted) {
+      if (mounted && version == _quoteVersion) {
         setState(() {
-          _isLoading = false;
-          _loadingMessage = '';
+          _quote = null;
+          _approvalRequired = false;
         });
+        NotificationService.showError(context, 'Unable to get swap quote: $e');
       }
+    } finally {
+      if (mounted && version == _quoteVersion) setState(() => _loadingQuote = false);
     }
   }
 
-  Future<void> _handleApprove() async {
+  Future<Map<String, dynamic>> _transactionForSigning(
+    Map<String, dynamic> request,
+    String network,
+    String fromAddress,
+  ) async {
+    final tx = Map<String, dynamic>.from(request);
+    final rpc = context.read<WalletRpcService>();
+    final nonce = await rpc.getPendingNonce(network: network, address: fromAddress);
+    tx['nonce'] = nonce;
+
+    final gas = tx['gasLimit']?.toString() ?? tx['gas']?.toString();
+    final hasFee = tx['gasPrice'] != null || tx['maxFeePerGas'] != null;
+    if (gas != null && hasFee) return tx;
+
+    final estimate = await context.read<TransactionApiService>().estimateTransaction(
+      network: network,
+      transaction: {
+        'from': fromAddress,
+        'to': tx['to'],
+        'value': tx['value']?.toString() ?? '0',
+        'data': tx['data']?.toString() ?? '0x',
+      },
+    );
+    tx['gasLimit'] ??= estimate['gasLimit'] ?? estimate['gas'];
+    tx['gasPrice'] ??= estimate['gasPrice'];
+    tx['maxFeePerGas'] ??= estimate['maxFeePerGas'];
+    tx['maxPriorityFeePerGas'] ??= estimate['maxPriorityFeePerGas'];
+    return tx;
+  }
+
+  Future<void> _approve() async {
+    final from = _from;
     final quote = _quote;
-    final fromToken = _fromToken;
-    if (quote == null || fromToken == null) return;
+    final wallet = context.read<WalletProvider>().wallet;
+    if (from == null || quote == null || wallet?.address == null) return;
 
-    final approvalAddress = quote['approvalAddress']?.toString();
-    if (approvalAddress == null || approvalAddress.isEmpty) return;
-
-    final walletService = context.read<WalletService>();
-    final transactionApi = context.read<TransactionApiService>();
-    final swapApi = context.read<SwapApiService>();
-
-    final network = fromToken.chain;
+    final spender = quote['approvalAddress']?.toString();
+    final rawAmount = _baseUnits(_amount.text, from.decimals);
+    if (spender == null || spender.isEmpty || rawAmount == null) return;
 
     setState(() {
-      _isApproving = true;
-      _loadingMessage = 'Preparing...';
+      _processing = true;
+      _processingText = 'Preparing approval…';
     });
+
     try {
-      final fromAmount = _toBaseUnits(_amountController.text, fromToken.decimals);
+      final walletService = context.read<WalletService>();
       final data = walletService.crypto.encodeErc20Approve(
-        spender: approvalAddress,
-        amount: fromAmount!,
+        spender: spender,
+        amount: rawAmount,
       );
-
-      final address = await walletService.getAddress();
-      if (address == null || address.isEmpty) {
-        throw Exception('Wallet address not found');
-      }
-
-      final rpc = WalletRpcService();
-      int nonce;
-      try {
-        nonce = await rpc.getPendingNonce(
-          network: network,
-          address: address,
-        );
-      } finally {
-        rpc.dispose();
-      }
-
-      final estimate = await transactionApi.estimateTransaction(
-        network: network,
+      final rpc = context.read<WalletRpcService>();
+      final nonce = await rpc.getPendingNonce(network: from.chain, address: wallet.address);
+      final estimate = await context.read<TransactionApiService>().estimateTransaction(
+        network: from.chain,
         transaction: {
-          'from': address,
-          'to': fromToken.contractAddress,
+          'from': wallet.address,
+          'to': from.contractAddress,
           'value': '0',
           'data': data,
         },
       );
 
-      if (!mounted) return;
-
-      final transactionRequest = quote['transactionRequest'] ?? quote['transaction'] ?? {};
-      final chainId = int.tryParse(transactionRequest['chainId']?.toString() ?? '');
-
-      if (chainId == null) {
-        throw Exception('Approval chain ID is missing');
-      }
-
-      setState(() => _loadingMessage = 'Signing...');
-      final signedTx = await walletService.signNativeTransaction(
-        to: fromToken.contractAddress,
+      final signed = await walletService.signNativeTransaction(
+        to: from.contractAddress,
         valueRaw: '0',
         nonce: nonce,
-        gasLimit: estimate['gasLimit']?.toString() ?? '100000',
+        gasLimit: estimate['gasLimit']?.toString() ?? estimate['gas']?.toString() ?? '100000',
         gasPrice: estimate['gasPrice']?.toString(),
         maxFeePerGas: estimate['maxFeePerGas']?.toString(),
         maxPriorityFeePerGas: estimate['maxPriorityFeePerGas']?.toString(),
-        chainId: chainId,
+        chainId: int.parse(_chainId(from.chain)),
         dataHex: data,
       );
+      if (signed == null || signed.isEmpty) throw Exception('Could not sign approval');
 
-      if (!mounted) return;
-
-      setState(() => _loadingMessage = 'Approving...');
-      
-      final broadcastResult = await swapApi.broadcastSwap(
-        network: network,
-        signedTransaction: signedTx!,
+      setState(() => _processingText = 'Broadcasting approval…');
+      final result = await context.read<SwapApiService>().broadcastSwap(
+        network: from.chain,
+        signedTransaction: signed,
         transactionType: 'approval',
       );
+      final hash = result['hash']?.toString();
+      if (hash == null || hash.isEmpty) throw Exception('Backend did not return approval hash');
 
-      if (!mounted) return;
-
-      final hash = broadcastResult['hash']?.toString();
-      if (hash == null || hash.isEmpty) {
-        throw Exception('Backend did not return an approval hash');
-      }
-      debugPrint('APPROVAL HASH: $hash');
-
-      // Wait for confirmation
-      bool isConfirmed = false;
-      for (int i = 0; i < 20; i++) {
+      setState(() => _processingText = 'Waiting for approval…');
+      for (var i = 0; i < 24; i++) {
         await Future.delayed(const Duration(seconds: 5));
-        
-        final receipt = await swapApi.getReceipt(
-          network: network,
-          hash: hash,
-        );
-        debugPrint('APPROVAL RECEIPT: $receipt');
-
-        if (receipt.isNotEmpty) {
-          final status = receipt['status']?.toString();
-          if (status == '0x1' || status == '1') {
-            isConfirmed = true;
-          }
-          break;
+        final receipt = await context.read<SwapApiService>().getReceipt(network: from.chain, hash: hash);
+        final status = receipt['status']?.toString();
+        if (status == '0x1' || status == '1') {
+          if (mounted) NotificationService.showSuccess(context, 'Token approved');
+          await _requestQuote();
+          return;
         }
+        if (status == '0x0' || status == '0') throw Exception('Approval transaction failed');
       }
-
-      if (isConfirmed) {
-        if (mounted) {
-          NotificationService.showSuccess(context, 'Token approved!');
-          _getQuote(); // Refresh quote and allowance check
-        }
-      } else {
-        throw Exception('Approval transaction timed out or failed.');
-      }
+      throw Exception('Approval confirmation timed out');
     } catch (e) {
-      if (mounted) {
-        NotificationService.showError(context, 'Approval failed: $e');
-      }
+      if (mounted) NotificationService.showError(context, 'Approval failed: $e');
     } finally {
-      if (mounted) {
-        setState(() {
-          _isApproving = false;
-          _loadingMessage = '';
-        });
-      }
+      if (mounted) setState(() { _processing = false; _processingText = ''; });
     }
   }
 
-  Future<bool?> _showConfirmBottomSheet(
-    BuildContext context, {
-    required TokenModel fromToken,
-    required TokenModel toToken,
-    required String fromAmount,
-    required String toAmount,
-  }) {
-    final colors = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
+  Future<void> _swap() async {
+    final from = _from;
+    final to = _to;
+    final quote = _quote;
+    final wallet = context.read<WalletProvider>().wallet;
+    if (from == null || to == null || quote == null || wallet?.address == null) return;
 
-    return showModalBottomSheet<bool>(
+    final raw = quote['transactionRequest'];
+    if (raw is! Map) {
+      NotificationService.showError(context, 'This quote has no executable transaction.');
+      return;
+    }
+
+    final confirmed = await _confirm(from, to, quote);
+    if (!confirmed || !mounted) return;
+
+    setState(() { _processing = true; _processingText = 'Preparing transaction…'; });
+    try {
+      final tx = await _transactionForSigning(Map<String, dynamic>.from(raw), from.chain, wallet.address);
+      final toAddress = tx['to']?.toString();
+      final data = tx['data']?.toString();
+      final gasLimit = tx['gasLimit']?.toString() ?? tx['gas']?.toString();
+      final chainId = int.tryParse(tx['chainId']?.toString() ?? '') ?? int.parse(_chainId(from.chain));
+      if (toAddress == null || toAddress.isEmpty || data == null || data.isEmpty || gasLimit == null) {
+        throw Exception('Swap transaction request is incomplete');
+      }
+
+      setState(() => _processingText = 'Signing transaction…');
+      final signed = await context.read<WalletService>().signNativeTransaction(
+        to: toAddress,
+        valueRaw: tx['value']?.toString() ?? '0',
+        nonce: int.parse(tx['nonce'].toString()),
+        gasLimit: gasLimit,
+        gasPrice: tx['gasPrice']?.toString(),
+        maxFeePerGas: tx['maxFeePerGas']?.toString(),
+        maxPriorityFeePerGas: tx['maxPriorityFeePerGas']?.toString(),
+        chainId: chainId,
+        dataHex: data,
+      );
+      if (signed == null || signed.isEmpty) throw Exception('Could not sign swap transaction');
+
+      setState(() => _processingText = 'Broadcasting transaction…');
+      final result = await context.read<SwapApiService>().broadcastSwap(
+        network: from.chain,
+        signedTransaction: signed,
+        transactionType: 'swap',
+      );
+      final hash = result['hash']?.toString();
+      if (hash == null || hash.isEmpty) throw Exception('Backend did not return transaction hash');
+
+      setState(() => _processingText = 'Confirming swap…');
+      await _pollStatus(hash, quote, from, to, wallet.address);
+    } catch (e) {
+      if (mounted) NotificationService.showError(context, 'Swap failed: $e');
+    } finally {
+      if (mounted) setState(() { _processing = false; _processingText = ''; });
+    }
+  }
+
+  Future<void> _pollStatus(
+    String hash,
+    Map<String, dynamic> quote,
+    TokenModel from,
+    TokenModel to,
+    String address,
+  ) async {
+    final api = context.read<SwapApiService>();
+    final provider = quote['provider']?.toString().toLowerCase() ?? '';
+    final type = quote['type']?.toString() ?? 'same-chain';
+    final quoteId = quote['quoteId']?.toString();
+    final bridge = quote['bridge']?.toString();
+
+    for (var i = 0; i < 36; i++) {
+      await Future.delayed(const Duration(seconds: 5));
+      if (!mounted) return;
+      try {
+        final status = await api.getStatus(
+          transactionId: hash,
+          provider: provider,
+          fromChain: _chainId(from.chain),
+          toChain: _chainId(to.chain),
+          bridge: bridge,
+          quoteId: quoteId,
+          fromAddress: address,
+          swapType: type,
+        );
+        final value = status['status']?.toString().toUpperCase();
+        if (value == 'CONFIRMED' || value == 'SUCCESS' || value == 'COMPLETED') {
+          NotificationService.showSuccess(context, 'Swap successful');
+          await context.read<WalletProvider>().loadWallet();
+          if (mounted) Navigator.of(context).pop();
+          return;
+        }
+        if (value == 'FAILED' || value == 'ERROR') {
+          throw Exception(status['message']?.toString() ?? 'Swap failed on-chain');
+        }
+      } catch (e) {
+        if (i == 35 && mounted) throw Exception(e.toString());
+      }
+    }
+    if (mounted) NotificationService.showInfo(context, 'Swap is still pending. Check your transaction history later.');
+  }
+
+  Future<bool> _confirm(TokenModel from, TokenModel to, Map<String, dynamic> quote) async {
+    final colors = Theme.of(context).colorScheme;
+    final amount = _amount.text.trim();
+    final received = _displayUnits(quote['toAmount'], to.decimals);
+    final minReceived = _displayUnits(quote['toAmountMin'], to.decimals);
+    final fee = quote['fee'];
+    final feeMap = fee is Map ? Map<String, dynamic>.from(fee) : <String, dynamic>{};
+
+    final result = await showModalBottomSheet<bool>(
       context: context,
-      backgroundColor: Colors.transparent,
       isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) => Container(
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
         decoration: BoxDecoration(
           color: colors.surface,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
         ),
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: colors.onSurfaceVariant.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(2),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 42, height: 4, decoration: BoxDecoration(color: colors.outlineVariant, borderRadius: BorderRadius.circular(4))),
+              const SizedBox(height: 22),
+              const Text('Review Swap', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(child: _reviewAsset(from, amount, colors)),
+                  Icon(Icons.arrow_forward_rounded, color: colors.primary),
+                  Expanded(child: _reviewAsset(to, received, colors, accent: true)),
+                ],
               ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Review Swap',
-              style: text.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    children: [
-                      TokenIcon(
-                        imageUrl: fromToken.imageUrl,
-                        symbol: fromToken.symbol,
-                        name: fromToken.name,
-                        chainName: fromToken.chain,
-                        isNative: fromToken.isNative,
-                        radius: 20,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        fromAmount,
-                        style: text.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                        textAlign: TextAlign.center,
-                      ),
-                      Text(
-                        fromToken.symbol,
-                        style: text.labelSmall?.copyWith(color: colors.onSurfaceVariant),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(Icons.arrow_forward_rounded, color: colors.primary.withValues(alpha: 0.5)),
-                Expanded(
-                  child: Column(
-                    children: [
-                      TokenIcon(
-                        imageUrl: toToken.imageUrl,
-                        symbol: toToken.symbol,
-                        name: toToken.name,
-                        chainName: toToken.chain,
-                        isNative: toToken.isNative,
-                        radius: 20,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        toAmount,
-                        style: text.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: colors.primary),
-                        textAlign: TextAlign.center,
-                      ),
-                      Text(
-                        toToken.symbol,
-                        style: text.labelSmall?.copyWith(color: colors.onSurfaceVariant),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: FilledButton.styleFrom(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                child: const Text('Confirm Swap', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 22),
+              _reviewRow('Provider', quote['provider']?.toString() ?? '-'),
+              _reviewRow('Minimum received', '$minReceived ${to.symbol}'),
+              _reviewRow('Griot fee', _displayUnits(feeMap['amount'], from.decimals) + ' ' + from.symbol),
+              const SizedBox(height: 22),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Confirm Swap')),
               ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-            ),
-          ],
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            ],
+          ),
         ),
       ),
     );
+    return result == true;
   }
 
-  Future<void> _pollSwapStatus(String transactionHash) async {
-    final quote = _quote;
-    final fromToken = _fromToken;
-    final toToken = _toToken;
-    final fromAddress = context.read<WalletProvider>().wallet?.address;
-
-    if (quote == null || fromToken == null || fromAddress == null) {
-      if (mounted) setState(() => _isLoading = false);
-      return;
-    }
-
-    final swapApi = context.read<SwapApiService>();
-    final provider = quote['provider']?.toString().toLowerCase() ?? '';
-    final swapType = quote['type']?.toString();
-    final quoteId = quote['quoteId']?.toString();
-
-    // Poll for up to 5 minutes (30 * 10 seconds)
-    for (int i = 0; i < 30; i++) {
-      await Future.delayed(const Duration(seconds: 10));
-      if (!mounted) return;
-
-      try {
-        final statusData = await swapApi.getStatus(
-          transactionId: transactionHash,
-          provider: provider,
-          fromChain: fromToken.chain,
-          toChain: toToken?.chain,
-          fromAddress: fromAddress,
-          swapType: swapType,
-          quoteId: quoteId,
-        );
-
-        final status = statusData['status']?.toString().toUpperCase();
-
-        if (status == 'CONFIRMED' || status == 'SUCCESS' || status == 'COMPLETED') {
-          if (mounted) {
-            NotificationService.showSuccess(context, 'Swap successful!');
-            setState(() {
-              _isLoading = false;
-              _loadingMessage = '';
-            });
-            Navigator.of(context).pop();
-          }
-          return;
-        } else if (status == 'FAILED' || status == 'ERROR') {
-          if (mounted) {
-            final msg = statusData['message']?.toString() ?? 'Swap failed on-chain';
-            NotificationService.showError(context, 'Swap failed: $msg');
-            setState(() {
-              _isLoading = false;
-              _loadingMessage = '';
-            });
-          }
-          return;
-        }
-        // If PENDING, continue polling
-      } catch (e) {
-        debugPrint('Status poll failed: $e');
-      }
-    }
-
-    if (mounted) {
-      NotificationService.showInfo(
-        context,
-        'Swap is taking longer than expected. You can check your history later.',
-      );
-      setState(() {
-        _isLoading = false;
-        _loadingMessage = '';
-      });
-      Navigator.of(context).pop();
-    }
+  Widget _reviewAsset(TokenModel token, String amount, ColorScheme colors, {bool accent = false}) {
+    return Column(children: [
+      TokenIcon(imageUrl: token.imageUrl, symbol: token.symbol, name: token.name, chainName: token.chain, isNative: token.isNative, radius: 22),
+      const SizedBox(height: 8),
+      Text(amount, textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: accent ? colors.primary : null)),
+      Text(token.symbol, style: TextStyle(color: colors.onSurfaceVariant)),
+    ]);
   }
 
-  String? _toBaseUnits(String value, int decimals) {
-    final normalized = value.trim();
-    if (normalized.isEmpty || decimals < 0) return null;
+  Widget _reviewRow(String label, String value) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 5),
+    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(label), Text(value, style: const TextStyle(fontWeight: FontWeight.w600))]),
+  );
 
-    final parts = normalized.split('.');
-    if (parts.length > 2) return null;
-
-    final whole = parts[0].isEmpty ? '0' : parts[0];
-    final fraction = parts.length == 2 ? parts[1] : '';
-    if (!RegExp(r'^\d+$').hasMatch(whole) ||
-        (fraction.isNotEmpty && !RegExp(r'^\d+$').hasMatch(fraction))) {
-      return null;
-    }
-    if (fraction.length > decimals) return null;
-
-    final paddedFraction = fraction.padRight(decimals, '0');
-    final raw = '$whole$paddedFraction'
-        .replaceFirst(RegExp(r'^0+(?=\d)'), '');
-    return RegExp(r'^\d+$').hasMatch(raw) ? raw : null;
-  }
-
-  String _fromBaseUnits(String? baseAmount, int decimals) {
-    if (baseAmount == null || baseAmount.isEmpty || decimals < 0) {
-      return '0.00';
-    }
-
-    final cleanBase = baseAmount
-        .split('.')
-        .first
-        .replaceAll(RegExp(r'\D'), '');
-    if (cleanBase.isEmpty) return '0.00';
-    if (decimals == 0) return cleanBase;
-
-    String whole;
-    String fraction;
-    if (cleanBase.length <= decimals) {
-      final padded = cleanBase.padLeft(decimals + 1, '0');
-      final splitIndex = padded.length - decimals;
-      whole = padded.substring(0, splitIndex);
-      fraction = padded.substring(splitIndex);
-    } else {
-      final splitIndex = cleanBase.length - decimals;
-      whole = cleanBase.substring(0, splitIndex);
-      fraction = cleanBase.substring(splitIndex);
-    }
-
-    fraction = fraction.replaceAll(RegExp(r'0+$'), '');
-    if (fraction.isEmpty) return whole;
-    if (fraction.length > 8) fraction = fraction.substring(0, 8);
-    return '$whole.$fraction';
-  }
-
-  TokenModel? _tokenForAddress(String? address) {
-    if (address == null || address.isEmpty) return null;
-    final normalized = address.toLowerCase();
-    if (normalized == _nativeTokenAddress.toLowerCase()) {
-      try {
-        return context.read<WalletProvider>().tokens.firstWhere(
-              (token) =>
-                  token.isNative &&
-                  token.chain.toLowerCase() == _fromToken?.chain.toLowerCase(),
-            );
-      } catch (_) {
-        return null;
-      }
-    }
-
-    final tokens = context.read<WalletProvider>().tokens;
-    try {
-      return tokens.firstWhere(
-        (token) =>
-            token.contractAddress.toLowerCase() == normalized &&
-            token.chain.toLowerCase() == _fromToken?.chain.toLowerCase(),
-      );
-    } catch (_) {
-      return null;
-    }
-  }
-
-  String _formatFeeAmount(String? amount, TokenModel? token) {
-    if (amount == null || amount.isEmpty || amount == '0') return '-';
-    if (token == null) return amount;
-    final value = double.tryParse(_fromBaseUnits(amount, token.decimals));
-    if (value == null) return amount;
-    return WalletFormatters.formatBalance(value, symbol: token.symbol);
-  }
-
-  void _swapTokens() {
-    setState(() {
-      final temp = _fromToken;
-      _fromToken = _toToken;
-      _toToken = temp;
-      _quote = null;
-      _amountController.clear();
-      _usdController.clear();
-    });
-    _debounce?.cancel();
-  }
-
-  void _showTokenPicker(BuildContext context, {required bool isFrom}) {
-    final tokens = context.read<WalletProvider>().tokens;
-
+  void _pickToken(bool fromSide) {
+    final tokens = context.read<WalletProvider>().tokens.where((t) => t.balance >= 0).toList();
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
       builder: (context) => ListView.builder(
         itemCount: tokens.length,
-        itemBuilder: (context, index) {
-          final token = tokens[index];
+        itemBuilder: (_, i) {
+          final token = tokens[i];
           return ListTile(
-            leading: TokenIcon(
-              imageUrl: token.imageUrl,
-              symbol: token.symbol,
-              name: token.name,
-              chainName: token.chain,
-              isNative: token.isNative,
-              radius: 16,
-            ),
-            title: Text(token.name),
-            subtitle: Text('${token.symbol} on ${token.chain.toUpperCase()}'),
+            leading: TokenIcon(imageUrl: token.imageUrl, symbol: token.symbol, name: token.name, chainName: token.chain, isNative: token.isNative, radius: 18),
+            title: Text(token.symbol, style: const TextStyle(fontWeight: FontWeight.w600)),
+            subtitle: Text(token.chain.toUpperCase()),
             trailing: Text(WalletFormatters.formatBalance(token.balance)),
             onTap: () {
-              setState(() {
-                if (isFrom) {
-                  _fromToken = token;
-                } else {
-                  _toToken = token;
-                }
-                _quote = null;
-                _amountController.clear();
-                _usdController.clear();
-              });
+              setState(() { if (fromSide) _from = token; else _to = token; _quote = null; _approvalRequired = false; });
               Navigator.pop(context);
+              _requestQuote();
             },
           );
         },
@@ -800,536 +480,86 @@ class _SwapScreenState extends State<SwapScreen> {
     );
   }
 
+  Widget _assetCard(String label, TokenModel? token, {required bool fromSide}) {
+    final colors = Theme.of(context).colorScheme;
+    final amount = fromSide ? _amount.text : (_quote == null || token == null ? '0' : _displayUnits(_quote!['toAmount'], token.decimals));
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: colors.surfaceContainerLowest, borderRadius: BorderRadius.circular(28), border: Border.all(color: colors.outlineVariant.withValues(alpha: .2))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Text(label, style: TextStyle(color: colors.onSurfaceVariant, fontWeight: FontWeight.w600)),
+          if (token != null) Text('Balance ${WalletFormatters.formatBalance(token.balance)}', style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant)),
+        ]),
+        const SizedBox(height: 18),
+        Row(children: [
+          Expanded(child: Text(fromSide ? (amount.isEmpty ? '0' : amount) : amount, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w700))),
+          InkWell(
+            onTap: () => _pickToken(fromSide),
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(color: colors.surfaceContainerHigh, borderRadius: BorderRadius.circular(20)),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                if (token != null) TokenIcon(imageUrl: token.imageUrl, symbol: token.symbol, name: token.name, chainName: token.chain, isNative: token.isNative, radius: 15),
+                if (token != null) const SizedBox(width: 7),
+                Text(token?.symbol ?? 'Select', style: const TextStyle(fontWeight: FontWeight.w700)),
+                const Icon(Icons.keyboard_arrow_down_rounded),
+              ]),
+            ),
+          ),
+        ]),
+        if (fromSide && token != null) ...[
+          const SizedBox(height: 10),
+          Text(WalletFormatters.formatCurrency((double.tryParse(amount) ?? 0) * token.priceUsd.toDouble()), style: TextStyle(color: colors.onSurfaceVariant)),
+          Align(alignment: Alignment.centerRight, child: TextButton(onPressed: () { _amount.text = token.balance.toString(); }, child: const Text('MAX'))),
+        ],
+      ]),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
-
+    final quote = _quote;
     return GradientScaffold(
-      appBar: AppBar(
-        title: Text(
-          'Swap',
-          style: text.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) => SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          physics: const BouncingScrollPhysics(),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight - 80),
-            child: Column(
-              children: [
-                const SizedBox(height: 12),
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Column(
-                      children: [
-                        _buildSwapCard(
-                          context,
-                          label: 'Pay',
-                          token: _fromToken,
-                          controller: _isUsdMode ? _usdController : _amountController,
-                          onChanged: _onAmountChanged,
-                          showCurrencyToggle: true,
-                          onMaxTap: _onMaxPressed,
-                          subValue: _isUsdMode 
-                            ? '${_amountController.text} ${_fromToken?.symbol ?? ""}'
-                            : (_usdController.text.isNotEmpty ? '\$${_usdController.text}' : null),
-                          onTokenTap: () => _showTokenPicker(context, isFrom: true),
-                        ),
-                        const SizedBox(height: 4),
-                        _buildSwapCard(
-                          context,
-                          label: 'Receive',
-                          token: _toToken,
-                          isReadOnly: true,
-                          value: _fromBaseUnits(
-                            _quote?['toAmount']?.toString(),
-                            _toToken?.decimals ?? 18,
-                          ),
-                          subValue: _quote != null && _toToken != null && _toToken!.priceUsd > 0
-                              ? WalletFormatters.formatCurrency(
-                                  (double.tryParse(_fromBaseUnits(_quote!['toAmount']?.toString(), _toToken!.decimals)) ?? 0) * 
-                                  _toToken!.priceUsd.toDouble()
-                                )
-                              : null,
-                          onTokenTap: () => _showTokenPicker(context, isFrom: false),
-                        ),
-                      ],
-                    ),
-                    Positioned(
-                      child: Container(
-                        height: 40,
-                        width: 40,
-                        decoration: BoxDecoration(
-                          color: colors.surface,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.2), width: 1),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.05),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: _swapTokens,
-                            customBorder: const CircleBorder(),
-                            child: Icon(Icons.arrow_downward_rounded, color: colors.primary, size: 20),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                if (_quote != null) ...[
-                  const SizedBox(height: 16),
-                  _buildQuoteDetails(context),
-                ],
-                const SizedBox(height: 32),
-                SizedBox(
-                  width: double.infinity,
-                  height: 64,
-                  child: FilledButton(
-                    onPressed: (_quote != null && !_isLoading && !_isApproving)
-                        ? (_isApprovalRequired ? _handleApprove : _handleSwap)
-                        : null,
-                    style: FilledButton.styleFrom(
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      elevation: 0,
-                    ),
-                    child: (_isLoading || _isApproving)
-                        ? Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  color: colors.onPrimary.withValues(alpha: 0.5),
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Text(
-                                _loadingMessage,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                              ),
-                            ],
-                          )
-                        : Text(
-                            _isApprovalRequired
-                                ? 'Approve ${_fromToken?.symbol ?? "Token"}'
-                                : 'Swap Assets',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                          ),
-                  ),
-                ),
-                const SizedBox(height: 40),
-                const GriotBannerAd(),
-              ],
-            ),
-          ),
-        ),
-      ),
+      appBar: AppBar(title: const Text('Swap'), centerTitle: true, backgroundColor: Colors.transparent, elevation: 0),
+      child: ListView(padding: const EdgeInsets.fromLTRB(16, 10, 16, 30), children: [
+        _assetCard('Pay', _from, fromSide: true),
+        Center(child: Container(margin: const EdgeInsets.symmetric(vertical: 6), decoration: BoxDecoration(color: colors.surface, shape: BoxShape.circle, border: Border.all(color: colors.outlineVariant.withValues(alpha: .25))), child: IconButton(icon: const Icon(Icons.swap_vert_rounded), onPressed: () { setState(() { final x = _from; _from = _to; _to = x; _amount.clear(); _quote = null; }); }))),
+        _assetCard('Receive', _to, fromSide: false),
+        if (_loadingQuote) const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator())),
+        if (quote != null) _quoteCard(quote),
+        const SizedBox(height: 20),
+        SizedBox(height: 58, child: FilledButton(
+          onPressed: _processing || _loadingQuote || quote == null ? null : (_approvalRequired ? _approve : _swap),
+          child: _processing ? Text(_processingText) : Text(_approvalRequired ? 'Approve ${_from?.symbol ?? ''}' : 'Swap'),
+        )),
+      ]),
     );
   }
 
-  Widget _buildSwapCard(
-    BuildContext context, {
-    required String label,
-    required TokenModel? token,
-    required VoidCallback onTokenTap,
-    TextEditingController? controller,
-    String? value,
-    bool isReadOnly = false,
-    ValueChanged<String>? onChanged,
-    bool showCurrencyToggle = false,
-    String? subValue,
-    VoidCallback? onMaxTap,
-  }) {
+  Widget _quoteCard(Map<String, dynamic> quote) {
     final colors = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
-
+    final fee = quote['fee'];
+    final feeMap = fee is Map ? Map<String, dynamic>.from(fee) : <String, dynamic>{};
+    final risk = quote['risk'];
+    final riskMap = risk is Map ? Map<String, dynamic>.from(risk) : <String, dynamic>{};
+    final priceImpact = riskMap['priceImpact'];
     return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(
-          color: colors.outlineVariant.withValues(alpha: 0.15),
-          width: 1.5,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                label,
-                style: text.labelLarge?.copyWith(
-                  color: colors.onSurfaceVariant.withValues(alpha: 0.7),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              if (token != null)
-                Row(
-                  children: [
-                    Text(
-                      'Balance: ${WalletFormatters.formatBalance(token.balance)}',
-                      style: text.labelSmall?.copyWith(
-                        color: colors.onSurfaceVariant.withValues(alpha: 0.6),
-                      ),
-                    ),
-                    if (onMaxTap != null) ...[
-                      const SizedBox(width: 8),
-                      InkWell(
-                        onTap: onMaxTap,
-                        borderRadius: BorderRadius.circular(4),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: colors.primaryContainer.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: colors.primary.withValues(alpha: 0.2)),
-                          ),
-                          child: Text(
-                            'MAX',
-                            style: text.labelSmall?.copyWith(
-                              color: colors.primary,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 10,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (isReadOnly)
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          value ?? '0.00',
-                          style: text.displaySmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: -1,
-                            color: (value == null || value == '0.00') 
-                                ? colors.onSurface.withValues(alpha: 0.2)
-                                : colors.onSurface,
-                          ),
-                        ),
-                      )
-                    else
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          if (showCurrencyToggle && _isUsdMode)
-                            Text(
-                              '\$',
-                              style: text.headlineLarge?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: colors.onSurface,
-                              ),
-                            ),
-                          Expanded(
-                            child: TextField(
-                              controller: controller,
-                              onChanged: onChanged,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              style: text.displaySmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: -1,
-                                color: colors.onSurface,
-                              ),
-                              decoration: InputDecoration(
-                                hintText: '0.00',
-                                hintStyle: TextStyle(color: colors.onSurface.withValues(alpha: 0.1)),
-                                border: InputBorder.none,
-                                enabledBorder: InputBorder.none,
-                                focusedBorder: InputBorder.none,
-                                contentPadding: EdgeInsets.zero,
-                                isDense: true,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    const SizedBox(height: 4),
-                    if (subValue != null && subValue.isNotEmpty)
-                      Text(
-                        subValue,
-                        style: text.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant.withValues(alpha: 0.5),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              InkWell(
-                onTap: onTokenTap,
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: token == null ? colors.primary : colors.surfaceContainerHigh,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (token != null) ...[
-                        TokenIcon(
-                          imageUrl: token.imageUrl,
-                          symbol: token.symbol,
-                          name: token.name,
-                          chainName: token.chain,
-                          isNative: token.isNative,
-                          radius: 14,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          token.symbol,
-                          style: text.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: colors.onSurface,
-                          ),
-                        ),
-                      ] else
-                        Text(
-                          'Select Token',
-                          style: text.titleSmall?.copyWith(
-                            color: colors.onPrimary,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        size: 20,
-                        color: token == null ? colors.onPrimary : colors.onSurfaceVariant,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (showCurrencyToggle) ...[
-            const SizedBox(height: 16),
-            InkWell(
-              onTap: _toggleCurrencyMode,
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: colors.secondaryContainer.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _isUsdMode ? Icons.toll_rounded : Icons.attach_money_rounded,
-                      size: 14,
-                      color: colors.secondary,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      _isUsdMode ? 'Switch to ${_fromToken?.symbol ?? "Token"}' : 'Switch to USD',
-                      style: text.labelSmall?.copyWith(
-                        color: colors.secondary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuoteDetails(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
-    final griotFee = _asMap(_quote?['griotFee'] ?? _quote?['fee']);
-    final providerFee = _asMap(_quote?['providerFee']);
-    final transaction = _quote?['transaction'] ?? _quote?['transactionRequest'];
-
-    final feePercent = griotFee['percent'];
-    final feePercentDisplay = feePercent == null ? null : '$feePercent%';
-
-    double? gasNative;
-    double? gasUsd;
-    String? gasSymbol;
-    TokenModel? nativeToken;
-
-    if (transaction is Map) {
-      final gas = transaction['gas']?.toString() ?? transaction['gasLimit']?.toString();
-      final gasPrice = transaction['maxFeePerGas']?.toString() ??
-          transaction['gasPrice']?.toString();
-
-      if (gas != null && gasPrice != null) {
-        final gasLimit = double.tryParse(gas);
-        final pricePerGas = double.tryParse(gasPrice);
-        if (gasLimit != null && pricePerGas != null) {
-          gasNative = (gasLimit * pricePerGas) / 1000000000000000000.0;
-        }
-      }
-
-      try {
-        nativeToken = context.read<WalletProvider>().tokens.firstWhere(
-              (token) =>
-                  token.isNative &&
-                  token.chain.toLowerCase() == _fromToken?.chain.toLowerCase(),
-            );
-        gasSymbol = nativeToken.symbol;
-        if (gasNative != null && nativeToken.priceUsd.toDouble() > 0) {
-          gasUsd = gasNative * nativeToken.priceUsd.toDouble();
-        }
-      } catch (_) {
-        // Do not invent a price. The UI will show the native gas amount only.
-      }
-    }
-
-    final providerIncluded = providerFee['included'] == true ||
-        providerFee['reportedByProvider'] != true;
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerLow.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.info_outline_rounded, size: 16, color: colors.onSurfaceVariant.withValues(alpha: 0.6)),
-              const SizedBox(width: 8),
-              Text(
-                'Quote Details',
-                style: text.labelLarge?.copyWith(
-                  color: colors.onSurfaceVariant.withValues(alpha: 0.8),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _quoteRow(context, 'Provider', _quote?['provider']?.toString() ?? '-'),
-          const SizedBox(height: 10),
-          _quoteRow(
-            context,
-            'Service rate',
-            feePercentDisplay ?? '0.8%',
-            valueColor: colors.primary,
-            isBold: true,
-          ),
-          const SizedBox(height: 10),
-          _quoteRow(
-            context,
-            'Aggregator fee',
-            providerIncluded ? 'Included' :
-                _formatFeeAmount(
-                  providerFee['amount']?.toString(),
-                  _tokenForAddress(providerFee['token']?.toString()),
-                ),
-          ),
-          const SizedBox(height: 10),
-          _quoteRow(
-            context,
-            'Network fee',
-            gasNative == null
-                ? '-'
-                : WalletFormatters.formatBalance(gasNative, symbol: gasSymbol),
-            subtitle: gasUsd == null
-                ? null
-                : (gasUsd < 0.01 ? '< \$0.01' : WalletFormatters.formatCurrency(gasUsd)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Map<String, dynamic> _asMap(dynamic value) {
-    return value is Map<String, dynamic>
-        ? Map<String, dynamic>.from(value)
-        : <String, dynamic>{};
-  }
-
-  Widget _quoteRow(
-    BuildContext context,
-    String label,
-    String value, {
-    String? subtitle,
-    bool isBold = false,
-    Color? valueColor,
-  }) {
-    final colors = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: subtitle != null
-          ? CrossAxisAlignment.start
-          : CrossAxisAlignment.center,
-      children: [
-        Text(
-          label,
-          style: text.bodyMedium?.copyWith(
-            color: colors.onSurfaceVariant.withValues(alpha: 0.7),
-            fontWeight: isBold ? FontWeight.w600 : FontWeight.normal,
-          ),
-        ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              value, 
-              style: text.bodyMedium?.copyWith(
-                fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
-                color: valueColor ?? colors.onSurface,
-              ),
-            ),
-            if (subtitle != null)
-              Text(
-                subtitle,
-                style: text.labelSmall?.copyWith(
-                  color: colors.onSurfaceVariant.withValues(alpha: 0.5),
-                  fontSize: 10,
-                ),
-              ),
-          ],
-        ),
-      ],
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(color: colors.surfaceContainerLow.withValues(alpha: .55), borderRadius: BorderRadius.circular(22)),
+      child: Column(children: [
+        Row(children: [Icon(Icons.receipt_long_rounded, size: 18, color: colors.primary), const SizedBox(width: 8), const Text('Quote details', style: TextStyle(fontWeight: FontWeight.w700))]),
+        const SizedBox(height: 14),
+        _reviewRow('Provider', quote['provider']?.toString() ?? '-'),
+        _reviewRow('Type', quote['type']?.toString() ?? '-'),
+        _reviewRow('Minimum received', '${_displayUnits(quote['toAmountMin'], _to?.decimals ?? 18)} ${_to?.symbol ?? ''}'),
+        _reviewRow('Griot fee', '${_displayUnits(feeMap['amount'], _from?.decimals ?? 18)} ${_from?.symbol ?? ''}'),
+        if (priceImpact != null) _reviewRow('Price impact', '$priceImpact%'),
+        if (quote['fallbackUsed'] == true) Padding(padding: const EdgeInsets.only(top: 10), child: Align(alignment: Alignment.centerLeft, child: Text('Fallback provider used', style: TextStyle(color: colors.tertiary, fontWeight: FontWeight.w600)))),
+      ]),
     );
   }
 }
