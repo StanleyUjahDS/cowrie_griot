@@ -103,6 +103,7 @@ class ApiConfig {
     String? bridge,
     String? quoteId,
     String? fromAddress,
+    String? swapType,
   }) {
     final query = <String, String>{
       'transactionId': transactionId,
@@ -132,12 +133,29 @@ class ApiConfig {
       query['fromAddress'] = fromAddress;
     }
 
+    if (swapType != null && swapType.isNotEmpty) {
+      query['swapType'] = swapType;
+    }
+
     return Uri.parse(
       '$swapBase/status',
     ).replace(
       queryParameters: query,
     ).toString();
   }
+
+  static String swapReceipt({
+    required String network,
+    required String hash,
+  }) =>
+      Uri.parse(
+        '$swapBase/receipt',
+      ).replace(
+        queryParameters: {
+          'network': network,
+          'hash': hash,
+        },
+      ).toString();
 
   static const String swapHealth =
       '$swapBase/health';

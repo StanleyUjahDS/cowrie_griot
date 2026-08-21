@@ -59,6 +59,23 @@ class SwapApiService {
     return data;
   }
 
+  Future<Map<String, dynamic>> broadcastSwap({
+    required String network,
+    required String signedTransaction,
+    String? transactionType,
+  }) async {
+    final response = await _apiClient.post(
+      '${ApiConfig.swapBase}/broadcast',
+      body: {
+        'network': network,
+        'signedTransaction': signedTransaction,
+        'transactionType': transactionType,
+      },
+    );
+
+    return _asMap(_unwrap(response));
+  }
+
   /// The backend `fee` object represents Griot's configured integrator fee.
   /// It is calculated from GRIOT_SWAP_FEE_BPS on the backend and must never
   /// be reconfigured or hard-coded in Flutter.
@@ -127,6 +144,7 @@ class SwapApiService {
     String? bridge,
     String? quoteId,
     String? fromAddress,
+    String? swapType,
   }) async {
     final response = await _apiClient.get(
       ApiConfig.swapStatus(
@@ -137,6 +155,21 @@ class SwapApiService {
         bridge: bridge,
         quoteId: quoteId,
         fromAddress: fromAddress,
+        swapType: swapType,
+      ),
+    );
+
+    return _asMap(_unwrap(response));
+  }
+
+  Future<Map<String, dynamic>> getReceipt({
+    required String network,
+    required String hash,
+  }) async {
+    final response = await _apiClient.get(
+      ApiConfig.swapReceipt(
+        network: network,
+        hash: hash,
       ),
     );
 

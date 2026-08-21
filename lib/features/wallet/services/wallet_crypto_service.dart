@@ -158,6 +158,28 @@ class WalletCryptoService {
     return '0x${_bytesToHex(signed)}';
   }
 
+  // ============================================================
+  // ERC-20 HELPERS
+  // ============================================================
+
+  String encodeErc20Allowance({
+    required String owner,
+    required String spender,
+  }) {
+    final ownerClean = owner.toLowerCase().replaceFirst('0x', '').padLeft(64, '0');
+    final spenderClean = spender.toLowerCase().replaceFirst('0x', '').padLeft(64, '0');
+    return '0xdd62ed3e$ownerClean$spenderClean';
+  }
+
+  String encodeErc20Approve({
+    required String spender,
+    required String amount,
+  }) {
+    final spenderClean = spender.toLowerCase().replaceFirst('0x', '').padLeft(64, '0');
+    final amountClean = BigInt.parse(amount).toRadixString(16).padLeft(64, '0');
+    return '0x095ea7b3$spenderClean$amountClean';
+  }
+
   bool isValidAddress(String address) {
     return RegExp(
       r'^0x[a-fA-F0-9]{40}$',

@@ -101,6 +101,34 @@ class WalletRpcService {
     return hash;
   }
 
+  Future<String> call({
+    required String network,
+    required String to,
+    required String data,
+  }) async {
+    final result = await _request(
+      network,
+      'eth_call',
+      [
+        {'to': to, 'data': data},
+        'latest',
+      ],
+    );
+    return result?.toString() ?? '0x';
+  }
+
+  Future<Map<String, dynamic>?> getTransactionReceipt({
+    required String network,
+    required String hash,
+  }) async {
+    final result = await _request(
+      network,
+      'eth_getTransactionReceipt',
+      [hash],
+    );
+    return result is Map ? Map<String, dynamic>.from(result) : null;
+  }
+
   void dispose() {
     _client.close();
   }

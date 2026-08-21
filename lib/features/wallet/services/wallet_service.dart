@@ -15,6 +15,8 @@ class WalletService {
   })  : _cryptoService = cryptoService,
         _storageService = storageService;
 
+  WalletCryptoService get crypto => _cryptoService;
+
   Future<WalletData> createWallet() async {
     final wallet = await _cryptoService.createWallet();
     await _storageService.saveWallet(wallet);

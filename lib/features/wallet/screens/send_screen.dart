@@ -30,6 +30,7 @@ class _SendScreenState extends State<SendScreen> {
   final _addressController = TextEditingController();
   final _amountController = TextEditingController();
   bool _isLoading = false;
+  String _loadingMessage = '';
   bool _isInputInUsd = false;
   String _equivalentDisplay = '≈ \$0.00';
 
@@ -224,83 +225,20 @@ class _SendScreenState extends State<SendScreen> {
 
       final feeRaw = prepared['estimatedNetworkFeeRaw'];
 
-      await showDialog<void>(
-        context: context,
-        builder: (dialogContext) {
-          final dialogColors = Theme.of(dialogContext).colorScheme;
-          final dialogText = Theme.of(dialogContext).textTheme;
-          return AlertDialog(
-            backgroundColor: dialogColors.surface,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24),
-            ),
-            title: const Row(
-              children: [
-                Icon(Icons.receipt_long_rounded, color: Colors.blueAccent),
-                SizedBox(width: 10),
-                Text('Confirm Transaction'),
-              ],
-            ),
-            content: SizedBox(
-              width: double.maxFinite,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Divider(),
-                  const SizedBox(height: 12),
-                  _buildSummaryRow('Asset', '${token.name} (${token.symbol})', dialogContext),
-                  const SizedBox(height: 12),
-                  _buildSummaryRow('To', '${address.substring(0, 8)}...${address.substring(36)}', dialogContext),
-                  const SizedBox(height: 12),
-                  _buildSummaryRow(
-                    'Amount',
-                    '$finalAmount ${token.symbol}',
-                    dialogContext,
-                    valueColor: dialogColors.primary,
-                    isBold: true,
-                  ),
-                  if (feeRaw != null) ...[
-                    const SizedBox(height: 12),
-                    _buildFeeSummaryRow(feeRaw, token, dialogContext),
-                  ],
-                  if (prepared['percent'] != null) ...[
-                    const SizedBox(height: 12),
-                    _buildSummaryRow(
-                      'Service Fee',
-                      '${prepared['percent']}%',
-                      dialogContext,
-                    ),
-                  ],
-                  const SizedBox(height: 16),
-                  const Divider(),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Please review closely. Blockchain transactions are permanent and cannot be reversed.',
-                    style: dialogText.bodySmall?.copyWith(
-                      color: dialogColors.onSurfaceVariant,
-                      height: 1.35,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () {
-                  Navigator.of(dialogContext).pop();
-                  _executeBroadcast(prepared, token);
-                },
-                child: const Text('Confirm & Send'),
-              ),
-            ],
-          );
-        },
+      if (!mounted) return;
+
+      final confirmed = await _showConfirmBottomSheet(
+        context,
+        token: token,
+        address: address,
+        amount: finalAmount,
+        feeRaw: feeRaw,
+        servicePercent: prepared['percent'],
       );
+
+      if (confirmed == true) {
+        _executeBroadcast(prepared, token);
+      }
     } catch (e) {
       if (mounted) {
         NotificationService.showError(context, 'Transaction failed: $e');
@@ -310,6 +248,115 @@ class _SendScreenState extends State<SendScreen> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  Future<bool?> _showConfirmBottomSheet(
+    BuildContext context, {
+    required TokenModel token,
+    required String address,
+    required String amount,
+    dynamic feeRaw,
+    dynamic servicePercent,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    final fee = _getFeeDisplay(feeRaw, token);
+
+    return showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: colors.onSurfaceVariant.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Review Transaction',
+              style: text.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 24),
+            Column(
+              children: [
+                TokenIcon(
+                  imageUrl: token.imageUrl,
+                  symbol: token.symbol,
+                  name: token.name,
+                  chainName: token.chain,
+                  isNative: token.isNative,
+                  radius: 24,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '$amount ${token.symbol}',
+                  style: text.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'to ${address.substring(0, 8)}...${address.substring(36)}',
+                  style: text.labelMedium?.copyWith(color: colors.onSurfaceVariant),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: colors.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Column(
+                children: [
+                  _buildSummaryRow(
+                    'Network Fee',
+                    fee.usdAmount,
+                    context,
+                    subtitle: fee.nativeAmount,
+                  ),
+                  if (servicePercent != null) ...[
+                    const SizedBox(height: 12),
+                    _buildSummaryRow('Service Fee', '$servicePercent%', context),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: FilledButton.styleFrom(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: const Text('Confirm & Send', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildSummaryRow(
@@ -375,16 +422,6 @@ class _SendScreenState extends State<SendScreen> {
     }
   }
 
-  Widget _buildFeeSummaryRow(dynamic feeRaw, TokenModel token, BuildContext context) {
-    final fee = _getFeeDisplay(feeRaw, token);
-    return _buildSummaryRow(
-      'Estimated Fee',
-      fee.usdAmount,
-      context,
-      subtitle: fee.nativeAmount,
-    );
-  }
-
   FeeDisplay _getFeeDisplay(dynamic feeRaw, TokenModel token) {
     if (feeRaw == null) return FeeDisplay(nativeAmount: '--', usdAmount: '0.00');
     final feeNum = double.tryParse(feeRaw.toString()) ?? 0.0;
@@ -411,12 +448,10 @@ class _SendScreenState extends State<SendScreen> {
     Map<String, dynamic> prepared,
     TokenModel token,
   ) async {
-    setState(() => _isLoading = true);
-
-    NotificationService.showInfo(
-      context,
-      'Signing and broadcasting transaction...',
-    );
+    setState(() {
+      _isLoading = true;
+      _loadingMessage = 'Signing...';
+    });
 
     try {
       final walletService = context.read<WalletService>();
@@ -443,6 +478,8 @@ class _SendScreenState extends State<SendScreen> {
         throw Exception('Failed to sign transaction locally');
       }
 
+      setState(() => _loadingMessage = 'Broadcasting...');
+
       final broadcastResult = await apiService.broadcastTransaction(
         network: token.chain,
         transactionId: prepared['transactionId']?.toString() ?? '',
@@ -462,7 +499,7 @@ class _SendScreenState extends State<SendScreen> {
       if (hash != null && hash.toString().isNotEmpty) {
         NotificationService.showSuccess(
           context,
-          'Transaction broadcasted successfully!',
+          'Sent successfully!',
         );
         // Automatically refresh the wallet screen balances!
         if (context.mounted) {
@@ -478,7 +515,10 @@ class _SendScreenState extends State<SendScreen> {
       }
     } finally {
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _isLoading = false;
+          _loadingMessage = '';
+        });
       }
     }
   }
@@ -631,8 +671,23 @@ class _SendScreenState extends State<SendScreen> {
                         child: FilledButton(
                           onPressed: _isLoading ? null : _handleSend,
                           child: _isLoading
-                              ? const CircularProgressIndicator(
-                                  color: Colors.white,
+                              ? Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      _loadingMessage.isEmpty ? 'Loading...' : _loadingMessage,
+                                      style: const TextStyle(fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
                                 )
                               : const Text(
                                   'Review Transaction',
