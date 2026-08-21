@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#00211A</color>
+    <color name="griot_primary">#D4A84F</color>
+    <color name="griot_on_primary">#000000</color>
+    <color name="griot_surface">#0D231D</color>
+    <color name="griot_on_surface">#F5F7FA</color>
+    <color name="griot_on_surface_variant">#B6BEC9</color>
 </resources>

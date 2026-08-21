@@ -54,7 +54,7 @@ class _GriotBannerAdState extends State<GriotBannerAd> {
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
 
-    final Color borderColor = colorScheme.outline.withOpacity(isDark ? 0.20 : 0.12);
+    final Color borderColor = colorScheme.outline.withValues(alpha: isDark ? 0.20 : 0.12);
 
     // Placeholder: Show a themed frame even if the ad isn't loaded
     // to prevent the UI from jumping when it pops in.
@@ -64,10 +64,10 @@ class _GriotBannerAdState extends State<GriotBannerAd> {
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: colorScheme.outline.withOpacity(isDark ? 0.20 : 0.12)),
+        border: Border.all(color: colorScheme.outline.withValues(alpha: isDark ? 0.20 : 0.12)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.15 : 0.03),
+            color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.03),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -86,7 +86,7 @@ class _GriotBannerAdState extends State<GriotBannerAd> {
               child: Center(
                 child: Icon(
                   Icons.ads_click_rounded,
-                  color: colorScheme.onSurface.withOpacity(0.05),
+                  color: colorScheme.onSurface.withValues(alpha: 0.05),
                   size: 24,
                 ),
               ),

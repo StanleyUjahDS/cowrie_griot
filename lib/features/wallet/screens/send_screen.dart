@@ -78,11 +78,13 @@ class _SendScreenState extends State<SendScreen> {
         throw Exception('Failed to prepare transaction');
       }
     } catch (e) {
-      if (!mounted) return;
-      NotificationService.showError(context, 'Send failed: $e');
+      if (mounted) {
+        NotificationService.showError(context, 'Send failed: $e');
+      }
     } finally {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 

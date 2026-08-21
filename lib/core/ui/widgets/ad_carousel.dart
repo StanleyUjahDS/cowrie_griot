@@ -113,6 +113,7 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
 
     NativeAd(
       adUnitId: AppConfig.nativeAdUnitId,
+      factoryId: 'griot_native_ad',
       request: const AdRequest(),
       listener: NativeAdListener(
         onAdLoaded: (ad) {
@@ -130,32 +131,6 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
           _loadingIndices.remove(index);
           debugPrint('Carousel NativeAd at index $index failed: $error');
         },
-      ),
-      nativeTemplateStyle: NativeTemplateStyle(
-        templateType: TemplateType.medium,
-        mainBackgroundColor: colorScheme.surface,
-        cornerRadius: 16.0, // Added curvature to internal elements
-        callToActionTextStyle: NativeTemplateTextStyle(
-          textColor: colorScheme.onPrimary,
-          backgroundColor: colorScheme.primary,
-          style: NativeTemplateFontStyle.bold,
-          size: 14.0, // Restored to standard size for better proportions at 320 height
-        ),
-        primaryTextStyle: NativeTemplateTextStyle(
-          textColor: colorScheme.onSurface,
-          style: NativeTemplateFontStyle.bold,
-          size: 14.0,
-        ),
-        secondaryTextStyle: NativeTemplateTextStyle(
-          textColor: colorScheme.onSurfaceVariant,
-          style: NativeTemplateFontStyle.normal,
-          size: 10.0,
-        ),
-        tertiaryTextStyle: NativeTemplateTextStyle(
-          textColor: colorScheme.onSurfaceVariant,
-          style: NativeTemplateFontStyle.normal,
-          size: 10.0,
-        ),
       ),
     ).load();
   }
@@ -199,11 +174,11 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: colorScheme.outline.withOpacity(isDark ? 0.2 : 0.12),
+          color: colorScheme.outline.withValues(alpha: isDark ? 0.2 : 0.12),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.25 : 0.05),
+            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -234,7 +209,7 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
         borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
-            color: colorScheme.primary.withOpacity(0.3),
+            color: colorScheme.primary.withValues(alpha: 0.3),
             blurRadius: 14,
             offset: const Offset(0, 6),
           ),
@@ -250,7 +225,7 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
               gradient: LinearGradient(
                 colors: [
                   colorScheme.primary,
-                  colorScheme.primary.withOpacity(0.92),
+                  colorScheme.primary.withValues(alpha: 0.92),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -286,7 +261,7 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.15),
+                                color: Colors.white.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
@@ -317,7 +292,7 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: textTheme.bodyMedium?.copyWith(
-                                color: Colors.white.withOpacity(0.85),
+                                color: Colors.white.withValues(alpha: 0.85),
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -332,7 +307,7 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
+                              color: Colors.black.withValues(alpha: 0.1),
                               blurRadius: 10,
                               offset: const Offset(0, 4),
                             ),

@@ -48,6 +48,7 @@ class _GriotNativeAdState extends State<GriotNativeAd> {
 
     _nativeAd = NativeAd(
       adUnitId: AppConfig.nativeAdUnitId,
+      factoryId: 'griot_native_ad',
       request: const AdRequest(),
       listener: NativeAdListener(
         onAdLoaded: (ad) {
@@ -64,32 +65,6 @@ class _GriotNativeAdState extends State<GriotNativeAd> {
           debugPrint('NativeAd failed to load: $error');
         },
       ),
-      nativeTemplateStyle: NativeTemplateStyle(
-        templateType: TemplateType.medium,
-        mainBackgroundColor: colorScheme.surface,
-        cornerRadius: 16.0, // Added curvature to internal elements
-        callToActionTextStyle: NativeTemplateTextStyle(
-          textColor: colorScheme.onPrimary,
-          backgroundColor: colorScheme.primary,
-          style: NativeTemplateFontStyle.bold,
-          size: 14.0, // Restored for better proportions
-        ),
-        primaryTextStyle: NativeTemplateTextStyle(
-          textColor: colorScheme.onSurface,
-          style: NativeTemplateFontStyle.bold,
-          size: 14.0,
-        ),
-        secondaryTextStyle: NativeTemplateTextStyle(
-          textColor: colorScheme.onSurfaceVariant,
-          style: NativeTemplateFontStyle.normal,
-          size: 10.0, // Smallest possible to ensure it stays inside the box
-        ),
-        tertiaryTextStyle: NativeTemplateTextStyle(
-          textColor: colorScheme.onSurfaceVariant,
-          style: NativeTemplateFontStyle.normal,
-          size: 10.0, // Smallest possible to ensure it stays inside the box
-        ),
-      ),
     )..load();
   }
 
@@ -105,7 +80,7 @@ class _GriotNativeAdState extends State<GriotNativeAd> {
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
 
-    final Color borderColor = colorScheme.outline.withOpacity(isDark ? 0.20 : 0.12);
+    final Color borderColor = colorScheme.outline.withValues(alpha: isDark ? 0.20 : 0.12);
 
     // Height 360dp provides more room for Medium templates to avoid "outside box" errors
     const double adHeight = 360;
@@ -137,12 +112,12 @@ class _GriotNativeAdState extends State<GriotNativeAd> {
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: colorScheme.outline.withOpacity(isDark ? 0.20 : 0.12),
+          color: colorScheme.outline.withValues(alpha: isDark ? 0.20 : 0.12),
           width: 1.0,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.25 : 0.05),
+            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),

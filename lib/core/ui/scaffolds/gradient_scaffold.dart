@@ -45,11 +45,11 @@ class GradientScaffold extends StatelessWidget {
                     backgroundColor,
                     theme.brightness == Brightness.dark
                         ? Color.alphaBlend(
-                            Colors.black.withOpacity(0.2),
+                            Colors.black.withValues(alpha: 0.2),
                             backgroundColor,
                           )
                         : Color.alphaBlend(
-                            colors.primary.withOpacity(0.04),
+                            colors.primary.withValues(alpha: 0.04),
                             backgroundColor,
                           ),
                   ],
