@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:wallet/wallet.dart' as wallet;
@@ -99,7 +100,7 @@ class WalletCryptoService {
   }
 
   // ============================================================
-  // SIGN NATIVE TRANSACTION
+  // SIGN EVM TRANSACTION
   // ============================================================
 
   Future<String> signNativeTransaction({
@@ -110,6 +111,7 @@ class WalletCryptoService {
     required String gasLimit,
     required String gasPrice,
     required int chainId,
+    String? dataHex,
   }) async {
     final normalizedPrivateKey = privateKey
         .trim()
@@ -117,9 +119,15 @@ class WalletCryptoService {
 
     _validatePrivateKey(normalizedPrivateKey);
 
+    if (!RegExp(r'^0x[a-fA-F0-9]{40}$').hasMatch(to.trim())) {
+      throw Exception('Invalid transaction recipient address.');
+    }
+
     final credentials = web3.EthPrivateKey.fromHex(
       normalizedPrivateKey,
     );
+
+    final transactionData = _hexToBytes(dataHex);
 
     final transaction = web3.Transaction(
       to: web3.EthereumAddress.fromHex(to),
@@ -131,6 +139,7 @@ class WalletCryptoService {
         BigInt.parse(gasPrice),
       ),
       maxGas: int.parse(gasLimit),
+      data: transactionData,
     );
 
     final signed = web3.signTransactionRaw(
@@ -146,6 +155,35 @@ class WalletCryptoService {
     return RegExp(
       r'^0x[a-fA-F0-9]{40}$',
     ).hasMatch(address.trim());
+  }
+
+  static Uint8List _hexToBytes(String? value) {
+    if (value == null || value.trim().isEmpty || value.trim() == '0x') {
+      return Uint8List(0);
+    }
+
+    var hex = value.trim();
+    if (hex.startsWith('0x')) {
+      hex = hex.substring(2);
+    }
+
+    if (hex.isEmpty) return Uint8List(0);
+    if (!RegExp(r'^[a-fA-F0-9]+$').hasMatch(hex)) {
+      throw Exception('Invalid transaction data.');
+    }
+    if (hex.length.isOdd) {
+      throw Exception('Invalid transaction data length.');
+    }
+
+    final bytes = Uint8List(hex.length ~/ 2);
+    for (var i = 0; i < bytes.length; i++) {
+      bytes[i] = int.parse(
+        hex.substring(i * 2, i * 2 + 2),
+        radix: 16,
+      );
+    }
+
+    return bytes;
   }
 
   static void _validatePrivateKey(String privateKey) {
