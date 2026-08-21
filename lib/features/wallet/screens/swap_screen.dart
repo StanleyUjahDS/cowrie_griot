@@ -17,10 +17,7 @@ import '../../../core/services/notification_service.dart';
 class SwapScreen extends StatefulWidget {
   final TokenModel? initialFromToken;
 
-  const SwapScreen({
-    super.key,
-    this.initialFromToken,
-  });
+  const SwapScreen({super.key, this.initialFromToken});
 
   @override
   State<SwapScreen> createState() => _SwapScreenState();
@@ -53,16 +50,12 @@ class _SwapScreenState extends State<SwapScreen> {
 
   void _onAmountChanged(String value) {
     _debounce?.cancel();
-    _debounce = Timer(
-      const Duration(milliseconds: 500),
-      _getQuote,
-    );
+    _debounce = Timer(const Duration(milliseconds: 500), _getQuote);
   }
 
   Future<void> _getQuote() async {
     final fromToken = _fromToken;
     final toToken = _toToken;
-
     if (fromToken == null || toToken == null) return;
 
     final amount = _amountController.text.trim();
@@ -106,7 +99,8 @@ class _SwapScreenState extends State<SwapScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final isCrossChain = fromToken.chain != toToken.chain;
+      final isCrossChain = fromToken.chain.toLowerCase() !=
+          toToken.chain.toLowerCase();
 
       final quote = await context.read<SwapApiService>().getQuote(
             fromChain: fromToken.chain,
@@ -115,7 +109,7 @@ class _SwapScreenState extends State<SwapScreen> {
             toToken: toTokenAddress,
             fromAmount: fromAmount,
             fromAddress: fromAddress,
-            toAddress: isCrossChain ? fromAddress : null, // Default to self for cross-chain
+            toAddress: isCrossChain ? fromAddress : null,
           );
 
       if (!mounted || requestVersion != _quoteRequestVersion) return;
@@ -134,48 +128,44 @@ class _SwapScreenState extends State<SwapScreen> {
 
   Future<void> _handleSwap() async {
     final quote = _quote;
-    if (quote == null) return;
+    final fromToken = _fromToken;
+    if (quote == null || fromToken == null) return;
 
     final fromAddress = context.read<WalletProvider>().wallet?.address;
     if (fromAddress == null || fromAddress.isEmpty) {
-      NotificationService.showError(
-        context,
-        'Wallet address not found.',
-      );
+      NotificationService.showError(context, 'Wallet address not found.');
       return;
     }
 
-    final apiService = context.read<TransactionApiService>();
+    final transactionApi = context.read<TransactionApiService>();
     final walletService = context.read<WalletService>();
 
     final amount = _amountController.text.trim();
     final enteredAmount = double.tryParse(amount) ?? 0.0;
-    final maxBalance = _fromToken?.balance.toDouble() ?? 0.0;
-
-    if (enteredAmount > maxBalance) {
+    if (enteredAmount > fromToken.balance.toDouble()) {
       NotificationService.showError(
         context,
-        'Amount exceeds your maximum balance of $maxBalance ${_fromToken?.symbol}',
+        'Amount exceeds your maximum balance of ${fromToken.balance} ${fromToken.symbol}',
       );
       return;
     }
 
     final rawTransaction = quote['transaction'] ?? quote['transactionRequest'];
     if (rawTransaction is! Map) {
-      NotificationService.showError(
-        context,
-        'No transaction data in quote',
-      );
+      NotificationService.showError(context, 'No transaction data in quote.');
       return;
     }
 
     final transaction = Map<String, dynamic>.from(rawTransaction);
     final transactionId = quote['transactionId']?.toString();
+    final isDirectProviderTransaction =
+        transactionId == SwapApiService.directRpcTransactionId;
 
-    if (transactionId == null || transactionId.isEmpty) {
+    if ((transactionId == null || transactionId.isEmpty) &&
+        !isDirectProviderTransaction) {
       NotificationService.showError(
         context,
-        'This swap quote has no backend transaction ID yet.',
+        'This swap quote has no transaction identifier.',
       );
       return;
     }
@@ -186,10 +176,12 @@ class _SwapScreenState extends State<SwapScreen> {
     final chainId = int.tryParse(transaction['chainId']?.toString() ?? '');
 
     if (to == null || to.isEmpty) {
-      NotificationService.showError(context, 'Recipient/contract address is missing in swap data.');
+      NotificationService.showError(
+        context,
+        'Recipient/contract address is missing in swap data.',
+      );
       return;
     }
-
     if (data == null || data.isEmpty || data == '0x') {
       NotificationService.showError(
         context,
@@ -197,38 +189,39 @@ class _SwapScreenState extends State<SwapScreen> {
       );
       return;
     }
-
     if (chainId == null) {
       NotificationService.showError(context, 'Chain ID is missing in swap data.');
       return;
     }
 
-    // Dynamic resolution of nonce, gasLimit, and gasPrice
     int? resolvedNonce = int.tryParse(transaction['nonce']?.toString() ?? '');
-    String? resolvedGasLimit = transaction['gasLimit']?.toString() ?? transaction['gas']?.toString();
+    String? resolvedGasLimit =
+        transaction['gasLimit']?.toString() ?? transaction['gas']?.toString();
     String? resolvedGasPrice = transaction['gasPrice']?.toString();
     String? resolvedMaxFeePerGas = transaction['maxFeePerGas']?.toString();
-    String? resolvedMaxPriorityFeePerGas = transaction['maxPriorityFeePerGas']?.toString();
+    String? resolvedMaxPriorityFeePerGas =
+        transaction['maxPriorityFeePerGas']?.toString();
 
     setState(() => _isLoading = true);
-
     try {
-      // 1. Resolve nonce if null
       if (resolvedNonce == null) {
-        final prep = await apiService.prepareNativeSend(
-          network: _fromToken!.chain,
-          toAddress: '0x0000000000000000000000000000000000000000',
+        final prep = await transactionApi.prepareNativeSend(
+          network: fromToken.chain,
+          toAddress: _nativeTokenAddress,
           amount: '0',
         );
         resolvedNonce = int.tryParse(prep['nonce']?.toString() ?? '');
       }
 
-      // 2. Resolve gasLimit and gasPrice if null
-      if (resolvedGasLimit == null || resolvedGasLimit.isEmpty ||
-          (resolvedGasPrice == null || resolvedGasPrice.isEmpty) &&
-              (resolvedMaxFeePerGas == null || resolvedMaxFeePerGas.isEmpty)) {
-        final estimate = await apiService.estimateTransaction(
-          network: _fromToken!.chain,
+      final missingGas = resolvedGasLimit == null ||
+          resolvedGasLimit.isEmpty ||
+          ((resolvedGasPrice == null || resolvedGasPrice.isEmpty) &&
+              (resolvedMaxFeePerGas == null ||
+                  resolvedMaxFeePerGas.isEmpty));
+
+      if (missingGas) {
+        final estimate = await transactionApi.estimateTransaction(
+          network: fromToken.chain,
           transaction: {
             'from': fromAddress,
             'to': to,
@@ -239,29 +232,33 @@ class _SwapScreenState extends State<SwapScreen> {
         resolvedGasLimit = estimate['gasLimit']?.toString();
         resolvedGasPrice = estimate['gasPrice']?.toString();
         resolvedMaxFeePerGas = estimate['maxFeePerGas']?.toString();
-        resolvedMaxPriorityFeePerGas = estimate['maxPriorityFeePerGas']?.toString();
+        resolvedMaxPriorityFeePerGas =
+            estimate['maxPriorityFeePerGas']?.toString();
       }
     } catch (e) {
       if (mounted) {
-        NotificationService.showError(context, 'Failed to fetch transaction details: $e');
+        NotificationService.showError(
+          context,
+          'Failed to fetch transaction details: $e',
+        );
       }
       return;
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
 
-    if (!mounted) return;
-
-    if (resolvedNonce == null ||
-        resolvedGasLimit == null || resolvedGasLimit.isEmpty ||
+    if (!mounted ||
+        resolvedNonce == null ||
+        resolvedGasLimit == null ||
+        resolvedGasLimit.isEmpty ||
         ((resolvedGasPrice == null || resolvedGasPrice.isEmpty) &&
             (resolvedMaxFeePerGas == null || resolvedMaxFeePerGas.isEmpty))) {
-      NotificationService.showError(
-        context,
-        'Swap transaction data is incomplete. Nonce or gas parameters could not be resolved.',
-      );
+      if (mounted) {
+        NotificationService.showError(
+          context,
+          'Swap transaction data is incomplete. Nonce or gas parameters could not be resolved.',
+        );
+      }
       return;
     }
 
@@ -270,7 +267,7 @@ class _SwapScreenState extends State<SwapScreen> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Confirm Swap'),
         content: Text(
-          'Swap ${_amountController.text} ${_fromToken?.symbol} '
+          'Swap ${_amountController.text} ${fromToken.symbol} '
           'for approximately ${_fromBaseUnits(
             quote['toAmount']?.toString(),
             _toToken?.decimals ?? 18,
@@ -292,51 +289,43 @@ class _SwapScreenState extends State<SwapScreen> {
     if (confirmed != true || !mounted) return;
 
     setState(() => _isLoading = true);
-
     try {
-      if (!mounted) return;
-      NotificationService.showInfo(
-        context,
-        'Signing swap transaction locally...',
-      );
+      NotificationService.showInfo(context, 'Signing swap transaction locally...');
 
       final signedTx = await walletService.signNativeTransaction(
-            to: to,
-            valueRaw: value,
-            nonce: resolvedNonce,
-            gasLimit: resolvedGasLimit,
-            gasPrice: resolvedGasPrice,
-            maxFeePerGas: resolvedMaxFeePerGas,
-            maxPriorityFeePerGas: resolvedMaxPriorityFeePerGas,
-            chainId: chainId,
-            dataHex: data,
-          );
+        to: to,
+        valueRaw: value,
+        nonce: resolvedNonce,
+        gasLimit: resolvedGasLimit,
+        gasPrice: resolvedGasPrice,
+        maxFeePerGas: resolvedMaxFeePerGas,
+        maxPriorityFeePerGas: resolvedMaxPriorityFeePerGas,
+        chainId: chainId,
+        dataHex: data,
+      );
 
       if (signedTx == null || signedTx.isEmpty) {
         throw Exception('Failed to sign swap transaction locally');
       }
 
-      if (!mounted) return;
-      NotificationService.showInfo(
-        context,
-        'Broadcasting swap...',
-      );
+      NotificationService.showInfo(context, 'Broadcasting swap...');
 
-      final result = await apiService.broadcastTransaction(
-            network: _fromToken!.chain,
-            transactionId: transactionId,
-            signedTransaction: signedTx,
-          );
+      final result = await transactionApi.broadcastTransaction(
+        network: fromToken.chain,
+        transactionId: transactionId!,
+        signedTransaction: signedTx,
+      );
 
       if (!mounted) return;
 
       final broadcast = result['broadcast'];
       final transactionResult = result['transaction'];
-      
-      final hash = result['hash'] ?? 
-                 result['transactionHash'] ??
-                 (broadcast is Map ? broadcast['hash'] : null) ??
-                 (transactionResult is Map ? (transactionResult['txHash'] ?? transactionResult['tx_hash']) : null);
+      final hash = result['hash'] ??
+          result['transactionHash'] ??
+          (broadcast is Map ? broadcast['hash'] : null) ??
+          (transactionResult is Map
+              ? (transactionResult['txHash'] ?? transactionResult['tx_hash'])
+              : null);
 
       if (hash == null || hash.toString().isEmpty) {
         throw Exception('Broadcast failed: No transaction hash returned');
@@ -349,15 +338,10 @@ class _SwapScreenState extends State<SwapScreen> {
       Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
-        NotificationService.showError(
-          context,
-          'Swap failed: $e',
-        );
+        NotificationService.showError(context, 'Swap failed: $e');
       }
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -370,18 +354,15 @@ class _SwapScreenState extends State<SwapScreen> {
 
     final whole = parts[0].isEmpty ? '0' : parts[0];
     final fraction = parts.length == 2 ? parts[1] : '';
-
     if (!RegExp(r'^\d+$').hasMatch(whole) ||
         (fraction.isNotEmpty && !RegExp(r'^\d+$').hasMatch(fraction))) {
       return null;
     }
-
     if (fraction.length > decimals) return null;
 
     final paddedFraction = fraction.padRight(decimals, '0');
     final raw = '$whole$paddedFraction'
         .replaceFirst(RegExp(r'^0+(?=\d)'), '');
-
     return RegExp(r'^\d+$').hasMatch(raw) ? raw : null;
   }
 
@@ -394,13 +375,11 @@ class _SwapScreenState extends State<SwapScreen> {
         .split('.')
         .first
         .replaceAll(RegExp(r'\D'), '');
-
     if (cleanBase.isEmpty) return '0.00';
     if (decimals == 0) return cleanBase;
 
     String whole;
     String fraction;
-
     if (cleanBase.length <= decimals) {
       final padded = cleanBase.padLeft(decimals + 1, '0');
       final splitIndex = padded.length - decimals;
@@ -415,8 +394,42 @@ class _SwapScreenState extends State<SwapScreen> {
     fraction = fraction.replaceAll(RegExp(r'0+$'), '');
     if (fraction.isEmpty) return whole;
     if (fraction.length > 8) fraction = fraction.substring(0, 8);
-
     return '$whole.$fraction';
+  }
+
+  TokenModel? _tokenForAddress(String? address) {
+    if (address == null || address.isEmpty) return null;
+    final normalized = address.toLowerCase();
+    if (normalized == _nativeTokenAddress.toLowerCase()) {
+      try {
+        return context.read<WalletProvider>().tokens.firstWhere(
+              (token) =>
+                  token.isNative &&
+                  token.chain.toLowerCase() == _fromToken?.chain.toLowerCase(),
+            );
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final tokens = context.read<WalletProvider>().tokens;
+    try {
+      return tokens.firstWhere(
+        (token) =>
+            token.contractAddress.toLowerCase() == normalized &&
+            token.chain.toLowerCase() == _fromToken?.chain.toLowerCase(),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _formatFeeAmount(String? amount, TokenModel? token) {
+    if (amount == null || amount.isEmpty || amount == '0') return '-';
+    if (token == null) return amount;
+    final value = double.tryParse(_fromBaseUnits(amount, token.decimals));
+    if (value == null) return amount;
+    return WalletFormatters.formatBalance(value, symbol: token.symbol);
   }
 
   void _swapTokens() {
@@ -430,10 +443,7 @@ class _SwapScreenState extends State<SwapScreen> {
     _getQuote();
   }
 
-  void _showTokenPicker(
-    BuildContext context, {
-    required bool isFrom,
-  }) {
+  void _showTokenPicker(BuildContext context, {required bool isFrom}) {
     final tokens = context.read<WalletProvider>().tokens;
 
     showModalBottomSheet(
@@ -443,7 +453,6 @@ class _SwapScreenState extends State<SwapScreen> {
         itemCount: tokens.length,
         itemBuilder: (context, index) {
           final token = tokens[index];
-
           return ListTile(
             leading: TokenIcon(
               imageUrl: token.imageUrl,
@@ -454,12 +463,8 @@ class _SwapScreenState extends State<SwapScreen> {
               radius: 16,
             ),
             title: Text(token.name),
-            subtitle: Text(
-              '${token.symbol} on ${token.chain.toUpperCase()}',
-            ),
-            trailing: Text(
-              WalletFormatters.formatBalance(token.balance),
-            ),
+            subtitle: Text('${token.symbol} on ${token.chain.toUpperCase()}'),
+            trailing: Text(WalletFormatters.formatBalance(token.balance)),
             onTap: () {
               setState(() {
                 if (isFrom) {
@@ -507,17 +512,13 @@ class _SwapScreenState extends State<SwapScreen> {
                       token: _fromToken,
                       controller: _amountController,
                       onChanged: _onAmountChanged,
-                      onTokenTap: () =>
-                          _showTokenPicker(context, isFrom: true),
+                      onTokenTap: () => _showTokenPicker(context, isFrom: true),
                     ),
                     const SizedBox(height: 12),
                     CircleAvatar(
                       backgroundColor: colors.primary,
                       child: IconButton(
-                        icon: const Icon(
-                          Icons.swap_vert_rounded,
-                          color: Colors.white,
-                        ),
+                        icon: const Icon(Icons.swap_vert_rounded, color: Colors.white),
                         onPressed: _swapTokens,
                       ),
                     ),
@@ -531,8 +532,7 @@ class _SwapScreenState extends State<SwapScreen> {
                         _quote?['toAmount']?.toString(),
                         _toToken?.decimals ?? 18,
                       ),
-                      onTokenTap: () =>
-                          _showTokenPicker(context, isFrom: false),
+                      onTokenTap: () => _showTokenPicker(context, isFrom: false),
                     ),
                     if (_quote != null) ...[
                       const SizedBox(height: 24),
@@ -543,13 +543,9 @@ class _SwapScreenState extends State<SwapScreen> {
                       width: double.infinity,
                       height: 56,
                       child: FilledButton(
-                        onPressed: (_quote != null && !_isLoading)
-                            ? _handleSwap
-                            : null,
+                        onPressed: (_quote != null && !_isLoading) ? _handleSwap : null,
                         child: _isLoading
-                            ? const CircularProgressIndicator(
-                                color: Colors.white,
-                              )
+                            ? const CircularProgressIndicator(color: Colors.white)
                             : const Text(
                                 'Swap Assets',
                                 style: TextStyle(fontWeight: FontWeight.bold),
@@ -591,9 +587,7 @@ class _SwapScreenState extends State<SwapScreen> {
       decoration: BoxDecoration(
         color: colors.surfaceContainerLow,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: colors.outlineVariant.withValues(alpha: 0.3),
-        ),
+        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -603,16 +597,12 @@ class _SwapScreenState extends State<SwapScreen> {
             children: [
               Text(
                 label,
-                style: text.labelLarge?.copyWith(
-                  color: colors.onSurfaceVariant,
-                ),
+                style: text.labelLarge?.copyWith(color: colors.onSurfaceVariant),
               ),
               if (token != null)
                 Text(
                   'Balance: ${WalletFormatters.formatBalance(token.balance)}',
-                  style: text.labelSmall?.copyWith(
-                    color: colors.onSurfaceVariant,
-                  ),
+                  style: text.labelSmall?.copyWith(color: colors.onSurfaceVariant),
                 ),
             ],
           ),
@@ -623,19 +613,13 @@ class _SwapScreenState extends State<SwapScreen> {
                 child: isReadOnly
                     ? Text(
                         value ?? '0.00',
-                        style: text.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: text.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
                       )
                     : TextField(
                         controller: controller,
                         onChanged: onChanged,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        style: text.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        style: text.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
                         decoration: const InputDecoration(
                           hintText: '0.00',
                           border: InputBorder.none,
@@ -650,10 +634,7 @@ class _SwapScreenState extends State<SwapScreen> {
                 onTap: onTokenTap,
                 borderRadius: BorderRadius.circular(100),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: colors.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(100),
@@ -671,21 +652,10 @@ class _SwapScreenState extends State<SwapScreen> {
                           radius: 12,
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          token.symbol,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        Text(token.symbol, style: const TextStyle(fontWeight: FontWeight.bold)),
                       ] else
-                        const Text(
-                          'Select',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      const Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        size: 20,
-                      ),
+                        const Text('Select', style: TextStyle(fontWeight: FontWeight.bold)),
+                      const Icon(Icons.keyboard_arrow_down_rounded, size: 20),
                     ],
                   ),
                 ),
@@ -699,98 +669,74 @@ class _SwapScreenState extends State<SwapScreen> {
 
   Widget _buildQuoteDetails(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final fee = _quote?['fee'];
+    final griotFee = _asMap(_quote?['griotFee'] ?? _quote?['fee']);
+    final providerFee = _asMap(_quote?['providerFee']);
     final transaction = _quote?['transaction'] ?? _quote?['transactionRequest'];
 
-    double totalUsd = 0.0;
-    List<String> breakdown = [];
-    
-    // 1. Service Fee (Provider/Platform)
-    if (fee is Map<String, dynamic>) {
-      final amount = fee['amount']?.toString();
-      final percent = fee['percent'];
-      
-      String? serviceFeeDisplay;
-      double serviceFeeUsd = 0.0;
+    final feeTokenAddress = griotFee['token']?.toString();
+    final feeToken = _tokenForAddress(feeTokenAddress) ?? _fromToken;
+    final feeAmount = griotFee['amount']?.toString() ??
+        griotFee['calculatedAmount']?.toString();
+    final feeDisplay = _formatFeeAmount(feeAmount, feeToken);
+    final feePercent = griotFee['percent'];
+    final feePercentDisplay = feePercent == null ? null : '${feePercent}%';
 
-      // Resolve Service Fee Symbol & Decimals
-      String sSymbol = _fromToken?.symbol ?? '';
-      int sDecimals = _fromToken?.decimals ?? 18;
-      double sPrice = _fromToken?.priceUsd.toDouble() ?? 0.0;
-      
-      final feeToken = fee['token']?.toString();
-      if (feeToken != null && feeToken.isNotEmpty && feeToken != _nativeTokenAddress) {
-        if (_toToken != null && feeToken.toLowerCase() == _toToken!.contractAddress.toLowerCase()) {
-          sSymbol = _toToken!.symbol;
-          sDecimals = _toToken!.decimals;
-          sPrice = _toToken!.priceUsd.toDouble();
-        }
-      }
-
-      if (amount != null && amount != '0' && amount.isNotEmpty) {
-        final rawValString = _fromBaseUnits(amount, sDecimals);
-        final rawVal = double.tryParse(rawValString) ?? 0.0;
-        serviceFeeUsd = rawVal * sPrice;
-        serviceFeeDisplay = WalletFormatters.formatBalance(rawVal, symbol: sSymbol);
-      } else if (percent != null) {
-        // Estimate from input amount if amount not provided
-        final inputAmount = double.tryParse(_amountController.text.trim()) ?? 0.0;
-        final rawVal = (inputAmount * (double.tryParse(percent.toString()) ?? 0.0)) / 100.0;
-        serviceFeeUsd = rawVal * sPrice;
-        serviceFeeDisplay = '${percent}% ($sSymbol)';
-      }
-
-      if (serviceFeeUsd > 0) {
-        totalUsd += serviceFeeUsd;
-        if (serviceFeeDisplay != null) breakdown.add(serviceFeeDisplay);
+    double? griotUsd;
+    if (feeAmount != null && feeToken != null) {
+      final amount = double.tryParse(_fromBaseUnits(feeAmount, feeToken.decimals));
+      if (amount != null) {
+        final price = feeToken.priceUsd.toDouble();
+        if (price > 0) griotUsd = amount * price;
       }
     }
 
-    // 2. Network Fee (Gas)
+    double? gasNative;
+    double? gasUsd;
+    String? gasSymbol;
+    TokenModel? nativeToken;
+
     if (transaction is Map) {
       final gas = transaction['gas']?.toString() ?? transaction['gasLimit']?.toString();
-      final gasPrice = transaction['maxFeePerGas']?.toString() ?? transaction['gasPrice']?.toString();
-      final chain = _fromToken?.chain.toLowerCase() ?? '';
-      
+      final gasPrice = transaction['maxFeePerGas']?.toString() ??
+          transaction['gasPrice']?.toString();
+
       if (gas != null && gasPrice != null) {
-        final gLimit = double.tryParse(gas) ?? 0.0;
-        final gPrice = double.tryParse(gasPrice) ?? 0.0;
-        final gasNative = (gLimit * gPrice) / 1000000000000000000.0;
-        
-        double nativePrice = 0.0;
-        String nativeSymbol = 'ETH';
-        if (chain == 'bsc' || chain == 'binance') {
-          nativeSymbol = 'BNB';
-          nativePrice = 580.0;
-        } else if (chain == 'polygon') {
-          nativeSymbol = 'POL';
-          nativePrice = 0.55;
-        } else {
-          nativePrice = 3400.0;
+        final gasLimit = double.tryParse(gas);
+        final pricePerGas = double.tryParse(gasPrice);
+        if (gasLimit != null && pricePerGas != null) {
+          gasNative = (gasLimit * pricePerGas) / 1000000000000000000.0;
         }
+      }
 
-        // Try to get real native price from provider
-        try {
-          final nativeToken = context.read<WalletProvider>().tokens.firstWhere(
-            (t) => t.isNative && t.chain.toLowerCase() == chain,
-          );
-          nativePrice = nativeToken.priceUsd.toDouble();
-          nativeSymbol = nativeToken.symbol;
-        } catch (_) {}
-
-        final gasUsd = gasNative * nativePrice;
-        totalUsd += gasUsd;
-        breakdown.add(WalletFormatters.formatBalance(gasNative, symbol: nativeSymbol));
+      try {
+        nativeToken = context.read<WalletProvider>().tokens.firstWhere(
+              (token) =>
+                  token.isNative &&
+                  token.chain.toLowerCase() == _fromToken?.chain.toLowerCase(),
+            );
+        gasSymbol = nativeToken.symbol;
+        if (gasNative != null && nativeToken.priceUsd.toDouble() > 0) {
+          gasUsd = gasNative * nativeToken.priceUsd.toDouble();
+        }
+      } catch (_) {
+        // Do not invent a price. The UI will show the native gas amount only.
       }
     }
 
-    String totalDisplay = totalUsd > 0 
-        ? WalletFormatters.formatCurrency(totalUsd) 
-        : '-';
-    
-    if (totalUsd > 0 && totalUsd < 0.01) {
-      totalDisplay = '< \$0.01';
+    double? totalUsd;
+    if (griotUsd != null || gasUsd != null) {
+      totalUsd = (griotUsd ?? 0) + (gasUsd ?? 0);
     }
+
+    String totalDisplay = '-';
+    if (totalUsd != null && totalUsd > 0) {
+      totalDisplay = totalUsd < 0.01
+          ? '< \$0.01'
+          : WalletFormatters.formatCurrency(totalUsd);
+    }
+
+    final providerIncluded = providerFee['included'] == true ||
+        providerFee['reportedByProvider'] != true;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -800,27 +746,48 @@ class _SwapScreenState extends State<SwapScreen> {
       ),
       child: Column(
         children: [
+          _quoteRow(context, 'Provider', _quote?['provider']?.toString() ?? '-'),
+          const SizedBox(height: 8),
+          _quoteRow(context, 'Type', _quote?['type']?.toString() ?? '-'),
+          const Divider(height: 20),
           _quoteRow(
             context,
-            'Provider',
-            _quote?['provider']?.toString() ?? '-',
+            'Griot fee',
+            feeDisplay,
+            subtitle: feePercentDisplay,
           ),
           const SizedBox(height: 8),
           _quoteRow(
             context,
-            'Type',
-            _quote?['type']?.toString() ?? '-',
+            'Aggregator fee',
+            providerIncluded ? 'Included' :
+                _formatFeeAmount(
+                  providerFee['amount']?.toString(),
+                  _tokenForAddress(providerFee['token']?.toString()),
+                ),
           ),
           const SizedBox(height: 8),
           _quoteRow(
             context,
-            'Total Fee',
-            totalDisplay,
-            subtitle: breakdown.isNotEmpty ? breakdown.join(' + ') : null,
+            'Network fee',
+            gasNative == null
+                ? '-'
+                : WalletFormatters.formatBalance(gasNative, symbol: gasSymbol),
+            subtitle: gasUsd == null
+                ? null
+                : (gasUsd < 0.01 ? '< \$0.01' : WalletFormatters.formatCurrency(gasUsd)),
           ),
+          const Divider(height: 20),
+          _quoteRow(context, 'Total fees', totalDisplay),
         ],
       ),
     );
+  }
+
+  Map<String, dynamic> _asMap(dynamic value) {
+    return value is Map<String, dynamic>
+        ? Map<String, dynamic>.from(value)
+        : <String, dynamic>{};
   }
 
   Widget _quoteRow(
@@ -834,24 +801,18 @@ class _SwapScreenState extends State<SwapScreen> {
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment:
-          subtitle != null ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+      crossAxisAlignment: subtitle != null
+          ? CrossAxisAlignment.start
+          : CrossAxisAlignment.center,
       children: [
         Text(
           label,
-          style: text.bodySmall?.copyWith(
-            color: colors.onSurfaceVariant,
-          ),
+          style: text.bodySmall?.copyWith(color: colors.onSurfaceVariant),
         ),
         Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(
-              value,
-              style: text.bodySmall?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            Text(value, style: text.bodySmall?.copyWith(fontWeight: FontWeight.w600)),
             if (subtitle != null)
               Text(
                 subtitle,
