@@ -15,136 +15,71 @@ class WalletService {
   })  : _cryptoService = cryptoService,
         _storageService = storageService;
 
-  // ============================================================
-  // CREATE WALLET
-  // ============================================================
-
   Future<WalletData> createWallet() async {
-    final WalletData wallet =
-    await _cryptoService.createWallet();
-
-    await _storageService.saveWallet(
-      wallet,
-    );
-
+    final wallet = await _cryptoService.createWallet();
+    await _storageService.saveWallet(wallet);
     return wallet;
   }
 
-  // ============================================================
-  // RESTORE WALLET
-  // ============================================================
-
-  Future<WalletData> restoreWallet(
-      String mnemonic,
-      ) async {
+  Future<WalletData> restoreWallet(String mnemonic) async {
     final normalizedMnemonic = mnemonic
         .trim()
-        .replaceAll(
-      RegExp(r'\s+'),
-      ' ',
-    )
+        .replaceAll(RegExp(r'\s+'), ' ')
         .toLowerCase();
 
     if (normalizedMnemonic.isEmpty) {
-      throw Exception(
-        'Recovery phrase cannot be empty.',
-      );
+      throw Exception('Recovery phrase cannot be empty.');
     }
 
-    final WalletData wallet =
-    await _cryptoService.restoreWallet(
-      normalizedMnemonic,
-    );
-
-    await _storageService.replaceWallet(
-      wallet,
-    );
-
+    final wallet = await _cryptoService.restoreWallet(normalizedMnemonic);
+    await _storageService.replaceWallet(wallet);
     return wallet;
   }
-
-  // ============================================================
-  // HAS WALLET
-  // ============================================================
 
   Future<bool> hasWallet() async {
     final wallet = await _storageService.loadWallet();
     return wallet != null;
   }
 
-  // ============================================================
-  // LOAD WALLET
-  // ============================================================
-
   Future<WalletData?> loadWallet() {
     return _storageService.loadWallet();
   }
-
-  // ============================================================
-  // GET ADDRESS
-  // ============================================================
 
   Future<String?> getAddress() {
     return _storageService.getAddress();
   }
 
-  // ============================================================
-  // GET PUBLIC KEY
-  // ============================================================
-
   Future<String?> getPublicKey() {
     return _storageService.getPublicKey();
   }
-
-  // ============================================================
-  // GET PRIVATE KEY
-  // ============================================================
 
   Future<String?> getPrivateKey() {
     return _storageService.getPrivateKey();
   }
 
-  // ============================================================
-  // GET MNEMONIC
-  // ============================================================
-
   Future<String?> getMnemonic() {
     return _storageService.getMnemonic();
   }
 
-  // ============================================================
-  // SIGN MESSAGE
-  // ============================================================
+  Future<String?> signMessage(String message) async {
+    final privateKey = await getPrivateKey();
 
-  Future<String?> signMessage(
-      String message,
-      ) async {
-    final String? privateKey =
-    await getPrivateKey();
-
-    if (privateKey == null ||
-        privateKey.isEmpty) {
+    if (privateKey == null || privateKey.isEmpty) {
       return null;
     }
 
-    final String signature =
-    _cryptoService.signMessage(
+    final signature = _cryptoService.signMessage(
       privateKey: privateKey,
       message: message,
     );
 
     if (!signature.startsWith('0x')) {
-      throw Exception(
-        'Invalid Ethereum signature: '
-            'missing 0x prefix.',
-      );
+      throw Exception('Invalid Ethereum signature: missing 0x prefix.');
     }
 
     if (signature.length != 132) {
       throw Exception(
-        'Invalid Ethereum signature length: '
-            '${signature.length}. '
-            'Expected 132 characters.',
+        'Invalid Ethereum signature length: ${signature.length}. Expected 132 characters.',
       );
     }
 
@@ -152,7 +87,7 @@ class WalletService {
   }
 
   // ============================================================
-  // SIGN NATIVE TRANSACTION
+  // SIGN EVM TRANSACTION LOCALLY
   // ============================================================
 
   Future<String?> signNativeTransaction({
@@ -162,8 +97,9 @@ class WalletService {
     required String gasLimit,
     required String gasPrice,
     required int chainId,
+    String? dataHex,
   }) async {
-    final String? privateKey = await getPrivateKey();
+    final privateKey = await getPrivateKey();
 
     if (privateKey == null || privateKey.isEmpty) {
       return null;
@@ -177,24 +113,13 @@ class WalletService {
       gasLimit: gasLimit,
       gasPrice: gasPrice,
       chainId: chainId,
+      dataHex: dataHex,
     );
   }
 
-  // ============================================================
-  // VALIDATE ADDRESS
-  // ============================================================
-
-  bool isValidAddress(
-      String address,
-      ) {
-    return _cryptoService.isValidAddress(
-      address,
-    );
+  bool isValidAddress(String address) {
+    return _cryptoService.isValidAddress(address);
   }
-
-  // ============================================================
-  // DELETE WALLET
-  // ============================================================
 
   Future<void> clearWallet() {
     return _storageService.clearWallet();
