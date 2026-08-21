@@ -8,10 +8,12 @@ class WalletFormatters {
         '${cleanAddress.substring(cleanAddress.length - 4)}';
   }
 
-  static String formatBalance(num balance, {String symbol = ''}) {
+  static String formatBalance(num balance, {String? symbol = ''}) {
     final double val = balance.toDouble();
+    final String cleanSymbol = symbol ?? '';
+
     if (val == 0) {
-      return symbol.isEmpty ? '0.00' : '0.00 $symbol';
+      return cleanSymbol.isEmpty ? '0.00' : '0.00 $cleanSymbol';
     }
 
     String formatted;
@@ -23,7 +25,6 @@ class WalletFormatters {
       formatted = val.toStringAsFixed(3);
     }
 
-    // Clean up trailing zeros in decimal part to keep it compact and neat
     if (formatted.contains('.')) {
       formatted = formatted.replaceAll(RegExp(r'0+$'), '');
       if (formatted.endsWith('.')) {
@@ -31,26 +32,25 @@ class WalletFormatters {
       }
     }
 
-    // Format with thousands separator
     final parts = formatted.split('.');
     final int? wholeVal = int.tryParse(parts[0].replaceAll(RegExp(r'\D'), ''));
-    if (wholeVal == null) return symbol.isEmpty ? formatted : '$formatted $symbol';
+    if (wholeVal == null) {
+      return cleanSymbol.isEmpty ? formatted : '$formatted $cleanSymbol';
+    }
 
     final String formattedWhole = wholeVal.toString().replaceAllMapped(
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
       (Match m) => '${m[1]},',
     );
 
-    // Reconstruct final string with decimals
     final String finalValue = parts.length == 2
         ? '$formattedWhole.${parts[1]}'
         : formattedWhole;
 
-    return symbol.isEmpty ? finalValue : '$finalValue $symbol';
+    return cleanSymbol.isEmpty ? finalValue : '$finalValue $cleanSymbol';
   }
 
   static String formatCurrency(num amount) {
-    // Simple formatting for now, can be improved with intl package
     return '\$${amount.toStringAsFixed(2).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}';
   }
 }
