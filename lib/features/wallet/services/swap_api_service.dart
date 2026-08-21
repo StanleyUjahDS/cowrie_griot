@@ -42,7 +42,17 @@ class SwapApiService {
       body: body,
     );
 
-    return _asMap(_unwrap(response));
+    final data = _asMap(_unwrap(response));
+
+    // The backend exposes the provider transaction as `transactionRequest`.
+    // Keep the existing screen contract (`transaction`) while preserving the
+    // complete transaction request, including calldata.
+    final transactionRequest = data['transactionRequest'];
+    if (transactionRequest is Map) {
+      data['transaction'] = Map<String, dynamic>.from(transactionRequest);
+    }
+
+    return data;
   }
 
   Future<Map<String, dynamic>> getStatus({
