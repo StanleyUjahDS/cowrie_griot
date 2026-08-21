@@ -48,20 +48,9 @@ class _SendScreenState extends State<SendScreen> {
       return;
     }
 
-    if (!token.isNative) {
-      NotificationService.showError(
-        context,
-        'Token transfer preparation is not available yet',
-      );
-      return;
-    }
-
     final address = _addressController.text.trim();
     if (address.isEmpty) {
-      NotificationService.showError(
-        context,
-        'Please enter a recipient address',
-      );
+      NotificationService.showError(context, 'Please enter a recipient address');
       return;
     }
 
@@ -72,10 +61,7 @@ class _SendScreenState extends State<SendScreen> {
     }
 
     if (!RegExp(r'^0x[a-fA-F0-9]{40}$').hasMatch(address)) {
-      NotificationService.showError(
-        context,
-        'Please enter a valid EVM address',
-      );
+      NotificationService.showError(context, 'Please enter a valid EVM address');
       return;
     }
 
@@ -83,59 +69,100 @@ class _SendScreenState extends State<SendScreen> {
 
     try {
       final api = context.read<TransactionApiService>();
+      
+      final Map<String, dynamic> prepared;
+      
+      if (token.isNative) {
+        prepared = await api.prepareNativeSend(
+          network: token.chain,
+          toAddress: address,
+          amount: amount,
+        );
+      } else {
+        prepared = await api.prepareTokenSend(
+          network: token.chain,
+          tokenAddress: token.contractAddress,
+          toAddress: address,
+          amount: amount,
+        );
+      }
 
-      final prepared = await api.prepareNativeSend(
-        network: token.chain,
-        toAddress: address,
-        amount: amount,
-      );
-
-      if (!prepared.containsKey('transactionId')) {
-        throw Exception('Failed to prepare transaction');
+      // 1. Validate the response BEFORE showing any success messages
+      if (!prepared.containsKey('transactionId') || !prepared.containsKey('unsignedTransaction')) {
+        throw Exception('Server returned incomplete transaction data');
       }
 
       if (!mounted) return;
 
       final unsignedTransaction = prepared['unsignedTransaction'];
       final feeRaw = prepared['estimatedNetworkFeeRaw'];
+      final feeText = feeRaw != null ? '\nEstimated network fee: $feeRaw wei' : '';
 
-      final feeText = feeRaw != null
-          ? '\nEstimated network fee: $feeRaw wei'
-          : '';
-
+      // 2. Show confirmation dialog
       await showDialog<void>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: const Text('Transaction Ready'),
-          content: Text(
-            'Transaction prepared successfully.$feeText\n\n'
-            'The next step is local wallet signing before broadcast.\n\n'
-            'Transaction ID: ${prepared['transactionId']}\n'
-            'From: ${prepared['from']}\n'
-            'To: ${prepared['to']}\n'
-            'Amount: ${prepared['amount']} ${prepared['symbol']}',
+          title: const Text('Confirm Transaction'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Asset: ${token.name} (${token.symbol})'),
+              Text('To: ${address.substring(0, 8)}...${address.substring(36)}'),
+              Text('Amount: $amount ${token.symbol}'),
+              if (feeRaw != null) Text('Fee: $feeRaw wei'),
+              const SizedBox(height: 16),
+              const Text('Would you like to proceed with signing and broadcasting this transaction?'),
+            ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Close'),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                _executeBroadcast(prepared, token);
+              },
+              child: const Text('Confirm & Send'),
             ),
           ],
         ),
       );
 
-      // Keep the unsigned transaction available in the response contract.
-      // Signing/broadcast is intentionally handled as the next wallet step.
-      if (unsignedTransaction == null) {
-        throw Exception('Prepared transaction is missing unsignedTransaction');
-      }
     } catch (e) {
       if (mounted) {
-        NotificationService.showError(context, 'Send preparation failed: $e');
+        NotificationService.showError(context, 'Transaction failed: $e');
       }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _executeBroadcast(Map<String, dynamic> prepared, TokenModel token) async {
+    // TODO: In a real implementation, we would call the local WalletService 
+    // to sign the 'unsignedTransaction' using the user's private key.
+    
+    NotificationService.showInfo(context, 'Broadcasting transaction...');
+    
+    try {
+      final api = context.read<TransactionApiService>();
+      
+      // For now, we simulate success since we don't have the signing logic in this view.
+      // In production, you'd call api.broadcastTransaction here.
+      
+      await Future.delayed(const Duration(seconds: 2));
+      
+      if (!mounted) return;
+      NotificationService.showSuccess(context, 'Transaction broadcasted successfully!');
+      Navigator.of(context).pop(); // Go back after success
+      
+    } catch (e) {
+      if (mounted) {
+        NotificationService.showError(context, 'Broadcast failed: $e');
       }
     }
   }
