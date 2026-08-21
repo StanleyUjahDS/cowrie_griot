@@ -171,6 +171,22 @@ class _SendScreenState extends State<SendScreen> {
       finalAmount = tokenValue.toStringAsFixed(token.decimals);
     }
 
+    final enteredAmount = double.tryParse(finalAmount) ?? 0.0;
+    final maxBalance = token.balance.toDouble();
+
+    if (enteredAmount <= 0) {
+      NotificationService.showError(context, 'Please enter an amount greater than zero.');
+      return;
+    }
+
+    if (enteredAmount > maxBalance) {
+      NotificationService.showError(
+        context,
+        'Insufficient balance: Your maximum balance is $maxBalance ${token.symbol}.',
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
@@ -245,7 +261,7 @@ class _SendScreenState extends State<SendScreen> {
                   ),
                   if (feeRaw != null) ...[
                     const SizedBox(height: 12),
-                    _buildSummaryRow('Estimated Fee', _formatFee(feeRaw), dialogContext),
+                    _buildSummaryRow('Estimated Fee', _formatFee(feeRaw, token), dialogContext),
                   ],
                   const SizedBox(height: 16),
                   const Divider(),
@@ -317,17 +333,39 @@ class _SendScreenState extends State<SendScreen> {
     );
   }
 
-  String _formatFee(dynamic feeRaw) {
+  double _getNativeTokenPrice(String chain) {
+    try {
+      final provider = context.read<WalletProvider>();
+      final nativeToken = provider.tokens.firstWhere(
+        (t) => t.chain == chain && t.isNative,
+      );
+      return nativeToken.priceUsd.toDouble();
+    } catch (_) {
+      // Standard fallbacks if native token is not currently held in portfolio
+      if (chain == 'ethereum' || chain == 'base') return 3400.0;
+      if (chain == 'bsc' || chain == 'binance') return 580.0;
+      if (chain == 'polygon') return 0.55;
+      return 1.0;
+    }
+  }
+
+  String _formatFee(dynamic feeRaw, TokenModel token) {
     if (feeRaw == null) return '--';
     final feeNum = double.tryParse(feeRaw.toString()) ?? 0.0;
     if (feeNum <= 0) return '0.00';
     
-    // Convert Wei to Gwei
-    final gwei = feeNum / 1000000000.0;
-    if (gwei < 0.0001) {
-      return '$feeRaw wei';
-    }
-    return '${gwei.toStringAsFixed(4).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '')} Gwei';
+    // Convert Wei to Native units (18 decimals)
+    final nativeAmount = feeNum / 1000000000000000000.0;
+    final nativeSymbol = token.chain == 'bsc' ? 'BNB' : (token.chain == 'polygon' ? 'POL' : 'ETH');
+    
+    // Calculate USD value of the gas fee
+    final nativePrice = _getNativeTokenPrice(token.chain);
+    final usdAmount = nativeAmount * nativePrice;
+    
+    final formattedNative = nativeAmount.toStringAsFixed(6).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
+    final formattedUsd = usdAmount.toStringAsFixed(2);
+    
+    return '$formattedNative $nativeSymbol (≈ \$$formattedUsd)';
   }
 
   Future<void> _executeBroadcast(

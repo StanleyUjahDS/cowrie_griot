@@ -71,6 +71,22 @@ class _SwapScreenState extends State<SwapScreen> {
       return;
     }
 
+    final enteredAmount = double.tryParse(amount) ?? 0.0;
+    final maxBalance = fromToken.balance.toDouble();
+    if (enteredAmount > maxBalance) {
+      if (mounted) {
+        setState(() {
+          _quote = null;
+          _isLoading = false;
+        });
+        NotificationService.showError(
+          context,
+          'Amount exceeds your maximum balance of $maxBalance ${fromToken.symbol}',
+        );
+      }
+      return;
+    }
+
     final fromAddress = context.read<WalletProvider>().wallet?.address;
     if (fromAddress == null || fromAddress.isEmpty) return;
 
@@ -128,6 +144,18 @@ class _SwapScreenState extends State<SwapScreen> {
 
     final apiService = context.read<TransactionApiService>();
     final walletService = context.read<WalletService>();
+
+    final amount = _amountController.text.trim();
+    final enteredAmount = double.tryParse(amount) ?? 0.0;
+    final maxBalance = _fromToken?.balance.toDouble() ?? 0.0;
+
+    if (enteredAmount > maxBalance) {
+      NotificationService.showError(
+        context,
+        'Amount exceeds your maximum balance of $maxBalance ${_fromToken?.symbol}',
+      );
+      return;
+    }
 
     final rawTransaction = quote['transaction'] ?? quote['transactionRequest'];
     if (rawTransaction is! Map) {
