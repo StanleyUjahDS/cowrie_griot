@@ -47,25 +47,94 @@ class SwapApiService {
 
     final data = _asMap(_unwrap(response));
 
-    // The backend exposes the provider transaction as `transactionRequest`.
-    // Keep the existing screen contract (`transaction`) while preserving the
-    // complete provider transaction request.
     final transactionRequest = data['transactionRequest'] ??
         data['transaction_request'];
     if (transactionRequest is Map) {
       data['transaction'] = Map<String, dynamic>.from(transactionRequest);
     }
 
-    // A swap quote is not a backend transaction draft. The normal transaction
-    // broadcast endpoint therefore cannot be used for it. The frontend uses
-    // this internal marker to broadcast the signed provider transaction
-    // directly over EVM RPC, then sends the resulting tx hash to swap/status.
     final transactionId = data['transactionId']?.toString();
     if (transactionId == null || transactionId.isEmpty) {
       data['transactionId'] = directRpcTransactionId;
     }
 
+    _normalizeFeeBreakdown(
+      data,
+      fromAmount: fromAmount,
+      fromToken: fromToken,
+    );
+
     return data;
+  }
+
+  /// The backend's legacy `fee` object combines Griot's configured percentage
+  /// with the aggregator's reported fee amount. Those are different concepts.
+  /// Normalize them so Flutter can display them independently.
+  void _normalizeFeeBreakdown(
+    Map<String, dynamic> data, {
+    required String fromAmount,
+    required String fromToken,
+  }) {
+    final backendFee = _asMap(data['fee']);
+    final provider = data['provider']?.toString().toLowerCase();
+
+    final bps = _toInt(backendFee['bps']) ?? 0;
+    final percent = _toDouble(backendFee['percent']) ?? (bps / 100.0);
+    final providerAmount = backendFee['amount']?.toString();
+    final providerToken = backendFee['token']?.toString();
+
+    final sellAmount = _toBigInt(fromAmount);
+    final griotFeeAmount = sellAmount == null || bps <= 0
+        ? null
+        : (sellAmount * BigInt.from(bps)) ~/ BigInt.from(10000);
+
+    final griotFee = <String, dynamic>{
+      'bps': bps,
+      'percent': percent,
+      'amount': griotFeeAmount?.toString(),
+      'token': fromToken,
+      'source': 'griot',
+      'chargedFrom': 'sellAmount',
+    };
+
+    final providerFee = <String, dynamic>{
+      'provider': provider,
+      'amount': providerAmount,
+      'token': providerToken,
+      'reportedByProvider': providerAmount != null && providerAmount.isNotEmpty,
+    };
+
+    data['griotFee'] = griotFee;
+    data['providerFee'] = providerFee;
+    data['feeBreakdown'] = <String, dynamic>{
+      'griot': griotFee,
+      'provider': providerFee,
+    };
+
+    // Backwards compatibility: existing quote UI reads `fee`. It now means
+    // Griot's fee consistently instead of mixing Griot percent with provider
+    // amount.
+    data['fee'] = griotFee;
+  }
+
+  BigInt? _toBigInt(String value) {
+    try {
+      final normalized = value.trim();
+      if (!RegExp(r'^\d+$').hasMatch(normalized)) return null;
+      return BigInt.parse(normalized);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  int? _toInt(dynamic value) {
+    if (value == null) return null;
+    return int.tryParse(value.toString());
+  }
+
+  double? _toDouble(dynamic value) {
+    if (value == null) return null;
+    return double.tryParse(value.toString());
   }
 
   Future<Map<String, dynamic>> getStatus({
