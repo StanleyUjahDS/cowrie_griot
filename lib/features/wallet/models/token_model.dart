@@ -10,6 +10,8 @@ class TokenModel {
   final String imageUrl;
   final int decimals;
   final bool hasMarketData;
+  final bool isSpam;
+  final Map<String, dynamic>? security;
 
   const TokenModel({
     required this.name,
@@ -23,6 +25,8 @@ class TokenModel {
     required this.imageUrl,
     this.decimals = 18,
     this.hasMarketData = false,
+    this.isSpam = false,
+    this.security,
   });
 
   bool get isNative => contractAddress.isEmpty;
@@ -42,6 +46,8 @@ class TokenModel {
         json['valueUsd'] != null ||
         json['balanceUsd'] != null ||
         json['usdValue'] != null;
+
+    final securityData = json['security'] is Map ? Map<String, dynamic>.from(json['security']) : null;
 
     return TokenModel(
       name: _string(json['name']),
@@ -72,6 +78,8 @@ class TokenModel {
         _int(json['decimals'], fallback: 18),
       ),
       hasMarketData: hasPrice || hasChange || hasValue,
+      isSpam: json['isSpam'] == true || (securityData != null && securityData['isSpam'] == true),
+      security: securityData,
     );
   }
 

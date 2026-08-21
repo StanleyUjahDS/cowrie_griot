@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'wallet_crypto_service.dart';
@@ -171,5 +172,30 @@ class WalletStorageService {
       ) async {
     await clearWallet();
     await saveWallet(wallet);
+  }
+
+  // ============================================================
+  // HIDDEN TOKENS STORAGE
+  // ============================================================
+
+  static const String _hiddenTokensKey = 'hidden_tokens_list';
+
+  Future<List<String>> getHiddenTokens() async {
+    final data = await _storage.read(key: _hiddenTokensKey);
+    if (data == null || data.isEmpty) return [];
+    try {
+      final list = jsonDecode(data);
+      if (list is List) {
+        return list.map((e) => e.toString()).toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  Future<void> saveHiddenTokens(List<String> keys) async {
+    await _storage.write(
+      key: _hiddenTokensKey,
+      value: jsonEncode(keys),
+    );
   }
 }

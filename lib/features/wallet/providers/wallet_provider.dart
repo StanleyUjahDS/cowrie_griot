@@ -33,6 +33,7 @@ class WalletProvider extends ChangeNotifier {
   bool _onlyProfit = false;
   bool _onlyLoss = false;
   final Set<String> _selectedChains = {};
+  final Set<String> _hiddenTokenKeys = {};
 
   WalletModel? get wallet => _wallet;
   List<TokenModel> get tokens => List.unmodifiable(_tokens);
@@ -42,6 +43,7 @@ class WalletProvider extends ChangeNotifier {
   bool get hideZeroBalance => _hideZeroBalance;
   bool get onlyProfit => _onlyProfit;
   bool get onlyLoss => _onlyLoss;
+  Set<String> get hiddenTokenKeys => Set.unmodifiable(_hiddenTokenKeys);
 
   Set<String> get selectedChains => Set.unmodifiable(_selectedChains);
 
@@ -49,8 +51,20 @@ class WalletProvider extends ChangeNotifier {
     return _prioritySymbols.contains(token.symbol.trim().toUpperCase());
   }
 
+  String _getTokenKey(TokenModel token) {
+    return '${token.chain}:${token.contractAddress.toLowerCase().trim()}';
+  }
+
+  bool isTokenHidden(TokenModel token) {
+    return _hiddenTokenKeys.contains(_getTokenKey(token));
+  }
+
   List<TokenModel> get filteredTokens {
     final result = _tokens.where((token) {
+      if (_hiddenTokenKeys.contains(_getTokenKey(token))) {
+        return false;
+      }
+
       if (_hideZeroBalance && token.balance <= 0) {
         return false;
       }
@@ -96,6 +110,11 @@ class WalletProvider extends ChangeNotifier {
         return;
       }
 
+      // Load hidden tokens list from secure storage
+      final hiddenList = await _walletService.getHiddenTokens();
+      _hiddenTokenKeys.clear();
+      _hiddenTokenKeys.addAll(hiddenList);
+
       final assetData = await _walletApiService.getAssets();
 
       final parsedTokens = assetData
@@ -122,6 +141,20 @@ class WalletProvider extends ChangeNotifier {
     } finally {
       _setLoading(false);
     }
+  }
+
+  Future<void> hideToken(TokenModel token) async {
+    final key = _getTokenKey(token);
+    _hiddenTokenKeys.add(key);
+    await _walletService.saveHiddenTokens(_hiddenTokenKeys.toList());
+    notifyListeners();
+  }
+
+  Future<void> showToken(TokenModel token) async {
+    final key = _getTokenKey(token);
+    _hiddenTokenKeys.remove(key);
+    await _walletService.saveHiddenTokens(_hiddenTokenKeys.toList());
+    notifyListeners();
   }
 
   void setTab(int index) {

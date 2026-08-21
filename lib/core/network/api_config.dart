@@ -102,6 +102,7 @@ class ApiConfig {
     String? toChain,
     String? bridge,
     String? quoteId,
+    String? fromAddress,
   }) {
     final query = <String, String>{
       'transactionId': transactionId,
@@ -125,6 +126,10 @@ class ApiConfig {
 
     if (quoteId != null && quoteId.isNotEmpty) {
       query['quoteId'] = quoteId;
+    }
+
+    if (fromAddress != null && fromAddress.isNotEmpty) {
+      query['fromAddress'] = fromAddress;
     }
 
     return Uri.parse(

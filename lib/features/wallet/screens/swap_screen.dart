@@ -106,6 +106,8 @@ class _SwapScreenState extends State<SwapScreen> {
     setState(() => _isLoading = true);
 
     try {
+      final isCrossChain = fromToken.chain != toToken.chain;
+
       final quote = await context.read<SwapApiService>().getQuote(
             fromChain: fromToken.chain,
             toChain: toToken.chain,
@@ -113,6 +115,7 @@ class _SwapScreenState extends State<SwapScreen> {
             toToken: toTokenAddress,
             fromAmount: fromAmount,
             fromAddress: fromAddress,
+            toAddress: isCrossChain ? fromAddress : null, // Default to self for cross-chain
           );
 
       if (!mounted || requestVersion != _quoteRequestVersion) return;
@@ -204,6 +207,8 @@ class _SwapScreenState extends State<SwapScreen> {
     int? resolvedNonce = int.tryParse(transaction['nonce']?.toString() ?? '');
     String? resolvedGasLimit = transaction['gasLimit']?.toString() ?? transaction['gas']?.toString();
     String? resolvedGasPrice = transaction['gasPrice']?.toString();
+    String? resolvedMaxFeePerGas = transaction['maxFeePerGas']?.toString();
+    String? resolvedMaxPriorityFeePerGas = transaction['maxPriorityFeePerGas']?.toString();
 
     setState(() => _isLoading = true);
 
@@ -219,7 +224,9 @@ class _SwapScreenState extends State<SwapScreen> {
       }
 
       // 2. Resolve gasLimit and gasPrice if null
-      if (resolvedGasLimit == null || resolvedGasLimit.isEmpty || resolvedGasPrice == null || resolvedGasPrice.isEmpty) {
+      if (resolvedGasLimit == null || resolvedGasLimit.isEmpty ||
+          (resolvedGasPrice == null || resolvedGasPrice.isEmpty) &&
+              (resolvedMaxFeePerGas == null || resolvedMaxFeePerGas.isEmpty)) {
         final estimate = await apiService.estimateTransaction(
           network: _fromToken!.chain,
           transaction: {
@@ -231,6 +238,8 @@ class _SwapScreenState extends State<SwapScreen> {
         );
         resolvedGasLimit = estimate['gasLimit']?.toString();
         resolvedGasPrice = estimate['gasPrice']?.toString();
+        resolvedMaxFeePerGas = estimate['maxFeePerGas']?.toString();
+        resolvedMaxPriorityFeePerGas = estimate['maxPriorityFeePerGas']?.toString();
       }
     } catch (e) {
       if (mounted) {
@@ -247,7 +256,8 @@ class _SwapScreenState extends State<SwapScreen> {
 
     if (resolvedNonce == null ||
         resolvedGasLimit == null || resolvedGasLimit.isEmpty ||
-        resolvedGasPrice == null || resolvedGasPrice.isEmpty) {
+        ((resolvedGasPrice == null || resolvedGasPrice.isEmpty) &&
+            (resolvedMaxFeePerGas == null || resolvedMaxFeePerGas.isEmpty))) {
       NotificationService.showError(
         context,
         'Swap transaction data is incomplete. Nonce or gas parameters could not be resolved.',
@@ -296,6 +306,8 @@ class _SwapScreenState extends State<SwapScreen> {
             nonce: resolvedNonce,
             gasLimit: resolvedGasLimit,
             gasPrice: resolvedGasPrice,
+            maxFeePerGas: resolvedMaxFeePerGas,
+            maxPriorityFeePerGas: resolvedMaxPriorityFeePerGas,
             chainId: chainId,
             dataHex: data,
           );
@@ -688,6 +700,97 @@ class _SwapScreenState extends State<SwapScreen> {
   Widget _buildQuoteDetails(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final fee = _quote?['fee'];
+    final transaction = _quote?['transaction'] ?? _quote?['transactionRequest'];
+
+    double totalUsd = 0.0;
+    List<String> breakdown = [];
+    
+    // 1. Service Fee (Provider/Platform)
+    if (fee is Map<String, dynamic>) {
+      final amount = fee['amount']?.toString();
+      final percent = fee['percent'];
+      
+      String? serviceFeeDisplay;
+      double serviceFeeUsd = 0.0;
+
+      // Resolve Service Fee Symbol & Decimals
+      String sSymbol = _fromToken?.symbol ?? '';
+      int sDecimals = _fromToken?.decimals ?? 18;
+      double sPrice = _fromToken?.priceUsd.toDouble() ?? 0.0;
+      
+      final feeToken = fee['token']?.toString();
+      if (feeToken != null && feeToken.isNotEmpty && feeToken != _nativeTokenAddress) {
+        if (_toToken != null && feeToken.toLowerCase() == _toToken!.contractAddress.toLowerCase()) {
+          sSymbol = _toToken!.symbol;
+          sDecimals = _toToken!.decimals;
+          sPrice = _toToken!.priceUsd.toDouble();
+        }
+      }
+
+      if (amount != null && amount != '0' && amount.isNotEmpty) {
+        final rawValString = _fromBaseUnits(amount, sDecimals);
+        final rawVal = double.tryParse(rawValString) ?? 0.0;
+        serviceFeeUsd = rawVal * sPrice;
+        serviceFeeDisplay = WalletFormatters.formatBalance(rawVal, symbol: sSymbol);
+      } else if (percent != null) {
+        // Estimate from input amount if amount not provided
+        final inputAmount = double.tryParse(_amountController.text.trim()) ?? 0.0;
+        final rawVal = (inputAmount * (double.tryParse(percent.toString()) ?? 0.0)) / 100.0;
+        serviceFeeUsd = rawVal * sPrice;
+        serviceFeeDisplay = '${percent}% ($sSymbol)';
+      }
+
+      if (serviceFeeUsd > 0) {
+        totalUsd += serviceFeeUsd;
+        if (serviceFeeDisplay != null) breakdown.add(serviceFeeDisplay);
+      }
+    }
+
+    // 2. Network Fee (Gas)
+    if (transaction is Map) {
+      final gas = transaction['gas']?.toString() ?? transaction['gasLimit']?.toString();
+      final gasPrice = transaction['maxFeePerGas']?.toString() ?? transaction['gasPrice']?.toString();
+      final chain = _fromToken?.chain.toLowerCase() ?? '';
+      
+      if (gas != null && gasPrice != null) {
+        final gLimit = double.tryParse(gas) ?? 0.0;
+        final gPrice = double.tryParse(gasPrice) ?? 0.0;
+        final gasNative = (gLimit * gPrice) / 1000000000000000000.0;
+        
+        double nativePrice = 0.0;
+        String nativeSymbol = 'ETH';
+        if (chain == 'bsc' || chain == 'binance') {
+          nativeSymbol = 'BNB';
+          nativePrice = 580.0;
+        } else if (chain == 'polygon') {
+          nativeSymbol = 'POL';
+          nativePrice = 0.55;
+        } else {
+          nativePrice = 3400.0;
+        }
+
+        // Try to get real native price from provider
+        try {
+          final nativeToken = context.read<WalletProvider>().tokens.firstWhere(
+            (t) => t.isNative && t.chain.toLowerCase() == chain,
+          );
+          nativePrice = nativeToken.priceUsd.toDouble();
+          nativeSymbol = nativeToken.symbol;
+        } catch (_) {}
+
+        final gasUsd = gasNative * nativePrice;
+        totalUsd += gasUsd;
+        breakdown.add(WalletFormatters.formatBalance(gasNative, symbol: nativeSymbol));
+      }
+    }
+
+    String totalDisplay = totalUsd > 0 
+        ? WalletFormatters.formatCurrency(totalUsd) 
+        : '-';
+    
+    if (totalUsd > 0 && totalUsd < 0.01) {
+      totalDisplay = '< \$0.01';
+    }
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -711,19 +814,10 @@ class _SwapScreenState extends State<SwapScreen> {
           const SizedBox(height: 8),
           _quoteRow(
             context,
-            'Swap Fee',
-            fee is Map<String, dynamic>
-                ? '${fee['percent'] ?? 0}%'
-                : '-',
+            'Total Fee',
+            totalDisplay,
+            subtitle: breakdown.isNotEmpty ? breakdown.join(' + ') : null,
           ),
-          if (fee is Map<String, dynamic> && fee['amount'] != null) ...[
-            const SizedBox(height: 8),
-            _quoteRow(
-              context,
-              'Fee Amount',
-              fee['amount'].toString(),
-            ),
-          ],
         ],
       ),
     );
@@ -732,13 +826,16 @@ class _SwapScreenState extends State<SwapScreen> {
   Widget _quoteRow(
     BuildContext context,
     String label,
-    String value,
-  ) {
+    String value, {
+    String? subtitle,
+  }) {
     final colors = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment:
+          subtitle != null ? CrossAxisAlignment.start : CrossAxisAlignment.center,
       children: [
         Text(
           label,
@@ -746,11 +843,24 @@ class _SwapScreenState extends State<SwapScreen> {
             color: colors.onSurfaceVariant,
           ),
         ),
-        Text(
-          value,
-          style: text.bodySmall?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              value,
+              style: text.bodySmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            if (subtitle != null)
+              Text(
+                subtitle,
+                style: text.labelSmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                  fontSize: 10,
+                ),
+              ),
+          ],
         ),
       ],
     );

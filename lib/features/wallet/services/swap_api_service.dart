@@ -26,6 +26,7 @@ class SwapApiService {
       'toToken': toToken,
       'fromAmount': fromAmount,
       'fromAddress': fromAddress,
+      'slippageMode': 'custom',
       'slippage': slippage,
     };
 
@@ -62,6 +63,7 @@ class SwapApiService {
     String? toChain,
     String? bridge,
     String? quoteId,
+    String? fromAddress,
   }) async {
     final response = await _apiClient.get(
       ApiConfig.swapStatus(
@@ -71,6 +73,7 @@ class SwapApiService {
         toChain: toChain,
         bridge: bridge,
         quoteId: quoteId,
+        fromAddress: fromAddress,
       ),
     );
 

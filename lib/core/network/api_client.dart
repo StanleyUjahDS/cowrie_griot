@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import '../../features/auth/services/auth_storage_service.dart';
 
 import 'api_exception.dart';
+import 'api_config.dart';
 
 class ApiClient {
   final http.Client _client;
@@ -110,6 +111,7 @@ class ApiClient {
     required String url,
     Map<String, dynamic>? body,
     Map<String, String>? headers,
+    bool isRetry = false,
   }) async {
     final uri = Uri.parse(url);
 
@@ -280,6 +282,65 @@ class ApiClient {
     if (response.statusCode >= 200 &&
         response.statusCode < 300) {
       return data;
+    }
+
+    // ==========================================================
+    // 401 AUTH REFRESH
+    // ==========================================================
+
+    if (response.statusCode == 401 &&
+        !isRetry &&
+        url != ApiConfig.authRefresh) {
+      final refreshToken =
+          await _authStorageService.getRefreshToken();
+
+      if (refreshToken != null &&
+          refreshToken.isNotEmpty) {
+        debugPrint('API 401: Attempting token refresh...');
+
+        try {
+          final refreshResponse = await _client.post(
+            Uri.parse(ApiConfig.authRefresh),
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              'refreshToken': refreshToken,
+            }),
+          );
+
+          if (refreshResponse.statusCode == 200) {
+            final refreshData =
+                jsonDecode(refreshResponse.body);
+
+            final newData =
+                refreshData['data'] ?? refreshData;
+
+            await _authStorageService.saveSession(
+              accessToken: newData['accessToken'],
+              refreshToken: newData['refreshToken'],
+            );
+
+            debugPrint(
+              'API 401: Refresh success, retrying original request...',
+            );
+
+            return _request(
+              method: method,
+              url: url,
+              body: body,
+              headers: headers,
+              isRetry: true,
+            );
+          } else {
+            debugPrint(
+              'API 401: Refresh failed with status ${refreshResponse.statusCode}',
+            );
+          }
+        } catch (e) {
+          debugPrint('API 401: Refresh error: $e');
+        }
+      }
     }
 
     // ==========================================================

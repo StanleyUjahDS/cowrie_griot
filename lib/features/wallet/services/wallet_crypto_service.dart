@@ -108,7 +108,9 @@ class WalletCryptoService {
     required String valueRaw,
     required int nonce,
     required String gasLimit,
-    required String gasPrice,
+    String? gasPrice,
+    String? maxFeePerGas,
+    String? maxPriorityFeePerGas,
     required int chainId,
     String? dataHex,
   }) async {
@@ -134,9 +136,15 @@ class WalletCryptoService {
         BigInt.parse(valueRaw),
       ),
       nonce: nonce,
-      gasPrice: web3.EtherAmount.inWei(
-        BigInt.parse(gasPrice),
-      ),
+      gasPrice: gasPrice != null
+          ? web3.EtherAmount.inWei(BigInt.parse(gasPrice))
+          : null,
+      maxFeePerGas: maxFeePerGas != null
+          ? web3.EtherAmount.inWei(BigInt.parse(maxFeePerGas))
+          : null,
+      maxPriorityFeePerGas: maxPriorityFeePerGas != null
+          ? web3.EtherAmount.inWei(BigInt.parse(maxPriorityFeePerGas))
+          : null,
       maxGas: int.parse(gasLimit),
       data: transactionData,
     );

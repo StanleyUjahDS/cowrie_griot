@@ -95,7 +95,9 @@ class WalletService {
     required String valueRaw,
     required int nonce,
     required String gasLimit,
-    required String gasPrice,
+    String? gasPrice,
+    String? maxFeePerGas,
+    String? maxPriorityFeePerGas,
     required int chainId,
     String? dataHex,
   }) async {
@@ -112,6 +114,8 @@ class WalletService {
       nonce: nonce,
       gasLimit: gasLimit,
       gasPrice: gasPrice,
+      maxFeePerGas: maxFeePerGas,
+      maxPriorityFeePerGas: maxPriorityFeePerGas,
       chainId: chainId,
       dataHex: dataHex,
     );
@@ -123,5 +127,17 @@ class WalletService {
 
   Future<void> clearWallet() {
     return _storageService.clearWallet();
+  }
+
+  // ============================================================
+  // HIDDEN TOKENS STORAGE DELEGATION
+  // ============================================================
+
+  Future<List<String>> getHiddenTokens() {
+    return _storageService.getHiddenTokens();
+  }
+
+  Future<void> saveHiddenTokens(List<String> keys) {
+    return _storageService.saveHiddenTokens(keys);
   }
 }

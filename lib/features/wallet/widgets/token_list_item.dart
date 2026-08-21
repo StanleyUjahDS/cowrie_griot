@@ -151,6 +151,27 @@ class TokenListItem extends StatelessWidget {
                           ),
                         ),
                       ),
+                      if (token.isSpam) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colorScheme.error.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'SPAM',
+                            style: textTheme.labelSmall?.copyWith(
+                              color: colorScheme.error,
+                              fontSize: 8,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(width: 8),
                       Text(
                         _formatPrice(token.priceUsd),

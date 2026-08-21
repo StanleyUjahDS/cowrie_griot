@@ -264,6 +264,14 @@ class _SendScreenState extends State<SendScreen> {
                     const SizedBox(height: 12),
                     _buildFeeSummaryRow(feeRaw, token, dialogContext),
                   ],
+                  if (prepared['percent'] != null) ...[
+                    const SizedBox(height: 12),
+                    _buildSummaryRow(
+                      'Service Fee',
+                      '${prepared['percent']}%',
+                      dialogContext,
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   const Divider(),
                   const SizedBox(height: 12),
@@ -424,7 +432,9 @@ class _SendScreenState extends State<SendScreen> {
         valueRaw: unsigned['value']?.toString() ?? '0',
         nonce: int.tryParse(unsigned['nonce']?.toString() ?? '') ?? 0,
         gasLimit: unsigned['gasLimit']?.toString() ?? '21000',
-        gasPrice: unsigned['gasPrice']?.toString() ?? '0',
+        gasPrice: unsigned['gasPrice']?.toString(),
+        maxFeePerGas: unsigned['maxFeePerGas']?.toString(),
+        maxPriorityFeePerGas: unsigned['maxPriorityFeePerGas']?.toString(),
         chainId: int.tryParse(unsigned['chainId']?.toString() ?? '') ?? 1,
         dataHex: unsigned['data']?.toString(),
       );
