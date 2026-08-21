@@ -67,7 +67,10 @@ class TokenModel {
             json['logo'] ??
             json['logoUrl'],
       ),
-      decimals: _int(json['decimals'], fallback: 18),
+      decimals: _resolveDecimals(
+        _string(json['symbol']),
+        _int(json['decimals'], fallback: 18),
+      ),
       hasMarketData: hasPrice || hasChange || hasValue,
     );
   }
@@ -87,5 +90,16 @@ class TokenModel {
     if (value is int) return value;
     if (value is num) return value.toInt();
     return int.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+
+  static int _resolveDecimals(String symbol, int defaultDecimals) {
+    final cleanSymbol = symbol.trim().toUpperCase();
+    if (cleanSymbol == 'USDT' || cleanSymbol == 'USDC' || cleanSymbol == 'USDC.E') {
+      return 6;
+    }
+    if (cleanSymbol == 'WBTC') {
+      return 8;
+    }
+    return defaultDecimals;
   }
 }
