@@ -30,6 +30,8 @@ class _SendScreenState extends State<SendScreen> {
   final _addressController = TextEditingController();
   final _amountController = TextEditingController();
   bool _isLoading = false;
+  bool _isInputInUsd = false;
+  String _equivalentDisplay = '≈ \$0.00';
 
   @override
   void initState() {
@@ -38,6 +40,89 @@ class _SendScreenState extends State<SendScreen> {
     if (widget.initialAddress != null) {
       _addressController.text = widget.initialAddress!;
     }
+    _amountController.addListener(_onAmountChanged);
+    _onAmountChanged();
+  }
+
+  void _onAmountChanged() {
+    final token = _selectedToken;
+    if (token == null) {
+      setState(() {
+        _equivalentDisplay = '';
+      });
+      return;
+    }
+
+    final input = _amountController.text.trim();
+    if (input.isEmpty) {
+      setState(() {
+        _equivalentDisplay = _isInputInUsd ? '≈ 0.00 ${token.symbol}' : '≈ \$0.00';
+      });
+      return;
+    }
+
+    final value = double.tryParse(input) ?? 0.0;
+    final price = token.priceUsd.toDouble();
+
+    setState(() {
+      if (_isInputInUsd) {
+        if (price > 0) {
+          final tokenAmount = value / price;
+          _equivalentDisplay = '≈ ${tokenAmount.toStringAsFixed(6).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '')} ${token.symbol}';
+        } else {
+          _equivalentDisplay = '≈ -- ${token.symbol}';
+        }
+      } else {
+        final usdAmount = value * price;
+        _equivalentDisplay = '≈ \$${usdAmount.toStringAsFixed(2)}';
+      }
+    });
+  }
+
+  void _toggleInputCurrency() {
+    final token = _selectedToken;
+    if (token == null) return;
+
+    final input = _amountController.text.trim();
+    final value = double.tryParse(input) ?? 0.0;
+    final price = token.priceUsd.toDouble();
+
+    setState(() {
+      _isInputInUsd = !_isInputInUsd;
+      if (input.isNotEmpty && value > 0) {
+        if (_isInputInUsd) {
+          // Token to USD
+          final usdAmount = value * price;
+          _amountController.text = usdAmount.toStringAsFixed(2);
+        } else {
+          // USD to Token
+          if (price > 0) {
+            final tokenAmount = value / price;
+            _amountController.text = tokenAmount.toStringAsFixed(6).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
+          } else {
+            _amountController.text = '0';
+          }
+        }
+      }
+      _onAmountChanged();
+    });
+  }
+
+  void _useMaxAmount() {
+    final token = _selectedToken;
+    if (token == null) return;
+
+    final maxBalance = token.balance.toDouble();
+
+    setState(() {
+      if (_isInputInUsd) {
+        final maxUsd = maxBalance * token.priceUsd.toDouble();
+        _amountController.text = maxUsd.toStringAsFixed(2);
+      } else {
+        _amountController.text = maxBalance.toString().replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
+      }
+      _onAmountChanged();
+    });
   }
 
   @override
@@ -61,7 +146,7 @@ class _SendScreenState extends State<SendScreen> {
       return;
     }
 
-    final amount = _amountController.text.trim();
+    var amount = _amountController.text.trim();
     if (amount.isEmpty) {
       NotificationService.showError(context, 'Please enter an amount');
       return;
@@ -70,6 +155,20 @@ class _SendScreenState extends State<SendScreen> {
     if (!RegExp(r'^0x[a-fA-F0-9]{40}$').hasMatch(address)) {
       NotificationService.showError(context, 'Please enter a valid EVM address');
       return;
+    }
+
+    // Dynamic resolution of input currency
+    var finalAmount = amount;
+    if (_isInputInUsd) {
+      final usdValue = double.tryParse(finalAmount) ?? 0.0;
+      final price = token.priceUsd.toDouble();
+      if (price <= 0) {
+        NotificationService.showError(context, 'Cannot calculate amount: Token price is zero.');
+        return;
+      }
+      final tokenValue = usdValue / price;
+      // Truncate to token decimals to prevent overflow
+      finalAmount = tokenValue.toStringAsFixed(token.decimals);
     }
 
     setState(() => _isLoading = true);
@@ -83,14 +182,14 @@ class _SendScreenState extends State<SendScreen> {
         prepared = await api.prepareNativeSend(
           network: token.chain,
           toAddress: address,
-          amount: amount,
+          amount: finalAmount,
         );
       } else {
         prepared = await api.prepareTokenSend(
           network: token.chain,
           tokenAddress: token.contractAddress,
           toAddress: address,
-          amount: amount,
+          amount: finalAmount,
         );
       }
 
@@ -110,36 +209,72 @@ class _SendScreenState extends State<SendScreen> {
 
       await showDialog<void>(
         context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Confirm Transaction'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Asset: ${token.name} (${token.symbol})'),
-              Text('To: ${address.substring(0, 8)}...${address.substring(36)}'),
-              Text('Amount: $amount ${token.symbol}'),
-              if (feeRaw != null) Text('Fee: $feeRaw wei'),
-              const SizedBox(height: 16),
-              const Text(
-                'Would you like to proceed with signing and broadcasting this transaction?',
+        builder: (dialogContext) {
+          final dialogColors = Theme.of(dialogContext).colorScheme;
+          final dialogText = Theme.of(dialogContext).textTheme;
+          return AlertDialog(
+            backgroundColor: dialogColors.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+            title: const Row(
+              children: [
+                Icon(Icons.receipt_long_rounded, color: Colors.blueAccent),
+                SizedBox(width: 10),
+                Text('Confirm Transaction'),
+              ],
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Divider(),
+                  const SizedBox(height: 12),
+                  _buildSummaryRow('Asset', '${token.name} (${token.symbol})', dialogContext),
+                  const SizedBox(height: 12),
+                  _buildSummaryRow('To', '${address.substring(0, 8)}...${address.substring(36)}', dialogContext),
+                  const SizedBox(height: 12),
+                  _buildSummaryRow(
+                    'Amount',
+                    '$finalAmount ${token.symbol}',
+                    dialogContext,
+                    valueColor: dialogColors.primary,
+                    isBold: true,
+                  ),
+                  if (feeRaw != null) ...[
+                    const SizedBox(height: 12),
+                    _buildSummaryRow('Estimated Fee', _formatFee(feeRaw), dialogContext),
+                  ],
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Please review closely. Blockchain transactions are permanent and cannot be reversed.',
+                    style: dialogText.bodySmall?.copyWith(
+                      color: dialogColors.onSurfaceVariant,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.of(dialogContext).pop();
+                  _executeBroadcast(prepared, token);
+                },
+                child: const Text('Confirm & Send'),
               ),
             ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-                _executeBroadcast(prepared, token);
-              },
-              child: const Text('Confirm & Send'),
-            ),
-          ],
-        ),
+          );
+        },
       );
     } catch (e) {
       if (mounted) {
@@ -150,6 +285,49 @@ class _SendScreenState extends State<SendScreen> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  Widget _buildSummaryRow(
+    String label,
+    String value,
+    BuildContext context, {
+    Color? valueColor,
+    bool isBold = false,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: text.bodyMedium?.copyWith(
+            color: colors.onSurfaceVariant,
+          ),
+        ),
+        Text(
+          value,
+          style: text.bodyMedium?.copyWith(
+            color: valueColor ?? colors.onSurface,
+            fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _formatFee(dynamic feeRaw) {
+    if (feeRaw == null) return '--';
+    final feeNum = double.tryParse(feeRaw.toString()) ?? 0.0;
+    if (feeNum <= 0) return '0.00';
+    
+    // Convert Wei to Gwei
+    final gwei = feeNum / 1000000000.0;
+    if (gwei < 0.0001) {
+      return '$feeRaw wei';
+    }
+    return '${gwei.toStringAsFixed(4).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '')} Gwei';
   }
 
   Future<void> _executeBroadcast(
@@ -207,6 +385,10 @@ class _SendScreenState extends State<SendScreen> {
           context,
           'Transaction broadcasted successfully!',
         );
+        // Automatically refresh the wallet screen balances!
+        if (context.mounted) {
+          context.read<WalletProvider>().loadWallet();
+        }
         Navigator.of(context).pop();
       } else {
         throw Exception('Broadcast failed: No transaction hash returned');
@@ -287,11 +469,33 @@ class _SendScreenState extends State<SendScreen> {
                         ),
                       ),
                       const SizedBox(height: 32),
-                      Text(
-                        'Amount',
-                        style: text.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Amount',
+                            style: text.titleSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          if (_selectedToken != null)
+                            TextButton(
+                              onPressed: _useMaxAmount,
+                              style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: Text(
+                                'USE MAX',
+                                style: TextStyle(
+                                  color: theme.colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                       const SizedBox(height: 12),
                       TextField(
@@ -304,13 +508,43 @@ class _SendScreenState extends State<SendScreen> {
                         ),
                         decoration: InputDecoration(
                           hintText: '0.00',
-                          suffixText: _selectedToken?.symbol ?? '',
+                          prefixText: _isInputInUsd ? '\$ ' : null,
+                          suffixIcon: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _isInputInUsd ? 'USD' : (_selectedToken?.symbol ?? ''),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.swap_horiz_rounded, size: 20),
+                                onPressed: _toggleInputCurrency,
+                                tooltip: 'Switch Input Currency',
+                              ),
+                            ],
+                          ),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 20,
                           ),
                         ),
                       ),
+                      if (_selectedToken != null) ...[
+                        const SizedBox(height: 6),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Text(
+                            _equivalentDisplay,
+                            style: text.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 48),
                       SizedBox(
                         width: double.infinity,
