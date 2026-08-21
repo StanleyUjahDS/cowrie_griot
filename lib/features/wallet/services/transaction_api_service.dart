@@ -1,7 +1,11 @@
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_config.dart';
+import 'wallet_rpc_service.dart';
+import 'wallet_storage_service.dart';
 
 class TransactionApiService {
+  static const String _directSwapTransactionId = '__direct_swap_rpc__';
+
   final ApiClient _apiClient;
 
   TransactionApiService({
@@ -14,6 +18,31 @@ class TransactionApiService {
     required String toAddress,
     required String amount,
   }) async {
+    // SwapScreen historically used prepareNativeSend(amount: '0') only to
+    // obtain a nonce. The backend correctly rejects zero-value sends, so do
+    // not create a fake pending transaction just to obtain a nonce.
+    if (amount.trim() == '0') {
+      final storage = WalletStorageService();
+      final address = await storage.getAddress();
+      if (address == null || address.isEmpty) {
+        throw Exception('Wallet address not found');
+      }
+
+      final rpc = WalletRpcService();
+      try {
+        final nonce = await rpc.getPendingNonce(
+          network: network,
+          address: address,
+        );
+        return {
+          'nonce': nonce,
+          'network': network,
+        };
+      } finally {
+        rpc.dispose();
+      }
+    }
+
     final body = <String, dynamic>{
       'network': network,
       'toAddress': toAddress,
@@ -78,6 +107,28 @@ class TransactionApiService {
     required String transactionId,
     required String signedTransaction,
   }) async {
+    // Swap provider transactions are not backend-created transaction drafts.
+    // They must be broadcast directly by the non-custodial wallet. The swap
+    // quote service uses this internal sentinel when no backend transactionId
+    // exists, while normal sends continue through the backend broadcast API.
+    if (transactionId == _directSwapTransactionId) {
+      final rpc = WalletRpcService();
+      try {
+        final hash = await rpc.sendRawTransaction(
+          network: network,
+          signedTransaction: signedTransaction,
+        );
+        return {
+          'broadcast': {
+            'hash': hash,
+          },
+          'transaction': null,
+        };
+      } finally {
+        rpc.dispose();
+      }
+    }
+
     final response = await _apiClient.post(
       ApiConfig.broadcastTransaction,
       body: {
