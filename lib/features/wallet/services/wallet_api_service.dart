@@ -84,11 +84,10 @@ class WalletApiService {
   }
 
   Future<Map<String, dynamic>> getNativeBalance({
-    required String address,
     required String network,
   }) async {
     final response = await _apiClient.get(
-      ApiConfig.walletNativeBalance(address, network),
+      ApiConfig.walletNativeBalance(network),
     );
 
     final data = _unwrap(response);
@@ -98,11 +97,9 @@ class WalletApiService {
         : {};
   }
 
-  Future<List<Map<String, dynamic>>> getNativeBalances({
-    required String address,
-  }) async {
+  Future<List<Map<String, dynamic>>> getNativeBalances() async {
     final response = await _apiClient.get(
-      ApiConfig.walletNativeBalances(address),
+      ApiConfig.walletNativeBalances,
     );
 
     final data = _unwrap(response);
@@ -119,11 +116,10 @@ class WalletApiService {
   }
 
   Future<List<Map<String, dynamic>>> getTokens({
-    required String address,
     List<String>? networks,
   }) async {
     final url = _buildQueryUrl(
-      ApiConfig.walletTokens(address),
+      ApiConfig.walletTokens,
       networks: networks,
     );
 

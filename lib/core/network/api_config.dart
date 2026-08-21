@@ -28,17 +28,12 @@ class ApiConfig {
   ) =>
       '$walletBase/custom-token/$network/$tokenAddress';
 
-  static String walletNativeBalance(
-    String address,
-    String network,
-  ) =>
-      '$walletBase/$address/balance/$network';
+  static String walletNativeBalance(String network) =>
+      '$walletBase/balance/$network';
 
-  static String walletNativeBalances(String address) =>
-      '$walletBase/$address/balances';
+  static const String walletNativeBalances = '$walletBase/balances';
 
-  static String walletTokens(String address) =>
-      '$walletBase/$address/tokens';
+  static const String walletTokens = '$walletBase/tokens';
 
   static const String transactionBase =
       '$baseUrl/crypto/transactions';

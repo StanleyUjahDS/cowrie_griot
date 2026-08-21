@@ -117,6 +117,18 @@ class _SwapScreenState extends State<SwapScreen> {
     final quote = _quote;
     if (quote == null) return;
 
+    final fromAddress = context.read<WalletProvider>().wallet?.address;
+    if (fromAddress == null || fromAddress.isEmpty) {
+      NotificationService.showError(
+        context,
+        'Wallet address not found.',
+      );
+      return;
+    }
+
+    final apiService = context.read<TransactionApiService>();
+    final walletService = context.read<WalletService>();
+
     final rawTransaction = quote['transaction'] ?? quote['transactionRequest'];
     if (rawTransaction is! Map) {
       NotificationService.showError(
@@ -140,21 +152,10 @@ class _SwapScreenState extends State<SwapScreen> {
     final to = transaction['to']?.toString();
     final data = transaction['data']?.toString();
     final value = transaction['value']?.toString() ?? '0';
-    final nonce = int.tryParse(transaction['nonce']?.toString() ?? '');
-    final gasLimit = transaction['gasLimit']?.toString() ??
-        transaction['gas']?.toString();
-    final gasPrice = transaction['gasPrice']?.toString();
     final chainId = int.tryParse(transaction['chainId']?.toString() ?? '');
 
-    if (to == null || to.isEmpty ||
-        nonce == null ||
-        gasLimit == null || gasLimit.isEmpty ||
-        gasPrice == null || gasPrice.isEmpty ||
-        chainId == null) {
-      NotificationService.showError(
-        context,
-        'Swap transaction data is incomplete.',
-      );
+    if (to == null || to.isEmpty) {
+      NotificationService.showError(context, 'Recipient/contract address is missing in swap data.');
       return;
     }
 
@@ -162,6 +163,66 @@ class _SwapScreenState extends State<SwapScreen> {
       NotificationService.showError(
         context,
         'Swap calldata is missing. The transaction cannot be signed safely.',
+      );
+      return;
+    }
+
+    if (chainId == null) {
+      NotificationService.showError(context, 'Chain ID is missing in swap data.');
+      return;
+    }
+
+    // Dynamic resolution of nonce, gasLimit, and gasPrice
+    int? resolvedNonce = int.tryParse(transaction['nonce']?.toString() ?? '');
+    String? resolvedGasLimit = transaction['gasLimit']?.toString() ?? transaction['gas']?.toString();
+    String? resolvedGasPrice = transaction['gasPrice']?.toString();
+
+    setState(() => _isLoading = true);
+
+    try {
+      // 1. Resolve nonce if null
+      if (resolvedNonce == null) {
+        final prep = await apiService.prepareNativeSend(
+          network: _fromToken!.chain,
+          toAddress: '0x0000000000000000000000000000000000000000',
+          amount: '0',
+        );
+        resolvedNonce = int.tryParse(prep['nonce']?.toString() ?? '');
+      }
+
+      // 2. Resolve gasLimit and gasPrice if null
+      if (resolvedGasLimit == null || resolvedGasLimit.isEmpty || resolvedGasPrice == null || resolvedGasPrice.isEmpty) {
+        final estimate = await apiService.estimateTransaction(
+          network: _fromToken!.chain,
+          transaction: {
+            'from': fromAddress,
+            'to': to,
+            'value': value,
+            'data': data,
+          },
+        );
+        resolvedGasLimit = estimate['gasLimit']?.toString();
+        resolvedGasPrice = estimate['gasPrice']?.toString();
+      }
+    } catch (e) {
+      if (mounted) {
+        NotificationService.showError(context, 'Failed to fetch transaction details: $e');
+      }
+      return;
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+
+    if (!mounted) return;
+
+    if (resolvedNonce == null ||
+        resolvedGasLimit == null || resolvedGasLimit.isEmpty ||
+        resolvedGasPrice == null || resolvedGasPrice.isEmpty) {
+      NotificationService.showError(
+        context,
+        'Swap transaction data is incomplete. Nonce or gas parameters could not be resolved.',
       );
       return;
     }
@@ -195,17 +256,18 @@ class _SwapScreenState extends State<SwapScreen> {
     setState(() => _isLoading = true);
 
     try {
+      if (!mounted) return;
       NotificationService.showInfo(
         context,
         'Signing swap transaction locally...',
       );
 
-      final signedTx = await context.read<WalletService>().signNativeTransaction(
+      final signedTx = await walletService.signNativeTransaction(
             to: to,
             valueRaw: value,
-            nonce: nonce,
-            gasLimit: gasLimit,
-            gasPrice: gasPrice,
+            nonce: resolvedNonce,
+            gasLimit: resolvedGasLimit,
+            gasPrice: resolvedGasPrice,
             chainId: chainId,
             dataHex: data,
           );
@@ -214,12 +276,13 @@ class _SwapScreenState extends State<SwapScreen> {
         throw Exception('Failed to sign swap transaction locally');
       }
 
+      if (!mounted) return;
       NotificationService.showInfo(
         context,
         'Broadcasting swap...',
       );
 
-      final result = await context.read<TransactionApiService>().broadcastTransaction(
+      final result = await apiService.broadcastTransaction(
             network: _fromToken!.chain,
             transactionId: transactionId,
             signedTransaction: signedTx,
@@ -229,10 +292,11 @@ class _SwapScreenState extends State<SwapScreen> {
 
       final broadcast = result['broadcast'];
       final transactionResult = result['transaction'];
-      final hash = result['hash'] ??
-          result['transactionHash'] ??
-          (broadcast is Map ? broadcast['hash'] : null) ??
-          (transactionResult is Map ? transactionResult['tx_hash'] : null);
+      
+      final hash = result['hash'] ?? 
+                 result['transactionHash'] ??
+                 (broadcast is Map ? broadcast['hash'] : null) ??
+                 (transactionResult is Map ? (transactionResult['txHash'] ?? transactionResult['tx_hash']) : null);
 
       if (hash == null || hash.toString().isEmpty) {
         throw Exception('Broadcast failed: No transaction hash returned');
@@ -251,7 +315,9 @@ class _SwapScreenState extends State<SwapScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -375,7 +441,6 @@ class _SwapScreenState extends State<SwapScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
 
     return GradientScaffold(
       appBar: AppBar(

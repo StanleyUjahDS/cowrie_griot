@@ -108,9 +108,6 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
 
     _loadingIndices.add(index);
     
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
     NativeAd(
       adUnitId: AppConfig.nativeAdUnitId,
       factoryId: 'griot_native_ad',

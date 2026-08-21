@@ -18,26 +18,62 @@ class GriotNativeAdFactory(private val layoutInflater: LayoutInflater) : GoogleM
     ): NativeAdView {
         val adView = layoutInflater.inflate(R.layout.griot_native_ad, null) as NativeAdView
 
+        // Default fallbacks in case customOptions are null or missing keys
+        var primaryColor = 0xFFD4A84F.toInt()
+        var onPrimaryColor = 0xFF000000.toInt()
+        var surfaceColor = 0xFF0D231D.toInt()
+        var onSurfaceColor = 0xFFF5F7FA.toInt()
+        var onSurfaceVariantColor = 0xFFB6BEC9.toInt()
+
+        customOptions?.let { options ->
+            (options["primary"] as? Number)?.toInt()?.let { primaryColor = it }
+            (options["onPrimary"] as? Number)?.toInt()?.let { onPrimaryColor = it }
+            (options["surface"] as? Number)?.toInt()?.let { surfaceColor = it }
+            (options["onSurface"] as? Number)?.toInt()?.let { onSurfaceColor = it }
+            (options["onSurfaceVariant"] as? Number)?.toInt()?.let { onSurfaceVariantColor = it }
+        }
+
+        // Card Background
+        val cardView = adView.findViewById<androidx.cardview.widget.CardView>(R.id.ad_card_container)
+        cardView?.setCardBackgroundColor(surfaceColor)
+
         // Headline
         adView.headlineView = adView.findViewById(R.id.ad_headline)
-        (adView.headlineView as TextView).text = nativeAd.headline
+        (adView.headlineView as? TextView)?.let {
+            it.text = nativeAd.headline
+            it.setTextColor(onSurfaceColor)
+        }
 
         // Body
         adView.bodyView = adView.findViewById(R.id.ad_body)
-        if (nativeAd.body == null) {
-            adView.bodyView?.visibility = View.GONE
-        } else {
-            adView.bodyView?.visibility = View.VISIBLE
-            (adView.bodyView as TextView).text = nativeAd.body
+        (adView.bodyView as? TextView)?.let {
+            if (nativeAd.body == null) {
+                it.visibility = View.GONE
+            } else {
+                it.visibility = View.VISIBLE
+                it.text = nativeAd.body
+                it.setTextColor(onSurfaceVariantColor)
+            }
         }
 
         // Call to action
         adView.callToActionView = adView.findViewById(R.id.ad_call_to_action)
-        if (nativeAd.callToAction == null) {
-            adView.callToActionView?.visibility = View.INVISIBLE
-        } else {
-            adView.callToActionView?.visibility = View.VISIBLE
-            (adView.callToActionView as Button).text = nativeAd.callToAction
+        (adView.callToActionView as? Button)?.let {
+            if (nativeAd.callToAction == null) {
+                it.visibility = View.INVISIBLE
+            } else {
+                it.visibility = View.VISIBLE
+                it.text = nativeAd.callToAction
+                it.backgroundTintList = android.content.res.ColorStateList.valueOf(primaryColor)
+                it.setTextColor(onPrimaryColor)
+            }
+        }
+
+        // Attribution Badge ("Ad")
+        val attribution = adView.findViewById<TextView>(R.id.ad_attribution)
+        attribution?.let {
+            it.backgroundTintList = android.content.res.ColorStateList.valueOf(primaryColor)
+            it.setTextColor(onPrimaryColor)
         }
 
         // Icon
@@ -54,11 +90,14 @@ class GriotNativeAdFactory(private val layoutInflater: LayoutInflater) : GoogleM
 
         // Advertiser
         adView.advertiserView = adView.findViewById(R.id.ad_advertiser)
-        if (nativeAd.advertiser == null) {
-            adView.advertiserView?.visibility = View.GONE
-        } else {
-            (adView.advertiserView as TextView).text = nativeAd.advertiser
-            adView.advertiserView?.visibility = View.VISIBLE
+        (adView.advertiserView as? TextView)?.let {
+            if (nativeAd.advertiser == null) {
+                it.visibility = View.GONE
+            } else {
+                it.text = nativeAd.advertiser
+                it.setTextColor(onSurfaceVariantColor)
+                it.visibility = View.VISIBLE
+            }
         }
 
         // Assign the ad object to the NativeAdView

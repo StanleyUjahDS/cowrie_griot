@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../models/token_model.dart';
 import '../providers/wallet_provider.dart';
@@ -12,10 +13,12 @@ import '../../../core/services/notification_service.dart';
 
 class SendScreen extends StatefulWidget {
   final TokenModel? initialToken;
+  final String? initialAddress;
 
   const SendScreen({
     super.key,
     this.initialToken,
+    this.initialAddress,
   });
 
   @override
@@ -32,6 +35,9 @@ class _SendScreenState extends State<SendScreen> {
   void initState() {
     super.initState();
     _selectedToken = widget.initialToken;
+    if (widget.initialAddress != null) {
+      _addressController.text = widget.initialAddress!;
+    }
   }
 
   @override
@@ -189,12 +195,12 @@ class _SendScreenState extends State<SendScreen> {
       if (!mounted) return;
 
       final broadcast = broadcastResult['broadcast'];
-      final transaction = broadcastResult['transaction'];
-      final hash = broadcast is Map
-          ? broadcast['hash']
-          : transaction is Map
-              ? transaction['tx_hash']
-              : null;
+      final transactionResult = broadcastResult['transaction'];
+      
+      final hash = broadcastResult['hash'] ?? 
+                 broadcastResult['transactionHash'] ??
+                 (broadcast is Map ? broadcast['hash'] : null) ??
+                 (transactionResult is Map ? (transactionResult['txHash'] ?? transactionResult['tx_hash']) : null);
 
       if (hash != null && hash.toString().isNotEmpty) {
         NotificationService.showSuccess(
@@ -271,7 +277,12 @@ class _SendScreenState extends State<SendScreen> {
                             icon: const Icon(
                               Icons.qr_code_scanner_rounded,
                             ),
-                            onPressed: () {},
+                            onPressed: () async {
+                              final result = await GoRouter.of(context).push<String>('/wallet/scan');
+                              if (result != null && mounted) {
+                                _addressController.text = result;
+                              }
+                            },
                           ),
                         ),
                       ),

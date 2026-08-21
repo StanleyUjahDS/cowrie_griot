@@ -308,6 +308,7 @@ class AppRouter {
           final extra = state.extra;
           return SendScreen(
             initialToken: extra is TokenModel ? extra : null,
+            initialAddress: extra is String ? extra : null,
           );
         },
       ),

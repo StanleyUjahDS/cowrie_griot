@@ -118,7 +118,14 @@ class _WalletScreenState extends State<WalletScreen> {
                     displayName: provider.wallet?.displayName ?? 'Your Account',
                     avatarUrl: provider.wallet?.avatarUrl,
                     onNotificationsTap: () {},
-                    onScanTap: () => context.push('/wallet/scan'),
+                    onScanTap: () async {
+                      final result = await context.push<String>('/wallet/scan');
+                      if (result != null && context.mounted) {
+                        // Navigate to send screen with the scanned address
+                        // We might need to adjust the router to accept an initial address
+                        context.push('/wallet/send', extra: result); 
+                      }
+                    },
                     addressCard: WalletAddressCard(
                       address: provider.wallet?.address,
                       isLoading: provider.isLoading,

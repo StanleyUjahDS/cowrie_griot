@@ -22,12 +22,11 @@ class _GriotNativeAdState extends State<GriotNativeAd> {
     super.didChangeDependencies();
     
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     
     // Check if theme has changed
-    if (_lastBrightness != theme.brightness || _lastPrimaryColor != colorScheme.primary) {
+    if (_lastBrightness != theme.brightness || _lastPrimaryColor != theme.colorScheme.primary) {
       _lastBrightness = theme.brightness;
-      _lastPrimaryColor = colorScheme.primary;
+      _lastPrimaryColor = theme.colorScheme.primary;
       
       // Theme changed, reload the ad with new colors
       _loadAd(force: true);
@@ -42,14 +41,20 @@ class _GriotNativeAdState extends State<GriotNativeAd> {
       _nativeAd = null;
       _isLoaded = false;
     }
-
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    
+    final colorScheme = Theme.of(context).colorScheme;
 
     _nativeAd = NativeAd(
       adUnitId: AppConfig.nativeAdUnitId,
       factoryId: 'griot_native_ad',
       request: const AdRequest(),
+      customOptions: {
+        'primary': colorScheme.primary.toARGB32(),
+        'onPrimary': colorScheme.onPrimary.toARGB32(),
+        'surface': colorScheme.surface.toARGB32(),
+        'onSurface': colorScheme.onSurface.toARGB32(),
+        'onSurfaceVariant': colorScheme.onSurfaceVariant.toARGB32(),
+      },
       listener: NativeAdListener(
         onAdLoaded: (ad) {
           if (!mounted) {

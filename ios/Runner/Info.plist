@@ -26,6 +26,8 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>We need camera access to scan QR codes for wallet addresses and transactions.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>We use Face ID to securely unlock your wallet</string>
 	<key>UIApplicationSceneManifest</key>

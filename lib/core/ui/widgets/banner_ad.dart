@@ -54,8 +54,6 @@ class _GriotBannerAdState extends State<GriotBannerAd> {
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
 
-    final Color borderColor = colorScheme.outline.withValues(alpha: isDark ? 0.20 : 0.12);
-
     // Placeholder: Show a themed frame even if the ad isn't loaded
     // to prevent the UI from jumping when it pops in.
     return Container(
