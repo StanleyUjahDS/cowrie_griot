@@ -85,6 +85,31 @@ class ReceiveScreen extends StatelessWidget {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'YOUR $symbol ADDRESS',
+                                  style: text.labelSmall?.copyWith(
+                                    color: colors.onSurfaceVariant.withValues(alpha: 0.4),
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 2.0,
+                                  ),
+                                ),
+                                IconButton(
+                                  onPressed: () {
+                                    Share.share(
+                                      'My Cowrie Griot Wallet Address ($symbol):\n\n$address',
+                                      subject: 'My Wallet Address',
+                                    );
+                                  },
+                                  icon: Icon(Icons.share_rounded, size: 20, color: colors.primary.withValues(alpha: 0.6)),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
                             // QR Code with Logo and Gradient
                             Container(
                               padding: const EdgeInsets.all(12),
@@ -113,22 +138,13 @@ class ReceiveScreen extends StatelessWidget {
                                   dataModuleShape: QrDataModuleShape.circle,
                                   color: colors.primary.withValues(alpha: 0.9),
                                 ),
-                                embeddedImage: const AssetImage('assets/coins_logo/ic_launcher.png'),
+                                embeddedImage: const AssetImage('assets/cowrie_images/wolrd_cowrie.png'),
                                 embeddedImageStyle: const QrEmbeddedImageStyle(
                                   size: Size(54, 54),
                                 ),
                               ),
                             ),
                             const SizedBox(height: 24),
-                            Text(
-                              'YOUR $symbol ADDRESS',
-                              style: text.labelSmall?.copyWith(
-                                color: colors.onSurfaceVariant.withValues(alpha: 0.4),
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 2.0,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
                             GestureDetector(
                               onTap: () {
                                 Clipboard.setData(ClipboardData(text: address));
@@ -162,33 +178,17 @@ class ReceiveScreen extends StatelessWidget {
                 
                 const SizedBox(height: 40),
                 
-                // Action Buttons with modern pill style
-                Row(
-                  children: [
-                    Expanded(
-                      child: _ActionPill(
-                        icon: Icons.copy_all_rounded,
-                        label: 'COPY',
-                        onTap: () {
-                          Clipboard.setData(ClipboardData(text: address));
-                          NotificationService.showSuccess(context, 'Address copied');
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _ActionPill(
-                        icon: Icons.ios_share_rounded,
-                        label: 'SHARE',
-                        onTap: () {
-                          Share.share(
-                            'My Cowrie Griot Wallet Address ($symbol):\n\n$address',
-                            subject: 'My Wallet Address',
-                          );
-                        },
-                      ),
-                    ),
-                  ],
+                // COPY Action Button (Sharing is now integrated above)
+                SizedBox(
+                  width: double.infinity,
+                  child: _ActionPill(
+                    icon: Icons.copy_all_rounded,
+                    label: 'COPY ADDRESS',
+                    onTap: () {
+                      Clipboard.setData(ClipboardData(text: address));
+                      NotificationService.showSuccess(context, 'Address copied');
+                    },
+                  ),
                 ).animate().fadeIn(delay: 300.ms),
                 
                 const SizedBox(height: 40),
