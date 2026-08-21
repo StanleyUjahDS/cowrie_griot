@@ -50,6 +50,9 @@ class ApiConfig {
   static const String prepareNativeTransaction =
       '$transactionBase/prepare-native';
 
+  static const String prepareTokenTransaction =
+      '$transactionBase/prepare-token';
+
   static const String estimateTransaction =
       '$transactionBase/estimate';
 

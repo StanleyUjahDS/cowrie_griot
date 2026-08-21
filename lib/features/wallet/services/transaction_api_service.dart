@@ -53,7 +53,7 @@ class TransactionApiService {
     }
 
     final response = await _apiClient.post(
-      '${ApiConfig.transactionBase}/prepare-token',
+      ApiConfig.prepareTokenTransaction,
       body: body,
     );
 
