@@ -2,6 +2,8 @@ import '../../../core/network/api_client.dart';
 import '../../../core/network/api_config.dart';
 
 class SwapApiService {
+  static const String directRpcTransactionId = '__direct_swap_rpc__';
+
   final ApiClient _apiClient;
 
   SwapApiService({
@@ -47,10 +49,20 @@ class SwapApiService {
 
     // The backend exposes the provider transaction as `transactionRequest`.
     // Keep the existing screen contract (`transaction`) while preserving the
-    // complete transaction request, including calldata.
-    final transactionRequest = data['transactionRequest'];
+    // complete provider transaction request.
+    final transactionRequest = data['transactionRequest'] ??
+        data['transaction_request'];
     if (transactionRequest is Map) {
       data['transaction'] = Map<String, dynamic>.from(transactionRequest);
+    }
+
+    // A swap quote is not a backend transaction draft. The normal transaction
+    // broadcast endpoint therefore cannot be used for it. The frontend uses
+    // this internal marker to broadcast the signed provider transaction
+    // directly over EVM RPC, then sends the resulting tx hash to swap/status.
+    final transactionId = data['transactionId']?.toString();
+    if (transactionId == null || transactionId.isEmpty) {
+      data['transactionId'] = directRpcTransactionId;
     }
 
     return data;
