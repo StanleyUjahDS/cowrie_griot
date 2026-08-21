@@ -41,19 +41,19 @@ class NotificationService {
     // 1. Insufficient Funds / Gas
     if (lower.contains('insufficient funds') || lower.contains('insufficient_funds')) {
       if (lower.contains('gas') || lower.contains('transfer') || lower.contains('fee')) {
-        return "Insufficient funds to cover transaction value and network gas fees. Please deposit some native gas tokens (e.g. BNB or ETH) first.";
+        return "Insufficient funds to cover gas fees. Please deposit native tokens (e.g., BNB, ETH) to proceed.";
       }
-      return "Insufficient funds in your wallet to complete this transaction.";
+      return "Insufficient wallet balance to cover this transaction.";
     }
 
     // 2. Insufficient Token Balance
     if (lower.contains('insufficient token balance') || lower.contains('insufficient balance')) {
-      return "Insufficient balance: You don't have enough of this token to complete this transfer.";
+      return "Insufficient token balance.";
     }
 
     // 3. User Rejected / Canceled
     if (lower.contains('user rejected') || lower.contains('canceled') || lower.contains('cancelled')) {
-      return "Transaction was canceled.";
+      return "Transaction canceled.";
     }
 
     // 4. Overly long JSON/RPC strings
@@ -69,10 +69,10 @@ class NotificationService {
       }
       
       if (lower.contains('insufficient funds')) {
-        return "Insufficient funds to cover transaction value and network gas fees.";
+        return "Insufficient funds to cover gas fees.";
       }
       
-      return "Blockchain Node Error: The transaction failed to estimate gas. This usually indicates insufficient native gas balance or a contract execution failure.";
+      return "Blockchain error: Failed to estimate gas. Check your native gas balance.";
     }
 
     return msg;
