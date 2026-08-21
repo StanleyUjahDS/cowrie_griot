@@ -167,8 +167,9 @@ class _SendScreenState extends State<SendScreen> {
         return;
       }
       final tokenValue = usdValue / price;
-      // Truncate to token decimals to prevent overflow
-      finalAmount = tokenValue.toStringAsFixed(token.decimals);
+      // Truncate to a maximum of 6 decimals (or token decimals if smaller) to prevent float precision overflows
+      final decimals = token.decimals > 6 ? 6 : token.decimals;
+      finalAmount = tokenValue.toStringAsFixed(decimals);
     }
 
     final enteredAmount = double.tryParse(finalAmount) ?? 0.0;
