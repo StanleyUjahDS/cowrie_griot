@@ -41,14 +41,27 @@ class _SendScreenState extends State<SendScreen> {
   }
 
   Future<void> _handleSend() async {
-    if (_selectedToken == null) {
+    final token = _selectedToken;
+
+    if (token == null) {
       NotificationService.showError(context, 'Please select a token');
+      return;
+    }
+
+    if (!token.isNative) {
+      NotificationService.showError(
+        context,
+        'Token transfer preparation is not available yet',
+      );
       return;
     }
 
     final address = _addressController.text.trim();
     if (address.isEmpty) {
-      NotificationService.showError(context, 'Please enter a recipient address');
+      NotificationService.showError(
+        context,
+        'Please enter a recipient address',
+      );
       return;
     }
 
@@ -58,28 +71,67 @@ class _SendScreenState extends State<SendScreen> {
       return;
     }
 
+    if (!RegExp(r'^0x[a-fA-F0-9]{40}$').hasMatch(address)) {
+      NotificationService.showError(
+        context,
+        'Please enter a valid EVM address',
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
       final api = context.read<TransactionApiService>();
-      
-      // Step 1: Prepare
+
       final prepared = await api.prepareNativeSend(
-        network: _selectedToken!.chain,
+        network: token.chain,
         toAddress: address,
         amount: amount,
       );
 
-      if (prepared.containsKey('transactionId')) {
-        // In a real flow, we would sign here and then broadcast
-        if (!mounted) return;
-        NotificationService.showSuccess(context, 'Transaction prepared successfully');
-      } else {
+      if (!prepared.containsKey('transactionId')) {
         throw Exception('Failed to prepare transaction');
+      }
+
+      if (!mounted) return;
+
+      final unsignedTransaction = prepared['unsignedTransaction'];
+      final feeRaw = prepared['estimatedNetworkFeeRaw'];
+
+      final feeText = feeRaw != null
+          ? '\nEstimated network fee: $feeRaw wei'
+          : '';
+
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Transaction Ready'),
+          content: Text(
+            'Transaction prepared successfully.$feeText\n\n'
+            'The next step is local wallet signing before broadcast.\n\n'
+            'Transaction ID: ${prepared['transactionId']}\n'
+            'From: ${prepared['from']}\n'
+            'To: ${prepared['to']}\n'
+            'Amount: ${prepared['amount']} ${prepared['symbol']}',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+
+      // Keep the unsigned transaction available in the response contract.
+      // Signing/broadcast is intentionally handled as the next wallet step.
+      if (unsignedTransaction == null) {
+        throw Exception('Prepared transaction is missing unsignedTransaction');
       }
     } catch (e) {
       if (mounted) {
-        NotificationService.showError(context, 'Send failed: $e');
+        NotificationService.showError(context, 'Send preparation failed: $e');
       }
     } finally {
       if (mounted) {
@@ -116,54 +168,78 @@ class _SendScreenState extends State<SendScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 20),
-                      // Select Asset
-                      Text('Select Asset', style: text.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                      Text(
+                        'Select Asset',
+                        style: text.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       _buildAssetSelector(context),
-
                       const SizedBox(height: 32),
-
-                      // Recipient
-                      Text('Recipient Address', style: text.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                      Text(
+                        'Recipient Address',
+                        style: text.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       TextField(
                         controller: _addressController,
                         decoration: InputDecoration(
                           hintText: 'Enter 0x address',
-                          prefixIcon: const Icon(Icons.account_balance_wallet_outlined),
+                          prefixIcon: const Icon(
+                            Icons.account_balance_wallet_outlined,
+                          ),
                           suffixIcon: IconButton(
-                            icon: const Icon(Icons.qr_code_scanner_rounded),
-                            onPressed: () {}, // TODO: Scan QR
+                            icon: const Icon(
+                              Icons.qr_code_scanner_rounded,
+                            ),
+                            onPressed: () {},
                           ),
                         ),
                       ),
-
                       const SizedBox(height: 32),
-
-                      // Amount
-                      Text('Amount', style: text.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                      Text(
+                        'Amount',
+                        style: text.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       TextField(
                         controller: _amountController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        style: text.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        style: text.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                         decoration: InputDecoration(
                           hintText: '0.00',
                           suffixText: _selectedToken?.symbol ?? '',
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 20,
+                          ),
                         ),
                       ),
-                      
                       const SizedBox(height: 48),
-
                       SizedBox(
                         width: double.infinity,
                         height: 56,
                         child: FilledButton(
                           onPressed: _isLoading ? null : _handleSend,
-                          child: _isLoading 
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text('Review Transaction', style: TextStyle(fontWeight: FontWeight.bold)),
+                          child: _isLoading
+                              ? const CircularProgressIndicator(
+                                  color: Colors.white,
+                                )
+                              : const Text(
+                                  'Review Transaction',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                         ),
                       ),
                     ],
@@ -186,7 +262,7 @@ class _SendScreenState extends State<SendScreen> {
 
   Widget _buildAssetSelector(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    
+
     return InkWell(
       onTap: () => _showTokenPicker(context),
       borderRadius: BorderRadius.circular(16),
@@ -195,7 +271,9 @@ class _SendScreenState extends State<SendScreen> {
         decoration: BoxDecoration(
           color: colors.surfaceContainerLow,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.3)),
+          border: Border.all(
+            color: colors.outlineVariant.withValues(alpha: 0.3),
+          ),
         ),
         child: Row(
           children: [
@@ -213,16 +291,24 @@ class _SendScreenState extends State<SendScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(_selectedToken!.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Text(
+                      _selectedToken!.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
                     Text(
                       'Balance: ${WalletFormatters.formatBalance(_selectedToken!.balance)} ${_selectedToken!.symbol}',
-                      style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),
               ),
             ] else
-              const Expanded(child: Text('Choose a token to send')),
+              const Expanded(
+                child: Text('Choose a token to send'),
+              ),
             const Icon(Icons.keyboard_arrow_down_rounded),
           ],
         ),
@@ -252,8 +338,12 @@ class _SendScreenState extends State<SendScreen> {
                 radius: 16,
               ),
               title: Text(token.name),
-              subtitle: Text('${token.symbol} on ${token.chain.toUpperCase()}'),
-              trailing: Text(WalletFormatters.formatBalance(token.balance)),
+              subtitle: Text(
+                '${token.symbol} on ${token.chain.toUpperCase()}',
+              ),
+              trailing: Text(
+                WalletFormatters.formatBalance(token.balance),
+              ),
               onTap: () {
                 setState(() => _selectedToken = token);
                 Navigator.pop(context);
