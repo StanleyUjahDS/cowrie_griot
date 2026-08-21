@@ -6,9 +6,7 @@ class SwapApiService {
 
   final ApiClient _apiClient;
 
-  SwapApiService({
-    required ApiClient apiClient,
-  }) : _apiClient = apiClient;
+  SwapApiService({required ApiClient apiClient}) : _apiClient = apiClient;
 
   Future<Map<String, dynamic>> getQuote({
     required String fromChain,
@@ -35,7 +33,6 @@ class SwapApiService {
     if (toAddress != null && toAddress.isNotEmpty) {
       body['toAddress'] = toAddress;
     }
-
     if (order != null && order.isNotEmpty) {
       body['order'] = order;
     }
@@ -47,8 +44,8 @@ class SwapApiService {
 
     final data = _asMap(_unwrap(response));
 
-    final transactionRequest = data['transactionRequest'] ??
-        data['transaction_request'];
+    final transactionRequest =
+        data['transactionRequest'] ?? data['transaction_request'];
     if (transactionRequest is Map) {
       data['transaction'] = Map<String, dynamic>.from(transactionRequest);
     }
@@ -58,50 +55,47 @@ class SwapApiService {
       data['transactionId'] = directRpcTransactionId;
     }
 
-    _normalizeFeeBreakdown(
-      data,
-      fromAmount: fromAmount,
-      fromToken: fromToken,
-    );
-
+    _normalizeFeeBreakdown(data, fromAmount: fromAmount, fromToken: fromToken);
     return data;
   }
 
-  /// The backend's legacy `fee` object combines Griot's configured percentage
-  /// with the aggregator's reported fee amount. Those are different concepts.
-  /// Normalize them so Flutter can display them independently.
+  /// The backend `fee` object represents Griot's configured integrator fee.
+  /// It is calculated from GRIOT_SWAP_FEE_BPS on the backend and must never
+  /// be reconfigured or hard-coded in Flutter.
   void _normalizeFeeBreakdown(
     Map<String, dynamic> data, {
     required String fromAmount,
     required String fromToken,
   }) {
     final backendFee = _asMap(data['fee']);
-    final provider = data['provider']?.toString().toLowerCase();
 
     final bps = _toInt(backendFee['bps']) ?? 0;
     final percent = _toDouble(backendFee['percent']) ?? (bps / 100.0);
-    final providerAmount = backendFee['amount']?.toString();
-    final providerToken = backendFee['token']?.toString();
-
-    final sellAmount = _toBigInt(fromAmount);
-    final griotFeeAmount = sellAmount == null || bps <= 0
-        ? null
-        : (sellAmount * BigInt.from(bps)) ~/ BigInt.from(10000);
+    final amount = backendFee['amount']?.toString();
+    final calculatedAmount = backendFee['calculatedAmount']?.toString();
+    final token = backendFee['token']?.toString() ?? fromToken;
 
     final griotFee = <String, dynamic>{
       'bps': bps,
       'percent': percent,
-      'amount': griotFeeAmount?.toString(),
-      'token': fromToken,
+      'rate': _toDouble(backendFee['rate']),
+      'amount': amount ?? calculatedAmount,
+      'calculatedAmount': calculatedAmount,
+      'token': token,
       'source': 'griot',
-      'chargedFrom': 'sellAmount',
+      'chargedFrom': backendFee['chargedFrom'] ?? 'sellAmount',
+      'sellAmount': backendFee['sellAmount']?.toString() ?? fromAmount,
     };
 
+    // Do not manufacture an aggregator fee from Griot's fee. The backend
+    // `fee` is the Griot integrator fee. Provider/network costs are exposed
+    // separately by the provider quote (`feeCosts`, `gasCosts`, `gas`, etc.).
     final providerFee = <String, dynamic>{
-      'provider': provider,
-      'amount': providerAmount,
-      'token': providerToken,
-      'reportedByProvider': providerAmount != null && providerAmount.isNotEmpty,
+      'provider': data['provider']?.toString().toLowerCase(),
+      'amount': null,
+      'token': null,
+      'reportedByProvider': false,
+      'included': true,
     };
 
     data['griotFee'] = griotFee;
@@ -111,20 +105,8 @@ class SwapApiService {
       'provider': providerFee,
     };
 
-    // Backwards compatibility: existing quote UI reads `fee`. It now means
-    // Griot's fee consistently instead of mixing Griot percent with provider
-    // amount.
+    // Backwards compatibility for any existing quote consumers.
     data['fee'] = griotFee;
-  }
-
-  BigInt? _toBigInt(String value) {
-    try {
-      final normalized = value.trim();
-      if (!RegExp(r'^\d+$').hasMatch(normalized)) return null;
-      return BigInt.parse(normalized);
-    } catch (_) {
-      return null;
-    }
   }
 
   int? _toInt(dynamic value) {
@@ -170,7 +152,6 @@ class SwapApiService {
     if (response is Map<String, dynamic> && response.containsKey('data')) {
       return response['data'];
     }
-
     return response;
   }
 
