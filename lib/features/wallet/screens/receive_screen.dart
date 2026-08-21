@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../models/token_model.dart';
 import '../providers/wallet_provider.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
@@ -40,96 +41,134 @@ class ReceiveScreen extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
             child: Column(
               children: [
-                const SizedBox(height: 20),
-                // Premium Glass Card for QR
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: colors.surfaceContainerLow.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(36),
-                    border: Border.all(
-                      color: colors.outlineVariant.withValues(alpha: 0.1),
-                      width: 1.5,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: Column(
+                const SizedBox(height: 12),
+                
+                // Animated Premium QR Section
+                Center(
+                  child: Stack(
+                    alignment: Alignment.center,
                     children: [
-                      // QR Code with Logo
+                      // Outer Decorative Glow
                       Container(
-                        padding: const EdgeInsets.all(16),
+                        width: 300,
+                        height: 300,
                         decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        child: QrImageView(
-                          data: address,
-                          version: QrVersions.auto,
-                          size: 240.0,
-                          eyeStyle: const QrEyeStyle(
-                            eyeShape: QrEyeShape.circle,
-                            color: Colors.black,
-                          ),
-                          dataModuleStyle: const QrDataModuleStyle(
-                            dataModuleShape: QrDataModuleShape.circle,
-                            color: Colors.black,
-                          ),
-                          embeddedImage: const AssetImage('assets/coins_logo/ic_launcher.png'),
-                          embeddedImageStyle: const QrEmbeddedImageStyle(
-                            size: Size(56, 56),
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              colors.primary.withValues(alpha: 0.15),
+                              colors.primary.withValues(alpha: 0.0),
+                            ],
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        'Your $symbol Address',
-                        style: text.labelMedium?.copyWith(
-                          color: colors.onSurfaceVariant.withValues(alpha: 0.5),
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      GestureDetector(
-                        onTap: () {
-                          Clipboard.setData(ClipboardData(text: address));
-                          NotificationService.showSuccess(context, 'Address copied to clipboard');
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: colors.surfaceContainerHighest.withValues(alpha: 0.4),
-                            borderRadius: BorderRadius.circular(16),
+                      ).animate(onPlay: (controller) => controller.repeat(reverse: true))
+                       .scale(begin: const Offset(0.8, 0.8), end: const Offset(1.2, 1.2), duration: 3.seconds, curve: Curves.easeInOut),
+
+                      // Main Card
+                      Container(
+                        padding: const EdgeInsets.all(28),
+                        decoration: BoxDecoration(
+                          color: colors.surface.withValues(alpha: 0.7),
+                          borderRadius: BorderRadius.circular(48),
+                          border: Border.all(
+                            color: colors.outlineVariant.withValues(alpha: 0.15),
+                            width: 2,
                           ),
-                          child: Text(
-                            address,
-                            textAlign: TextAlign.center,
-                            style: text.bodyMedium?.copyWith(
-                              color: colors.onSurface,
-                              fontWeight: FontWeight.w700,
-                              fontFamily: 'Monospace',
-                              letterSpacing: 0.5,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.1),
+                              blurRadius: 30,
+                              offset: const Offset(0, 15),
                             ),
-                          ),
+                          ],
                         ),
-                      ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // QR Code with Logo and Gradient
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(32),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: colors.primary.withValues(alpha: 0.1),
+                                    blurRadius: 20,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                              ),
+                              child: QrImageView(
+                                data: address,
+                                version: QrVersions.auto,
+                                size: 220.0,
+                                // Eye Style with Brand Gradient
+                                eyeStyle: QrEyeStyle(
+                                  eyeShape: QrEyeShape.circle,
+                                  color: colors.primary,
+                                ),
+                                // Data Module with softer circular shape and brand blending
+                                dataModuleStyle: QrDataModuleStyle(
+                                  dataModuleShape: QrDataModuleShape.circle,
+                                  color: colors.primary.withValues(alpha: 0.9),
+                                ),
+                                embeddedImage: const AssetImage('assets/coins_logo/ic_launcher.png'),
+                                embeddedImageStyle: const QrEmbeddedImageStyle(
+                                  size: Size(54, 54),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            Text(
+                              'YOUR $symbol ADDRESS',
+                              style: text.labelSmall?.copyWith(
+                                color: colors.onSurfaceVariant.withValues(alpha: 0.4),
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 2.0,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            GestureDetector(
+                              onTap: () {
+                                Clipboard.setData(ClipboardData(text: address));
+                                NotificationService.showSuccess(context, 'Copied');
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: colors.surfaceContainerHighest.withValues(alpha: 0.3),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.1)),
+                                ),
+                                child: Text(
+                                  _formatAddress(address),
+                                  textAlign: TextAlign.center,
+                                  style: text.bodyLarge?.copyWith(
+                                    color: colors.onSurface,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 1.0,
+                                    fontFamily: 'Monospace',
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ).animate().fadeIn(duration: 600.ms).slideY(begin: 0.1, end: 0),
                     ],
                   ),
                 ),
-                const SizedBox(height: 32),
-                // Action Buttons
+                
+                const SizedBox(height: 40),
+                
+                // Action Buttons with modern pill style
                 Row(
                   children: [
                     Expanded(
-                      child: _ActionButton(
-                        icon: Icons.copy_rounded,
-                        label: 'Copy',
+                      child: _ActionPill(
+                        icon: Icons.copy_all_rounded,
+                        label: 'COPY',
                         onTap: () {
                           Clipboard.setData(ClipboardData(text: address));
                           NotificationService.showSuccess(context, 'Address copied');
@@ -138,9 +177,9 @@ class ReceiveScreen extends StatelessWidget {
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: _ActionButton(
-                        icon: Icons.share_rounded,
-                        label: 'Share',
+                      child: _ActionPill(
+                        icon: Icons.ios_share_rounded,
+                        label: 'SHARE',
                         onTap: () {
                           Share.share(
                             'My Cowrie Griot Wallet Address ($symbol):\n\n$address',
@@ -150,32 +189,56 @@ class ReceiveScreen extends StatelessWidget {
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 32),
-                // Warning Note
+                ).animate().fadeIn(delay: 300.ms),
+                
+                const SizedBox(height: 40),
+                
+                // Network Badge & Note
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                   decoration: BoxDecoration(
-                    color: colors.errorContainer.withValues(alpha: 0.05),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: colors.error.withValues(alpha: 0.1)),
+                    color: colors.surfaceContainerLow.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.1)),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.warning_amber_rounded, color: colors.error, size: 20),
-                      const SizedBox(width: 12),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: colors.primary.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.info_outline_rounded, color: colors.primary, size: 20),
+                      ),
+                      const SizedBox(width: 16),
                       Expanded(
-                        child: Text(
-                          'Only send ${token?.name ?? symbol} to this address via the ${token?.chain.toUpperCase() ?? 'correct'} network.',
-                          style: text.bodySmall?.copyWith(
-                            color: colors.onSurfaceVariant.withValues(alpha: 0.7),
-                            fontWeight: FontWeight.w600,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'NETWORK: ${token?.chain.toUpperCase() ?? 'SMART CHAIN'}',
+                              style: text.labelSmall?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                color: colors.primary,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Only send supported assets to this address. Other assets will be lost forever.',
+                              style: text.bodySmall?.copyWith(
+                                color: colors.onSurfaceVariant.withValues(alpha: 0.6),
+                                fontWeight: FontWeight.w600,
+                                height: 1.3,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
-                ),
+                ).animate().fadeIn(delay: 500.ms),
               ],
             ),
           ),
@@ -183,14 +246,19 @@ class ReceiveScreen extends StatelessWidget {
       },
     );
   }
+
+  String _formatAddress(String addr) {
+    if (addr.length < 20) return addr;
+    return '${addr.substring(0, 10)}...${addr.substring(addr.length - 8)}';
+  }
 }
 
-class _ActionButton extends StatelessWidget {
+class _ActionPill extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
 
-  const _ActionButton({
+  const _ActionPill({
     required this.icon,
     required this.label,
     required this.onTap,
@@ -201,29 +269,39 @@ class _ActionButton extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          color: colors.primary.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: colors.primary.withValues(alpha: 0.1)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: colors.primary, size: 24),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: text.labelLarge?.copyWith(
-                color: colors.primary,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.5,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          decoration: BoxDecoration(
+            color: colors.primary,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: colors.primary.withValues(alpha: 0.3),
+                blurRadius: 15,
+                offset: const Offset(0, 8),
               ),
-            ),
-          ],
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: colors.onPrimary, size: 22),
+              const SizedBox(width: 10),
+              Text(
+                label,
+                style: text.labelLarge?.copyWith(
+                  color: colors.onPrimary,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
