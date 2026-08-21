@@ -8,24 +8,23 @@ class WalletApiService {
     required ApiClient apiClient,
   }) : _apiClient = apiClient;
 
-  // ============================================================
-  // SUPPORTED NETWORKS
-  // ============================================================
-
-  Future<List<Map<String, dynamic>>>
-      getSupportedNetworks() async {
+  Future<List<Map<String, dynamic>>> getSupportedNetworks() async {
     final response = await _apiClient.get(
       ApiConfig.walletNetworks,
     );
 
-    return _asMapList(
-      _unwrap(response),
-    );
-  }
+    final data = _unwrap(response);
 
-  // ============================================================
-  // WALLET ASSETS
-  // ============================================================
+    if (data is Map<String, dynamic>) {
+      final networks = data['networks'];
+
+      if (networks is List) {
+        return _asMapList(networks);
+      }
+    }
+
+    return _asMapList(data);
+  }
 
   Future<List<Map<String, dynamic>>> getAssets({
     List<String>? networks,
@@ -36,7 +35,6 @@ class WalletApiService {
     );
 
     final response = await _apiClient.get(url);
-
     final data = _unwrap(response);
 
     if (data is Map<String, dynamic>) {
@@ -50,18 +48,11 @@ class WalletApiService {
     return _asMapList(data);
   }
 
-  // ============================================================
-  // ASSETS BY NETWORK
-  // ============================================================
-
-  Future<List<Map<String, dynamic>>>
-      getAssetsByNetwork(
+  Future<List<Map<String, dynamic>>> getAssetsByNetwork(
     String network,
   ) async {
     final response = await _apiClient.get(
-      ApiConfig.walletAssetsByNetwork(
-        network,
-      ),
+      ApiConfig.walletAssetsByNetwork(network),
     );
 
     final data = _unwrap(response);
@@ -77,85 +68,47 @@ class WalletApiService {
     return _asMapList(data);
   }
 
-  // ============================================================
-  // CUSTOM TOKEN
-  // ============================================================
-
-  Future<Map<String, dynamic>>
-      getCustomToken({
+  Future<Map<String, dynamic>> getCustomToken({
     required String network,
     required String tokenAddress,
   }) async {
     final response = await _apiClient.get(
-      ApiConfig.walletCustomToken(
-        network,
-        tokenAddress,
-      ),
+      ApiConfig.walletCustomToken(network, tokenAddress),
     );
 
     final data = _unwrap(response);
 
-    if (data is Map<String, dynamic>) {
-      return data;
-    }
-
-    return {};
+    return data is Map<String, dynamic>
+        ? Map<String, dynamic>.from(data)
+        : {};
   }
 
-  // ============================================================
-  // NATIVE BALANCE
-  // ============================================================
-
-  Future<Map<String, dynamic>>
-      getNativeBalance({
+  Future<Map<String, dynamic>> getNativeBalance({
     required String address,
     required String network,
   }) async {
     final response = await _apiClient.get(
-      ApiConfig.walletNativeBalance(
-        address,
-        network,
-      ),
+      ApiConfig.walletNativeBalance(address, network),
     );
 
     final data = _unwrap(response);
 
-    if (data is Map<String, dynamic>) {
-      return data;
-    }
-
-    return {};
+    return data is Map<String, dynamic>
+        ? Map<String, dynamic>.from(data)
+        : {};
   }
 
-  // ============================================================
-  // NATIVE BALANCES
-  // ============================================================
-
-  Future<List<Map<String, dynamic>>>
-      getNativeBalances({
+  Future<List<Map<String, dynamic>>> getNativeBalances({
     required String address,
   }) async {
     final response = await _apiClient.get(
-      ApiConfig.walletNativeBalances(
-        address,
-      ),
+      ApiConfig.walletNativeBalances(address),
     );
 
     final data = _unwrap(response);
 
-    // Backend may return:
-    //
-    // {
-    //   balances: [...]
-    // }
-    //
-    // or:
-    //
-    // [...]
-
     if (data is Map<String, dynamic>) {
-      final balances =
-          data['balances'];
+      final balances = data['balances'];
 
       if (balances is List) {
         return _asMapList(balances);
@@ -165,12 +118,7 @@ class WalletApiService {
     return _asMapList(data);
   }
 
-  // ============================================================
-  // TOKEN BALANCES
-  // ============================================================
-
-  Future<List<Map<String, dynamic>>>
-      getTokens({
+  Future<List<Map<String, dynamic>>> getTokens({
     required String address,
     List<String>? networks,
   }) async {
@@ -180,22 +128,10 @@ class WalletApiService {
     );
 
     final response = await _apiClient.get(url);
-
     final data = _unwrap(response);
 
-    // Backend may return:
-    //
-    // {
-    //   tokens: [...]
-    // }
-    //
-    // or:
-    //
-    // [...]
-
     if (data is Map<String, dynamic>) {
-      final tokens =
-          data['tokens'];
+      final tokens = data['tokens'];
 
       if (tokens is List) {
         return _asMapList(tokens);
@@ -205,28 +141,15 @@ class WalletApiService {
     return _asMapList(data);
   }
 
-  // ============================================================
-  // RESPONSE UNWRAPPER
-  // ============================================================
-
   dynamic _unwrap(dynamic response) {
-    dynamic data = response;
-
-    if (data is Map<String, dynamic> &&
-        data.containsKey('data')) {
-      data = data['data'];
+    if (response is Map<String, dynamic> && response.containsKey('data')) {
+      return response['data'];
     }
 
-    return data;
+    return response;
   }
 
-  // ============================================================
-  // MAP LIST
-  // ============================================================
-
-  List<Map<String, dynamic>> _asMapList(
-    dynamic data,
-  ) {
+  List<Map<String, dynamic>> _asMapList(dynamic data) {
     if (data is! List) {
       return [];
     }
@@ -234,35 +157,26 @@ class WalletApiService {
     return data
         .whereType<Map>()
         .map(
-          (item) => Map<String, dynamic>.from(
-            item,
-          ),
+          (item) => Map<String, dynamic>.from(item),
         )
         .toList();
   }
-
-  // ============================================================
-  // QUERY BUILDER
-  // ============================================================
 
   String _buildQueryUrl(
     String baseUrl, {
     List<String>? networks,
   }) {
-    if (networks == null ||
-        networks.isEmpty) {
+    if (networks == null || networks.isEmpty) {
       return baseUrl;
     }
 
     final uri = Uri.parse(baseUrl);
 
-    final queryParameters =
-        Map<String, String>.from(
+    final queryParameters = Map<String, String>.from(
       uri.queryParameters,
     );
 
-    queryParameters['networks'] =
-        networks.join(',');
+    queryParameters['networks'] = networks.join(',');
 
     return uri
         .replace(
