@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 import '../models/token_model.dart';
 import '../providers/wallet_provider.dart';
@@ -250,173 +251,214 @@ class _SendScreenState extends State<SendScreen> {
       onTap: () => FocusScope.of(context).unfocus(),
       child: GradientScaffold(
         appBar: AppBar(
-          title: Text('Send', style: text.titleMedium?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.2)),
+          title: Text('SEND', style: text.titleMedium?.copyWith(fontWeight: FontWeight.w900, letterSpacing: 1.0)),
           centerTitle: true,
           backgroundColor: Colors.transparent,
           elevation: 0,
         ),
         bottomNavigationBar: const SafeArea(child: GriotBannerAd()),
-        child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          physics: const BouncingScrollPhysics(),
+        child: Stack(
           children: [
-            _buildSectionCard(
-              context,
-              label: 'Asset',
-              child: InkWell(
-                onTap: _pickToken,
-                borderRadius: BorderRadius.circular(16),
-                child: Row(
-                  children: [
-                    if (token != null)
-                      TokenIcon(imageUrl: token.imageUrl, symbol: token.symbol, name: token.name, chainName: token.chain, isNative: token.isNative, radius: 20),
-                    if (token != null) const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(token?.symbol ?? 'Select asset', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
-                          if (token != null)
-                            Text('${WalletFormatters.formatBalance(token.balance)} available',
-                              style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.4), fontSize: 13, fontWeight: FontWeight.w600)),
-                        ],
-                      ),
-                    ),
-                    Icon(Icons.keyboard_arrow_down_rounded, color: colors.onSurfaceVariant.withValues(alpha: 0.3), size: 24),
-                  ],
+            // Decorative Glow
+            Positioned(
+              top: -100,
+              left: -100,
+              child: Container(
+                width: 300,
+                height: 300,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      colors.primary.withValues(alpha: 0.12),
+                      colors.primary.withValues(alpha: 0.0),
+                    ],
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            _buildSectionCard(
-              context,
-              label: 'Recipient',
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _address,
-                      textInputAction: TextInputAction.next,
-                      cursorHeight: 20,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: -0.2),
-                      decoration: InputDecoration(
-                        hintText: '0x… or ENS',
-                        hintStyle: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.2)),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: () async {
-                      final result = await GoRouter.of(context).push<String>('/wallet/scan');
-                      if (result != null && mounted) _address.text = result;
-                    },
-                    icon: Icon(Icons.qr_code_scanner_rounded, size: 22, color: colors.primary.withValues(alpha: 0.8)),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                  IconButton(
-                    onPressed: () {
-                      if (_address.text.isNotEmpty) {
-                        Share.share('Wallet Address: ${_address.text}');
-                      } else {
-                        NotificationService.showInfo(context, 'Recipient address is empty');
-                      }
-                    },
-                    icon: Icon(Icons.share_rounded, size: 20, color: colors.onSurfaceVariant.withValues(alpha: 0.6)),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            _buildSectionCard(
-              context,
-              label: 'Amount',
-              trailing: token != null
-                  ? InkWell(onTap: _useMax, child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: colors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)), child: Text('MAX', style: TextStyle(color: colors.primary, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 0.5))))
-                  : null,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _amount,
-                          onChanged: (_) => setState(() {}),
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          textInputAction: TextInputAction.done,
-                          cursorHeight: 28,
-                          cursorWidth: 2,
-                          style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -1.0),
-                          decoration: InputDecoration(
-                            border: InputBorder.none,
-                            hintText: '0',
-                            hintStyle: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.1)),
-                            isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(vertical: 4),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      InkWell(
-                        onTap: token == null ? null : () { setState(() => _usdMode = !_usdMode); },
-                        borderRadius: BorderRadius.circular(14),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: colors.surfaceContainerHighest.withValues(alpha: 0.6),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Row(
+              ).animate(onPlay: (c) => c.repeat(reverse: true))
+               .scale(begin: const Offset(0.8, 0.8), end: const Offset(1.3, 1.3), duration: 4.seconds),
+
+            ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              physics: const BouncingScrollPhysics(),
+              children: [
+                const SizedBox(height: 12),
+                _buildSectionCard(
+                  context,
+                  label: 'Asset',
+                  child: InkWell(
+                    onTap: _pickToken,
+                    borderRadius: BorderRadius.circular(20),
+                    child: Row(
+                      children: [
+                        if (token != null)
+                          TokenIcon(imageUrl: token.imageUrl, symbol: token.symbol, name: token.name, chainName: token.chain, isNative: token.isNative, radius: 20),
+                        if (token != null) const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(_usdMode ? 'USD' : (token?.symbol ?? ''), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
-                              const SizedBox(width: 6),
-                              Icon(Icons.swap_horiz_rounded, size: 16, color: colors.onSurfaceVariant.withValues(alpha: 0.5)),
+                              Text(token?.symbol ?? 'Select asset', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+                              if (token != null)
+                                Text('${WalletFormatters.formatBalance(token.balance)} available',
+                                  style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.4), fontSize: 13, fontWeight: FontWeight.w600)),
                             ],
                           ),
                         ),
+                        Icon(Icons.keyboard_arrow_down_rounded, color: colors.onSurfaceVariant.withValues(alpha: 0.3), size: 24),
+                      ],
+                    ),
+                  ),
+                ).animate().fadeIn(duration: 400.ms).slideX(begin: 0.1, end: 0),
+                
+                const SizedBox(height: 12),
+                
+                _buildSectionCard(
+                  context,
+                  label: 'Recipient',
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _address,
+                          textInputAction: TextInputAction.next,
+                          cursorHeight: 20,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: -0.2),
+                          decoration: InputDecoration(
+                            hintText: '0x… or ENS',
+                            hintStyle: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.2)),
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        onPressed: () async {
+                          final result = await GoRouter.of(context).push<String>('/wallet/scan');
+                          if (result != null && mounted) _address.text = result;
+                        },
+                        icon: Icon(Icons.qr_code_scanner_rounded, size: 22, color: colors.primary.withValues(alpha: 0.8)),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                      IconButton(
+                        onPressed: () {
+                          if (_address.text.isNotEmpty) {
+                            Share.share('Wallet Address: ${_address.text}');
+                          } else {
+                            NotificationService.showInfo(context, 'Recipient address is empty');
+                          }
+                        },
+                        icon: Icon(Icons.share_rounded, size: 20, color: colors.onSurfaceVariant.withValues(alpha: 0.6)),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
                       ),
                     ],
                   ),
-                  if (token != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        _usdMode ? '≈ ${_entered.toStringAsFixed(8)} ${token.symbol}' : '≈ ${WalletFormatters.formatCurrency(_entered * token.priceUsd.toDouble())}',
-                        style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.3), fontSize: 13, fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              height: 62,
-              child: FilledButton(
-                onPressed: _loading ? null : _send,
-                style: FilledButton.styleFrom(
-                  backgroundColor: colors.primary,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  elevation: 0,
-                ),
-                child: _loading
-                    ? Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                ).animate().fadeIn(duration: 400.ms, delay: 100.ms).slideX(begin: 0.1, end: 0),
+                
+                const SizedBox(height: 12),
+                
+                _buildSectionCard(
+                  context,
+                  label: 'Amount',
+                  trailing: token != null
+                      ? InkWell(onTap: _useMax, child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: colors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)), child: Text('MAX', style: TextStyle(color: colors.primary, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 0.5))))
+                      : null,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white60)),
-                          const SizedBox(width: 16),
-                          Text(_message, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                          Expanded(
+                            child: TextField(
+                              controller: _amount,
+                              onChanged: (_) => setState(() {}),
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              textInputAction: TextInputAction.done,
+                              cursorHeight: 28,
+                              cursorWidth: 2,
+                              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -1.0),
+                              decoration: InputDecoration(
+                                border: InputBorder.none,
+                                hintText: '0',
+                                hintStyle: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.1)),
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          InkWell(
+                            onTap: token == null ? null : () { setState(() => _usdMode = !_usdMode); },
+                            borderRadius: BorderRadius.circular(14),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: colors.surfaceContainerHighest.withValues(alpha: 0.6),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Row(
+                                children: [
+                                  Text(_usdMode ? 'USD' : (token?.symbol ?? ''), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                                  const SizedBox(width: 6),
+                                  Icon(Icons.swap_horiz_rounded, size: 16, color: colors.onSurfaceVariant.withValues(alpha: 0.5)),
+                                ],
+                              ),
+                            ),
+                          ),
                         ],
-                      )
-                    : const Text('Continue', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 0.2)),
-              ),
+                      ),
+                      if (token != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            _usdMode ? '≈ ${_entered.toStringAsFixed(8)} ${token.symbol}' : '≈ ${WalletFormatters.formatCurrency(_entered * token.priceUsd.toDouble())}',
+                            style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.3), fontSize: 13, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                    ],
+                  ),
+                ).animate().fadeIn(duration: 400.ms, delay: 200.ms).slideX(begin: 0.1, end: 0),
+                
+                const SizedBox(height: 48),
+                
+                // Premium Action Pill
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: _loading ? null : _send,
+                    borderRadius: BorderRadius.circular(24),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      decoration: BoxDecoration(
+                        color: colors.primary,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: colors.primary.withValues(alpha: 0.35),
+                            blurRadius: 20,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: _loading
+                          ? Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white60)),
+                                const SizedBox(width: 16),
+                                Text(_message, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Colors.white)),
+                              ],
+                            )
+                          : const Center(child: Text('CONTINUE', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 1.5, color: Colors.white))),
+                    ),
+                  ),
+                ).animate().fadeIn(duration: 600.ms, delay: 400.ms).scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1)),
+              ],
             ),
           ],
         ),
@@ -432,8 +474,8 @@ class _SendScreenState extends State<SendScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: colors.surfaceContainerLow.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.1), width: 1.5),
+        borderRadius: BorderRadius.circular(32), // Large corner radius like Receive
+        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.15), width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

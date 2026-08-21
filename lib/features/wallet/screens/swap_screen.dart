@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 import '../models/token_model.dart';
 import '../providers/wallet_provider.dart';
@@ -520,24 +521,24 @@ class _SwapScreenState extends State<SwapScreen> {
       builder: (context) => Container(
         decoration: BoxDecoration(
           color: colors.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
         ),
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 40,
+              width: 42,
               height: 4,
               decoration: BoxDecoration(
                 color: colors.onSurfaceVariant.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 28),
             Text(
               'Review Swap',
-              style: text.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              style: text.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 32),
             Row(
@@ -551,22 +552,22 @@ class _SwapScreenState extends State<SwapScreen> {
                         name: fromToken.name,
                         chainName: fromToken.chain,
                         isNative: fromToken.isNative,
-                        radius: 20,
+                        radius: 24,
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
                       Text(
                         fromAmount,
-                        style: text.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                        style: text.titleMedium?.copyWith(fontWeight: FontWeight.w900),
                         textAlign: TextAlign.center,
                       ),
                       Text(
                         fromToken.symbol,
-                        style: text.labelSmall?.copyWith(color: colors.onSurfaceVariant),
+                        style: text.labelSmall?.copyWith(color: colors.onSurfaceVariant, fontWeight: FontWeight.w700),
                       ),
                     ],
                   ),
                 ),
-                Icon(Icons.arrow_forward_rounded, color: colors.primary.withValues(alpha: 0.5)),
+                Icon(Icons.arrow_forward_rounded, color: colors.primary.withValues(alpha: 0.4), size: 28),
                 Expanded(
                   child: Column(
                     children: [
@@ -576,33 +577,34 @@ class _SwapScreenState extends State<SwapScreen> {
                         name: toToken.name,
                         chainName: toToken.chain,
                         isNative: toToken.isNative,
-                        radius: 20,
+                        radius: 24,
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
                       Text(
                         toAmount,
-                        style: text.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: colors.primary),
+                        style: text.titleMedium?.copyWith(fontWeight: FontWeight.w900, color: colors.primary),
                         textAlign: TextAlign.center,
                       ),
                       Text(
                         toToken.symbol,
-                        style: text.labelSmall?.copyWith(color: colors.onSurfaceVariant),
+                        style: text.labelSmall?.copyWith(color: colors.onSurfaceVariant, fontWeight: FontWeight.w700),
                       ),
                     ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 40),
             SizedBox(
               width: double.infinity,
-              height: 56,
+              height: 60,
               child: FilledButton(
                 onPressed: () => Navigator.pop(context, true),
                 style: FilledButton.styleFrom(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  backgroundColor: colors.primary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                 ),
-                child: const Text('Confirm Swap', style: TextStyle(fontWeight: FontWeight.bold)),
+                child: const Text('CONFIRM SWAP', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1)),
               ),
             ),
             const SizedBox(height: 12),
@@ -610,7 +612,7 @@ class _SwapScreenState extends State<SwapScreen> {
               width: double.infinity,
               child: TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
+                child: Text('Cancel', style: text.bodyLarge?.copyWith(fontWeight: FontWeight.w700, color: colors.onSurfaceVariant)),
               ),
             ),
           ],
@@ -631,6 +633,7 @@ class _SwapScreenState extends State<SwapScreen> {
     }
 
     final swapApi = context.read<SwapApiService>();
+    final walletProvider = context.read<WalletProvider>();
     final provider = quote['provider']?.toString().toLowerCase() ?? '';
     final swapType = quote['type']?.toString();
     final quoteId = quote['quoteId']?.toString();
@@ -655,7 +658,7 @@ class _SwapScreenState extends State<SwapScreen> {
         if (status == 'CONFIRMED' || status == 'SUCCESS' || status == 'COMPLETED') {
           if (mounted) {
             NotificationService.showSuccess(context, 'Swap successful!');
-            await context.read<WalletProvider>().loadWallet();
+            await walletProvider.loadWallet();
             if (mounted) Navigator.of(context).pop();
           }
           return;
@@ -785,39 +788,46 @@ class _SwapScreenState extends State<SwapScreen> {
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
-      builder: (context) => ListView.builder(
-        itemCount: tokens.length,
-        padding: const EdgeInsets.only(bottom: 20),
-        itemBuilder: (context, index) {
-          final token = tokens[index];
-          return ListTile(
-            leading: TokenIcon(
-              imageUrl: token.imageUrl,
-              symbol: token.symbol,
-              name: token.name,
-              chainName: token.chain,
-              isNative: token.isNative,
-              radius: 18,
-            ),
-            title: Text(token.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-            subtitle: Text('${token.symbol} • ${token.chain.toUpperCase()}', style: const TextStyle(fontSize: 12)),
-            trailing: Text(WalletFormatters.formatBalance(token.balance), style: const TextStyle(fontWeight: FontWeight.w600)),
-            onTap: () {
-              setState(() {
-                if (isFrom) {
-                  _fromToken = token;
-                } else {
-                  _toToken = token;
-                }
-                _quote = null;
-                _amountController.clear();
-                _usdController.clear();
-              });
-              Navigator.pop(context);
-              _getQuote();
-            },
-          );
-        },
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
+        ),
+        child: ListView.builder(
+          itemCount: tokens.length,
+          padding: const EdgeInsets.fromLTRB(0, 12, 0, 32),
+          itemBuilder: (context, index) {
+            final token = tokens[index];
+            return ListTile(
+              leading: TokenIcon(
+                imageUrl: token.imageUrl,
+                symbol: token.symbol,
+                name: token.name,
+                chainName: token.chain,
+                isNative: token.isNative,
+                radius: 18,
+              ),
+              title: Text(token.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              subtitle: Text('${token.symbol} • ${token.chain.toUpperCase()}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey)),
+              trailing: Text(WalletFormatters.formatBalance(token.balance), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+              onTap: () {
+                setState(() {
+                  if (isFrom) {
+                    _fromToken = token;
+                  } else {
+                    _toToken = token;
+                  }
+                  _quote = null;
+                  _amountController.clear();
+                  _usdController.clear();
+                });
+                Navigator.pop(context);
+                _getQuote();
+              },
+            );
+          },
+        ),
       ),
     );
   }
@@ -832,8 +842,8 @@ class _SwapScreenState extends State<SwapScreen> {
       child: GradientScaffold(
         appBar: AppBar(
           title: Text(
-            'Swap',
-            style: text.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            'SWAP',
+            style: text.titleMedium?.copyWith(fontWeight: FontWeight.w900, letterSpacing: 1),
           ),
           centerTitle: true,
           backgroundColor: Colors.transparent,
@@ -847,125 +857,162 @@ class _SwapScreenState extends State<SwapScreen> {
             ],
           ),
         ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-          physics: const BouncingScrollPhysics(),
-          child: Column(
-            children: [
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  Column(
-                    children: [
-                      _buildSwapCard(
-                        context,
-                        label: 'You Pay',
-                        token: _fromToken,
-                        controller: _isUsdMode ? _usdController : _amountController,
-                        onChanged: _onAmountChanged,
-                        showCurrencyToggle: true,
-                        onMaxTap: _onMaxPressed,
-                        subValue: _isUsdMode
-                          ? '${_amountController.text} ${_fromToken?.symbol ?? ""}'
-                          : (_usdController.text.isNotEmpty ? '\$${_usdController.text}' : null),
-                        onTokenTap: () => _showTokenPicker(context, isFrom: true),
-                      ),
-                      const SizedBox(height: 6),
-                      _buildSwapCard(
-                        context,
-                        label: 'You Receive',
-                        token: _toToken,
-                        isReadOnly: true,
-                        value: _fromBaseUnits(
-                          _quote?['toAmount']?.toString(),
-                          _toToken?.decimals ?? 18,
-                        ),
-                        subValue: _quote != null && _toToken != null && _toToken!.priceUsd > 0
-                            ? WalletFormatters.formatCurrency(
-                                (double.tryParse(_fromBaseUnits(_quote!['toAmount']?.toString(), _toToken!.decimals)) ?? 0) *
-                                _toToken!.priceUsd.toDouble()
-                              )
-                            : null,
-                        onTokenTap: () => _showTokenPicker(context, isFrom: false),
-                      ),
+        child: Stack(
+          children: [
+            // Decorative Glow
+            Positioned(
+              top: -50,
+              right: -50,
+              child: Container(
+                width: 250,
+                height: 250,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      colors.primary.withValues(alpha: 0.1),
+                      colors.primary.withValues(alpha: 0.0),
                     ],
                   ),
-                  Positioned(
-                    child: Container(
-                      height: 44,
-                      width: 44,
-                      decoration: BoxDecoration(
-                        color: colors.surface,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.1), width: 2),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.08),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
+                ),
+              ).animate(onPlay: (c) => c.repeat(reverse: true))
+               .scale(begin: const Offset(0.8, 0.8), end: const Offset(1.2, 1.2), duration: 5.seconds),
+
+            SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                children: [
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Column(
+                        children: [
+                          _buildSwapCard(
+                            context,
+                            label: 'You Pay',
+                            token: _fromToken,
+                            controller: _isUsdMode ? _usdController : _amountController,
+                            onChanged: _onAmountChanged,
+                            showCurrencyToggle: true,
+                            onMaxTap: _onMaxPressed,
+                            subValue: _isUsdMode
+                              ? '${_amountController.text} ${_fromToken?.symbol ?? ""}'
+                              : (_usdController.text.isNotEmpty ? '\$${_usdController.text}' : null),
+                            onTokenTap: () => _showTokenPicker(context, isFrom: true),
+                          ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0),
+                          const SizedBox(height: 8),
+                          _buildSwapCard(
+                            context,
+                            label: 'You Receive',
+                            token: _toToken,
+                            isReadOnly: true,
+                            value: _fromBaseUnits(
+                              _quote?['toAmount']?.toString(),
+                              _toToken?.decimals ?? 18,
+                            ),
+                            subValue: _quote != null && _toToken != null && _toToken!.priceUsd > 0
+                                ? WalletFormatters.formatCurrency(
+                                    (double.tryParse(_fromBaseUnits(_quote!['toAmount']?.toString(), _toToken!.decimals)) ?? 0) *
+                                    _toToken!.priceUsd.toDouble()
+                                  )
+                                : null,
+                            onTokenTap: () => _showTokenPicker(context, isFrom: false),
+                          ).animate().fadeIn(duration: 400.ms, delay: 100.ms).slideY(begin: 0.1, end: 0),
                         ],
                       ),
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: _swapTokens,
-                          customBorder: const CircleBorder(),
-                          child: Icon(Icons.swap_vert_rounded, color: colors.primary, size: 22),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              if (_quote != null) ...[
-                const SizedBox(height: 20),
-                _buildQuoteDetails(context),
-              ],
-              const SizedBox(height: 16),
-              _buildSlippageSettings(context),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                height: 60,
-                child: FilledButton(
-                  onPressed: (_quote != null && !_isLoading && !_isApproving)
-                      ? (_isApprovalRequired ? _handleApprove : _handleSwap)
-                      : null,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: colors.primary,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                    elevation: 0,
-                  ),
-                  child: (_isLoading || _isApproving)
-                      ? Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                color: colors.onPrimary.withValues(alpha: 0.5),
-                                strokeWidth: 2.5,
+                      Positioned(
+                        child: Container(
+                          height: 48,
+                          width: 48,
+                          decoration: BoxDecoration(
+                            color: colors.surface,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.2), width: 2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.15),
+                                blurRadius: 15,
+                                offset: const Offset(0, 5),
                               ),
+                            ],
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: _swapTokens,
+                              customBorder: const CircleBorder(),
+                              child: Icon(Icons.swap_vert_rounded, color: colors.primary, size: 26),
                             ),
-                            const SizedBox(width: 14),
-                            Text(
-                              _loadingMessage,
-                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                          ),
+                        ),
+                      ).animate().scale(delay: 300.ms),
+                    ],
+                  ),
+                  if (_quote != null) ...[
+                    const SizedBox(height: 24),
+                    _buildQuoteDetails(context).animate().fadeIn(),
+                  ],
+                  const SizedBox(height: 16),
+                  _buildSlippageSettings(context).animate().fadeIn(delay: 200.ms),
+                  const SizedBox(height: 48),
+                  
+                  // Premium Action Pill
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: (_quote != null && !_isLoading && !_isApproving)
+                          ? (_isApprovalRequired ? _handleApprove : _handleSwap)
+                          : null,
+                      borderRadius: BorderRadius.circular(24),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        decoration: BoxDecoration(
+                          color: colors.primary,
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: colors.primary.withValues(alpha: 0.35),
+                              blurRadius: 20,
+                              offset: const Offset(0, 10),
                             ),
                           ],
-                        )
-                      : Text(
-                          _isApprovalRequired
-                              ? 'Approve ${_fromToken?.symbol ?? "Token"}'
-                              : 'Swap',
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17, letterSpacing: 0.2),
                         ),
-                ),
+                        child: (_isLoading || _isApproving)
+                            ? Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white60,
+                                      strokeWidth: 3,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Text(
+                                    _loadingMessage,
+                                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Colors.white),
+                                  ),
+                                ],
+                              )
+                            : Center(
+                                child: Text(
+                                  _isApprovalRequired
+                                      ? 'APPROVE ${_fromToken?.symbol ?? "TOKEN"}'
+                                      : 'SWAP ASSETS',
+                                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 1.5, color: Colors.white),
+                                ),
+                              ),
+                      ),
+                    ),
+                  ).animate().fadeIn(duration: 600.ms, delay: 400.ms).scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1)),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -991,9 +1038,9 @@ class _SwapScreenState extends State<SwapScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: colors.surfaceContainerLow.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(32),
         border: Border.all(
-          color: colors.outlineVariant.withValues(alpha: 0.1),
+          color: colors.outlineVariant.withValues(alpha: 0.15),
           width: 1.5,
         ),
       ),
@@ -1035,9 +1082,9 @@ class _SwapScreenState extends State<SwapScreen> {
                         alignment: Alignment.centerLeft,
                         child: Text(
                           value ?? '0.00',
-                          style: text.headlineMedium?.copyWith(
+                          style: text.headlineSmall?.copyWith(
                             fontWeight: FontWeight.w900,
-                            letterSpacing: -1,
+                            letterSpacing: -0.5,
                             color: (value == null || value == '0.00')
                                 ? colors.onSurface.withValues(alpha: 0.1)
                                 : colors.onSurface,
@@ -1054,7 +1101,7 @@ class _SwapScreenState extends State<SwapScreen> {
                               padding: const EdgeInsets.only(right: 4),
                               child: Text(
                                 r'$',
-                                style: text.headlineMedium?.copyWith(
+                                style: text.headlineSmall?.copyWith(
                                   fontWeight: FontWeight.w900,
                                   color: colors.onSurface,
                                 ),
@@ -1223,7 +1270,6 @@ class _SwapScreenState extends State<SwapScreen> {
 
   Widget _buildQuoteDetails(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
     final griotFee = _asMap(_quote?['griotFee'] ?? _quote?['fee']);
     final providerFee = _asMap(_quote?['providerFee']);
     final transaction = _quote?['transaction'] ?? _quote?['transactionRequest'];
