@@ -182,6 +182,17 @@ class ApiConfig {
         },
       ).toString();
 
+  static const String blockchainBase = '$baseUrl/crypto/blockchain';
+
+  static String blockchainNonce(String network, String address) =>
+      '$blockchainBase/nonce/$network/$address';
+
+  static String blockchainCall(String network) =>
+      '$blockchainBase/call/$network';
+
+  static String blockchainReceipt(String network, String hash) =>
+      '$blockchainBase/receipt/$network/$hash';
+
   static const String referralBase =
       '$baseUrl/crypto/referrals';
 

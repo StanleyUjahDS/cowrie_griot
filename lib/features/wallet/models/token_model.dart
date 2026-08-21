@@ -11,6 +11,7 @@ class TokenModel {
   final int decimals;
   final bool hasMarketData;
   final bool isSpam;
+  final bool isTradeable;
   final Map<String, dynamic>? security;
 
   const TokenModel({
@@ -26,6 +27,7 @@ class TokenModel {
     this.decimals = 18,
     this.hasMarketData = false,
     this.isSpam = false,
+    this.isTradeable = true,
     this.security,
   });
 
@@ -79,6 +81,7 @@ class TokenModel {
       ),
       hasMarketData: hasPrice || hasChange || hasValue,
       isSpam: json['isSpam'] == true || (securityData != null && securityData['isSpam'] == true),
+      isTradeable: json['isTradeable'] != false,
       security: securityData,
     );
   }

@@ -1,101 +1,55 @@
-import 'dart:convert';
+import '../../../core/network/api_client.dart';
+import '../../../core/network/api_config.dart';
 
-import 'package:http/http.dart' as http;
-
-/// Direct EVM RPC used only for operations that are intentionally broadcast
-/// by the non-custodial wallet itself (for example a swap provider's
-/// transactionRequest).
+/// Direct EVM RPC operations proxied through the backend.
 ///
-/// The backend remains responsible for quotes, validation and status lookup;
-/// this service never sends a user's private key to the backend.
+/// This service no longer communicates with public RPC nodes directly.
+/// All requests are routed through the Griot backend to ensure consistency
+/// with Alchemy/Ethers configurations and to maintain secure nonce tracking.
 class WalletRpcService {
-  final http.Client _client;
+  final ApiClient _apiClient;
 
-  WalletRpcService({http.Client? client}) : _client = client ?? http.Client();
-
-  static const Map<String, String> _rpcUrls = {
-    'ethereum': 'https://ethereum-rpc.publicnode.com',
-    'base': 'https://base-rpc.publicnode.com',
-    'polygon': 'https://polygon-bor-rpc.publicnode.com',
-    'arbitrum': 'https://arbitrum-one-rpc.publicnode.com',
-    'optimism': 'https://optimism-rpc.publicnode.com',
-    'bsc': 'https://bsc-rpc.publicnode.com',
-  };
-
-  String _rpcUrl(String network) {
-    final url = _rpcUrls[network.trim().toLowerCase()];
-    if (url == null) {
-      throw Exception('No EVM RPC configured for network: $network');
-    }
-    return url;
-  }
-
-  Future<dynamic> _request(
-    String network,
-    String method,
-    List<dynamic> params,
-  ) async {
-    final response = await _client.post(
-      Uri.parse(_rpcUrl(network)),
-      headers: const {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'jsonrpc': '2.0',
-        'id': DateTime.now().microsecondsSinceEpoch,
-        'method': method,
-        'params': params,
-      }),
-    );
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('RPC request failed (${response.statusCode})');
-    }
-
-    final decoded = jsonDecode(response.body);
-    if (decoded is! Map) {
-      throw Exception('Invalid RPC response');
-    }
-
-    final error = decoded['error'];
-    if (error != null) {
-      final message = error is Map
-          ? error['message']?.toString() ?? 'RPC request failed'
-          : error.toString();
-      throw Exception(message);
-    }
-
-    return decoded['result'];
-  }
+  WalletRpcService({required ApiClient apiClient}) : _apiClient = apiClient;
 
   Future<int> getPendingNonce({
     required String network,
     required String address,
   }) async {
-    final result = await _request(
-      network,
-      'eth_getTransactionCount',
-      [address, 'pending'],
+    final response = await _apiClient.get(
+      ApiConfig.blockchainNonce(network, address),
     );
 
-    if (result == null) {
-      throw Exception('RPC did not return a transaction nonce');
+    final data = _unwrap(response);
+    final nonce = data['nonce'];
+
+    if (nonce == null) {
+      throw Exception('Backend did not return a transaction nonce');
     }
 
-    return int.parse(result.toString().replaceFirst('0x', ''), radix: 16);
+    return nonce is int ? nonce : int.parse(nonce.toString());
   }
 
   Future<String> sendRawTransaction({
     required String network,
     required String signedTransaction,
   }) async {
-    final result = await _request(
-      network,
-      'eth_sendRawTransaction',
-      [signedTransaction],
+    // We use the standard broadcast endpoint for all transactions
+    // to ensure they are recorded in the user's history.
+    final response = await _apiClient.post(
+      ApiConfig.broadcastTransaction,
+      body: {
+        'network': network,
+        'signedTransaction': signedTransaction,
+        'transactionId': 'direct_${DateTime.now().millisecondsSinceEpoch}',
+      },
     );
 
-    final hash = result?.toString() ?? '';
-    if (!RegExp(r'^0x[a-fA-F0-9]{64}$').hasMatch(hash)) {
-      throw Exception('RPC returned an invalid transaction hash');
+    final data = _unwrap(response);
+    final broadcast = data['broadcast'];
+    final hash = broadcast is Map ? broadcast['hash']?.toString() : null;
+
+    if (hash == null || !RegExp(r'^0x[a-fA-F0-9]{64}$').hasMatch(hash)) {
+      throw Exception('Backend returned an invalid transaction hash');
     }
 
     return hash;
@@ -106,14 +60,16 @@ class WalletRpcService {
     required String to,
     required String data,
   }) async {
-    final result = await _request(
-      network,
-      'eth_call',
-      [
-        {'to': to, 'data': data},
-        'latest',
-      ],
+    final response = await _apiClient.post(
+      ApiConfig.blockchainCall(network),
+      body: {
+        'to': to,
+        'data': data,
+        'blockTag': 'latest',
+      },
     );
+
+    final result = _unwrap(response);
     return result?.toString() ?? '0x';
   }
 
@@ -121,15 +77,22 @@ class WalletRpcService {
     required String network,
     required String hash,
   }) async {
-    final result = await _request(
-      network,
-      'eth_getTransactionReceipt',
-      [hash],
+    final response = await _apiClient.get(
+      ApiConfig.blockchainReceipt(network, hash),
     );
+
+    final result = _unwrap(response);
     return result is Map ? Map<String, dynamic>.from(result) : null;
   }
 
+  dynamic _unwrap(dynamic response) {
+    if (response is Map<String, dynamic> && response.containsKey('data')) {
+      return response['data'];
+    }
+    return response;
+  }
+
   void dispose() {
-    _client.close();
+    // ApiClient is typically managed by a provider and disposed elsewhere.
   }
 }

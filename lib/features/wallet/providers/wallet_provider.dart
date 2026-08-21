@@ -56,6 +56,14 @@ class WalletProvider extends ChangeNotifier {
 
   List<TokenModel> get filteredTokens {
     final result = _tokens.where((token) {
+      // Contract: Only show tokens that are not spam and are tradeable.
+      if (token.isSpam) {
+        return false;
+      }
+      if (!token.isTradeable) {
+        return false;
+      }
+
       // Negative balances are never valid wallet holdings for presentation.
       // They must stay hidden regardless of the user's filter settings.
       if (token.balance < 0) {
@@ -110,16 +118,17 @@ class WalletProvider extends ChangeNotifier {
       _hiddenTokenKeys.clear();
       _hiddenTokenKeys.addAll(hiddenList);
 
-      final assetData = await _walletApiService.getAssets();
-      final parsedTokens = assetData.map(TokenModel.fromJson).toList();
+      final responseData = await _walletApiService.getAssets();
+      final List assetsJson = responseData['assets'] ?? [];
+      final parsedTokens = assetsJson
+          .map((json) => TokenModel.fromJson(Map<String, dynamic>.from(json)))
+          .toList();
 
-      final totalBalanceUsd = parsedTokens.fold<num>(
-        0,
-        (total, token) => total + token.valueUsd,
-      );
+      final totalBalanceUsd = responseData['totalValueUsd'] ?? 
+        parsedTokens.fold<num>(0, (total, token) => total + token.valueUsd);
 
       _wallet = WalletModel(
-        address: address,
+        address: responseData['address'] ?? address,
         displayName: 'Your Griot Account',
         totalBalance: totalBalanceUsd,
         changePercent: 0,

@@ -26,7 +26,7 @@ class WalletApiService {
     return _asMapList(data);
   }
 
-  Future<List<Map<String, dynamic>>> getAssets({
+  Future<Map<String, dynamic>> getAssets({
     List<String>? networks,
   }) async {
     final url = _buildQueryUrl(
@@ -37,15 +37,7 @@ class WalletApiService {
     final response = await _apiClient.get(url);
     final data = _unwrap(response);
 
-    if (data is Map<String, dynamic>) {
-      final assets = data['assets'];
-
-      if (assets is List) {
-        return _asMapList(assets);
-      }
-    }
-
-    return _asMapList(data);
+    return data is Map<String, dynamic> ? data : {};
   }
 
   Future<List<Map<String, dynamic>>> getAssetsByNetwork(

@@ -2,6 +2,8 @@ import '../../../core/network/api_client.dart';
 import '../../../core/network/api_config.dart';
 
 class SwapApiService {
+  static const String directRpcTransactionId = '__direct_swap_rpc__';
+
   final ApiClient _apiClient;
 
   SwapApiService({required ApiClient apiClient}) : _apiClient = apiClient;
@@ -14,8 +16,8 @@ class SwapApiService {
     required String fromAmount,
     required String fromAddress,
     String? toAddress,
-    String slippageMode = 'auto',
-    double? slippage,
+    double slippage = 0.005,
+    String? order,
   }) async {
     final body = <String, dynamic>{
       'fromChain': fromChain,
@@ -24,17 +26,15 @@ class SwapApiService {
       'toToken': toToken,
       'fromAmount': fromAmount,
       'fromAddress': fromAddress,
-      'slippageMode': slippageMode,
+      'slippageMode': 'custom',
+      'slippage': slippage,
     };
 
-    // The backend requires `slippage` only for custom mode.
-    if (slippageMode == 'custom') {
-      body['slippage'] = slippage ?? 0.005;
-    }
-
-    // Backend validation requires toAddress for cross-chain swaps.
     if (toAddress != null && toAddress.isNotEmpty) {
       body['toAddress'] = toAddress;
+    }
+    if (order != null && order.isNotEmpty) {
+      body['order'] = order;
     }
 
     final response = await _apiClient.post(
@@ -42,13 +42,27 @@ class SwapApiService {
       body: body,
     );
 
-    return _asMap(_unwrap(response));
+    final data = _asMap(_unwrap(response));
+
+    final transactionRequest =
+        data['transactionRequest'] ?? data['transaction_request'];
+    if (transactionRequest is Map) {
+      data['transaction'] = Map<String, dynamic>.from(transactionRequest);
+    }
+
+    final transactionId = data['transactionId']?.toString();
+    if (transactionId == null || transactionId.isEmpty) {
+      data['transactionId'] = directRpcTransactionId;
+    }
+
+    _normalizeFeeBreakdown(data, fromAmount: fromAmount, fromToken: fromToken);
+    return data;
   }
 
   Future<Map<String, dynamic>> broadcastSwap({
     required String network,
     required String signedTransaction,
-    required String transactionType,
+    String? transactionType,
   }) async {
     final response = await _apiClient.post(
       '${ApiConfig.swapBase}/broadcast',
@@ -62,15 +76,68 @@ class SwapApiService {
     return _asMap(_unwrap(response));
   }
 
+  void _normalizeFeeBreakdown(
+    Map<String, dynamic> data, {
+    required String fromAmount,
+    required String fromToken,
+  }) {
+    final backendFee = _asMap(data['fee']);
+
+    final bps = _toInt(backendFee['bps']) ?? 0;
+    final percent = _toDouble(backendFee['percent']) ?? (bps / 100.0);
+    final amount = backendFee['amount']?.toString();
+    final calculatedAmount = backendFee['calculatedAmount']?.toString();
+    final token = backendFee['token']?.toString() ?? fromToken;
+
+    final griotFee = <String, dynamic>{
+      'bps': bps,
+      'percent': percent,
+      'rate': _toDouble(backendFee['rate']),
+      'amount': amount ?? calculatedAmount,
+      'calculatedAmount': calculatedAmount,
+      'token': token,
+      'source': 'griot',
+      'chargedFrom': backendFee['chargedFrom'] ?? 'sellAmount',
+      'sellAmount': backendFee['sellAmount']?.toString() ?? fromAmount,
+    };
+
+    final providerFee = <String, dynamic>{
+      'provider': data['provider']?.toString().toLowerCase(),
+      'amount': null,
+      'token': null,
+      'reportedByProvider': false,
+      'included': true,
+    };
+
+    data['griotFee'] = griotFee;
+    data['providerFee'] = providerFee;
+    data['feeBreakdown'] = <String, dynamic>{
+      'griot': griotFee,
+      'provider': providerFee,
+    };
+
+    data['fee'] = griotFee;
+  }
+
+  int? _toInt(dynamic value) {
+    if (value == null) return null;
+    return int.tryParse(value.toString());
+  }
+
+  double? _toDouble(dynamic value) {
+    if (value == null) return null;
+    return double.tryParse(value.toString());
+  }
+
   Future<Map<String, dynamic>> getStatus({
     required String transactionId,
-    required String provider,
-    required String fromChain,
-    required String toChain,
+    String? provider,
+    String? fromChain,
+    String? toChain,
     String? bridge,
     String? quoteId,
     String? fromAddress,
-    required String swapType,
+    String? swapType,
   }) async {
     final response = await _apiClient.get(
       ApiConfig.swapStatus(
@@ -118,6 +185,6 @@ class SwapApiService {
     if (data is Map) {
       return Map<String, dynamic>.from(data);
     }
-    throw const FormatException('Invalid swap API response');
+    return <String, dynamic>{};
   }
 }

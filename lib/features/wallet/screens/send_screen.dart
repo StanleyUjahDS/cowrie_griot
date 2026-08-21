@@ -10,6 +10,8 @@ import '../utils/wallet_formatters.dart';
 import '../widgets/token_icon.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
+import '../../../core/ui/widgets/banner_ad.dart';
+import '../../../core/utils/transaction_logger.dart';
 
 class SendScreen extends StatefulWidget {
   final TokenModel? initialToken;
@@ -65,26 +67,30 @@ class _SendScreenState extends State<SendScreen> {
     final token = _token;
     final recipient = _address.text.trim();
     final amount = _entered;
+
     if (token == null) {
-      NotificationService.showError(context, 'Select an asset');
+      NotificationService.showError(context, 'Select an asset.');
       return;
     }
     if (!RegExp(r'^0x[a-fA-F0-9]{40}$').hasMatch(recipient)) {
-      NotificationService.showError(context, 'Enter a valid EVM recipient address');
+      NotificationService.showError(context, 'Invalid recipient address.');
       return;
     }
     if (amount <= 0) {
-      NotificationService.showError(context, 'Enter an amount greater than zero');
+      NotificationService.showError(context, 'Enter a valid amount.');
       return;
     }
     if (amount > token.balance) {
-      NotificationService.showError(context, 'Insufficient ${token.symbol} balance');
+      NotificationService.showError(context, 'Insufficient balance.');
       return;
     }
 
-    setState(() { _loading = true; _message = 'Preparing transaction…'; });
+    final api = context.read<TransactionApiService>();
+    final walletService = context.read<WalletService>();
+    final walletProvider = context.read<WalletProvider>();
+
+    setState(() { _loading = true; _message = 'Preparing...'; });
     try {
-      final api = context.read<TransactionApiService>();
       final prepared = token.isNative
           ? await api.prepareNativeSend(network: token.chain, toAddress: recipient, amount: amount.toString())
           : await api.prepareTokenSend(network: token.chain, tokenAddress: token.contractAddress, toAddress: recipient, amount: amount.toString());
@@ -92,15 +98,16 @@ class _SendScreenState extends State<SendScreen> {
       final id = prepared['transactionId']?.toString();
       final unsigned = prepared['unsignedTransaction'];
       if (id == null || id.isEmpty || unsigned is! Map) {
-        throw Exception('Backend returned an incomplete transaction');
+        throw Exception('Incomplete transaction.');
       }
 
-      final confirmed = await _review(token, recipient, amount, prepared);
+      if (!mounted) return;
+      final confirmed = await _review(context, token, recipient, amount, prepared, walletProvider);
       if (!confirmed || !mounted) return;
 
-      setState(() => _message = 'Signing transaction…');
+      setState(() => _message = 'Signing...');
       final tx = Map<String, dynamic>.from(unsigned);
-      final signed = await context.read<WalletService>().signNativeTransaction(
+      final signed = await walletService.signNativeTransaction(
         to: tx['to']?.toString() ?? '',
         valueRaw: tx['value']?.toString() ?? '0',
         nonce: int.tryParse(tx['nonce']?.toString() ?? '') ?? 0,
@@ -111,9 +118,9 @@ class _SendScreenState extends State<SendScreen> {
         chainId: int.tryParse(tx['chainId']?.toString() ?? '') ?? int.tryParse(prepared['chainId']?.toString() ?? '') ?? 1,
         dataHex: tx['data']?.toString(),
       );
-      if (signed == null || signed.isEmpty) throw Exception('Unable to sign transaction');
+      if (signed == null || signed.isEmpty) throw Exception('Signing failed.');
 
-      setState(() => _message = 'Broadcasting transaction…');
+      if (mounted) setState(() => _message = 'Broadcasting...');
       final result = await api.broadcastTransaction(
         network: token.chain,
         transactionId: id,
@@ -122,9 +129,18 @@ class _SendScreenState extends State<SendScreen> {
 
       final broadcast = result['broadcast'];
       final hash = broadcast is Map ? broadcast['hash']?.toString() : null;
-      if (hash == null || hash.isEmpty) throw Exception('Backend did not return a transaction hash');
+      
+      TransactionLogger.log(
+        endpoint: '/crypto/transactions/broadcast',
+        network: token.chain,
+        chainId: prepared['chainId'],
+        transactionHash: hash,
+        backendError: result['message'],
+      );
 
-      setState(() => _message = 'Confirming transaction…');
+      if (hash == null || hash.isEmpty) throw Exception('Broadcast failed.');
+
+      if (mounted) setState(() => _message = 'Confirming...');
       var status = 'PENDING';
       for (var i = 0; i < 24; i++) {
         await Future.delayed(const Duration(seconds: 5));
@@ -135,13 +151,16 @@ class _SendScreenState extends State<SendScreen> {
       }
 
       if (!mounted) return;
-      await context.read<WalletProvider>().loadWallet();
-      if (status == 'CONFIRMED') {
-        NotificationService.showSuccess(context, 'Sent successfully');
-        Navigator.of(context).pop();
-      } else {
-        NotificationService.showInfo(context, 'Transaction submitted. It is still pending.');
-        Navigator.of(context).pop();
+      await walletProvider.loadWallet();
+      
+      if (mounted) {
+        if (status == 'CONFIRMED') {
+          NotificationService.showSuccess(context, 'Sent successfully!');
+          Navigator.of(context).pop();
+        } else {
+          NotificationService.showInfo(context, 'Transaction pending.');
+          Navigator.of(context).pop();
+        }
       }
     } catch (e) {
       if (mounted) NotificationService.showError(context, 'Transaction failed: $e');
@@ -150,10 +169,10 @@ class _SendScreenState extends State<SendScreen> {
     }
   }
 
-  Future<bool> _review(TokenModel token, String recipient, double amount, Map<String, dynamic> prepared) async {
+  Future<bool> _review(BuildContext context, TokenModel token, String recipient, double amount, Map<String, dynamic> prepared, WalletProvider provider) async {
     final colors = Theme.of(context).colorScheme;
     final feeRaw = BigInt.tryParse(prepared['estimatedNetworkFeeRaw']?.toString() ?? '');
-    final native = context.read<WalletProvider>().tokens.where((t) => t.isNative && t.chain == token.chain).cast<TokenModel?>().firstWhere((t) => t != null, orElse: () => null);
+    final native = provider.tokens.where((t) => t.isNative && t.chain == token.chain).cast<TokenModel?>().firstWhere((t) => t != null, orElse: () => null);
     final feeNative = feeRaw == null ? null : feeRaw.toDouble() / 1e18;
     final feeUsd = native == null || feeNative == null ? null : feeNative * native.priceUsd.toDouble();
 
@@ -165,22 +184,21 @@ class _SendScreenState extends State<SendScreen> {
         padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
         decoration: BoxDecoration(color: colors.surface, borderRadius: const BorderRadius.vertical(top: Radius.circular(32))),
         child: SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(width: 42, height: 4, decoration: BoxDecoration(color: colors.outlineVariant, borderRadius: BorderRadius.circular(4))),
-          const SizedBox(height: 22),
-          const Text('Review Transaction', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 22),
+          Container(width: 42, height: 4, decoration: BoxDecoration(color: colors.outlineVariant.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(4))),
+          const SizedBox(height: 24),
+          const Text('Review Transaction', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 24),
           TokenIcon(imageUrl: token.imageUrl, symbol: token.symbol, name: token.name, chainName: token.chain, isNative: token.isNative, radius: 24),
-          const SizedBox(height: 10),
-          Text('${WalletFormatters.formatBalance(amount)} ${token.symbol}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 5),
-          Text('${recipient.substring(0, 8)}…${recipient.substring(36)}', style: TextStyle(color: colors.onSurfaceVariant)),
-          const SizedBox(height: 22),
+          const SizedBox(height: 12),
+          Text('${WalletFormatters.formatBalance(amount)} ${token.symbol}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 4),
+          Text('${recipient.substring(0, 8)}…${recipient.substring(36)}', style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.5), fontSize: 13)),
+          const SizedBox(height: 24),
           _row('Network', token.chain.toUpperCase()),
-          _row('Network fee', feeNative == null ? '—' : '${feeNative.toStringAsFixed(6)} ${native?.symbol ?? ''}'),
-          if (feeUsd != null) _row('Fee value', WalletFormatters.formatCurrency(feeUsd)),
-          _row('Status', 'Ready to sign'),
-          const SizedBox(height: 22),
-          SizedBox(width: double.infinity, height: 56, child: FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Confirm & Send'))),
+          _row('Fee', feeNative == null ? '—' : '${feeNative.toStringAsFixed(6)} ${native?.symbol ?? ''}'),
+          if (feeUsd != null) _row('Value', WalletFormatters.formatCurrency(feeUsd)),
+          const SizedBox(height: 32),
+          SizedBox(width: double.infinity, height: 56, child: FilledButton(onPressed: () => Navigator.pop(context, true), style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))), child: const Text('Confirm & Send', style: TextStyle(fontWeight: FontWeight.w800)))),
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
         ])),
       ),
@@ -189,8 +207,8 @@ class _SendScreenState extends State<SendScreen> {
   }
 
   Widget _row(String label, String value) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 5),
-    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(label), Text(value, style: const TextStyle(fontWeight: FontWeight.w600))]),
+    padding: const EdgeInsets.symmetric(vertical: 6),
+    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)), Text(value, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14))]),
   );
 
   void _pickToken() {
@@ -200,13 +218,14 @@ class _SendScreenState extends State<SendScreen> {
       showDragHandle: true,
       builder: (_) => ListView.builder(
         itemCount: tokens.length,
+        padding: const EdgeInsets.only(bottom: 20),
         itemBuilder: (_, i) {
           final token = tokens[i];
           return ListTile(
-            leading: TokenIcon(imageUrl: token.imageUrl, symbol: token.symbol, name: token.name, chainName: token.chain, isNative: token.isNative, radius: 18),
-            title: Text(token.symbol, style: const TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: Text(token.chain.toUpperCase()),
-            trailing: Text(WalletFormatters.formatBalance(token.balance)),
+            leading: TokenIcon(imageUrl: token.imageUrl, symbol: token.symbol, name: token.name, chainName: token.chain, isNative: token.isNative, radius: 16),
+            title: Text(token.symbol, style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(token.chain.toUpperCase(), style: const TextStyle(fontSize: 11)),
+            trailing: Text(WalletFormatters.formatBalance(token.balance), style: const TextStyle(fontWeight: FontWeight.w600)),
             onTap: () { setState(() { _token = token; _amount.clear(); }); Navigator.pop(context); },
           );
         },
@@ -217,47 +236,203 @@ class _SendScreenState extends State<SendScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
     final token = _token;
-    return GradientScaffold(
-      appBar: AppBar(title: const Text('Send'), centerTitle: true, backgroundColor: Colors.transparent, elevation: 0),
-      child: ListView(padding: const EdgeInsets.fromLTRB(18, 12, 18, 28), children: [
-        _sectionLabel('Asset'),
-        const SizedBox(height: 10),
-        InkWell(onTap: _pickToken, borderRadius: BorderRadius.circular(22), child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: colors.surfaceContainerLowest, borderRadius: BorderRadius.circular(22), border: Border.all(color: colors.outlineVariant.withValues(alpha: .2))),
-          child: Row(children: [
-            if (token != null) TokenIcon(imageUrl: token.imageUrl, symbol: token.symbol, name: token.name, chainName: token.chain, isNative: token.isNative, radius: 20),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(token?.symbol ?? 'Select asset', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)), if (token != null) Text('${WalletFormatters.formatBalance(token.balance)} available', style: TextStyle(color: colors.onSurfaceVariant))])),
-            const Icon(Icons.keyboard_arrow_down_rounded),
-          ]),
-        )),
-        const SizedBox(height: 26),
-        _sectionLabel('Recipient'),
-        const SizedBox(height: 10),
-        TextField(controller: _address, decoration: InputDecoration(hintText: '0x…', prefixIcon: const Icon(Icons.account_balance_wallet_outlined), suffixIcon: IconButton(icon: const Icon(Icons.qr_code_scanner_rounded), onPressed: () async { final result = await GoRouter.of(context).push<String>('/wallet/scan'); if (result != null && mounted) _address.text = result; }))),
-        const SizedBox(height: 26),
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [_sectionLabel('Amount'), if (token != null) TextButton(onPressed: _useMax, child: const Text('MAX'))]),
-        const SizedBox(height: 10),
-        Container(
-          padding: const EdgeInsets.fromLTRB(18, 10, 8, 10),
-          decoration: BoxDecoration(color: colors.surfaceContainerLowest, borderRadius: BorderRadius.circular(22), border: Border.all(color: colors.outlineVariant.withValues(alpha: .2))),
-          child: Row(children: [
-            Expanded(child: TextField(controller: _amount, onChanged: (_) => setState(() {}), keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(border: InputBorder.none, hintText: '0.00'), style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700))),
-            Text(_usdMode ? 'USD' : (token?.symbol ?? ''), style: const TextStyle(fontWeight: FontWeight.w700)),
-            IconButton(onPressed: token == null ? null : () { setState(() => _usdMode = !_usdMode); }, icon: const Icon(Icons.swap_horiz_rounded)),
-          ]),
+
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: GradientScaffold(
+        appBar: AppBar(
+          title: Text('Send', style: text.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+          centerTitle: true,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
         ),
-        if (token != null) ...[
-          const SizedBox(height: 8),
-          Text(_usdMode ? '≈ ${_entered.toStringAsFixed(8)} ${token.symbol}' : '≈ ${WalletFormatters.formatCurrency(_entered * token.priceUsd.toDouble())}', style: TextStyle(color: colors.onSurfaceVariant)),
-        ],
-        const SizedBox(height: 34),
-        SizedBox(height: 58, child: FilledButton(onPressed: _loading ? null : _send, child: _loading ? Text(_message) : const Text('Review & Send'))),
-      ]),
+        bottomNavigationBar: const SafeArea(child: GriotBannerAd()),
+        child: ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          physics: const BouncingScrollPhysics(),
+          children: [
+            _buildSectionCard(
+              context,
+              label: 'Asset',
+              child: InkWell(
+                onTap: _pickToken,
+                borderRadius: BorderRadius.circular(16),
+                child: Row(
+                  children: [
+                    if (token != null)
+                      TokenIcon(imageUrl: token.imageUrl, symbol: token.symbol, name: token.name, chainName: token.chain, isNative: token.isNative, radius: 18),
+                    if (token != null) const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(token?.symbol ?? 'Select asset', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                          if (token != null)
+                            Text('${WalletFormatters.formatBalance(token.balance)} available',
+                              style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.4), fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.keyboard_arrow_down_rounded, color: colors.onSurfaceVariant.withValues(alpha: 0.3)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            _buildSectionCard(
+              context,
+              label: 'Recipient',
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _address,
+                      textInputAction: TextInputAction.next,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                      decoration: InputDecoration(
+                        hintText: '0x… or ENS',
+                        hintStyle: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.2)),
+                        border: InputBorder.none,
+                        isDense: false,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () async {
+                      final result = await GoRouter.of(context).push<String>('/wallet/scan');
+                      if (result != null && mounted) _address.text = result;
+                    },
+                    icon: Icon(Icons.qr_code_scanner_rounded, size: 20, color: colors.primary.withValues(alpha: 0.6)),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            _buildSectionCard(
+              context,
+              label: 'Amount',
+              trailing: token != null
+                  ? InkWell(onTap: _useMax, child: Text('MAX', style: TextStyle(color: colors.primary, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 0.5)))
+                  : null,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _amount,
+                          onChanged: (_) => setState(() {}),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          textInputAction: TextInputAction.done,
+                          style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800, letterSpacing: -0.5),
+                          decoration: InputDecoration(
+                            border: InputBorder.none,
+                            hintText: '0.00',
+                            hintStyle: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.1)),
+                            isDense: false,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      InkWell(
+                        onTap: token == null ? null : () { setState(() => _usdMode = !_usdMode); },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: colors.surfaceContainerHighest.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              Text(_usdMode ? 'USD' : (token?.symbol ?? ''), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+                              const SizedBox(width: 4),
+                              Icon(Icons.swap_horiz_rounded, size: 14, color: colors.onSurfaceVariant.withValues(alpha: 0.4)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (token != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        _usdMode ? '≈ ${_entered.toStringAsFixed(8)} ${token.symbol}' : '≈ ${WalletFormatters.formatCurrency(_entered * token.priceUsd.toDouble())}',
+                        style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.3), fontSize: 11, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              height: 58,
+              child: FilledButton(
+                onPressed: _loading ? null : _send,
+                style: FilledButton.styleFrom(
+                  backgroundColor: colors.primary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                  elevation: 0,
+                ),
+                child: _loading
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white60)),
+                          const SizedBox(width: 14),
+                          Text(_message, style: const TextStyle(fontWeight: FontWeight.w700)),
+                        ],
+                      )
+                    : const Text('Continue', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, letterSpacing: 0.2)),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _sectionLabel(String text) => Text(text, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700));
+  Widget _buildSectionCard(BuildContext context, {required String label, required Widget child, Widget? trailing}) {
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerLow.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.08), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                label.toUpperCase(),
+                style: text.labelSmall?.copyWith(
+                  color: colors.onSurfaceVariant.withValues(alpha: 0.4),
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              if (trailing != null) trailing,
+            ],
+          ),
+          const SizedBox(height: 12),
+          child,
+        ],
+      ),
+    );
+  }
 }

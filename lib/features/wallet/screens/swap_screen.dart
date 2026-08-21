@@ -6,13 +6,15 @@ import 'package:provider/provider.dart';
 import '../models/token_model.dart';
 import '../providers/wallet_provider.dart';
 import '../services/swap_api_service.dart';
+import '../services/wallet_service.dart';
 import '../services/transaction_api_service.dart';
 import '../services/wallet_rpc_service.dart';
-import '../services/wallet_service.dart';
-import '../utils/wallet_formatters.dart';
 import '../widgets/token_icon.dart';
-import '../../../core/services/notification_service.dart';
+import '../utils/wallet_formatters.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
+import '../../../core/ui/widgets/banner_ad.dart';
+import '../../../core/services/notification_service.dart';
+import '../../../core/utils/transaction_logger.dart';
 
 class SwapScreen extends StatefulWidget {
   final TokenModel? initialFromToken;
@@ -24,455 +26,807 @@ class SwapScreen extends StatefulWidget {
 }
 
 class _SwapScreenState extends State<SwapScreen> {
-  static const _native = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
+  static const String _nativeTokenAddress =
+      '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
 
-  TokenModel? _from;
-  TokenModel? _to;
-  final _amount = TextEditingController();
-  Timer? _debounce;
+  TokenModel? _fromToken;
+  TokenModel? _toToken;
+  final _amountController = TextEditingController();
+  final _usdController = TextEditingController();
+  bool _isLoading = false;
+  bool _isApproving = false;
+  bool _isApprovalRequired = false;
+  bool _isUsdMode = false;
+  String _loadingMessage = '';
   Map<String, dynamic>? _quote;
-  bool _loadingQuote = false;
-  bool _processing = false;
-  bool _approvalRequired = false;
-  String _processingText = '';
-  int _quoteVersion = 0;
+  Timer? _debounce;
+  int _quoteRequestVersion = 0;
+  double _slippage = 0.005;
 
   @override
   void initState() {
     super.initState();
-    _from = widget.initialFromToken;
-    _amount.addListener(_amountChanged);
+    _fromToken = widget.initialFromToken;
   }
 
   @override
   void dispose() {
-    _amount.dispose();
+    _amountController.dispose();
+    _usdController.dispose();
     _debounce?.cancel();
     super.dispose();
   }
 
-  void _amountChanged() {
+  void _onAmountChanged(String value) {
+    if (_fromToken == null) return;
+
+    _syncControllers(value, sourceIsUsd: _isUsdMode);
+
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), _requestQuote);
+    _debounce = Timer(const Duration(milliseconds: 500), _getQuote);
   }
 
-  String _chainId(String chain) {
-    switch (chain.toLowerCase()) {
-      case 'ethereum':
-      case 'eth':
-        return '1';
-      case 'base':
-        return '8453';
-      case 'polygon':
-      case 'matic':
-        return '137';
-      case 'arbitrum':
-      case 'arb':
-        return '42161';
-      case 'optimism':
-      case 'op':
-        return '10';
-      case 'bsc':
-      case 'bnb':
-      case 'binance':
-        return '56';
-      default:
-        return chain;
+  void _syncControllers(String value, {required bool sourceIsUsd}) {
+    if (_fromToken == null) return;
+    final amount = double.tryParse(value) ?? 0.0;
+    final price = _fromToken!.priceUsd.toDouble();
+
+    if (sourceIsUsd) {
+      if (price > 0) {
+        final tokenAmount = amount / price;
+        _amountController.text = tokenAmount.toStringAsFixed(_fromToken!.decimals > 6 ? 6 : _fromToken!.decimals);
+      } else {
+        _amountController.text = '0';
+      }
+    } else {
+      if (price > 0) {
+        final usdAmount = amount * price;
+        _usdController.text = usdAmount.toStringAsFixed(2);
+      } else {
+        _usdController.text = '0.00';
+      }
     }
   }
 
-  String? _baseUnits(String value, int decimals) {
-    final v = value.trim();
-    if (!RegExp(r'^\d+(?:\.\d+)?\$').hasMatch(v)) return null;
-    final p = v.split('.');
-    final whole = p[0];
-    final fraction = p.length == 2 ? p[1] : '';
-    if (fraction.length > decimals) return null;
-    final raw = '$whole${fraction.padRight(decimals, '0')}'
-        .replaceFirst(RegExp(r'^0+(?=\d)'), '');
-    return raw.isEmpty ? '0' : raw;
+  void _onMaxPressed() {
+    if (_fromToken == null) return;
+    final maxBalance = _fromToken!.balance.toDouble();
+
+    if (_isUsdMode) {
+      final price = _fromToken!.priceUsd.toDouble();
+      final maxUsd = maxBalance * price;
+      _usdController.text = maxUsd.toStringAsFixed(2);
+      _syncControllers(_usdController.text, sourceIsUsd: true);
+    } else {
+      _amountController.text = maxBalance.toString();
+      _syncControllers(_amountController.text, sourceIsUsd: false);
+    }
+
+    _getQuote();
   }
 
-  String _displayUnits(dynamic raw, int decimals) {
-    if (raw == null) return '0';
-    final s = raw.toString().split('.').first.replaceAll(RegExp(r'\D'), '');
-    if (s.isEmpty) return '0';
-    if (decimals == 0) return s;
-    final padded = s.padLeft(decimals + 1, '0');
-    final cut = padded.length - decimals;
-    final whole = padded.substring(0, cut);
-    var fraction = padded.substring(cut).replaceFirst(RegExp(r'0+\$'), '');
-    if (fraction.length > 8) fraction = fraction.substring(0, 8);
-    return fraction.isEmpty ? whole : '$whole.$fraction';
+  void _toggleCurrencyMode() {
+    setState(() {
+      _isUsdMode = !_isUsdMode;
+    });
   }
 
-  Future<void> _requestQuote() async {
-    final from = _from;
-    final to = _to;
-    final wallet = context.read<WalletProvider>().wallet;
-    final input = _amount.text.trim();
-    if (from == null || to == null || wallet?.address == null || input.isEmpty) {
+  Future<void> _getQuote() async {
+    final fromToken = _fromToken;
+    final toToken = _toToken;
+    if (fromToken == null || toToken == null) return;
+    
+    final swapApi = context.read<SwapApiService>();
+    final walletProvider = context.read<WalletProvider>();
+    final walletService = context.read<WalletService>();
+    final rpcService = context.read<WalletRpcService>();
+    final fromAddress = walletProvider.wallet?.address;
+
+    if (fromAddress == null || fromAddress.isEmpty) return;
+
+    final amount = _amountController.text.trim();
+    if (amount.isEmpty || amount == '0') {
       if (mounted) setState(() => _quote = null);
       return;
     }
 
-    final numeric = double.tryParse(input) ?? 0;
-    if (numeric <= 0 || numeric > from.balance) {
-      if (mounted) setState(() => _quote = null);
+    final enteredAmount = double.tryParse(amount) ?? 0.0;
+    final maxBalance = fromToken.balance.toDouble();
+    if (enteredAmount > maxBalance) {
+      if (mounted) {
+        setState(() {
+          _quote = null;
+          _isLoading = false;
+        });
+        NotificationService.showError(
+          context,
+          'Amount exceeds your balance of $maxBalance ${fromToken.symbol}',
+        );
+      }
       return;
     }
 
-    final rawAmount = _baseUnits(input, from.decimals);
-    if (rawAmount == null || rawAmount == '0') return;
+    final fromTokenAddress = fromToken.isNative
+        ? _nativeTokenAddress
+        : fromToken.contractAddress;
+    final toTokenAddress = toToken.isNative
+        ? _nativeTokenAddress
+        : toToken.contractAddress;
 
-    final version = ++_quoteVersion;
-    setState(() => _loadingQuote = true);
+    if (fromTokenAddress.isEmpty || toTokenAddress.isEmpty) return;
+
+    final fromAmountRaw = _toBaseUnits(amount, fromToken.decimals);
+    if (fromAmountRaw == null || fromAmountRaw == '0') return;
+
+    final requestVersion = ++_quoteRequestVersion;
+    setState(() => _isLoading = true);
 
     try {
-      final crossChain = _chainId(from.chain) != _chainId(to.chain);
-      final quote = await context.read<SwapApiService>().getQuote(
-        fromChain: _chainId(from.chain),
-        toChain: _chainId(to.chain),
-        fromToken: from.isNative ? _native : from.contractAddress,
-        toToken: to.isNative ? _native : to.contractAddress,
-        fromAmount: rawAmount,
-        fromAddress: wallet!.address,
-        toAddress: crossChain ? wallet.address : null,
-        slippageMode: 'auto',
-      );
+      final isCrossChain = fromToken.chain.toLowerCase() !=
+          toToken.chain.toLowerCase();
 
-      if (!mounted || version != _quoteVersion) return;
-      final approval = quote['approvalAddress']?.toString();
-      var needsApproval = false;
-      if (!from.isNative && approval != null && approval.isNotEmpty) {
+      final quoteResponse = await swapApi.getQuote(
+            fromChain: fromToken.chain,
+            toChain: toToken.chain,
+            fromToken: fromTokenAddress,
+            toToken: toTokenAddress,
+            fromAmount: fromAmountRaw,
+            fromAddress: fromAddress,
+            toAddress: isCrossChain ? fromAddress : null,
+            slippage: _slippage,
+          );
+
+      if (!mounted || requestVersion != _quoteRequestVersion) return;
+
+      final quote = quoteResponse;
+      
+      final tx = quote['transactionRequest'] ?? quote['transaction'];
+      if (tx is! Map) {
+        throw Exception('Incomplete quote: missing transaction data.');
+      }
+      
+      final requiredFields = ['to', 'data', 'value', 'chainId'];
+      for (final field in requiredFields) {
+        if (tx[field] == null) {
+          throw Exception('Incomplete quote: missing field $field.');
+        }
+      }
+
+      bool approvalNeeded = false;
+      final approvalAddress = quote['approvalAddress']?.toString();
+      if (approvalAddress != null &&
+          approvalAddress.isNotEmpty &&
+          !fromToken.isNative) {
         try {
-          final rpc = context.read<WalletRpcService>();
-          final crypto = context.read<WalletService>().crypto;
-          final allowanceHex = await rpc.call(
-            network: from.chain,
-            to: from.contractAddress,
-            data: crypto.encodeErc20Allowance(
-              owner: wallet.address,
-              spender: approval,
+          final allowanceHex = await rpcService.call(
+            network: fromToken.chain,
+            to: fromToken.contractAddress,
+            data: walletService.crypto.encodeErc20Allowance(
+              owner: fromAddress,
+              spender: approvalAddress,
             ),
           );
-          final clean = allowanceHex.replaceFirst(RegExp(r'^0x'), '');
-          final allowance = BigInt.tryParse(clean, radix: 16) ?? BigInt.zero;
-          needsApproval = allowance < BigInt.parse(rawAmount);
+          final allowance = BigInt.tryParse(allowanceHex.replaceFirst('0x', ''), radix: 16) ?? BigInt.zero;
+          final requiredAmount = BigInt.tryParse(fromAmountRaw) ?? BigInt.zero;
+
+          if (allowance < requiredAmount) {
+            approvalNeeded = true;
+          }
         } catch (e) {
-          debugPrint('Swap allowance check failed: $e');
+          debugPrint('Allowance check failed: $e');
         }
       }
 
       setState(() {
         _quote = quote;
-        _approvalRequired = needsApproval;
+        _isApprovalRequired = approvalNeeded;
       });
     } catch (e) {
-      if (mounted && version == _quoteVersion) {
-        setState(() {
-          _quote = null;
-          _approvalRequired = false;
-        });
+      if (mounted && requestVersion == _quoteRequestVersion) {
+        debugPrint('Quote failed: $e');
+        setState(() => _quote = null);
         NotificationService.showError(context, 'Unable to get swap quote: $e');
       }
     } finally {
-      if (mounted && version == _quoteVersion) setState(() => _loadingQuote = false);
+      if (mounted && requestVersion == _quoteRequestVersion) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
-  Future<Map<String, dynamic>> _transactionForSigning(
-    Map<String, dynamic> request,
-    String network,
-    String fromAddress,
-  ) async {
-    final tx = Map<String, dynamic>.from(request);
-    final rpc = context.read<WalletRpcService>();
-    final nonce = await rpc.getPendingNonce(network: network, address: fromAddress);
-    tx['nonce'] = nonce;
-
-    final gas = tx['gasLimit']?.toString() ?? tx['gas']?.toString();
-    final hasFee = tx['gasPrice'] != null || tx['maxFeePerGas'] != null;
-    if (gas != null && hasFee) return tx;
-
-    final estimate = await context.read<TransactionApiService>().estimateTransaction(
-      network: network,
-      transaction: {
-        'from': fromAddress,
-        'to': tx['to'],
-        'value': tx['value']?.toString() ?? '0',
-        'data': tx['data']?.toString() ?? '0x',
-      },
-    );
-    tx['gasLimit'] ??= estimate['gasLimit'] ?? estimate['gas'];
-    tx['gasPrice'] ??= estimate['gasPrice'];
-    tx['maxFeePerGas'] ??= estimate['maxFeePerGas'];
-    tx['maxPriorityFeePerGas'] ??= estimate['maxPriorityFeePerGas'];
-    return tx;
-  }
-
-  Future<void> _approve() async {
-    final from = _from;
+  Future<void> _handleSwap() async {
     final quote = _quote;
-    final wallet = context.read<WalletProvider>().wallet;
-    if (from == null || quote == null || wallet?.address == null) return;
+    final fromToken = _fromToken;
+    final walletProvider = context.read<WalletProvider>();
+    final fromAddress = walletProvider.wallet?.address;
 
-    final spender = quote['approvalAddress']?.toString();
-    final rawAmount = _baseUnits(_amount.text, from.decimals);
-    if (spender == null || spender.isEmpty || rawAmount == null) return;
+    if (quote == null || fromToken == null || fromAddress == null) {
+      if (mounted) NotificationService.showError(context, 'Wallet session missing.');
+      return;
+    }
+
+    final walletService = context.read<WalletService>();
+    final swapApi = context.read<SwapApiService>();
+
+    final amount = _amountController.text.trim();
+    final enteredAmount = double.tryParse(amount) ?? 0.0;
+    if (enteredAmount > fromToken.balance.toDouble()) {
+      NotificationService.showError(context, 'Insufficient balance.');
+      return;
+    }
+
+    final rawTransaction = quote['transactionRequest'] ?? quote['transaction'];
+    if (rawTransaction is! Map) {
+      NotificationService.showError(context, 'Invalid transaction data.');
+      return;
+    }
+
+    final transaction = Map<String, dynamic>.from(rawTransaction);
+
+    final to = transaction['to']?.toString();
+    final data = transaction['data']?.toString();
+    final value = transaction['value']?.toString() ?? '0';
+    final chainIdStr = transaction['chainId']?.toString() ?? '';
+    final chainId = int.tryParse(chainIdStr);
+    int? nonce = int.tryParse(transaction['nonce']?.toString() ?? '');
+    String? gasLimit = transaction['gasLimit']?.toString() ?? transaction['gas']?.toString();
+    final gasPrice = transaction['gasPrice']?.toString();
+    final maxFeePerGas = transaction['maxFeePerGas']?.toString();
+    final maxPriorityFeePerGas = transaction['maxPriorityFeePerGas']?.toString();
+
+    if (to == null || to.isEmpty || data == null || data.isEmpty || chainId == null) {
+      NotificationService.showError(context, 'Incomplete transaction data.');
+      return;
+    }
+
+    final confirmed = await _showConfirmBottomSheet(
+      context,
+      fromToken: fromToken,
+      toToken: _toToken!,
+      fromAmount: _amountController.text,
+      toAmount: _fromBaseUnits(
+        quote['toAmount']?.toString(),
+        _toToken?.decimals ?? 18,
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
 
     setState(() {
-      _processing = true;
-      _processingText = 'Preparing approval…';
+      _isLoading = true;
+      _loadingMessage = 'Preparing...';
     });
-
     try {
-      final walletService = context.read<WalletService>();
-      final data = walletService.crypto.encodeErc20Approve(
-        spender: spender,
-        amount: rawAmount,
+      if (nonce == null) {
+        nonce = await context.read<WalletRpcService>().getPendingNonce(
+          network: fromToken.chain,
+          address: fromAddress,
+        );
+      }
+
+      if (gasLimit == null) {
+        final estimate = await context.read<TransactionApiService>().estimateTransaction(
+          network: fromToken.chain,
+          transaction: {
+            'from': fromAddress,
+            'to': to,
+            'value': value,
+            'data': data,
+          },
+        );
+        gasLimit = estimate['gasLimit']?.toString() ?? '300000';
+      }
+
+      if (mounted) setState(() => _loadingMessage = 'Signing...');
+      
+      final signedTx = await walletService.signNativeTransaction(
+        to: to,
+        valueRaw: value,
+        nonce: nonce!,
+        gasLimit: gasLimit!,
+        gasPrice: gasPrice,
+        maxFeePerGas: maxFeePerGas,
+        maxPriorityFeePerGas: maxPriorityFeePerGas,
+        chainId: chainId,
+        dataHex: data,
       );
-      final rpc = context.read<WalletRpcService>();
-      final nonce = await rpc.getPendingNonce(network: from.chain, address: wallet.address);
-      final estimate = await context.read<TransactionApiService>().estimateTransaction(
-        network: from.chain,
+
+      if (signedTx == null || signedTx.isEmpty) {
+        throw Exception('Failed to sign transaction.');
+      }
+
+      if (mounted) setState(() => _loadingMessage = 'Broadcasting...');
+
+      final broadcastResult = await swapApi.broadcastSwap(
+        network: fromToken.chain,
+        signedTransaction: signedTx,
+        transactionType: 'swap',
+      );
+
+      final hash = broadcastResult['hash']?.toString();
+      
+      TransactionLogger.log(
+        endpoint: '/crypto/swap/broadcast',
+        network: fromToken.chain,
+        chainId: chainId,
+        transactionHash: hash,
+        backendError: broadcastResult['message'],
+      );
+
+      if (hash == null || hash.isEmpty) {
+        throw Exception('Broadcast failed.');
+      }
+
+      if (mounted) setState(() => _loadingMessage = 'Confirming...');
+
+      if (mounted) {
+        _pollSwapStatus(hash);
+      }
+    } catch (e) {
+      if (mounted) {
+        NotificationService.showError(context, 'Swap failed: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _loadingMessage = '';
+        });
+      }
+    }
+  }
+
+  Future<void> _handleApprove() async {
+    final quote = _quote;
+    final fromToken = _fromToken;
+    final walletProvider = context.read<WalletProvider>();
+    final fromAddress = walletProvider.wallet?.address;
+
+    if (quote == null || fromToken == null || fromAddress == null) return;
+
+    final approvalAddress = quote['approvalAddress']?.toString();
+    if (approvalAddress == null || approvalAddress.isEmpty) return;
+
+    final walletService = context.read<WalletService>();
+    final rpcService = context.read<WalletRpcService>();
+    final transactionApi = context.read<TransactionApiService>();
+    final swapApi = context.read<SwapApiService>();
+
+    final network = fromToken.chain;
+
+    setState(() {
+      _isApproving = true;
+      _loadingMessage = 'Preparing...';
+    });
+    try {
+      final fromAmountRaw = _toBaseUnits(_amountController.text, fromToken.decimals);
+      final data = walletService.crypto.encodeErc20Approve(
+        spender: approvalAddress,
+        amount: fromAmountRaw!,
+      );
+
+      final nonce = await rpcService.getPendingNonce(
+        network: network,
+        address: fromAddress,
+      );
+
+      final estimate = await transactionApi.estimateTransaction(
+        network: network,
         transaction: {
-          'from': wallet.address,
-          'to': from.contractAddress,
+          'from': fromAddress,
+          'to': fromToken.contractAddress,
           'value': '0',
           'data': data,
         },
       );
 
-      final signed = await walletService.signNativeTransaction(
-        to: from.contractAddress,
+      final transactionRequest = quote['transactionRequest'] ?? quote['transaction'] ?? {};
+      final chainId = int.tryParse(transactionRequest['chainId']?.toString() ?? '') ?? 1;
+
+      setState(() => _loadingMessage = 'Signing...');
+      final signedTx = await walletService.signNativeTransaction(
+        to: fromToken.contractAddress,
         valueRaw: '0',
         nonce: nonce,
-        gasLimit: estimate['gasLimit']?.toString() ?? estimate['gas']?.toString() ?? '100000',
+        gasLimit: estimate['gasLimit']?.toString() ?? '100000',
         gasPrice: estimate['gasPrice']?.toString(),
         maxFeePerGas: estimate['maxFeePerGas']?.toString(),
         maxPriorityFeePerGas: estimate['maxPriorityFeePerGas']?.toString(),
-        chainId: int.parse(_chainId(from.chain)),
-        dataHex: data,
-      );
-      if (signed == null || signed.isEmpty) throw Exception('Could not sign approval');
-
-      setState(() => _processingText = 'Broadcasting approval…');
-      final result = await context.read<SwapApiService>().broadcastSwap(
-        network: from.chain,
-        signedTransaction: signed,
-        transactionType: 'approval',
-      );
-      final hash = result['hash']?.toString();
-      if (hash == null || hash.isEmpty) throw Exception('Backend did not return approval hash');
-
-      setState(() => _processingText = 'Waiting for approval…');
-      for (var i = 0; i < 24; i++) {
-        await Future.delayed(const Duration(seconds: 5));
-        final receipt = await context.read<SwapApiService>().getReceipt(network: from.chain, hash: hash);
-        final status = receipt['status']?.toString();
-        if (status == '0x1' || status == '1') {
-          if (mounted) NotificationService.showSuccess(context, 'Token approved');
-          await _requestQuote();
-          return;
-        }
-        if (status == '0x0' || status == '0') throw Exception('Approval transaction failed');
-      }
-      throw Exception('Approval confirmation timed out');
-    } catch (e) {
-      if (mounted) NotificationService.showError(context, 'Approval failed: $e');
-    } finally {
-      if (mounted) setState(() { _processing = false; _processingText = ''; });
-    }
-  }
-
-  Future<void> _swap() async {
-    final from = _from;
-    final to = _to;
-    final quote = _quote;
-    final wallet = context.read<WalletProvider>().wallet;
-    if (from == null || to == null || quote == null || wallet?.address == null) return;
-
-    final raw = quote['transactionRequest'];
-    if (raw is! Map) {
-      NotificationService.showError(context, 'This quote has no executable transaction.');
-      return;
-    }
-
-    final confirmed = await _confirm(from, to, quote);
-    if (!confirmed || !mounted) return;
-
-    setState(() { _processing = true; _processingText = 'Preparing transaction…'; });
-    try {
-      final tx = await _transactionForSigning(Map<String, dynamic>.from(raw), from.chain, wallet.address);
-      final toAddress = tx['to']?.toString();
-      final data = tx['data']?.toString();
-      final gasLimit = tx['gasLimit']?.toString() ?? tx['gas']?.toString();
-      final chainId = int.tryParse(tx['chainId']?.toString() ?? '') ?? int.parse(_chainId(from.chain));
-      if (toAddress == null || toAddress.isEmpty || data == null || data.isEmpty || gasLimit == null) {
-        throw Exception('Swap transaction request is incomplete');
-      }
-
-      setState(() => _processingText = 'Signing transaction…');
-      final signed = await context.read<WalletService>().signNativeTransaction(
-        to: toAddress,
-        valueRaw: tx['value']?.toString() ?? '0',
-        nonce: int.parse(tx['nonce'].toString()),
-        gasLimit: gasLimit,
-        gasPrice: tx['gasPrice']?.toString(),
-        maxFeePerGas: tx['maxFeePerGas']?.toString(),
-        maxPriorityFeePerGas: tx['maxPriorityFeePerGas']?.toString(),
         chainId: chainId,
         dataHex: data,
       );
-      if (signed == null || signed.isEmpty) throw Exception('Could not sign swap transaction');
 
-      setState(() => _processingText = 'Broadcasting transaction…');
-      final result = await context.read<SwapApiService>().broadcastSwap(
-        network: from.chain,
-        signedTransaction: signed,
-        transactionType: 'swap',
-      );
-      final hash = result['hash']?.toString();
-      if (hash == null || hash.isEmpty) throw Exception('Backend did not return transaction hash');
+      if (mounted) setState(() => _loadingMessage = 'Approving...');
 
-      setState(() => _processingText = 'Confirming swap…');
-      await _pollStatus(hash, quote, from, to, wallet.address);
-    } catch (e) {
-      if (mounted) NotificationService.showError(context, 'Swap failed: $e');
-    } finally {
-      if (mounted) setState(() { _processing = false; _processingText = ''; });
-    }
-  }
-
-  Future<void> _pollStatus(
-    String hash,
-    Map<String, dynamic> quote,
-    TokenModel from,
-    TokenModel to,
-    String address,
-  ) async {
-    final api = context.read<SwapApiService>();
-    final provider = quote['provider']?.toString().toLowerCase() ?? '';
-    final type = quote['type']?.toString() ?? 'same-chain';
-    final quoteId = quote['quoteId']?.toString();
-    final bridge = quote['bridge']?.toString();
-
-    for (var i = 0; i < 36; i++) {
-      await Future.delayed(const Duration(seconds: 5));
-      if (!mounted) return;
-      try {
-        final status = await api.getStatus(
-          transactionId: hash,
-          provider: provider,
-          fromChain: _chainId(from.chain),
-          toChain: _chainId(to.chain),
-          bridge: bridge,
-          quoteId: quoteId,
-          fromAddress: address,
-          swapType: type,
+      if (mounted) {
+        final broadcastResult = await swapApi.broadcastSwap(
+          network: network,
+          signedTransaction: signedTx!,
+          transactionType: 'approval',
         );
-        final value = status['status']?.toString().toUpperCase();
-        if (value == 'CONFIRMED' || value == 'SUCCESS' || value == 'COMPLETED') {
-          NotificationService.showSuccess(context, 'Swap successful');
-          await context.read<WalletProvider>().loadWallet();
-          if (mounted) Navigator.of(context).pop();
-          return;
+
+        final hash = broadcastResult['hash']?.toString();
+        
+        TransactionLogger.log(
+          endpoint: '/crypto/swap/broadcast',
+          network: network,
+          chainId: chainId,
+          transactionHash: hash,
+          backendError: broadcastResult['message'],
+        );
+
+        if (hash == null || hash.isEmpty) {
+          throw Exception('Approval failed.');
         }
-        if (value == 'FAILED' || value == 'ERROR') {
-          throw Exception(status['message']?.toString() ?? 'Swap failed on-chain');
+
+        bool isConfirmed = false;
+        for (int i = 0; i < 20; i++) {
+          await Future.delayed(const Duration(seconds: 5));
+          if (!mounted) return;
+
+          final receiptResponse = await swapApi.getReceipt(
+            network: network,
+            hash: hash,
+          );
+          
+          final receipt = receiptResponse;
+
+          if (receipt['status'] != null) {
+            final status = receipt['status']?.toString();
+            if (status == '0x1' || status == '1') {
+              isConfirmed = true;
+            }
+            break;
+          }
         }
-      } catch (e) {
-        if (i == 35 && mounted) throw Exception(e.toString());
+
+        if (isConfirmed) {
+          if (mounted) {
+            NotificationService.showSuccess(context, 'Token approved!');
+            await _getQuote();
+          }
+        } else {
+          throw Exception('Timed out.');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        NotificationService.showError(context, 'Approval failed: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isApproving = false;
+          _loadingMessage = '';
+        });
       }
     }
-    if (mounted) NotificationService.showInfo(context, 'Swap is still pending. Check your transaction history later.');
   }
 
-  Future<bool> _confirm(TokenModel from, TokenModel to, Map<String, dynamic> quote) async {
+  Future<bool?> _showConfirmBottomSheet(
+    BuildContext context, {
+    required TokenModel fromToken,
+    required TokenModel toToken,
+    required String fromAmount,
+    required String toAmount,
+  }) {
     final colors = Theme.of(context).colorScheme;
-    final amount = _amount.text.trim();
-    final received = _displayUnits(quote['toAmount'], to.decimals);
-    final minReceived = _displayUnits(quote['toAmountMin'], to.decimals);
-    final fee = quote['fee'];
-    final feeMap = fee is Map ? Map<String, dynamic>.from(fee) : <String, dynamic>{};
+    final text = Theme.of(context).textTheme;
 
-    final result = await showModalBottomSheet<bool>(
+    return showModalBottomSheet<bool>(
       context: context,
-      isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (context) => Container(
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
         decoration: BoxDecoration(
           color: colors.surface,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
         ),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(width: 42, height: 4, decoration: BoxDecoration(color: colors.outlineVariant, borderRadius: BorderRadius.circular(4))),
-              const SizedBox(height: 22),
-              const Text('Review Swap', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(child: _reviewAsset(from, amount, colors)),
-                  Icon(Icons.arrow_forward_rounded, color: colors.primary),
-                  Expanded(child: _reviewAsset(to, received, colors, accent: true)),
-                ],
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: colors.onSurfaceVariant.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(2),
               ),
-              const SizedBox(height: 22),
-              _reviewRow('Provider', quote['provider']?.toString() ?? '-'),
-              _reviewRow('Minimum received', '$minReceived ${to.symbol}'),
-              _reviewRow('Griot fee', _displayUnits(feeMap['amount'], from.decimals) + ' ' + from.symbol),
-              const SizedBox(height: 22),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Confirm Swap')),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Review Swap',
+              style: text.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 32),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    children: [
+                      TokenIcon(
+                        imageUrl: fromToken.imageUrl,
+                        symbol: fromToken.symbol,
+                        name: fromToken.name,
+                        chainName: fromToken.chain,
+                        isNative: fromToken.isNative,
+                        radius: 20,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        fromAmount,
+                        style: text.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center,
+                      ),
+                      Text(
+                        fromToken.symbol,
+                        style: text.labelSmall?.copyWith(color: colors.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.arrow_forward_rounded, color: colors.primary.withValues(alpha: 0.5)),
+                Expanded(
+                  child: Column(
+                    children: [
+                      TokenIcon(
+                        imageUrl: toToken.imageUrl,
+                        symbol: toToken.symbol,
+                        name: toToken.name,
+                        chainName: toToken.chain,
+                        isNative: toToken.isNative,
+                        radius: 20,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        toAmount,
+                        style: text.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: colors.primary),
+                        textAlign: TextAlign.center,
+                      ),
+                      Text(
+                        toToken.symbol,
+                        style: text.labelSmall?.copyWith(color: colors.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: FilledButton.styleFrom(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: const Text('Confirm Swap', style: TextStyle(fontWeight: FontWeight.bold)),
               ),
-              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-            ],
-          ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+            ),
+          ],
         ),
       ),
     );
-    return result == true;
   }
 
-  Widget _reviewAsset(TokenModel token, String amount, ColorScheme colors, {bool accent = false}) {
-    return Column(children: [
-      TokenIcon(imageUrl: token.imageUrl, symbol: token.symbol, name: token.name, chainName: token.chain, isNative: token.isNative, radius: 22),
-      const SizedBox(height: 8),
-      Text(amount, textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: accent ? colors.primary : null)),
-      Text(token.symbol, style: TextStyle(color: colors.onSurfaceVariant)),
-    ]);
+  Future<void> _pollSwapStatus(String transactionHash) async {
+    final quote = _quote;
+    final fromToken = _fromToken;
+    final toToken = _toToken;
+    final fromAddress = context.read<WalletProvider>().wallet?.address;
+
+    if (quote == null || fromToken == null || fromAddress == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+
+    final swapApi = context.read<SwapApiService>();
+    final provider = quote['provider']?.toString().toLowerCase() ?? '';
+    final swapType = quote['type']?.toString();
+    final quoteId = quote['quoteId']?.toString();
+
+    for (int i = 0; i < 30; i++) {
+      await Future.delayed(const Duration(seconds: 10));
+      if (!mounted) return;
+
+      try {
+        final statusData = await swapApi.getStatus(
+          transactionId: transactionHash,
+          provider: provider,
+          fromChain: fromToken.chain,
+          toChain: toToken?.chain,
+          fromAddress: fromAddress,
+          swapType: swapType,
+          quoteId: quoteId,
+        );
+
+        final status = statusData['status']?.toString().toUpperCase();
+
+        if (status == 'CONFIRMED' || status == 'SUCCESS' || status == 'COMPLETED') {
+          if (mounted) {
+            NotificationService.showSuccess(context, 'Swap successful!');
+            setState(() {
+              _isLoading = false;
+              _loadingMessage = '';
+            });
+            await context.read<WalletProvider>().loadWallet();
+            if (mounted) Navigator.of(context).pop();
+          }
+          return;
+        } else if (status == 'FAILED' || status == 'ERROR') {
+          if (mounted) {
+            final msg = statusData['message']?.toString() ?? 'Failed.';
+            NotificationService.showError(context, 'Swap failed: $msg');
+            setState(() {
+              _isLoading = false;
+              _loadingMessage = '';
+            });
+          }
+          return;
+        }
+      } catch (e) {
+        debugPrint('Status poll failed: $e');
+      }
+    }
+
+    if (mounted) {
+      NotificationService.showInfo(
+        context,
+        'Swap is still pending. Check your history later.',
+      );
+      setState(() {
+        _isLoading = false;
+        _loadingMessage = '';
+      });
+      Navigator.of(context).pop();
+    }
   }
 
-  Widget _reviewRow(String label, String value) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 5),
-    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(label), Text(value, style: const TextStyle(fontWeight: FontWeight.w600))]),
-  );
+  String? _toBaseUnits(String value, int decimals) {
+    final normalized = value.trim();
+    if (normalized.isEmpty || decimals < 0) return null;
 
-  void _pickToken(bool fromSide) {
-    final tokens = context.read<WalletProvider>().tokens.where((t) => t.balance >= 0).toList();
+    final parts = normalized.split('.');
+    if (parts.length > 2) return null;
+
+    final whole = parts[0].isEmpty ? '0' : parts[0];
+    final fraction = parts.length == 2 ? parts[1] : '';
+    if (!RegExp(r'^\d+$').hasMatch(whole) ||
+        (fraction.isNotEmpty && !RegExp(r'^\d+$').hasMatch(fraction))) {
+      return null;
+    }
+    if (fraction.length > decimals) return null;
+
+    final paddedFraction = fraction.padRight(decimals, '0');
+    final raw = '$whole$paddedFraction'
+        .replaceFirst(RegExp(r'^0+(?=\d)'), '');
+    return RegExp(r'^\d+$').hasMatch(raw) ? raw : null;
+  }
+
+  String _fromBaseUnits(String? baseAmount, int decimals) {
+    if (baseAmount == null || baseAmount.isEmpty || decimals < 0) {
+      return '0.00';
+    }
+
+    final cleanBase = baseAmount
+        .split('.')
+        .first
+        .replaceAll(RegExp(r'\D'), '');
+    if (cleanBase.isEmpty) return '0.00';
+    if (decimals == 0) return cleanBase;
+
+    String whole;
+    String fraction;
+    if (cleanBase.length <= decimals) {
+      final padded = cleanBase.padLeft(decimals + 1, '0');
+      final splitIndex = padded.length - decimals;
+      whole = padded.substring(0, splitIndex);
+      fraction = padded.substring(splitIndex);
+    } else {
+      final splitIndex = cleanBase.length - decimals;
+      whole = cleanBase.substring(0, splitIndex);
+      fraction = cleanBase.substring(splitIndex);
+    }
+
+    fraction = fraction.replaceAll(RegExp(r'0+$'), '');
+    if (fraction.isEmpty) return whole;
+    if (fraction.length > 8) fraction = fraction.substring(0, 8);
+    return '$whole.$fraction';
+  }
+
+  TokenModel? _tokenForAddress(String? address) {
+    if (address == null || address.isEmpty) return null;
+    final normalized = address.toLowerCase();
+    if (normalized == _nativeTokenAddress.toLowerCase()) {
+      try {
+        return context.read<WalletProvider>().tokens.firstWhere(
+              (token) =>
+                  token.isNative &&
+                  token.chain.toLowerCase() == _fromToken?.chain.toLowerCase(),
+            );
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final tokens = context.read<WalletProvider>().tokens;
+    try {
+      return tokens.firstWhere(
+        (token) =>
+            token.contractAddress.toLowerCase() == normalized &&
+            token.chain.toLowerCase() == _fromToken?.chain.toLowerCase(),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _formatFeeAmount(String? amount, TokenModel? token) {
+    if (amount == null || amount.isEmpty || amount == '0') return '-';
+    if (token == null) return amount;
+    final value = double.tryParse(_fromBaseUnits(amount, token.decimals));
+    if (value == null) return amount;
+    return WalletFormatters.formatBalance(value, symbol: token.symbol);
+  }
+
+  void _swapTokens() {
+    setState(() {
+      final temp = _fromToken;
+      _fromToken = _toToken;
+      _toToken = temp;
+      _quote = null;
+      _amountController.clear();
+      _usdController.clear();
+    });
+    _debounce?.cancel();
+  }
+
+  void _showTokenPicker(BuildContext context, {required bool isFrom}) {
+    final tokens = context.read<WalletProvider>().tokens;
+
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
       builder: (context) => ListView.builder(
         itemCount: tokens.length,
-        itemBuilder: (_, i) {
-          final token = tokens[i];
+        padding: const EdgeInsets.only(bottom: 20),
+        itemBuilder: (context, index) {
+          final token = tokens[index];
           return ListTile(
-            leading: TokenIcon(imageUrl: token.imageUrl, symbol: token.symbol, name: token.name, chainName: token.chain, isNative: token.isNative, radius: 18),
-            title: Text(token.symbol, style: const TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: Text(token.chain.toUpperCase()),
-            trailing: Text(WalletFormatters.formatBalance(token.balance)),
+            leading: TokenIcon(
+              imageUrl: token.imageUrl,
+              symbol: token.symbol,
+              name: token.name,
+              chainName: token.chain,
+              isNative: token.isNative,
+              radius: 18,
+            ),
+            title: Text(token.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+            subtitle: Text('${token.symbol} • ${token.chain.toUpperCase()}', style: const TextStyle(fontSize: 12)),
+            trailing: Text(WalletFormatters.formatBalance(token.balance), style: const TextStyle(fontWeight: FontWeight.w600)),
             onTap: () {
-              setState(() { if (fromSide) _from = token; else _to = token; _quote = null; _approvalRequired = false; });
+              setState(() {
+                if (isFrom) {
+                  _fromToken = token;
+                } else {
+                  _toToken = token;
+                }
+                _quote = null;
+                _amountController.clear();
+                _usdController.clear();
+              });
               Navigator.pop(context);
-              _requestQuote();
+              _getQuote();
             },
           );
         },
@@ -480,86 +834,636 @@ class _SwapScreenState extends State<SwapScreen> {
     );
   }
 
-  Widget _assetCard(String label, TokenModel? token, {required bool fromSide}) {
-    final colors = Theme.of(context).colorScheme;
-    final amount = fromSide ? _amount.text : (_quote == null || token == null ? '0' : _displayUnits(_quote!['toAmount'], token.decimals));
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: colors.surfaceContainerLowest, borderRadius: BorderRadius.circular(28), border: Border.all(color: colors.outlineVariant.withValues(alpha: .2))),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text(label, style: TextStyle(color: colors.onSurfaceVariant, fontWeight: FontWeight.w600)),
-          if (token != null) Text('Balance ${WalletFormatters.formatBalance(token.balance)}', style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant)),
-        ]),
-        const SizedBox(height: 18),
-        Row(children: [
-          Expanded(child: Text(fromSide ? (amount.isEmpty ? '0' : amount) : amount, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w700))),
-          InkWell(
-            onTap: () => _pickToken(fromSide),
-            borderRadius: BorderRadius.circular(20),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-              decoration: BoxDecoration(color: colors.surfaceContainerHigh, borderRadius: BorderRadius.circular(20)),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                if (token != null) TokenIcon(imageUrl: token.imageUrl, symbol: token.symbol, name: token.name, chainName: token.chain, isNative: token.isNative, radius: 15),
-                if (token != null) const SizedBox(width: 7),
-                Text(token?.symbol ?? 'Select', style: const TextStyle(fontWeight: FontWeight.w700)),
-                const Icon(Icons.keyboard_arrow_down_rounded),
-              ]),
-            ),
-          ),
-        ]),
-        if (fromSide && token != null) ...[
-          const SizedBox(height: 10),
-          Text(WalletFormatters.formatCurrency((double.tryParse(amount) ?? 0) * token.priceUsd.toDouble()), style: TextStyle(color: colors.onSurfaceVariant)),
-          Align(alignment: Alignment.centerRight, child: TextButton(onPressed: () { _amount.text = token.balance.toString(); }, child: const Text('MAX'))),
-        ],
-      ]),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final quote = _quote;
-    return GradientScaffold(
-      appBar: AppBar(title: const Text('Swap'), centerTitle: true, backgroundColor: Colors.transparent, elevation: 0),
-      child: ListView(padding: const EdgeInsets.fromLTRB(16, 10, 16, 30), children: [
-        _assetCard('Pay', _from, fromSide: true),
-        Center(child: Container(margin: const EdgeInsets.symmetric(vertical: 6), decoration: BoxDecoration(color: colors.surface, shape: BoxShape.circle, border: Border.all(color: colors.outlineVariant.withValues(alpha: .25))), child: IconButton(icon: const Icon(Icons.swap_vert_rounded), onPressed: () { setState(() { final x = _from; _from = _to; _to = x; _amount.clear(); _quote = null; }); }))),
-        _assetCard('Receive', _to, fromSide: false),
-        if (_loadingQuote) const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator())),
-        if (quote != null) _quoteCard(quote),
-        const SizedBox(height: 20),
-        SizedBox(height: 58, child: FilledButton(
-          onPressed: _processing || _loadingQuote || quote == null ? null : (_approvalRequired ? _approve : _swap),
-          child: _processing ? Text(_processingText) : Text(_approvalRequired ? 'Approve ${_from?.symbol ?? ''}' : 'Swap'),
-        )),
-      ]),
+    final text = Theme.of(context).textTheme;
+
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: GradientScaffold(
+        appBar: AppBar(
+          title: Text(
+            'Swap',
+            style: text.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          centerTitle: true,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+        ),
+        bottomNavigationBar: const SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GriotBannerAd(),
+            ],
+          ),
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+          physics: const BouncingScrollPhysics(),
+          child: Column(
+            children: [
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  Column(
+                    children: [
+                      _buildSwapCard(
+                        context,
+                        label: 'You Pay',
+                        token: _fromToken,
+                        controller: _isUsdMode ? _usdController : _amountController,
+                        onChanged: _onAmountChanged,
+                        showCurrencyToggle: true,
+                        onMaxTap: _onMaxPressed,
+                        subValue: _isUsdMode
+                          ? '${_amountController.text} ${_fromToken?.symbol ?? ""}'
+                          : (_usdController.text.isNotEmpty ? '\$${_usdController.text}' : null),
+                        onTokenTap: () => _showTokenPicker(context, isFrom: true),
+                      ),
+                      const SizedBox(height: 6),
+                      _buildSwapCard(
+                        context,
+                        label: 'You Receive',
+                        token: _toToken,
+                        isReadOnly: true,
+                        value: _fromBaseUnits(
+                          _quote?['toAmount']?.toString(),
+                          _toToken?.decimals ?? 18,
+                        ),
+                        subValue: _quote != null && _toToken != null && _toToken!.priceUsd > 0
+                            ? WalletFormatters.formatCurrency(
+                                (double.tryParse(_fromBaseUnits(_quote!['toAmount']?.toString(), _toToken!.decimals)) ?? 0) *
+                                _toToken!.priceUsd.toDouble()
+                              )
+                            : null,
+                        onTokenTap: () => _showTokenPicker(context, isFrom: false),
+                      ),
+                    ],
+                  ),
+                  Positioned(
+                    child: Container(
+                      height: 44,
+                      width: 44,
+                      decoration: BoxDecoration(
+                        color: colors.surface,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.1), width: 2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.08),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: _swapTokens,
+                          customBorder: const CircleBorder(),
+                          child: Icon(Icons.swap_vert_rounded, color: colors.primary, size: 22),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (_quote != null) ...[
+                const SizedBox(height: 20),
+                _buildQuoteDetails(context),
+              ],
+              const SizedBox(height: 16),
+              _buildSlippageSettings(context),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                height: 60,
+                child: FilledButton(
+                  onPressed: (_quote != null && !_isLoading && !_isApproving)
+                      ? (_isApprovalRequired ? _handleApprove : _handleSwap)
+                      : null,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: colors.primary,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                    elevation: 0,
+                  ),
+                  child: (_isLoading || _isApproving)
+                      ? Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                color: colors.onPrimary.withValues(alpha: 0.5),
+                                strokeWidth: 2.5,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Text(
+                              _loadingMessage,
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                            ),
+                          ],
+                        )
+                      : Text(
+                          _isApprovalRequired
+                              ? 'Approve ${_fromToken?.symbol ?? "Token"}'
+                              : 'Swap',
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17, letterSpacing: 0.2),
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _quoteCard(Map<String, dynamic> quote) {
+  Widget _buildSwapCard(
+    BuildContext context, {
+    required String label,
+    required TokenModel? token,
+    required VoidCallback onTokenTap,
+    TextEditingController? controller,
+    String? value,
+    bool isReadOnly = false,
+    ValueChanged<String>? onChanged,
+    bool showCurrencyToggle = false,
+    String? subValue,
+    VoidCallback? onMaxTap,
+  }) {
     final colors = Theme.of(context).colorScheme;
-    final fee = quote['fee'];
-    final feeMap = fee is Map ? Map<String, dynamic>.from(fee) : <String, dynamic>{};
-    final risk = quote['risk'];
-    final riskMap = risk is Map ? Map<String, dynamic>.from(risk) : <String, dynamic>{};
-    final priceImpact = riskMap['priceImpact'];
+    final text = Theme.of(context).textTheme;
+
     return Container(
-      margin: const EdgeInsets.only(top: 16),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(color: colors.surfaceContainerLow.withValues(alpha: .55), borderRadius: BorderRadius.circular(22)),
-      child: Column(children: [
-        Row(children: [Icon(Icons.receipt_long_rounded, size: 18, color: colors.primary), const SizedBox(width: 8), const Text('Quote details', style: TextStyle(fontWeight: FontWeight.w700))]),
-        const SizedBox(height: 14),
-        _reviewRow('Provider', quote['provider']?.toString() ?? '-'),
-        _reviewRow('Type', quote['type']?.toString() ?? '-'),
-        _reviewRow('Minimum received', '${_displayUnits(quote['toAmountMin'], _to?.decimals ?? 18)} ${_to?.symbol ?? ''}'),
-        _reviewRow('Griot fee', '${_displayUnits(feeMap['amount'], _from?.decimals ?? 18)} ${_from?.symbol ?? ''}'),
-        if (priceImpact != null) _reviewRow('Price impact', '$priceImpact%'),
-        if (quote['fallbackUsed'] == true) Padding(padding: const EdgeInsets.only(top: 10), child: Align(alignment: Alignment.centerLeft, child: Text('Fallback provider used', style: TextStyle(color: colors.tertiary, fontWeight: FontWeight.w600)))),
-      ]),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerLow.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: colors.outlineVariant.withValues(alpha: 0.1),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                label.toUpperCase(),
+                style: text.labelSmall?.copyWith(
+                  color: colors.onSurfaceVariant.withValues(alpha: 0.5),
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.0,
+                ),
+              ),
+              if (token != null)
+                Text(
+                  'Bal: ${WalletFormatters.formatBalance(token.balance)}',
+                  style: text.labelSmall?.copyWith(
+                    color: colors.onSurfaceVariant.withValues(alpha: 0.4),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (isReadOnly)
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          value ?? '0.00',
+                          style: text.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: (value == null || value == '0.00')
+                                ? colors.onSurface.withValues(alpha: 0.1)
+                                : colors.onSurface,
+                          ),
+                        ),
+                      )
+                    else
+                      Row(
+                        children: [
+                          if (showCurrencyToggle && _isUsdMode)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 2),
+                              child: Text(
+                                r'$',
+                                style: text.headlineSmall?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: colors.onSurface,
+                                ),
+                              ),
+                            ),
+                          Expanded(
+                            child: TextField(
+                              controller: controller,
+                              onChanged: onChanged,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              textInputAction: TextInputAction.done,
+                              style: text.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: colors.onSurface,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: '0.00',
+                                hintStyle: TextStyle(color: colors.onSurface.withValues(alpha: 0.1)),
+                                border: InputBorder.none,
+                                isDense: false,
+                                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    if (subValue != null && subValue.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          subValue,
+                          style: text.labelSmall?.copyWith(
+                            color: colors.onSurfaceVariant.withValues(alpha: 0.35),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              InkWell(
+                onTap: onTokenTap,
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: token == null ? colors.primary : colors.surfaceContainerHighest.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    children: [
+                      if (token != null) ...[
+                        TokenIcon(
+                          imageUrl: token.imageUrl,
+                          symbol: token.symbol,
+                          name: token.name,
+                          chainName: token.chain,
+                          isNative: token.isNative,
+                          radius: 12,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          token.symbol,
+                          style: text.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ] else
+                        Text(
+                          'Select',
+                          style: text.labelLarge?.copyWith(
+                            color: colors.onPrimary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        size: 18,
+                        color: token == null ? colors.onPrimary : colors.onSurfaceVariant.withValues(alpha: 0.5),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (showCurrencyToggle) ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                InkWell(
+                  onTap: _toggleCurrencyMode,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: colors.secondaryContainer.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _isUsdMode ? Icons.toll_rounded : Icons.attach_money_rounded,
+                          size: 12,
+                          color: colors.secondary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _isUsdMode ? 'Use ${token?.symbol ?? "Token"}' : 'Use USD',
+                          style: text.labelSmall?.copyWith(
+                            color: colors.secondary,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                if (onMaxTap != null)
+                  InkWell(
+                    onTap: onMaxTap,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: colors.primary.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'MAX',
+                        style: text.labelSmall?.copyWith(
+                          color: colors.primary,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuoteDetails(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    final griotFee = _asMap(_quote?['griotFee'] ?? _quote?['fee']);
+    final providerFee = _asMap(_quote?['providerFee']);
+    final transaction = _quote?['transaction'] ?? _quote?['transactionRequest'];
+
+    final feePercent = griotFee['percent'];
+    final feePercentDisplay = feePercent == null ? null : '$feePercent%';
+
+    double? gasNative;
+    double? gasUsd;
+    String? gasSymbol;
+    TokenModel? nativeToken;
+
+    if (transaction is Map) {
+      final gas = transaction['gas']?.toString() ?? transaction['gasLimit']?.toString();
+      final gasPrice = transaction['maxFeePerGas']?.toString() ??
+          transaction['gasPrice']?.toString();
+
+      if (gas != null && gasPrice != null) {
+        final gasLimit = double.tryParse(gas);
+        final pricePerGas = double.tryParse(gasPrice);
+        if (gasLimit != null && pricePerGas != null) {
+          gasNative = (gasLimit * pricePerGas) / 1000000000000000000.0;
+        }
+      }
+
+      try {
+        nativeToken = context.read<WalletProvider>().tokens.firstWhere(
+              (token) =>
+                  token.isNative &&
+                  token.chain.toLowerCase() == _fromToken?.chain.toLowerCase(),
+            );
+        gasSymbol = nativeToken.symbol;
+        if (gasNative != null && nativeToken.priceUsd.toDouble() > 0) {
+          gasUsd = gasNative * nativeToken.priceUsd.toDouble();
+        }
+      } catch (_) { }
+    }
+
+    final providerIncluded = providerFee['included'] == true ||
+        providerFee['reportedByProvider'] != true;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerLowest.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.05)),
+      ),
+      child: Column(
+        children: [
+          _quoteRow(context, 'Rate', feePercentDisplay ?? '0.8%', valueColor: colors.primary, isBold: true),
+          const SizedBox(height: 8),
+          _quoteRow(context, 'Fee', providerIncluded ? 'Included' :
+                _formatFeeAmount(
+                  providerFee['amount']?.toString(),
+                  _tokenForAddress(providerFee['token']?.toString()),
+                )),
+          const SizedBox(height: 8),
+          _quoteRow(
+            context,
+            'Network',
+            gasNative == null
+                ? '-'
+                : WalletFormatters.formatBalance(gasNative, symbol: gasSymbol),
+            subtitle: gasUsd == null
+                ? null
+                : (gasUsd < 0.01 ? r'< $0.01' : WalletFormatters.formatCurrency(gasUsd)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSlippageSettings(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+
+    return InkWell(
+      onTap: () => _showSlippagePicker(context),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: colors.surfaceContainerLow.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.1)),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.tune_rounded, size: 18, color: colors.onSurfaceVariant.withValues(alpha: 0.6)),
+            const SizedBox(width: 12),
+            Text(
+              'Max Slippage',
+              style: text.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant.withValues(alpha: 0.7),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              '${(_slippage * 100).toStringAsFixed(1)}%',
+              style: text.bodySmall?.copyWith(
+                color: colors.primary,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_right_rounded, size: 18, color: colors.primary.withValues(alpha: 0.6)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSlippagePicker(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    final options = [0.001, 0.005, 0.01, 0.02, 0.03];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colors.onSurfaceVariant.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Swap Settings',
+              style: text.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Max slippage is the maximum price change you are willing to accept for this swap.',
+              style: text.bodySmall?.copyWith(color: colors.onSurfaceVariant.withValues(alpha: 0.6)),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: options.map((val) {
+                final isSelected = _slippage == val;
+                return InkWell(
+                  onTap: () {
+                    setState(() => _slippage = val);
+                    Navigator.pop(context);
+                    _getQuote();
+                  },
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isSelected ? colors.primary : colors.surfaceContainerHighest.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${(val * 100).toStringAsFixed(1)}%',
+                      style: TextStyle(
+                        color: isSelected ? colors.onPrimary : colors.onSurface,
+                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: FilledButton(
+                onPressed: () => Navigator.pop(context),
+                style: FilledButton.styleFrom(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: const Text('Close', style: TextStyle(fontWeight: FontWeight.w800)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Map<String, dynamic> _asMap(dynamic value) {
+    return value is Map<String, dynamic>
+        ? Map<String, dynamic>.from(value)
+        : <String, dynamic>{};
+  }
+
+  Widget _quoteRow(
+    BuildContext context,
+    String label,
+    String value, {
+    String? subtitle,
+    bool isBold = false,
+    Color? valueColor,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: text.bodySmall?.copyWith(
+            color: colors.onSurfaceVariant.withValues(alpha: 0.5),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              value,
+              style: text.bodySmall?.copyWith(
+                fontWeight: isBold ? FontWeight.w800 : FontWeight.w700,
+                color: valueColor ?? colors.onSurface,
+              ),
+            ),
+            if (subtitle != null)
+              Text(
+                subtitle,
+                style: text.labelSmall?.copyWith(
+                  color: colors.onSurfaceVariant.withValues(alpha: 0.3),
+                  fontSize: 9,
+                ),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }

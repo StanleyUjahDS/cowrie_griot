@@ -84,7 +84,9 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
       apiClient: _apiClient,
     );
 
-    _walletRpcService = WalletRpcService();
+    _walletRpcService = WalletRpcService(
+      apiClient: _apiClient,
+    );
 
     _miningApiService = MiningApiService(
       apiClient: _apiClient,
