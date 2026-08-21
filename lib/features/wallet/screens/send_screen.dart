@@ -262,7 +262,7 @@ class _SendScreenState extends State<SendScreen> {
                   ),
                   if (feeRaw != null) ...[
                     const SizedBox(height: 12),
-                    _buildSummaryRow('Estimated Fee', _formatFee(feeRaw, token), dialogContext),
+                    _buildFeeSummaryRow(feeRaw, token, dialogContext),
                   ],
                   const SizedBox(height: 16),
                   const Divider(),
@@ -308,6 +308,7 @@ class _SendScreenState extends State<SendScreen> {
     String label,
     String value,
     BuildContext context, {
+    String? subtitle,
     Color? valueColor,
     bool isBold = false,
   }) {
@@ -316,6 +317,7 @@ class _SendScreenState extends State<SendScreen> {
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: subtitle != null ? CrossAxisAlignment.start : CrossAxisAlignment.center,
       children: [
         Text(
           label,
@@ -323,12 +325,27 @@ class _SendScreenState extends State<SendScreen> {
             color: colors.onSurfaceVariant,
           ),
         ),
-        Text(
-          value,
-          style: text.bodyMedium?.copyWith(
-            color: valueColor ?? colors.onSurface,
-            fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
-          ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              value,
+              style: text.bodyMedium?.copyWith(
+                color: valueColor ?? colors.onSurface,
+                fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+              ),
+            ),
+            if (subtitle != null) ...[
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: text.bodySmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ],
         ),
       ],
     );
@@ -350,10 +367,20 @@ class _SendScreenState extends State<SendScreen> {
     }
   }
 
-  String _formatFee(dynamic feeRaw, TokenModel token) {
-    if (feeRaw == null) return '--';
+  Widget _buildFeeSummaryRow(dynamic feeRaw, TokenModel token, BuildContext context) {
+    final fee = _getFeeDisplay(feeRaw, token);
+    return _buildSummaryRow(
+      'Estimated Fee',
+      fee.usdAmount,
+      context,
+      subtitle: fee.nativeAmount,
+    );
+  }
+
+  FeeDisplay _getFeeDisplay(dynamic feeRaw, TokenModel token) {
+    if (feeRaw == null) return FeeDisplay(nativeAmount: '--', usdAmount: '0.00');
     final feeNum = double.tryParse(feeRaw.toString()) ?? 0.0;
-    if (feeNum <= 0) return '0.00';
+    if (feeNum <= 0) return FeeDisplay(nativeAmount: '0.00', usdAmount: '0.00');
     
     // Convert Wei to Native units (18 decimals)
     final nativeAmount = feeNum / 1000000000000000000.0;
@@ -366,7 +393,10 @@ class _SendScreenState extends State<SendScreen> {
     final formattedNative = nativeAmount.toStringAsFixed(6).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
     final formattedUsd = usdAmount.toStringAsFixed(2);
     
-    return '$formattedNative $nativeSymbol (≈ \$$formattedUsd)';
+    return FeeDisplay(
+      nativeAmount: '$formattedNative $nativeSymbol',
+      usdAmount: '≈ \$$formattedUsd',
+    );
   }
 
   Future<void> _executeBroadcast(
@@ -714,4 +744,11 @@ class _SendScreenState extends State<SendScreen> {
       },
     );
   }
+}
+
+class FeeDisplay {
+  final String nativeAmount;
+  final String usdAmount;
+
+  FeeDisplay({required this.nativeAmount, required this.usdAmount});
 }
