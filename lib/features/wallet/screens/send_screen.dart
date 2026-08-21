@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../models/token_model.dart';
 import '../providers/wallet_provider.dart';
@@ -185,7 +186,7 @@ class _SendScreenState extends State<SendScreen> {
         padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
         decoration: BoxDecoration(color: colors.surface, borderRadius: const BorderRadius.vertical(top: Radius.circular(36))),
         child: SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(width: 42, height: 4, decoration: BoxDecoration(color: colors.outlineVariant.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(2))),
+          Container(width: 42, height: 4, decoration: BoxDecoration(color: colors.outlineVariant.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(4))),
           const SizedBox(height: 28),
           const Text('Review Transaction', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
           const SizedBox(height: 32),
@@ -316,6 +317,18 @@ class _SendScreenState extends State<SendScreen> {
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
+                  IconButton(
+                    onPressed: () {
+                      if (_address.text.isNotEmpty) {
+                        Share.share('Wallet Address: ${_address.text}');
+                      } else {
+                        NotificationService.showInfo(context, 'Recipient address is empty');
+                      }
+                    },
+                    icon: Icon(Icons.share_rounded, size: 20, color: colors.onSurfaceVariant.withValues(alpha: 0.6)),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
                 ],
               ),
             ),
@@ -433,7 +446,7 @@ class _SendScreenState extends State<SendScreen> {
                   letterSpacing: 1.5,
                 ),
               ),
-              ?trailing,
+              if (trailing != null) trailing,
             ],
           ),
           const SizedBox(height: 16),
