@@ -98,7 +98,12 @@ void openWalletFilterSheet({
                     Expanded(
                       child: ListView(
                         controller: scrollController,
-                        padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+                        padding: EdgeInsets.fromLTRB(
+                          20,
+                          18,
+                          20,
+                          24 + MediaQuery.of(context).padding.bottom,
+                        ),
                         children: [
                           _sectionTitle(context, "Wallet", Icons.account_balance_wallet_rounded),
                           const SizedBox(height: 10),
@@ -120,6 +125,30 @@ void openWalletFilterSheet({
                                   value: provider.hideZeroBalance,
                                   onChanged: (value) {
                                     provider.setHideZeroBalance(value);
+                                    refresh();
+                                  },
+                                ),
+                                _itemDivider(context),
+                                _filterSwitchTile(
+                                  context: context,
+                                  icon: Icons.verified_user_rounded,
+                                  title: "Hide Unverified",
+                                  subtitle: "Hide assets without verified security",
+                                  value: provider.hideUnverified,
+                                  onChanged: (value) {
+                                    provider.setHideUnverified(value);
+                                    refresh();
+                                  },
+                                ),
+                                _itemDivider(context),
+                                _filterSwitchTile(
+                                  context: context,
+                                  icon: Icons.money_off_rounded,
+                                  title: "Hide Small Balances",
+                                  subtitle: "Hide tiny balances below the wallet threshold",
+                                  value: provider.hideLowBalance,
+                                  onChanged: (value) {
+                                    provider.setHideLowBalance(value);
                                     refresh();
                                   },
                                 ),
@@ -167,9 +196,12 @@ void openWalletFilterSheet({
                             runSpacing: 10,
                             children: [
                               _chainChip("Ethereum", provider, refresh),
-                              _chainChip("Solana", provider, refresh),
-                              _chainChip("Polygon", provider, refresh),
                               _chainChip("BNB Chain", provider, refresh),
+                              _chainChip("Polygon", provider, refresh),
+                              _chainChip("Arbitrum", provider, refresh),
+                              _chainChip("Optimism", provider, refresh),
+                              _chainChip("Base", provider, refresh),
+                              _chainChip("Avalanche", provider, refresh),
                             ],
                           ),
 
@@ -366,6 +398,8 @@ Widget _activeFilterCount(BuildContext context, WalletProvider provider) {
   final colors = Theme.of(context).colorScheme;
   int count = 0;
   if (provider.hideZeroBalance) count++;
+  if (provider.hideUnverified) count++;
+  if (provider.hideLowBalance) count++;
   if (provider.onlyProfit) count++;
   if (provider.onlyLoss) count++;
   count += provider.selectedChains.length;
