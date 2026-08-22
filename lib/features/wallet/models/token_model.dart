@@ -11,7 +11,11 @@ class TokenModel {
   final int decimals;
   final bool hasMarketData;
   final bool isSpam;
+  final bool isOfficial;
   final bool isTradeable;
+  final String status;
+  final List<String> reasons;
+  final Map<String, String> externalLinks;
   final Map<String, dynamic>? security;
 
   const TokenModel({
@@ -27,11 +31,22 @@ class TokenModel {
     this.decimals = 18,
     this.hasMarketData = false,
     this.isSpam = false,
+    this.isOfficial = false,
     this.isTradeable = true,
+    this.status = 'unknown',
+    this.reasons = const [],
+    this.externalLinks = const {},
     this.security,
   });
 
-  bool get isNative => contractAddress.isEmpty;
+  String get identity => '${chain.toLowerCase()}:${contractAddress.toLowerCase().trim()}';
+
+  bool get isNative {
+    final address = contractAddress.trim().toLowerCase();
+    return address.isEmpty ||
+        address == '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' ||
+        address == '0x0000000000000000000000000000000000000000';
+  }
 
   bool get isProfit => changePercent >= 0;
 
@@ -50,6 +65,52 @@ class TokenModel {
         json['usdValue'] != null;
 
     final securityData = json['security'] is Map ? Map<String, dynamic>.from(json['security']) : null;
+    final classification = json['classification'] is Map
+        ? Map<String, dynamic>.from(json['classification'])
+        : null;
+
+    String status;
+    bool isTradeable;
+    bool isSpam;
+
+    if (classification != null) {
+      // Direct mapping for Search Results
+      status = _string(classification['status']);
+      isTradeable = classification['isTradeable'] == true;
+      isSpam = classification['isSpam'] == true;
+    } else {
+      // Derived mapping for Wallet Assets
+      final isOfficialLocal = json['isOfficial'] == true;
+      final isSpamLocal = json['isSpam'] == true || (securityData != null && securityData['isSpam'] == true);
+      final securityAvailable = securityData != null && securityData['available'] == true;
+      final riskLevel = securityData?['riskLevel']?.toString().toLowerCase();
+
+      if (isSpamLocal || riskLevel == 'high') {
+        status = 'blocked';
+        isTradeable = false;
+        isSpam = true;
+      } else if (isOfficialLocal) {
+        status = 'official';
+        isTradeable = true;
+        isSpam = false;
+      } else if (securityAvailable && riskLevel != 'high') {
+        status = 'verified';
+        isTradeable = true;
+        isSpam = false;
+      } else {
+        status = 'unknown';
+        isTradeable = false;
+        isSpam = isSpamLocal;
+      }
+    }
+    
+    final reasonsRaw = classification?['reasons'];
+    final reasons = reasonsRaw is List ? reasonsRaw.map((e) => e.toString()).toList() : <String>[];
+
+    final linksRaw = json['externalLinks'];
+    final externalLinks = linksRaw is Map 
+        ? Map<String, String>.from(linksRaw.map((k, v) => MapEntry(k.toString(), v.toString())))
+        : <String, String>{};
 
     return TokenModel(
       name: _string(json['name']),
@@ -80,8 +141,12 @@ class TokenModel {
         _int(json['decimals'], fallback: 18),
       ),
       hasMarketData: hasPrice || hasChange || hasValue,
-      isSpam: json['isSpam'] == true || (securityData != null && securityData['isSpam'] == true),
-      isTradeable: json['isTradeable'] != false,
+      isSpam: isSpam,
+      isOfficial: status == 'official',
+      isTradeable: isTradeable,
+      status: status,
+      reasons: reasons,
+      externalLinks: externalLinks,
       security: securityData,
     );
   }
