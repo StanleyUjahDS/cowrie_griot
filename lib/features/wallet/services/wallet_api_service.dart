@@ -1,6 +1,7 @@
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_config.dart';
 import '../models/token_model.dart';
+import 'package:flutter/foundation.dart';
 
 class WalletApiService {
   final ApiClient _apiClient;
@@ -37,6 +38,12 @@ class WalletApiService {
 
     final response = await _apiClient.get(url);
     final data = _unwrap(response);
+
+    if (data is Map<String, dynamic>) {
+      final assets = data['assets'];
+      debugPrint('Wallet assets received: ${assets is List ? assets.length : 0}');
+      debugPrint('Wallet assets truncated: ${data['truncated'] == true}');
+    }
 
     return data is Map<String, dynamic> ? data : {};
   }
