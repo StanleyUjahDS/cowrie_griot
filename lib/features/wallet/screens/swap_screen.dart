@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
@@ -9,7 +10,6 @@ import '../providers/wallet_provider.dart';
 import '../services/swap_api_service.dart';
 import '../services/wallet_service.dart';
 import '../services/transaction_api_service.dart';
-import '../services/wallet_rpc_service.dart';
 import '../widgets/token_icon.dart';
 import '../utils/wallet_formatters.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
@@ -120,7 +120,6 @@ class _SwapScreenState extends State<SwapScreen> {
     final swapApi = context.read<SwapApiService>();
     final walletProvider = context.read<WalletProvider>();
     final walletService = context.read<WalletService>();
-    final rpcService = context.read<WalletRpcService>();
     final fromAddress = walletProvider.wallet?.address;
 
     if (fromAddress == null || fromAddress.isEmpty) return;
@@ -199,7 +198,7 @@ class _SwapScreenState extends State<SwapScreen> {
           approvalAddress.isNotEmpty &&
           !fromToken.isNative) {
         try {
-          final allowanceHex = await rpcService.call(
+          final allowanceHex = await swapApi.call(
             network: fromToken.chain,
             to: fromToken.contractAddress,
             data: walletService.crypto.encodeErc20Allowance(
@@ -248,7 +247,6 @@ class _SwapScreenState extends State<SwapScreen> {
 
     final walletService = context.read<WalletService>();
     final swapApi = context.read<SwapApiService>();
-    final rpcService = context.read<WalletRpcService>();
     final transactionApi = context.read<TransactionApiService>();
 
     final amount = _amountController.text.trim();
@@ -300,10 +298,15 @@ class _SwapScreenState extends State<SwapScreen> {
       _loadingMessage = 'Preparing...';
     });
     try {
-      nonce ??= await rpcService.getPendingNonce(
+      nonce ??= await swapApi.getNonce(
           network: fromToken.chain,
           address: fromAddress,
         );
+      
+      final networkChainId = _getExpectedChainId(fromToken.chain);
+      if (networkChainId == null || chainId != networkChainId) {
+        throw Exception('Transaction chain ID mismatch for ${fromToken.chain}');
+      }
 
       if (gasLimit == null) {
         final estimate = await transactionApi.estimateTransaction(
@@ -389,7 +392,6 @@ class _SwapScreenState extends State<SwapScreen> {
     if (approvalAddress == null || approvalAddress.isEmpty) return;
 
     final walletService = context.read<WalletService>();
-    final rpcService = context.read<WalletRpcService>();
     final transactionApi = context.read<TransactionApiService>();
     final swapApi = context.read<SwapApiService>();
 
@@ -406,7 +408,7 @@ class _SwapScreenState extends State<SwapScreen> {
         amount: fromAmountRaw!,
       );
 
-      final nonce = await rpcService.getPendingNonce(
+      final nonce = await swapApi.getNonce(
         network: network,
         address: fromAddress,
       );
@@ -422,7 +424,16 @@ class _SwapScreenState extends State<SwapScreen> {
       );
 
       final transactionRequest = quote['transactionRequest'] ?? quote['transaction'] ?? {};
-      final chainId = int.tryParse(transactionRequest['chainId']?.toString() ?? '') ?? 1;
+      final chainId = int.tryParse(transactionRequest['chainId']?.toString() ?? '');
+      
+      if (chainId == null) {
+        throw Exception('Approval chain ID is missing');
+      }
+
+      final networkChainId = _getExpectedChainId(network);
+      if (networkChainId == null || chainId != networkChainId) {
+        throw Exception('Approval network and chain ID do not match');
+      }
 
       if (mounted) setState(() => _loadingMessage = 'Signing...');
       final signedTx = await walletService.signNativeTransaction(
@@ -461,21 +472,22 @@ class _SwapScreenState extends State<SwapScreen> {
         }
 
         bool isConfirmed = false;
-        for (int i = 0; i < 20; i++) {
+        for (int i = 0; i < 30; i++) {
+          if (mounted) setState(() => _loadingMessage = 'Waiting for confirmation...');
           await Future.delayed(const Duration(seconds: 5));
           if (!mounted) return;
 
-          final receiptResponse = await swapApi.getReceipt(
+          final receipt = await swapApi.getReceipt(
             network: network,
             hash: hash,
           );
-          
-          final receipt = receiptResponse;
 
           if (receipt['status'] != null) {
             final status = receipt['status']?.toString();
             if (status == '0x1' || status == '1') {
               isConfirmed = true;
+            } else if (status == '0x0' || status == '0') {
+              throw Exception('Approval transaction failed on-chain.');
             }
             break;
           }
@@ -634,7 +646,10 @@ class _SwapScreenState extends State<SwapScreen> {
 
     final swapApi = context.read<SwapApiService>();
     final walletProvider = context.read<WalletProvider>();
-    final provider = quote['provider']?.toString().toLowerCase() ?? '';
+    // Backend expects the canonical provider identifiers `lifi` or `0x`.
+    final provider = (quote['provider']?.toString().toLowerCase() ?? '')
+        .replaceAll('.', '')
+        .replaceAll('-', '');
     final swapType = quote['type']?.toString();
     final quoteId = quote['quoteId']?.toString();
 
@@ -770,6 +785,18 @@ class _SwapScreenState extends State<SwapScreen> {
     return WalletFormatters.formatBalance(value, symbol: token.symbol);
   }
 
+  int? _getExpectedChainId(String network) {
+    const expectedChainIds = {
+      'ethereum': 1,
+      'base': 8453,
+      'polygon': 137,
+      'arbitrum': 42161,
+      'optimism': 10,
+      'bsc': 56,
+    };
+    return expectedChainIds[network.toLowerCase()];
+  }
+
   void _swapTokens() {
     setState(() {
       final temp = _fromToken;
@@ -782,8 +809,44 @@ class _SwapScreenState extends State<SwapScreen> {
     _debounce?.cancel();
   }
 
+  Future<bool?> _showRiskWarning(BuildContext context, TokenModel token) {
+    final colors = Theme.of(context).colorScheme;
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: colors.error),
+            const SizedBox(width: 8),
+            const Text('Risk Warning'),
+          ],
+        ),
+        content: Text(
+          '${token.name} (${token.symbol}) is an unverified third-party token. '
+          'Trading third-party tokens carries significant risk. '
+          'Ensure you trust this contract before proceeding.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: colors.error,
+              foregroundColor: colors.onError,
+            ),
+            child: const Text('I Understand'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showTokenPicker(BuildContext context, {required bool isFrom}) {
-    final tokens = context.read<WalletProvider>().tokens;
+    final provider = context.read<WalletProvider>();
+    final tokens = provider.tokens.where((t) => provider.canSwap(t)).toList();
 
     showModalBottomSheet(
       context: context,
@@ -795,10 +858,39 @@ class _SwapScreenState extends State<SwapScreen> {
           borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
         ),
         child: ListView.builder(
-          itemCount: tokens.length,
-          padding: const EdgeInsets.fromLTRB(0, 12, 0, 32),
+          itemCount: tokens.length + 1,
+          padding: const EdgeInsets.fromLTRB(0, 0, 0, 32),
           itemBuilder: (context, index) {
-            final token = tokens[index];
+            if (index == 0) {
+              return ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                  child: Icon(Icons.search, color: Theme.of(context).colorScheme.primary),
+                ),
+                title: const Text('Search for more tokens', style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: const Text('Search by name or address', style: TextStyle(fontSize: 12)),
+                onTap: () async {
+                  Navigator.pop(context);
+                  if (!context.mounted) return;
+                  final selected = await context.push<TokenModel>('/wallet/search');
+                  if (selected != null && mounted) {
+                    setState(() {
+                      if (isFrom) {
+                        _fromToken = selected;
+                      } else {
+                        _toToken = selected;
+                      }
+                      _quote = null;
+                      _amountController.clear();
+                      _usdController.clear();
+                    });
+                    _getQuote();
+                  }
+                },
+              );
+            }
+
+            final token = tokens[index - 1];
             return ListTile(
               leading: TokenIcon(
                 imageUrl: token.imageUrl,
@@ -808,10 +900,23 @@ class _SwapScreenState extends State<SwapScreen> {
                 isNative: token.isNative,
                 radius: 18,
               ),
-              title: Text(token.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              title: Row(
+                children: [
+                  Flexible(child: Text(token.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), overflow: TextOverflow.ellipsis)),
+                  if (token.isOfficial) ...[
+                    const SizedBox(width: 4),
+                    Icon(Icons.verified_rounded, size: 14, color: Theme.of(context).colorScheme.tertiary),
+                  ],
+                ],
+              ),
               subtitle: Text('${token.symbol} • ${token.chain.toUpperCase()}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey)),
               trailing: Text(WalletFormatters.formatBalance(token.balance), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
-              onTap: () {
+              onTap: () async {
+                if (!token.isOfficial) {
+                  final proceed = await _showRiskWarning(context, token);
+                  if (proceed != true) return;
+                }
+                
                 setState(() {
                   if (isFrom) {
                     _fromToken = token;
@@ -822,6 +927,7 @@ class _SwapScreenState extends State<SwapScreen> {
                   _amountController.clear();
                   _usdController.clear();
                 });
+                if (!context.mounted) return;
                 Navigator.pop(context);
                 _getQuote();
               },
