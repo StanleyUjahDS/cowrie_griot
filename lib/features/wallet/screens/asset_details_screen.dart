@@ -203,17 +203,17 @@ class AssetDetailsScreen extends StatelessWidget {
                                 icon: Icons.explore_outlined,
                                 onTap: () => _launchUrl(context, backendExplorer.isNotEmpty ? backendExplorer : explorerUrl),
                               ),
-                            if (dexUrl.isNotEmpty) _LinkItem(
-                              title: 'Market Analysis',
-                              subtitle: 'Check price & liquidity on Dexscreener',
-                              icon: Icons.bar_chart_rounded,
-                              onTap: () => _launchUrl(context, dexUrl),
-                            ),
                             if (securityUrl.isNotEmpty) _LinkItem(
                               title: 'Web3 Security (Rewards)',
-                              subtitle: 'Scan with De.Fi Shield for points',
+                              subtitle: 'Scan token security with GoPlus',
                               icon: Icons.verified_user_rounded,
                               onTap: () => _launchUrl(context, securityUrl),
+                            ),
+                            if (dexUrl.isNotEmpty) _LinkItem(
+                              title: 'Market Analysis',
+                              subtitle: 'Check price & liquidity on DEX Screener',
+                              icon: Icons.bar_chart_rounded,
+                              onTap: () => _launchUrl(context, dexUrl),
                             ),
                             if (honeypotUrl.isNotEmpty)
                               _LinkItem(
@@ -374,8 +374,11 @@ class AssetDetailsScreen extends StatelessWidget {
               context, 
               'Contract', 
               WalletFormatters.shortenAddress(token.contractAddress),
-              onTap: () => context.push('/wallet/search', extra: token.contractAddress),
-              trailing: Icon(Icons.search_rounded, size: 16, color: Theme.of(context).colorScheme.primary),
+              onTap: () async {
+                await Clipboard.setData(ClipboardData(text: token.contractAddress));
+                if (context.mounted) NotificationService.showSuccess(context, 'Contract address copied');
+              },
+              trailing: Icon(Icons.copy_rounded, size: 16, color: Theme.of(context).colorScheme.primary),
             ),
           ],
         ],
