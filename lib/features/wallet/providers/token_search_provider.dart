@@ -38,6 +38,16 @@ class TokenSearchProvider extends ChangeNotifier {
       return;
     }
 
+    // The backend requires at least two characters for discovery searches.
+    if (_query.trim().length < 2) {
+      _lastRequestId++;
+      _results = [];
+      _isLoading = false;
+      _error = null;
+      notifyListeners();
+      return;
+    }
+
     _debounceTimer = Timer(const Duration(milliseconds: 500), () {
       _performSearch();
     });
@@ -65,7 +75,7 @@ class TokenSearchProvider extends ChangeNotifier {
   void setNetwork(String? network) {
     if (_network == network) return;
     _network = network;
-    if (_query.isNotEmpty) {
+    if (_query.trim().length >= 2) {
       _performSearch();
     } else {
       _loadPopular();
@@ -101,7 +111,10 @@ class TokenSearchProvider extends ChangeNotifier {
   }
 
   bool canSwap(TokenModel token) {
-    return token.isTradeable;
+    final status = token.status.toLowerCase();
+    return token.isTradeable && 
+           status != 'unknown' && 
+           status != 'blocked';
   }
 
   void clearSearch() {
