@@ -19,6 +19,26 @@ class ApiConfig {
   static const String walletNetworks = '$walletBase/networks';
   static const String walletAssets = '$walletBase/assets';
 
+  static const String cryptoAssetsBase = '$baseUrl/crypto/assets';
+
+  static String walletAssetsSearch(String query, {String? network}) {
+    final params = {'q': query};
+    if (network != null && network.isNotEmpty) {
+      params['network'] = network;
+    }
+    return Uri.parse('$cryptoAssetsBase/search')
+        .replace(queryParameters: params)
+        .toString();
+  }
+
+  static String walletAssetsPopular({String? network}) {
+    final params = <String, String>{};
+    if (network != null && network.isNotEmpty) params['network'] = network;
+    return Uri.parse('$cryptoAssetsBase/popular')
+        .replace(queryParameters: params)
+        .toString();
+  }
+
   static String walletAssetsByNetwork(String network) =>
       '$walletBase/assets/$network';
 

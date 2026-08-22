@@ -1,5 +1,6 @@
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_config.dart';
+import '../models/token_model.dart';
 
 class WalletApiService {
   final ApiClient _apiClient;
@@ -127,6 +128,44 @@ class WalletApiService {
     }
 
     return _asMapList(data);
+  }
+
+  Future<List<TokenModel>> searchAssets({
+    required String query,
+    String? network,
+  }) async {
+    final response = await _apiClient.get(
+      ApiConfig.walletAssetsSearch(query, network: network),
+    );
+
+    final data = _unwrap(response);
+
+    if (data is Map<String, dynamic>) {
+      final tokens = data['tokens'];
+
+      if (tokens is List) {
+        return tokens
+            .map((json) => TokenModel.fromJson(Map<String, dynamic>.from(json)))
+            .toList();
+      }
+    }
+
+    return [];
+  }
+
+  Future<List<TokenModel>> getPopularAssets({String? network}) async {
+    final response = await _apiClient.get(
+      ApiConfig.walletAssetsPopular(network: network),
+    );
+    final data = _unwrap(response);
+    final tokens = data is Map<String, dynamic> ? data['tokens'] : data;
+    if (tokens is List) {
+      return tokens
+          .whereType<Map>()
+          .map((json) => TokenModel.fromJson(Map<String, dynamic>.from(json)))
+          .toList();
+    }
+    return [];
   }
 
   dynamic _unwrap(dynamic response) {
