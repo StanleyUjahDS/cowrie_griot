@@ -38,8 +38,8 @@ class TokenSearchProvider extends ChangeNotifier {
       return;
     }
 
-    // The backend requires at least two characters for discovery searches.
-    if (_query.trim().length < 2) {
+    // The backend requires at least three characters for discovery searches.
+    if (_query.trim().length < 3) {
       _lastRequestId++;
       _results = [];
       _isLoading = false;
@@ -75,7 +75,7 @@ class TokenSearchProvider extends ChangeNotifier {
   void setNetwork(String? network) {
     if (_network == network) return;
     _network = network;
-    if (_query.trim().length >= 2) {
+    if (_query.trim().length >= 3) {
       _performSearch();
     } else {
       _loadPopular();
