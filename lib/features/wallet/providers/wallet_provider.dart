@@ -62,43 +62,37 @@ class WalletProvider extends ChangeNotifier {
     return _tokens.where((token) {
       if (_hiddenTokenKeys.contains(_getTokenKey(token))) return false;
       if (_hideLowBalance && token.valueUsd < 1) return false;
-      return token.isTradeable && token.status != 'unknown' && token.status != 'blocked';
+      
+      final status = token.status.toLowerCase();
+      // General wallet list includes verified, official, and unknown tokens.
+      // It EXCLUDES blocked and spam tokens.
+      return status != 'blocked' && !token.isSpam;
     }).toList()..sort((a, b) => b.valueUsd.compareTo(a.valueUsd));
   }
 
   List<TokenModel> get unverifiedAssets {
-    if (_hideUnverified) return [];
-
-    return _tokens.where((token) {
-      if (_hiddenTokenKeys.contains(_getTokenKey(token))) return false;
-      if (token.isTradeable && token.status != 'unknown' && token.status != 'blocked') return false;
-      if (isTokenBlocked(token)) return false;
-      if (_hideLowBalance && token.valueUsd < 1) return false;
-      
-      final security = token.security ?? {};
-      final isAvailable = security['available'] == true;
-      final riskLevel = security['riskLevel']?.toString().toLowerCase();
-
-      // Unknown or Verified Third-party
-      return !isAvailable || riskLevel == 'unknown' || (isAvailable && riskLevel != 'high');
-    }).toList()..sort((a, b) => b.valueUsd.compareTo(a.valueUsd));
+    // This category is now merged into verifiedAssets (General List)
+    // as per updated authoritative backend rules.
+    return [];
   }
 
   List<TokenModel> get blockedAssets {
     return _tokens.where((token) {
-      return isTokenBlocked(token);
+      final status = token.status.toLowerCase();
+      // AUTHORITATIVE: status == blocked || isSpam == true
+      return status == 'blocked' || token.isSpam;
     }).toList()..sort((a, b) => b.valueUsd.compareTo(a.valueUsd));
   }
 
   bool isTokenBlocked(TokenModel token) {
-    if (token.isSpam) return true;
-    final security = token.security ?? {};
-    final riskLevel = security['riskLevel']?.toString().toLowerCase();
-    return riskLevel == 'high';
+    final status = token.status.toLowerCase();
+    return status == 'blocked' || token.isSpam;
   }
 
   bool canSwap(TokenModel token) {
-    return token.status == 'verified' && token.isTradeable && !isTokenBlocked(token);
+    final status = token.status.toLowerCase();
+    // AUTHORITATIVE: status == verified && isTradeable == true
+    return status == 'verified' && token.isTradeable;
   }
 
   List<TokenModel> get filteredTokens {
@@ -106,9 +100,6 @@ class WalletProvider extends ChangeNotifier {
     // The UI will handle categorization into sections.
     final result = _tokens.where((token) {
       if (isTokenBlocked(token)) {
-        return false;
-      }
-      if (!token.isTradeable) {
         return false;
       }
 
@@ -126,7 +117,7 @@ class WalletProvider extends ChangeNotifier {
         return false;
       }
 
-      if (_hideUnverified && !token.isOfficial) {
+      if (_hideUnverified && token.status.toLowerCase() == 'unknown') {
         return false;
       }
 
@@ -194,9 +185,12 @@ class WalletProvider extends ChangeNotifier {
           .toList();
 
       final totalBalanceUsd = parsedTokens
-          .where((token) => !_hiddenTokenKeys.contains(_getTokenKey(token)))
-          .where((token) => !isTokenBlocked(token))
-          .where((token) => token.valueUsd >= 0.01)
+          .where((token) {
+            // Unknown assets remain in the general wallet list and totals.
+            // Only hidden, blocked, and spam assets are excluded.
+            if (_hiddenTokenKeys.contains(_getTokenKey(token))) return false;
+            return !isTokenBlocked(token);
+          })
           .fold<num>(0, (total, token) => total + token.valueUsd);
 
       _wallet = WalletModel(
