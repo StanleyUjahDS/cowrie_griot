@@ -98,18 +98,7 @@ class WalletProvider extends ChangeNotifier {
   }
 
   bool canSwap(TokenModel token) {
-    if (token.isOfficial) return true;
-    if (isTokenBlocked(token)) return false;
-    
-    final security = token.security ?? {};
-    final isAvailable = security['available'] == true;
-    final riskLevel = security['riskLevel']?.toString().toLowerCase();
-
-    // Do not allow swapping by default for unknown tokens
-    if (!isAvailable || riskLevel == 'unknown') return false;
-
-    // Allow swapping for verified but non-official if not high risk
-    return isAvailable && riskLevel != 'high';
+    return token.status == 'verified' && token.isTradeable && !isTokenBlocked(token);
   }
 
   List<TokenModel> get filteredTokens {

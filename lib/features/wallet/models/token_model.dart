@@ -32,7 +32,7 @@ class TokenModel {
     this.hasMarketData = false,
     this.isSpam = false,
     this.isOfficial = false,
-    this.isTradeable = true,
+    this.isTradeable = false,
     this.status = 'unknown',
     this.reasons = const [],
     this.externalLinks = const {},
@@ -79,29 +79,10 @@ class TokenModel {
       isTradeable = classification['isTradeable'] == true;
       isSpam = classification['isSpam'] == true;
     } else {
-      // Derived mapping for Wallet Assets
-      final isOfficialLocal = json['isOfficial'] == true;
-      final isSpamLocal = json['isSpam'] == true || (securityData != null && securityData['isSpam'] == true);
-      final securityAvailable = securityData != null && securityData['available'] == true;
-      final riskLevel = securityData?['riskLevel']?.toString().toLowerCase();
-
-      if (isSpamLocal || riskLevel == 'high') {
-        status = 'blocked';
-        isTradeable = false;
-        isSpam = true;
-      } else if (isOfficialLocal) {
-        status = 'official';
-        isTradeable = true;
-        isSpam = false;
-      } else if (securityAvailable && riskLevel != 'high') {
-        status = 'verified';
-        isTradeable = true;
-        isSpam = false;
-      } else {
-        status = 'unknown';
-        isTradeable = false;
-        isSpam = isSpamLocal;
-      }
+      // Safety is backend-owned. Missing classification is never treated as safe.
+      status = 'unknown';
+      isTradeable = false;
+      isSpam = json['isSpam'] == true;
     }
     
     final reasonsRaw = classification?['reasons'];
