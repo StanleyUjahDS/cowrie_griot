@@ -71,19 +71,19 @@ class _SendScreenState extends State<SendScreen> {
     final amount = _entered;
 
     if (token == null) {
-      NotificationService.showError(context, 'Select an asset.');
+      if (mounted) NotificationService.showError(context, 'Select an asset.');
       return;
     }
     if (!RegExp(r'^0x[a-fA-F0-9]{40}$').hasMatch(recipient)) {
-      NotificationService.showError(context, 'Invalid recipient address.');
+      if (mounted) NotificationService.showError(context, 'Invalid recipient address.');
       return;
     }
     if (amount <= 0) {
-      NotificationService.showError(context, 'Enter a valid amount.');
+      if (mounted) NotificationService.showError(context, 'Enter a valid amount.');
       return;
     }
     if (amount > token.balance) {
-      NotificationService.showError(context, 'Insufficient balance.');
+      if (mounted) NotificationService.showError(context, 'Insufficient balance.');
       return;
     }
 
@@ -92,7 +92,7 @@ class _SendScreenState extends State<SendScreen> {
     final walletProvider = context.read<WalletProvider>();
     final navigator = Navigator.of(context);
 
-    setState(() { _loading = true; _message = 'Preparing...'; });
+    if (mounted) setState(() { _loading = true; _message = 'Preparing...'; });
     try {
       final prepared = token.isNative
           ? await api.prepareNativeSend(network: token.chain, toAddress: recipient, amount: amount.toString())
@@ -277,6 +277,7 @@ class _SendScreenState extends State<SendScreen> {
                 ),
               ).animate(onPlay: (c) => c.repeat(reverse: true))
                .scale(begin: const Offset(0.8, 0.8), end: const Offset(1.3, 1.3), duration: 4.seconds),
+            ),
 
             ListView(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -346,7 +347,9 @@ class _SendScreenState extends State<SendScreen> {
                       IconButton(
                         onPressed: () {
                           if (_address.text.isNotEmpty) {
-                            Share.share('Wallet Address: ${_address.text}');
+                            SharePlus.instance.share(
+                              ShareParams(text: 'Wallet Address: ${_address.text}'),
+                            );
                           } else {
                             NotificationService.showInfo(context, 'Recipient address is empty');
                           }
@@ -491,7 +494,7 @@ class _SendScreenState extends State<SendScreen> {
                   letterSpacing: 1.5,
                 ),
               ),
-              if (trailing != null) trailing,
+              ?trailing,
             ],
           ),
           const SizedBox(height: 16),

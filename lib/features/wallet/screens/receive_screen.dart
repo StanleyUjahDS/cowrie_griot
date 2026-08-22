@@ -98,9 +98,11 @@ class ReceiveScreen extends StatelessWidget {
                                 ),
                                 IconButton(
                                   onPressed: () {
-                                    Share.share(
-                                      'My Cowrie Griot Wallet Address ($symbol):\n\n$address',
-                                      subject: 'My Wallet Address',
+                                    SharePlus.instance.share(
+                                      ShareParams(
+                                        text: 'My Cowrie Griot Wallet Address ($symbol):\n\n$address',
+                                        subject: 'My Wallet Address',
+                                      ),
                                     );
                                   },
                                   icon: Icon(Icons.share_rounded, size: 20, color: colors.primary.withValues(alpha: 0.6)),

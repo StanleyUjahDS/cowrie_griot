@@ -248,6 +248,8 @@ class _SwapScreenState extends State<SwapScreen> {
 
     final walletService = context.read<WalletService>();
     final swapApi = context.read<SwapApiService>();
+    final rpcService = context.read<WalletRpcService>();
+    final transactionApi = context.read<TransactionApiService>();
 
     final amount = _amountController.text.trim();
     final enteredAmount = double.tryParse(amount) ?? 0.0;
@@ -298,15 +300,13 @@ class _SwapScreenState extends State<SwapScreen> {
       _loadingMessage = 'Preparing...';
     });
     try {
-      if (nonce == null) {
-        nonce = await context.read<WalletRpcService>().getPendingNonce(
+      nonce ??= await rpcService.getPendingNonce(
           network: fromToken.chain,
           address: fromAddress,
         );
-      }
 
       if (gasLimit == null) {
-        final estimate = await context.read<TransactionApiService>().estimateTransaction(
+        final estimate = await transactionApi.estimateTransaction(
           network: fromToken.chain,
           transaction: {
             'from': fromAddress,
@@ -323,8 +323,8 @@ class _SwapScreenState extends State<SwapScreen> {
       final signedTx = await walletService.signNativeTransaction(
         to: to,
         valueRaw: value,
-        nonce: nonce!,
-        gasLimit: gasLimit!,
+        nonce: nonce,
+        gasLimit: gasLimit,
         gasPrice: gasPrice,
         maxFeePerGas: maxFeePerGas,
         maxPriorityFeePerGas: maxPriorityFeePerGas,
@@ -424,7 +424,7 @@ class _SwapScreenState extends State<SwapScreen> {
       final transactionRequest = quote['transactionRequest'] ?? quote['transaction'] ?? {};
       final chainId = int.tryParse(transactionRequest['chainId']?.toString() ?? '') ?? 1;
 
-      setState(() => _loadingMessage = 'Signing...');
+      if (mounted) setState(() => _loadingMessage = 'Signing...');
       final signedTx = await walletService.signNativeTransaction(
         to: fromToken.contractAddress,
         valueRaw: '0',
@@ -877,6 +877,7 @@ class _SwapScreenState extends State<SwapScreen> {
                 ),
               ).animate(onPlay: (c) => c.repeat(reverse: true))
                .scale(begin: const Offset(0.8, 0.8), end: const Offset(1.2, 1.2), duration: 5.seconds),
+            ),
 
             SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
