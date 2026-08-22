@@ -26,6 +26,8 @@ class WalletProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   bool _hideZeroBalance = false;
+  bool _hideUnverified = false;
+  bool _hideLowBalance = false;
   bool _onlyProfit = false;
   bool _onlyLoss = false;
   final Set<String> _selectedChains = {};
@@ -37,6 +39,8 @@ class WalletProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
   bool get hideZeroBalance => _hideZeroBalance;
+  bool get hideUnverified => _hideUnverified;
+  bool get hideLowBalance => _hideLowBalance;
   bool get onlyProfit => _onlyProfit;
   bool get onlyLoss => _onlyLoss;
   Set<String> get hiddenTokenKeys => Set.unmodifiable(_hiddenTokenKeys);
@@ -47,17 +51,72 @@ class WalletProvider extends ChangeNotifier {
   }
 
   String _getTokenKey(TokenModel token) {
-    return '${token.chain}:${token.contractAddress.toLowerCase().trim()}';
+    return token.identity;
   }
 
   bool isTokenHidden(TokenModel token) {
     return _hiddenTokenKeys.contains(_getTokenKey(token));
   }
 
+  List<TokenModel> get verifiedAssets {
+    return _tokens.where((token) {
+      if (_hiddenTokenKeys.contains(_getTokenKey(token))) return false;
+      if (_hideLowBalance && token.valueUsd < 1) return false;
+      return token.isTradeable && token.status != 'unknown' && token.status != 'blocked';
+    }).toList()..sort((a, b) => b.valueUsd.compareTo(a.valueUsd));
+  }
+
+  List<TokenModel> get unverifiedAssets {
+    if (_hideUnverified) return [];
+
+    return _tokens.where((token) {
+      if (_hiddenTokenKeys.contains(_getTokenKey(token))) return false;
+      if (token.isTradeable && token.status != 'unknown' && token.status != 'blocked') return false;
+      if (isTokenBlocked(token)) return false;
+      if (_hideLowBalance && token.valueUsd < 1) return false;
+      
+      final security = token.security ?? {};
+      final isAvailable = security['available'] == true;
+      final riskLevel = security['riskLevel']?.toString().toLowerCase();
+
+      // Unknown or Verified Third-party
+      return !isAvailable || riskLevel == 'unknown' || (isAvailable && riskLevel != 'high');
+    }).toList()..sort((a, b) => b.valueUsd.compareTo(a.valueUsd));
+  }
+
+  List<TokenModel> get blockedAssets {
+    return _tokens.where((token) {
+      return isTokenBlocked(token);
+    }).toList()..sort((a, b) => b.valueUsd.compareTo(a.valueUsd));
+  }
+
+  bool isTokenBlocked(TokenModel token) {
+    if (token.isSpam) return true;
+    final security = token.security ?? {};
+    final riskLevel = security['riskLevel']?.toString().toLowerCase();
+    return riskLevel == 'high';
+  }
+
+  bool canSwap(TokenModel token) {
+    if (token.isOfficial) return true;
+    if (isTokenBlocked(token)) return false;
+    
+    final security = token.security ?? {};
+    final isAvailable = security['available'] == true;
+    final riskLevel = security['riskLevel']?.toString().toLowerCase();
+
+    // Do not allow swapping by default for unknown tokens
+    if (!isAvailable || riskLevel == 'unknown') return false;
+
+    // Allow swapping for verified but non-official if not high risk
+    return isAvailable && riskLevel != 'high';
+  }
+
   List<TokenModel> get filteredTokens {
+    // Note: We return all non-blocked tokens for the general list if not explicitly filtered.
+    // The UI will handle categorization into sections.
     final result = _tokens.where((token) {
-      // Contract: Only show tokens that are not spam and are tradeable.
-      if (token.isSpam) {
+      if (isTokenBlocked(token)) {
         return false;
       }
       if (!token.isTradeable) {
@@ -75,6 +134,14 @@ class WalletProvider extends ChangeNotifier {
       }
 
       if (_hideZeroBalance && token.balance <= 0) {
+        return false;
+      }
+
+      if (_hideUnverified && !token.isOfficial) {
+        return false;
+      }
+
+      if (_hideLowBalance && token.valueUsd < 1) {
         return false;
       }
 
@@ -118,14 +185,30 @@ class WalletProvider extends ChangeNotifier {
       _hiddenTokenKeys.clear();
       _hiddenTokenKeys.addAll(hiddenList);
 
+      final filterSettings = await _walletService.getWalletFilters();
+      _hideZeroBalance = filterSettings['hideZeroBalance'] == true;
+      _hideUnverified = filterSettings['hideUnverified'] == true;
+      _hideLowBalance = filterSettings['hideLowBalance'] == true;
+      _onlyProfit = filterSettings['onlyProfit'] == true;
+      _onlyLoss = filterSettings['onlyLoss'] == true;
+      
+      final savedChains = filterSettings['selectedChains'];
+      if (savedChains is List) {
+        _selectedChains.clear();
+        _selectedChains.addAll(savedChains.map((e) => e.toString()));
+      }
+
       final responseData = await _walletApiService.getAssets();
       final List assetsJson = responseData['assets'] ?? [];
       final parsedTokens = assetsJson
           .map((json) => TokenModel.fromJson(Map<String, dynamic>.from(json)))
           .toList();
 
-      final totalBalanceUsd = responseData['totalValueUsd'] ?? 
-        parsedTokens.fold<num>(0, (total, token) => total + token.valueUsd);
+      final totalBalanceUsd = parsedTokens
+          .where((token) => !_hiddenTokenKeys.contains(_getTokenKey(token)))
+          .where((token) => !isTokenBlocked(token))
+          .where((token) => token.valueUsd >= 0.01)
+          .fold<num>(0, (total, token) => total + token.valueUsd);
 
       _wallet = WalletModel(
         address: responseData['address'] ?? address,
@@ -161,20 +244,46 @@ class WalletProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> _saveFilters() async {
+    await _walletService.saveWalletFilters({
+      'hideZeroBalance': _hideZeroBalance,
+      'hideUnverified': _hideUnverified,
+      'hideLowBalance': _hideLowBalance,
+      'onlyProfit': _onlyProfit,
+      'onlyLoss': _onlyLoss,
+      'selectedChains': _selectedChains.toList(),
+    });
+  }
+
   void setHideZeroBalance(bool value) {
     _hideZeroBalance = value;
+    _saveFilters();
+    notifyListeners();
+  }
+
+  void setHideUnverified(bool value) {
+    _hideUnverified = value;
+    _saveFilters();
+    notifyListeners();
+  }
+
+  void setHideLowBalance(bool value) {
+    _hideLowBalance = value;
+    _saveFilters();
     notifyListeners();
   }
 
   void setOnlyProfit(bool value) {
     _onlyProfit = value;
     if (value) _onlyLoss = false;
+    _saveFilters();
     notifyListeners();
   }
 
   void setOnlyLoss(bool value) {
     _onlyLoss = value;
     if (value) _onlyProfit = false;
+    _saveFilters();
     notifyListeners();
   }
 
@@ -184,14 +293,18 @@ class WalletProvider extends ChangeNotifier {
     } else {
       _selectedChains.add(chain);
     }
+    _saveFilters();
     notifyListeners();
   }
 
   void clearFilters() {
     _hideZeroBalance = false;
+    _hideUnverified = false;
+    _hideLowBalance = false;
     _onlyProfit = false;
     _onlyLoss = false;
     _selectedChains.clear();
+    _saveFilters();
     notifyListeners();
   }
 
@@ -207,6 +320,8 @@ class WalletProvider extends ChangeNotifier {
     _isLoading = false;
     _error = null;
     _hideZeroBalance = false;
+    _hideUnverified = false;
+    _hideLowBalance = false;
     _onlyProfit = false;
     _onlyLoss = false;
     _selectedChains.clear();
