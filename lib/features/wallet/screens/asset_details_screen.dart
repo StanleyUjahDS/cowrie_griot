@@ -174,6 +174,9 @@ class AssetDetailsScreen extends StatelessWidget {
                     const SizedBox(height: 48),
 
                     // Market Info or Charts could go here
+                    _buildSecurityCard(context),
+                    const SizedBox(height: 32),
+
                     _buildSectionHeader(context, 'About ${token.name}'),
                     const SizedBox(height: 16),
                     _buildInfoCard(context),
@@ -186,48 +189,38 @@ class AssetDetailsScreen extends StatelessWidget {
                     Consumer<WalletProvider>(
                       builder: (context, provider, _) {
                         final explorerUrl = _getExplorerUrl(provider.wallet?.address);
+                        final backendExplorer = token.externalLinks['explorer'] ?? '';
+                        final dexUrl = token.externalLinks['dexScreener'] ?? '';
+                        final securityUrl = token.externalLinks['goPlus'] ?? token.externalLinks['defiScanner'] ?? '';
+                        final honeypotUrl = token.externalLinks['honeypot'] ?? '';
                         return _buildLinkCard(
                           context,
                           links: [
-                            if (explorerUrl.isNotEmpty)
+                            if (backendExplorer.isNotEmpty || explorerUrl.isNotEmpty)
                               _LinkItem(
                                 title: 'Block Explorer',
                                 subtitle: 'View transactions on-chain',
                                 icon: Icons.explore_outlined,
-                                onTap: () => _launchUrl(context, explorerUrl),
+                                onTap: () => _launchUrl(context, backendExplorer.isNotEmpty ? backendExplorer : explorerUrl),
                               ),
-                            _LinkItem(
+                            if (dexUrl.isNotEmpty) _LinkItem(
                               title: 'Market Analysis',
                               subtitle: 'Check price & liquidity on Dexscreener',
                               icon: Icons.bar_chart_rounded,
-                              onTap: () {
-                                final address = token.isNative ? '' : token.contractAddress;
-                                final url = address.isNotEmpty 
-                                  ? 'https://dexscreener.com/${token.chain}/$address'
-                                  : 'https://dexscreener.com/${token.chain}';
-                                _launchUrl(context, url);
-                              },
+                              onTap: () => _launchUrl(context, dexUrl),
                             ),
-                            _LinkItem(
+                            if (securityUrl.isNotEmpty) _LinkItem(
                               title: 'Web3 Security (Rewards)',
                               subtitle: 'Scan with De.Fi Shield for points',
                               icon: Icons.verified_user_rounded,
-                              onTap: () {
-                                final address = token.isNative ? provider.wallet?.address : token.contractAddress;
-                                // De.Fi and GoPlus often have networking/loyalty programs 
-                                // that track usage for potential airdrops/rewards.
-                                _launchUrl(context, 'https://de.fi/scanner/ethereum/$address');
-                              },
+                              onTap: () => _launchUrl(context, securityUrl),
                             ),
-                            if (!token.isNative)
+                            if (honeypotUrl.isNotEmpty)
                               _LinkItem(
                                 title: 'Contract Security',
                                 subtitle: 'Scan for honeypots & risks',
                                 icon: Icons.security_rounded,
-                                onTap: () => _launchUrl(
-                                  context, 
-                                  'https://honeypot.is/ethereum?address=${token.contractAddress}'
-                                ),
+                                onTap: () => _launchUrl(context, honeypotUrl),
                               ),
                           ],
                         );
@@ -268,6 +261,84 @@ class AssetDetailsScreen extends StatelessWidget {
     NotificationService.showSuccess(context, 'Contract address copied');
   }
 
+  Widget _buildSecurityCard(BuildContext context) {
+    final provider = context.read<WalletProvider>();
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+
+    final isBlocked = provider.isTokenBlocked(token);
+    final canSwap = provider.canSwap(token);
+    final isOfficial = token.isOfficial;
+    final security = token.security ?? {};
+    final isAvailable = security['available'] == true;
+    final riskLevel = security['riskLevel']?.toString().toLowerCase();
+
+    Color statusColor;
+    String statusTitle;
+    String statusDesc;
+    IconData statusIcon;
+
+    if (isOfficial) {
+      statusColor = colors.tertiary;
+      statusTitle = 'Verified';
+      statusDesc = 'Swap available';
+      statusIcon = Icons.verified_rounded;
+    } else if (isBlocked) {
+      statusColor = colors.error;
+      statusTitle = 'High-risk token';
+      statusDesc = 'Do not interact with this token';
+      statusIcon = Icons.gpp_bad_rounded;
+    } else if (!isAvailable || riskLevel == 'unknown') {
+      statusColor = colors.onSurfaceVariant.withValues(alpha: 0.6);
+      statusTitle = 'Security status: Not verified';
+      statusDesc = 'Swap disabled';
+      statusIcon = Icons.help_outline_rounded;
+    } else {
+      // Verified but non-official
+      statusColor = colors.primary;
+      statusTitle = 'Unverified / Third-party token';
+      statusDesc = canSwap ? 'Swap available with warning' : 'Swap disabled';
+      statusIcon = Icons.info_outline_rounded;
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: statusColor.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: statusColor.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Icon(statusIcon, color: statusColor, size: 28),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  statusTitle,
+                  style: text.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: statusColor,
+                  ),
+                ),
+                Text(
+                  statusDesc,
+                  style: text.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSectionHeader(BuildContext context, String title) {
     return Align(
       alignment: Alignment.centerLeft,
@@ -297,20 +368,43 @@ class AssetDetailsScreen extends StatelessWidget {
           _infoRow(context, 'Price', WalletFormatters.formatCurrency(token.priceUsd)),
           const Divider(height: 32),
           _infoRow(context, 'Symbol', token.symbol),
+          if (!token.isNative) ...[
+            const Divider(height: 32),
+            _infoRow(
+              context, 
+              'Contract', 
+              WalletFormatters.shortenAddress(token.contractAddress),
+              onTap: () => context.push('/wallet/search', extra: token.contractAddress),
+              trailing: Icon(Icons.search_rounded, size: 16, color: Theme.of(context).colorScheme.primary),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _infoRow(BuildContext context, String label, String value) {
+  Widget _infoRow(BuildContext context, String label, String value, {VoidCallback? onTap, Widget? trailing}) {
     final colors = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: text.bodyMedium?.copyWith(color: colors.onSurfaceVariant)),
-        Text(value, style: text.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
-      ],
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: text.bodyMedium?.copyWith(color: colors.onSurfaceVariant)),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(value, style: text.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
+              if (trailing != null) ...[
+                const SizedBox(width: 8),
+                trailing,
+              ],
+            ],
+          ),
+        ],
+      ),
     );
   }
 
