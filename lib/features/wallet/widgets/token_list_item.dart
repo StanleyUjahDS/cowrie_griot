@@ -5,11 +5,13 @@ import 'token_icon.dart';
 class TokenListItem extends StatelessWidget {
   final TokenModel token;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
   const TokenListItem({
     super.key,
     required this.token,
     this.onTap,
+    this.onLongPress,
   });
 
   String _formatBalance(num value) {
@@ -51,17 +53,26 @@ class TokenListItem extends StatelessWidget {
     final text = Theme.of(context).textTheme;
 
     final bool isPositive = token.changePercent >= 0;
+    final isBlocked = token.isSpam || (token.security?['riskLevel']?.toString().toLowerCase() == 'high');
+    final isOfficial = token.isOfficial;
 
     return InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       borderRadius: BorderRadius.circular(20),
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: colors.surfaceContainerLow.withValues(alpha: 0.4),
+          color: isBlocked 
+            ? colors.error.withValues(alpha: 0.05) 
+            : colors.surfaceContainerLow.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.05)),
+          border: Border.all(
+            color: isBlocked 
+              ? colors.error.withValues(alpha: 0.2) 
+              : colors.outlineVariant.withValues(alpha: 0.05)
+          ),
         ),
         child: Row(
           children: [
@@ -78,11 +89,34 @@ class TokenListItem extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    token.name.isEmpty ? token.symbol : token.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: text.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          token.name.isEmpty ? token.symbol : token.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: text.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      if (isOfficial) ...[
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.verified_rounded,
+                          size: 14,
+                          color: colors.tertiary,
+                        ),
+                      ],
+                      if (isBlocked) ...[
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.gpp_bad_rounded,
+                          size: 14,
+                          color: colors.error,
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 2),
                   Row(

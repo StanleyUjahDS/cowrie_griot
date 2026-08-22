@@ -6,12 +6,14 @@ class TokenList extends StatelessWidget {
   final List<TokenModel> tokens;
   final Widget emptyState;
   final Function(TokenModel) onTokenTap;
+  final Function(TokenModel)? onTokenLongPress;
 
   const TokenList({
     super.key,
     required this.tokens,
     required this.emptyState,
     required this.onTokenTap,
+    this.onTokenLongPress,
   });
 
   @override
@@ -27,6 +29,7 @@ class TokenList extends StatelessWidget {
           return TokenListItem(
             token: token,
             onTap: () => onTokenTap(token),
+            onLongPress: onTokenLongPress == null ? null : () => onTokenLongPress!(token),
           );
         },
         childCount: tokens.length,
