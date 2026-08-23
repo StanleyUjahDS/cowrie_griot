@@ -53,8 +53,12 @@ class TokenListItem extends StatelessWidget {
     final text = Theme.of(context).textTheme;
 
     final bool isPositive = token.changePercent >= 0;
-    final isBlocked = token.isSpam || (token.security?['riskLevel']?.toString().toLowerCase() == 'high');
-    final isOfficial = token.isOfficial;
+    final status = token.status.toLowerCase();
+    final isBlocked = status == 'blocked' || token.isSpam;
+    
+    // Major assets (Native and Griot Assets) are always treated as Verified.
+    final isVerified = status == 'verified' || token.isNative || token.isGriotAsset;
+    final isUnknown = status == 'unknown' && !token.isNative && !token.isGriotAsset;
 
     return InkWell(
       onTap: onTap,
@@ -88,24 +92,42 @@ class TokenListItem extends StatelessWidget {
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Row(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Flexible(
                         child: Text(
                           token.name.isEmpty ? token.symbol : token.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: text.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
+                          style: text.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
-                      if (isOfficial) ...[
+                      if (isVerified) ...[
                         const SizedBox(width: 4),
                         Icon(
                           Icons.verified_rounded,
                           size: 14,
-                          color: colors.tertiary,
+                          color: Colors.green,
+                        ),
+                      ],
+                      if (token.isEcosystem) ...[
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.workspace_premium_rounded,
+                          size: 16,
+                          color: colors.primary,
+                        ),
+                      ],
+                      if (isUnknown) ...[
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.help_outline_rounded,
+                          size: 14,
+                          color: colors.onSurfaceVariant.withValues(alpha: 0.5),
                         ),
                       ],
                       if (isBlocked) ...[
@@ -121,18 +143,51 @@ class TokenListItem extends StatelessWidget {
                   const SizedBox(height: 2),
                   Row(
                     children: [
+                      if (isUnknown) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: colors.onSurfaceVariant.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            "UNVERIFIED",
+                            style: text.labelSmall?.copyWith(
+                              fontSize: 8,
+                              fontWeight: FontWeight.w900,
+                              color: colors.onSurfaceVariant.withValues(alpha: 0.6),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      Flexible(
+                        child: Text(
+                          token.symbol,
+                          style: text.labelSmall?.copyWith(
+                            color: colors.onSurfaceVariant.withValues(alpha: 0.5),
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                       Text(
-                        token.symbol,
+                        ' • ${token.chain.toUpperCase()}',
                         style: text.labelSmall?.copyWith(
                           color: colors.onSurfaceVariant.withValues(alpha: 0.5),
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        _formatPrice(token.priceUsd),
-                        style: text.labelSmall?.copyWith(
-                          color: colors.onSurfaceVariant.withValues(alpha: 0.4),
+                      Flexible(
+                        child: Text(
+                          _formatPrice(token.priceUsd),
+                          style: text.labelSmall?.copyWith(
+                            color: colors.onSurfaceVariant.withValues(alpha: 0.4),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
@@ -143,6 +198,7 @@ class TokenListItem extends StatelessWidget {
             const SizedBox(width: 12),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   _formatBalance(token.balance),

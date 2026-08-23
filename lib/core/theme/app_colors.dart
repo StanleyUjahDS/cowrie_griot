@@ -329,4 +329,18 @@ class AppColors {
   static const Color darkBorder = Color(0xFF29323C);
 
   static const Color lightBorder = Color(0xFFE1E6EB);
+
+  static Color parseHexColor(String? hex) {
+    if (hex == null || hex.isEmpty) return const Color(0xFF64748B);
+    
+    try {
+      String cleanHex = hex.replaceAll('#', '');
+      if (cleanHex.length == 6) {
+        cleanHex = 'FF$cleanHex';
+      }
+      return Color(int.parse(cleanHex, radix: 16));
+    } catch (e) {
+      return const Color(0xFF64748B);
+    }
+  }
 }

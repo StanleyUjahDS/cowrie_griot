@@ -198,4 +198,29 @@ class WalletStorageService {
       value: jsonEncode(keys),
     );
   }
+
+  // ============================================================
+  // WALLET FILTERS STORAGE
+  // ============================================================
+
+  static const String _filtersKey = 'wallet_filters_settings';
+
+  Future<Map<String, dynamic>> getWalletFilters() async {
+    final data = await _storage.read(key: _filtersKey);
+    if (data == null || data.isEmpty) return {};
+    try {
+      final map = jsonDecode(data);
+      if (map is Map) {
+        return Map<String, dynamic>.from(map);
+      }
+    } catch (_) {}
+    return {};
+  }
+
+  Future<void> saveWalletFilters(Map<String, dynamic> filters) async {
+    await _storage.write(
+      key: _filtersKey,
+      value: jsonEncode(filters),
+    );
+  }
 }

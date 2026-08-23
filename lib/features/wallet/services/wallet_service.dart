@@ -142,4 +142,16 @@ class WalletService {
   Future<void> saveHiddenTokens(List<String> keys) {
     return _storageService.saveHiddenTokens(keys);
   }
+
+  // ============================================================
+  // FILTERS STORAGE DELEGATION
+  // ============================================================
+
+  Future<Map<String, dynamic>> getWalletFilters() {
+    return _storageService.getWalletFilters();
+  }
+
+  Future<void> saveWalletFilters(Map<String, dynamic> filters) {
+    return _storageService.saveWalletFilters(filters);
+  }
 }

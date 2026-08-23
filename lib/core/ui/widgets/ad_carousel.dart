@@ -29,7 +29,7 @@ class GriotAdCarousel extends StatefulWidget {
   const GriotAdCarousel({
     super.key,
     required this.items,
-    this.height = 360,
+    this.height = 420,
     this.autoSwipeDuration = const Duration(seconds: 6),
   });
 
@@ -38,7 +38,7 @@ class GriotAdCarousel extends StatefulWidget {
 }
 
 class _GriotAdCarouselState extends State<GriotAdCarousel> {
-  final PageController _pageController = PageController(viewportFraction: 0.92);
+  final PageController _pageController = PageController(viewportFraction: 0.86);
   final Map<int, NativeAd> _loadedAds = {};
   final Set<int> _loadingIndices = {};
   Timer? _autoSwipeTimer;
@@ -46,6 +46,7 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
   // Track theme properties to detect changes
   Brightness? _lastBrightness;
   Color? _lastPrimaryColor;
+  Color? _lastSurfaceColor;
 
   @override
   void initState() {
@@ -61,9 +62,12 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
     final colorScheme = theme.colorScheme;
     
     // Check if theme has changed to reload ads with new colors
-    if (_lastBrightness != theme.brightness || _lastPrimaryColor != colorScheme.primary) {
+    if (_lastBrightness != theme.brightness || 
+        _lastPrimaryColor != colorScheme.primary ||
+        _lastSurfaceColor != colorScheme.surface) {
       _lastBrightness = theme.brightness;
       _lastPrimaryColor = colorScheme.primary;
+      _lastSurfaceColor = colorScheme.surface;
       
       // Dispose and clear existing ads so they reload with new theme colors
       for (var ad in _loadedAds.values) {
@@ -106,12 +110,19 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
   void _loadAd(int index) {
     if (_loadedAds.containsKey(index) || _loadingIndices.contains(index)) return;
 
-    _loadingIndices.add(index);
-    
+    final colorScheme = Theme.of(context).colorScheme;
+
     NativeAd(
       adUnitId: AppConfig.nativeAdUnitId,
       factoryId: 'griot_native_ad',
       request: const AdRequest(),
+      customOptions: {
+        'primary': colorScheme.primary.toARGB32(),
+        'onPrimary': colorScheme.onPrimary.toARGB32(),
+        'surface': colorScheme.surface.toARGB32(),
+        'onSurface': colorScheme.onSurface.toARGB32(),
+        'onSurfaceVariant': colorScheme.onSurfaceVariant.toARGB32(),
+      },
       listener: NativeAdListener(
         onAdLoaded: (ad) {
           if (!mounted) {
@@ -166,25 +177,25 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
     final isDark = theme.brightness == Brightness.dark;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       decoration: BoxDecoration(
         color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: colorScheme.outline.withValues(alpha: isDark ? 0.2 : 0.12),
+          color: colorScheme.outline.withValues(alpha: isDark ? 0.24 : 0.14),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(24),
         child: Padding(
-          padding: const EdgeInsets.all(14), 
+          padding: const EdgeInsets.all(16), 
           child: ad != null
               ? AdWidget(ad: ad)
               : const Center(
@@ -201,14 +212,14 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
     final textTheme = theme.textTheme;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: colorScheme.primary.withValues(alpha: 0.3),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
+            color: colorScheme.primary.withValues(alpha: 0.35),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
           ),
         ],
       ),

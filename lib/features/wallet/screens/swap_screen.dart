@@ -42,7 +42,11 @@ class _SwapScreenState extends State<SwapScreen> {
   Map<String, dynamic>? _quote;
   Timer? _debounce;
   int _quoteRequestVersion = 0;
-  double _slippage = 0.005;
+  
+  String _slippageMode = 'auto';
+  double? _customSlippageValue;
+
+  double get _effectiveSlippage => _customSlippageValue ?? 0.01;
 
   @override
   void initState() {
@@ -173,7 +177,8 @@ class _SwapScreenState extends State<SwapScreen> {
             fromAmount: fromAmountRaw,
             fromAddress: fromAddress,
             toAddress: isCrossChain ? fromAddress : null,
-            slippage: _slippage,
+            modeOfSlippage: _slippageMode,
+            slippage: _slippageMode == 'custom' ? _effectiveSlippage : null,
           );
 
       if (!mounted || requestVersion != _quoteRequestVersion) return;
@@ -293,6 +298,9 @@ class _SwapScreenState extends State<SwapScreen> {
 
     if (confirmed != true || !mounted) return;
 
+    // Dismiss keyboard and focus before proceeding with transaction
+    FocusScope.of(context).unfocus();
+
     setState(() {
       _isLoading = true;
       _loadingMessage = 'Preparing...';
@@ -323,6 +331,9 @@ class _SwapScreenState extends State<SwapScreen> {
 
       if (mounted) setState(() => _loadingMessage = 'Signing...');
       
+      // Ensure focus is dismissed
+      if (mounted) FocusScope.of(context).unfocus();
+
       final signedTx = await walletService.signNativeTransaction(
         to: to,
         valueRaw: value,
@@ -809,133 +820,22 @@ class _SwapScreenState extends State<SwapScreen> {
     _debounce?.cancel();
   }
 
-  Future<bool?> _showRiskWarning(BuildContext context, TokenModel token) {
-    final colors = Theme.of(context).colorScheme;
-    return showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.warning_amber_rounded, color: colors.error),
-            const SizedBox(width: 8),
-            const Text('Risk Warning'),
-          ],
-        ),
-        content: Text(
-          '${token.name} (${token.symbol}) is an unverified third-party token. '
-          'Trading third-party tokens carries significant risk. '
-          'Ensure you trust this contract before proceeding.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(
-              backgroundColor: colors.error,
-              foregroundColor: colors.onError,
-            ),
-            child: const Text('I Understand'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showTokenPicker(BuildContext context, {required bool isFrom}) {
-    final provider = context.read<WalletProvider>();
-    final tokens = provider.tokens.where((t) => provider.canSwap(t)).toList();
-
-    showModalBottomSheet(
-      context: context,
-      showDragHandle: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
-        ),
-        child: ListView.builder(
-          itemCount: tokens.length + 1,
-          padding: const EdgeInsets.fromLTRB(0, 0, 0, 32),
-          itemBuilder: (context, index) {
-            if (index == 0) {
-              return ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                  child: Icon(Icons.search, color: Theme.of(context).colorScheme.primary),
-                ),
-                title: const Text('Search for more tokens', style: TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: const Text('Search by name or address', style: TextStyle(fontSize: 12)),
-                onTap: () async {
-                  Navigator.pop(context);
-                  if (!context.mounted) return;
-                  final selected = await context.push<TokenModel>('/wallet/search');
-                  if (selected != null && mounted) {
-                    setState(() {
-                      if (isFrom) {
-                        _fromToken = selected;
-                      } else {
-                        _toToken = selected;
-                      }
-                      _quote = null;
-                      _amountController.clear();
-                      _usdController.clear();
-                    });
-                    _getQuote();
-                  }
-                },
-              );
-            }
-
-            final token = tokens[index - 1];
-            return ListTile(
-              leading: TokenIcon(
-                imageUrl: token.imageUrl,
-                symbol: token.symbol,
-                name: token.name,
-                chainName: token.chain,
-                isNative: token.isNative,
-                radius: 18,
-              ),
-              title: Row(
-                children: [
-                  Flexible(child: Text(token.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), overflow: TextOverflow.ellipsis)),
-                  if (token.isOfficial) ...[
-                    const SizedBox(width: 4),
-                    Icon(Icons.verified_rounded, size: 14, color: Theme.of(context).colorScheme.tertiary),
-                  ],
-                ],
-              ),
-              subtitle: Text('${token.symbol} • ${token.chain.toUpperCase()}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey)),
-              trailing: Text(WalletFormatters.formatBalance(token.balance), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
-              onTap: () async {
-                if (!token.isOfficial) {
-                  final proceed = await _showRiskWarning(context, token);
-                  if (proceed != true) return;
-                }
-                
-                setState(() {
-                  if (isFrom) {
-                    _fromToken = token;
-                  } else {
-                    _toToken = token;
-                  }
-                  _quote = null;
-                  _amountController.clear();
-                  _usdController.clear();
-                });
-                if (!context.mounted) return;
-                Navigator.pop(context);
-                _getQuote();
-              },
-            );
-          },
-        ),
-      ),
-    );
+  Future<void> _showTokenPicker(BuildContext context, {required bool isFrom}) async {
+    final selected = await context.push<TokenModel>('/wallet/search?mode=select');
+    
+    if (selected != null && mounted) {
+      setState(() {
+        if (isFrom) {
+          _fromToken = selected;
+        } else {
+          _toToken = selected;
+        }
+        _quote = null;
+        _amountController.clear();
+        _usdController.clear();
+      });
+      _getQuote();
+    }
   }
 
   @override
@@ -1454,6 +1354,13 @@ class _SwapScreenState extends State<SwapScreen> {
     final colors = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
 
+    String displayValue;
+    if (_slippageMode == 'auto') {
+      displayValue = 'Auto';
+    } else {
+      displayValue = '${(_effectiveSlippage * 100).toStringAsFixed(1)}%';
+    }
+
     return InkWell(
       onTap: () => _showSlippagePicker(context),
       borderRadius: BorderRadius.circular(16),
@@ -1469,7 +1376,7 @@ class _SwapScreenState extends State<SwapScreen> {
             Icon(Icons.tune_rounded, size: 20, color: colors.onSurfaceVariant.withValues(alpha: 0.6)),
             const SizedBox(width: 14),
             Text(
-              'Max Slippage',
+              'Slippage Tolerance',
               style: text.bodySmall?.copyWith(
                 color: colors.onSurfaceVariant.withValues(alpha: 0.8),
                 fontWeight: FontWeight.w700,
@@ -1478,7 +1385,7 @@ class _SwapScreenState extends State<SwapScreen> {
             ),
             const Spacer(),
             Text(
-              '${(_slippage * 100).toStringAsFixed(1)}%',
+              displayValue,
               style: text.bodyMedium?.copyWith(
                 color: colors.primary,
                 fontWeight: FontWeight.w900,
@@ -1493,97 +1400,20 @@ class _SwapScreenState extends State<SwapScreen> {
   }
 
   void _showSlippagePicker(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
-    final options = [0.001, 0.005, 0.01, 0.02, 0.03];
-
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: colors.onSurfaceVariant.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 28),
-            Text(
-              'Swap Settings',
-              style: text.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Maximum price change you are willing to accept. Swaps will revert if the price moves by more than this percentage.',
-              style: text.bodyMedium?.copyWith(color: colors.onSurfaceVariant.withValues(alpha: 0.6), height: 1.4),
-            ),
-            const SizedBox(height: 32),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: options.map((val) {
-                final isSelected = _slippage == val;
-                return Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: InkWell(
-                      onTap: () {
-                        setState(() => _slippage = val);
-                        Navigator.pop(context);
-                        _getQuote();
-                      },
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        decoration: BoxDecoration(
-                          color: isSelected ? colors.primary : colors.surfaceContainerHighest.withValues(alpha: 0.4),
-                          borderRadius: BorderRadius.circular(16),
-                          border: isSelected ? null : Border.all(color: colors.outlineVariant.withValues(alpha: 0.1)),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          '${(val * 100).toStringAsFixed(1)}%',
-                          style: TextStyle(
-                            color: isSelected ? colors.onPrimary : colors.onSurface,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              height: 60,
-              child: FilledButton(
-                onPressed: () => Navigator.pop(context),
-                style: FilledButton.styleFrom(
-                  backgroundColor: colors.surfaceContainerHighest,
-                  foregroundColor: colors.onSurface,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                  elevation: 0,
-                ),
-                child: const Text('Done', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-              ),
-            ),
-          ],
-        ),
+      isScrollControlled: true,
+      builder: (context) => _SlippagePickerSheet(
+        initialMode: _slippageMode,
+        initialValue: _customSlippageValue ?? 0.01,
+        onChanged: (mode, value) {
+          setState(() {
+            _slippageMode = mode;
+            _customSlippageValue = value;
+          });
+          _getQuote();
+        },
       ),
     );
   }
@@ -1615,28 +1445,254 @@ class _SwapScreenState extends State<SwapScreen> {
             fontWeight: FontWeight.w700,
           ),
         ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              value,
-              style: text.bodySmall?.copyWith(
-                fontWeight: isBold ? FontWeight.w900 : FontWeight.w800,
-                color: valueColor ?? colors.onSurface,
-              ),
-            ),
-            if (subtitle != null)
-              Text(
-                subtitle,
-                style: text.labelSmall?.copyWith(
-                  color: colors.onSurfaceVariant.withValues(alpha: 0.4),
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Text(
+                  value,
+                  style: text.bodySmall?.copyWith(
+                    fontWeight: isBold ? FontWeight.w900 : FontWeight.w800,
+                    color: valueColor ?? colors.onSurface,
+                  ),
                 ),
               ),
-          ],
+              if (subtitle != null)
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    subtitle,
+                    style: text.labelSmall?.copyWith(
+                      color: colors.onSurfaceVariant.withValues(alpha: 0.4),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ],
+    );
+  }
+}
+
+class _SlippagePickerSheet extends StatefulWidget {
+  final String initialMode;
+  final double initialValue;
+  final Function(String mode, double? value) onChanged;
+
+  const _SlippagePickerSheet({
+    required this.initialMode,
+    required this.initialValue,
+    required this.onChanged,
+  });
+
+  @override
+  State<_SlippagePickerSheet> createState() => _SlippagePickerSheetState();
+}
+
+class _SlippagePickerSheetState extends State<_SlippagePickerSheet> {
+  late String _mode;
+  late TextEditingController _controller;
+  final List<double> _presets = [0.005, 0.01, 0.02, 0.03, 0.05, 0.10];
+
+  @override
+  void initState() {
+    super.initState();
+    _mode = widget.initialMode;
+    _controller = TextEditingController(
+      text: (widget.initialValue * 100).toStringAsFixed(1),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (_mode == 'auto') {
+      widget.onChanged('auto', null);
+    } else {
+      final val = double.tryParse(_controller.text) ?? 1.0;
+      widget.onChanged('custom', val / 100);
+    }
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    final double? currentVal = double.tryParse(_controller.text);
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(24, 12, 24, MediaQuery.of(context).viewInsets.bottom + 32),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 42,
+              height: 4,
+              decoration: BoxDecoration(
+                color: colors.onSurfaceVariant.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 28),
+          Text('Swap Settings', style: text.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+          const SizedBox(height: 24),
+          
+          // Auto / Custom Toggle
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: colors.surfaceContainerHighest.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () => setState(() => _mode = 'auto'),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: BoxDecoration(
+                        color: _mode == 'auto' ? colors.surface : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: _mode == 'auto' ? [BoxShadow(color: Colors.black12, blurRadius: 4)] : null,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text('Auto', style: TextStyle(fontWeight: _mode == 'auto' ? FontWeight.bold : FontWeight.normal)),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: InkWell(
+                    onTap: () => setState(() => _mode = 'custom'),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: BoxDecoration(
+                        color: _mode == 'custom' ? colors.surface : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: _mode == 'custom' ? [BoxShadow(color: Colors.black12, blurRadius: 4)] : null,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text('Custom', style: TextStyle(fontWeight: _mode == 'custom' ? FontWeight.bold : FontWeight.normal)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          if (_mode == 'custom') ...[
+            const SizedBox(height: 24),
+            Text('Custom Slippage', style: text.labelLarge?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      suffixText: '%',
+                      hintText: '1.0',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _presets.map((val) {
+                final pct = (val * 100);
+                final isSelected = currentVal == pct;
+                return InkWell(
+                  onTap: () => setState(() => _controller.text = pct.toStringAsFixed(pct == pct.toInt() ? 0 : 1)),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected ? colors.primary : colors.surfaceContainerHighest.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text('${pct.toStringAsFixed(pct == pct.toInt() ? 0 : 1)}%', 
+                      style: TextStyle(color: isSelected ? colors.onPrimary : colors.onSurface, fontWeight: FontWeight.bold, fontSize: 12)),
+                  ),
+                );
+              }).toList(),
+            ),
+            if (currentVal != null && currentVal > 5) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: (currentVal > 15 ? colors.error : Colors.orange).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: currentVal > 15 ? colors.error : Colors.orange, size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        currentVal > 15 
+                          ? 'Extremely high slippage. You may lose a significant portion of your tokens.'
+                          : 'High slippage. Your transaction might be front-run or result in a poor rate.',
+                        style: TextStyle(
+                          color: currentVal > 15 ? colors.error : Colors.orange,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ] else ...[
+            const SizedBox(height: 24),
+            Text(
+              'Griot will automatically adjust your slippage to ensure the best possible success rate for your trade.',
+              style: text.bodyMedium?.copyWith(color: colors.onSurfaceVariant.withValues(alpha: 0.6), height: 1.4),
+            ),
+          ],
+          
+          const SizedBox(height: 32),
+          SizedBox(
+            width: double.infinity,
+            height: 60,
+            child: FilledButton(
+              onPressed: _submit,
+              style: FilledButton.styleFrom(
+                backgroundColor: colors.primary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+              ),
+              child: const Text('Save Settings', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

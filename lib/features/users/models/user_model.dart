@@ -1,5 +1,29 @@
 // lib/features/users/models/user_model.dart
 
+class UserReputationBadge {
+  final String tierName;
+  final String badgeColor;
+
+  const UserReputationBadge({
+    required this.tierName,
+    required this.badgeColor,
+  });
+
+  factory UserReputationBadge.fromJson(Map<String, dynamic> json) {
+    return UserReputationBadge(
+      tierName: (json['tierName'] ?? json['tier_name'] ?? json['name'])?.toString() ?? 'Unknown Badger',
+      badgeColor: (json['badgeColor'] ?? json['badge_color'] ?? json['color'])?.toString() ?? '#64748B',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'tierName': tierName,
+      'badgeColor': badgeColor,
+    };
+  }
+}
+
 class UserModel {
   final String id;
   final String walletAddress;
@@ -11,6 +35,7 @@ class UserModel {
   final String? displayName;
   final String? avatarUrl;
   final String? bio;
+  final UserReputationBadge? reputation;
 
   const UserModel({
     required this.id,
@@ -21,11 +46,14 @@ class UserModel {
     this.displayName,
     this.avatarUrl,
     this.bio,
+    this.reputation,
   });
 
   factory UserModel.fromJson(
       Map<String, dynamic> json,
       ) {
+    final reputationJson = json['reputation'];
+
     return UserModel(
       id: json['id']?.toString() ?? '',
       walletAddress:
@@ -46,6 +74,11 @@ class UserModel {
       avatarUrl:
       (json['avatar_url'] ?? json['avatarUrl'])?.toString(),
       bio: json['bio']?.toString(),
+      reputation: reputationJson is Map
+          ? UserReputationBadge.fromJson(
+        Map<String, dynamic>.from(reputationJson),
+      )
+          : null,
     );
   }
 
@@ -61,6 +94,7 @@ class UserModel {
       'display_name': displayName,
       'avatar_url': avatarUrl,
       'bio': bio,
+      'reputation': reputation?.toJson(),
     };
   }
 
@@ -73,6 +107,7 @@ class UserModel {
     String? displayName,
     String? avatarUrl,
     String? bio,
+    UserReputationBadge? reputation,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -87,6 +122,7 @@ class UserModel {
       avatarUrl:
       avatarUrl ?? this.avatarUrl,
       bio: bio ?? this.bio,
+      reputation: reputation ?? this.reputation,
     );
   }
 }

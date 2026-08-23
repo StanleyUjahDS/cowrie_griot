@@ -1,27 +1,44 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../models/token_model.dart';
 import '../providers/token_search_provider.dart';
+import '../providers/wallet_provider.dart';
 import '../services/wallet_api_service.dart';
+import '../widgets/token_icon.dart';
+import '../utils/wallet_formatters.dart';
 
 class AssetSearchScreen extends StatelessWidget {
-  const AssetSearchScreen({super.key});
+  final String? initialQuery;
+  final bool isSelectMode;
+
+  const AssetSearchScreen({
+    super.key, 
+    this.initialQuery,
+    this.isSelectMode = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final walletProvider = context.read<WalletProvider>();
     return ChangeNotifierProvider(
       create: (context) => TokenSearchProvider(
         walletApiService: context.read<WalletApiService>(),
-      ),
-      child: const _AssetSearchContent(),
+      )
+        ..setHoldings(walletProvider.tokens)
+        ..setWalletMode(!isSelectMode)
+        ..updateQuery(initialQuery ?? ''),
+      child: _AssetSearchContent(isSelectMode: isSelectMode),
     );
   }
 }
 
 class _AssetSearchContent extends StatefulWidget {
-  const _AssetSearchContent();
+  final bool isSelectMode;
+
+  const _AssetSearchContent({required this.isSelectMode});
 
   @override
   State<_AssetSearchContent> createState() => _AssetSearchContentState();
@@ -36,6 +53,39 @@ class _AssetSearchContentState extends State<_AssetSearchContent> {
     super.dispose();
   }
 
+  Future<void> _toggleVisibility(BuildContext context, TokenModel token) async {
+    final provider = context.read<WalletProvider>();
+    final isHidden = provider.isTokenHidden(token);
+
+    final action = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(isHidden ? 'Unhide ${token.symbol}?' : 'Hide ${token.symbol}?'),
+        content: Text(isHidden
+            ? 'This will make the token visible in your wallet list again.'
+            : 'This only removes the token from your wallet list. It does not affect your blockchain balance.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(isHidden ? 'Unhide' : 'Hide'),
+          ),
+        ],
+      ),
+    );
+
+    if (action == true) {
+      if (isHidden) {
+        await provider.showToken(token);
+      } else {
+        await provider.hideToken(token);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -44,7 +94,7 @@ class _AssetSearchContentState extends State<_AssetSearchContent> {
 
     return GradientScaffold(
       appBar: AppBar(
-        title: const Text('Search Assets'),
+        title: Text(widget.isSelectMode ? 'Select Asset' : 'Search Assets'),
         elevation: 0,
         backgroundColor: Colors.transparent,
       ),
@@ -102,13 +152,46 @@ class _AssetSearchContentState extends State<_AssetSearchContent> {
                 ),
               ),
             )
+          else if (provider.query.isEmpty && provider.results.isNotEmpty)
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                    child: Text(
+                      widget.isSelectMode ? 'Popular assets' : 'Your holdings',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: colors.primary,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.only(bottom: 24),
+                      itemCount: provider.results.length,
+                      itemBuilder: (context, index) {
+                        final token = provider.results[index];
+                        return _TokenSearchResultItem(
+                          token: token,
+                          isSelectMode: widget.isSelectMode,
+                          onLongPress: () => _toggleVisibility(context, token),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            )
           else if (provider.query.isEmpty)
             Expanded(
               child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.search, size: 64, color: colors.onSurfaceVariant.withOpacity(0.2)),
+                    Icon(Icons.search, size: 64, color: colors.onSurfaceVariant.withValues(alpha: 0.2)),
                     const SizedBox(height: 16),
                     Text(
                       'Search for tokens or paste an address',
@@ -124,7 +207,7 @@ class _AssetSearchContentState extends State<_AssetSearchContent> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.search_off, size: 64, color: colors.onSurfaceVariant.withOpacity(0.2)),
+                    Icon(Icons.search_off, size: 64, color: colors.onSurfaceVariant.withValues(alpha: 0.2)),
                     const SizedBox(height: 16),
                     Text(
                       'No results found for "${provider.query}"',
@@ -141,7 +224,11 @@ class _AssetSearchContentState extends State<_AssetSearchContent> {
                 itemCount: provider.results.length,
                 itemBuilder: (context, index) {
                   final token = provider.results[index];
-                  return _TokenSearchResultItem(token: token);
+                  return _TokenSearchResultItem(
+                    token: token,
+                    isSelectMode: widget.isSelectMode,
+                    onLongPress: () => _toggleVisibility(context, token),
+                  );
                 },
               ),
             ),
@@ -153,128 +240,231 @@ class _AssetSearchContentState extends State<_AssetSearchContent> {
 
 class _TokenSearchResultItem extends StatelessWidget {
   final TokenModel token;
+  final bool isSelectMode;
+  final VoidCallback? onLongPress;
 
-  const _TokenSearchResultItem({required this.token});
+  const _TokenSearchResultItem({
+    required this.token,
+    required this.isSelectMode,
+    this.onLongPress,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final text = theme.textTheme;
+    final walletProvider = context.watch<WalletProvider>();
 
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        token.name,
-                        style: text.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      Text(
-                        '${token.symbol} • ${token.chain.toUpperCase()}',
-                        style: text.bodySmall?.copyWith(color: colors.onSurfaceVariant),
-                      ),
-                    ],
-                  ),
-                ),
-                _StatusBadge(status: token.status),
-              ],
+    final isBlocked = token.status == 'blocked';
+    final isHidden = walletProvider.isTokenHidden(token);
+    final canSwap = context.read<TokenSearchProvider>().canSwap(token);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      child: InkWell(
+        onTap: () {
+          if (isSelectMode) {
+            if (canSwap) {
+              Navigator.pop(context, token);
+            }
+          } else {
+            context.push('/wallet/asset', extra: token);
+          }
+        },
+        onLongPress: isSelectMode ? null : onLongPress,
+        borderRadius: BorderRadius.circular(24),
+        child: Ink(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isBlocked 
+              ? colors.error.withValues(alpha: 0.05) 
+              : colors.surfaceContainerLow.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: isBlocked 
+                ? colors.error.withValues(alpha: 0.2) 
+                : isHidden
+                  ? colors.primary.withValues(alpha: 0.3)
+                  : colors.outlineVariant.withValues(alpha: 0.1),
             ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              decoration: BoxDecoration(
-                color: colors.surfaceContainerHighest.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  Expanded(
-                    child: Text(
-                      token.contractAddress.isEmpty ? 'Native Asset' : token.contractAddress,
-                      style: text.labelSmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                        fontFamily: 'monospace',
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                  TokenIcon(
+                    imageUrl: token.imageUrl,
+                    symbol: token.symbol,
+                    name: token.name,
+                    chainName: token.chain,
+                    isNative: token.isNative,
+                    radius: 20,
                   ),
-                ],
-              ),
-            ),
-            if (token.reasons.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              ...token.reasons.map((reason) => Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Row(
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.warning_amber_rounded, size: 14, color: colors.error),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            reason,
-                            style: text.bodySmall?.copyWith(color: colors.error, fontSize: 11),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                token.name.isEmpty ? token.symbol : token.name,
+                                style: text.bodyLarge?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.2,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (token.status == 'verified' || token.isNative || token.isGriotAsset) ...[
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.verified_rounded,
+                                size: 14,
+                                color: Colors.green,
+                              ),
+                            ],
+                            if (token.isEcosystem) ...[
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.workspace_premium_rounded,
+                                size: 16,
+                                color: colors.primary,
+                              ),
+                            ],
+                          ],
+                        ),
+                        if (token.isGriotAsset) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            "Griot Native Asset",
+                            style: text.labelSmall?.copyWith(
+                              color: colors.primary,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 2),
+                        Text(
+                          '${token.symbol} • ${token.chain.toUpperCase()}',
+                          style: text.labelSmall?.copyWith(
+                            color: colors.onSurfaceVariant.withValues(alpha: 0.5),
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                        if (token.balance > 0) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Holding: ${WalletFormatters.formatBalance(token.balance)}',
+                            style: text.labelSmall?.copyWith(
+                              color: isHidden ? colors.onSurfaceVariant : colors.primary,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  if (!isSelectMode && token.balance > 0)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Transform.scale(
+                          scale: 0.7,
+                          alignment: Alignment.centerRight,
+                          child: Switch.adaptive(
+                            value: !isHidden,
+                            onChanged: (value) async {
+                              if (value) {
+                                await walletProvider.showToken(token);
+                              } else {
+                                await walletProvider.hideToken(token);
+                              }
+                            },
+                            activeTrackColor: colors.primary,
+                            activeThumbColor: Colors.white,
+                          ),
+                        ),
+                        Text(
+                          isHidden ? "HIDDEN" : "VISIBLE",
+                          style: text.labelSmall?.copyWith(
+                            fontSize: 7,
+                            fontWeight: FontWeight.w900,
+                            color: isHidden ? colors.onSurfaceVariant : colors.primary,
                           ),
                         ),
                       ],
                     ),
-                  )),
-            ],
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                if (context.read<TokenSearchProvider>().canSwap(token))
-                  FilledButton.tonal(
-                    onPressed: () {
-                      // Navigate to swap screen with this token
-                      Navigator.pop(context, token);
-                    },
-                    style: FilledButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                    ),
-                    child: const Text('Swap'),
-                  )
-                else
-                  Text(
-                    'Swapping unavailable',
-                    style: text.labelSmall?.copyWith(color: colors.error.withOpacity(0.7)),
+                ],
+              ),
+              if (!token.isOfficial && !token.isNative && token.contractAddress.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: colors.surfaceContainerHighest.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                const Spacer(),
-                if (token.externalLinks.containsKey('dexScreener'))
-                  _LinkButton(
-                    icon: Icons.show_chart,
-                    tooltip: 'DEX Screener',
-                    onPressed: () => _launchUrl(token.externalLinks['dexScreener']!),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          token.contractAddress,
+                          style: text.labelSmall?.copyWith(
+                            color: colors.onSurfaceVariant.withValues(alpha: 0.6),
+                            fontFamily: 'monospace',
+                            fontSize: 10,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
-                if (token.externalLinks.containsKey('explorer'))
-                  _LinkButton(
-                    icon: Icons.explore_outlined,
-                    tooltip: 'Explorer',
-                    onPressed: () => _launchUrl(token.externalLinks['explorer']!),
-                  ),
-                if (token.externalLinks.containsKey('tokenSniffer'))
-                  _LinkButton(
-                    icon: Icons.security,
-                    tooltip: 'TokenSniffer',
-                    onPressed: () => _launchUrl(token.externalLinks['tokenSniffer']!),
-                  ),
+                ),
               ],
-            ),
-          ],
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const Spacer(),
+                  _buildLinksRow(token),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildLinksRow(TokenModel token) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (token.externalLinks.containsKey('dexScreener'))
+          _LinkButton(
+            icon: Icons.show_chart,
+            tooltip: 'DEX Screener',
+            onPressed: () => _launchUrl(token.externalLinks['dexScreener']!),
+          ),
+        if (token.externalLinks.containsKey('explorer'))
+          _LinkButton(
+            icon: Icons.explore_outlined,
+            tooltip: 'Explorer',
+            onPressed: () => _launchUrl(token.externalLinks['explorer']!),
+          ),
+        if (token.externalLinks.containsKey('tokenSniffer'))
+          _LinkButton(
+            icon: Icons.security,
+            tooltip: 'TokenSniffer',
+            onPressed: () => _launchUrl(token.externalLinks['tokenSniffer']!),
+          ),
+      ],
     );
   }
 
@@ -305,75 +495,6 @@ class _LinkButton extends StatelessWidget {
       onPressed: onPressed,
       style: IconButton.styleFrom(
         visualDensity: VisualDensity.compact,
-      ),
-    );
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  final String status;
-
-  const _StatusBadge({required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    
-    Color backgroundColor;
-    Color textColor;
-    String label;
-    IconData icon;
-
-    switch (status.toLowerCase()) {
-      case 'official':
-        backgroundColor = Colors.green.withOpacity(0.1);
-        textColor = Colors.green;
-        label = 'Official';
-        icon = Icons.verified;
-        break;
-      case 'verified':
-        backgroundColor = Colors.blue.withOpacity(0.1);
-        textColor = Colors.blue;
-        label = 'Verified';
-        icon = Icons.check_circle_outline;
-        break;
-      case 'blocked':
-        backgroundColor = colors.errorContainer;
-        textColor = colors.onErrorContainer;
-        label = 'Blocked';
-        icon = Icons.block;
-        break;
-      case 'unknown':
-      default:
-        backgroundColor = colors.secondaryContainer;
-        textColor = colors.onSecondaryContainer;
-        label = 'Warning';
-        icon = Icons.help_outline;
-        break;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: textColor.withOpacity(0.2)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: textColor),
-          const SizedBox(width: 4),
-          Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              color: textColor,
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ],
       ),
     );
   }

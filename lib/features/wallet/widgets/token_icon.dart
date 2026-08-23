@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
+import 'package:flutter_svg/flutter_svg.dart';
+
 import '../utils/chain_assets.dart';
+import '../utils/token_assets.dart';
 
 class TokenIcon extends StatelessWidget {
   final String imageUrl;
@@ -78,11 +81,28 @@ class TokenIcon extends StatelessWidget {
   }
 
   Widget _tokenImage(BuildContext context) {
-    // The backend/CoinGecko image is the primary token logo for BOTH
-    // native and non-native assets.
-    //
-    // ChainAssets is intentionally NOT used as the main token image.
-    // It is used only for the small chain-identification badge below.
+    final localLogo = TokenAssets.getLogo(symbol);
+    if (localLogo != null) {
+      if (localLogo.endsWith('.svg')) {
+        return ClipOval(
+          child: SvgPicture.asset(
+            localLogo,
+            width: radius * 2,
+            height: radius * 2,
+            fit: BoxFit.contain,
+          ),
+        );
+      } else {
+        return ClipOval(
+          child: Image.asset(
+            localLogo,
+            width: radius * 2,
+            height: radius * 2,
+            fit: BoxFit.contain,
+          ),
+        );
+      }
+    }
     return _remoteTokenImage(context);
   }
 
@@ -99,23 +119,32 @@ class TokenIcon extends StatelessWidget {
           _tokenImage(context),
           if (chainName != null && chainName!.trim().isNotEmpty)
             Positioned(
-              right: -1,
-              bottom: -1,
+              right: -2,
+              bottom: -2,
               child: Container(
-                width: radius * 0.78,
-                height: radius * 0.78,
+                width: radius * 0.88,
+                height: radius * 0.88,
                 padding: const EdgeInsets.all(2),
                 decoration: BoxDecoration(
                   color: colors.surface,
                   shape: BoxShape.circle,
                   border: Border.all(
                     color: colors.outlineVariant,
-                    width: 0.7,
+                    width: 1.0,
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
-                child: ChainAssets.getIcon(
-                  chainName!,
-                  size: radius * 0.55,
+                child: Center(
+                  child: ChainAssets.getIcon(
+                    chainName!,
+                    size: radius * 0.62,
+                  ),
                 ),
               ),
             ),

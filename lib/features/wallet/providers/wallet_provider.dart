@@ -22,10 +22,10 @@ class WalletProvider extends ChangeNotifier {
 
   WalletModel? _wallet;
   List<TokenModel> _tokens = [];
+  List<TokenModel> _popularAssets = [];
   int _selectedTab = 0;
   bool _isLoading = false;
   String? _error;
-  bool _hideZeroBalance = false;
   bool _hideUnverified = false;
   bool _hideLowBalance = false;
   bool _onlyProfit = false;
@@ -35,10 +35,10 @@ class WalletProvider extends ChangeNotifier {
 
   WalletModel? get wallet => _wallet;
   List<TokenModel> get tokens => List.unmodifiable(_tokens);
+  List<TokenModel> get popularAssets => List.unmodifiable(_popularAssets);
   int get selectedTab => _selectedTab;
   bool get isLoading => _isLoading;
   String? get error => _error;
-  bool get hideZeroBalance => _hideZeroBalance;
   bool get hideUnverified => _hideUnverified;
   bool get hideLowBalance => _hideLowBalance;
   bool get onlyProfit => _onlyProfit;
@@ -64,16 +64,26 @@ class WalletProvider extends ChangeNotifier {
       if (_hideLowBalance && token.valueUsd < 1) return false;
       
       final status = token.status.toLowerCase();
-      // General wallet list includes verified, official, and unknown tokens.
-      // It EXCLUDES blocked and spam tokens.
-      return status != 'blocked' && !token.isSpam;
+      if (status == 'blocked' || token.isSpam) return false;
+      
+      // Verified/Major Assets: status verified/official, native assets, or Griot ecosystem assets
+      return status == 'verified' || status == 'official' || token.isNative || token.isGriotAsset;
     }).toList()..sort((a, b) => b.valueUsd.compareTo(a.valueUsd));
   }
 
   List<TokenModel> get unverifiedAssets {
-    // This category is now merged into verifiedAssets (General List)
-    // as per updated authoritative backend rules.
-    return [];
+    if (_hideUnverified) return [];
+
+    return _tokens.where((token) {
+      if (_hiddenTokenKeys.contains(_getTokenKey(token))) return false;
+      if (_hideLowBalance && token.valueUsd < 1) return false;
+      
+      final status = token.status.toLowerCase();
+      if (status == 'blocked' || token.isSpam) return false;
+      
+      // Unverified Assets: status unknown and NOT a major asset
+      return status == 'unknown' && !token.isNative && !token.isGriotAsset;
+    }).toList()..sort((a, b) => b.valueUsd.compareTo(a.valueUsd));
   }
 
   List<TokenModel> get blockedAssets {
@@ -90,9 +100,11 @@ class WalletProvider extends ChangeNotifier {
   }
 
   bool canSwap(TokenModel token) {
+    if (token.isNative || token.isGriotAsset) return true;
+
     final status = token.status.toLowerCase();
-    // AUTHORITATIVE: status == verified && isTradeable == true
-    return status == 'verified' && token.isTradeable;
+    // AUTHORITATIVE: status == verified && isTradeable == true && !isSpam
+    return status == 'verified' && token.isTradeable && !token.isSpam;
   }
 
   List<TokenModel> get filteredTokens {
@@ -110,10 +122,6 @@ class WalletProvider extends ChangeNotifier {
       }
 
       if (_hiddenTokenKeys.contains(_getTokenKey(token))) {
-        return false;
-      }
-
-      if (_hideZeroBalance && token.balance <= 0) {
         return false;
       }
 
@@ -145,6 +153,65 @@ class WalletProvider extends ChangeNotifier {
     return result;
   }
 
+  void _recalculateWalletTotals() {
+    if (_wallet == null) return;
+
+    // The total balance mirrors exactly what is visible in the list.
+    // If an asset is filtered out (manually hidden, low balance, or unverified filter), 
+    // it no longer contributes to the total.
+    final visibleTokens = _tokens.where((token) {
+      // 1. Manual Hide (Long press action)
+      if (_hiddenTokenKeys.contains(_getTokenKey(token))) return false;
+
+      // 2. Blocked/Spam (Always excluded)
+      if (isTokenBlocked(token)) return false;
+
+      final status = token.status.toLowerCase();
+      final isMajor =
+          status == 'verified' || status == 'official' || token.isNative || token.isGriotAsset;
+
+      // 3. Unverified Filter
+      if (_hideUnverified && status == 'unknown' && !isMajor) return false;
+
+      // 4. Low Balance Filter
+      if (_hideLowBalance && token.valueUsd < 1) return false;
+
+      // 5. Chain Filter
+      if (_selectedChains.isNotEmpty && !_selectedChains.contains(token.chain)) {
+        return false;
+      }
+
+      return true;
+    }).toList();
+
+    final totalBalanceUsd = visibleTokens.fold<num>(
+      0,
+      (total, token) => total + token.valueUsd,
+    );
+
+    // Calculate aggregate portfolio percentage change (24h) for visible assets
+    num totalPreviousValueUsd = 0;
+    for (final token in visibleTokens) {
+      if (token.hasMarketData && token.valueUsd > 0) {
+        final previousValue =
+            token.valueUsd / (1 + (token.changePercent / 100));
+        totalPreviousValueUsd += previousValue;
+      } else {
+        totalPreviousValueUsd += token.valueUsd;
+      }
+    }
+
+    final aggregateChangePercent = totalPreviousValueUsd > 0
+        ? ((totalBalanceUsd - totalPreviousValueUsd) / totalPreviousValueUsd) *
+            100
+        : 0.0;
+
+    _wallet = _wallet!.copyWith(
+      totalBalance: totalBalanceUsd,
+      changePercent: aggregateChangePercent,
+    );
+  }
+
   Future<void> loadWallet() async {
     if (_isLoading) return;
 
@@ -166,41 +233,42 @@ class WalletProvider extends ChangeNotifier {
       _hiddenTokenKeys.addAll(hiddenList);
 
       final filterSettings = await _walletService.getWalletFilters();
-      _hideZeroBalance = filterSettings['hideZeroBalance'] == true;
       _hideUnverified = filterSettings['hideUnverified'] == true;
       _hideLowBalance = filterSettings['hideLowBalance'] == true;
       _onlyProfit = filterSettings['onlyProfit'] == true;
       _onlyLoss = filterSettings['onlyLoss'] == true;
-      
+
       final savedChains = filterSettings['selectedChains'];
       if (savedChains is List) {
         _selectedChains.clear();
         _selectedChains.addAll(savedChains.map((e) => e.toString()));
       }
 
-      final responseData = await _walletApiService.getAssets();
+      // Load holdings and popular assets in parallel
+      final results = await Future.wait([
+        _walletApiService.getAssets(),
+        _walletApiService.getPopularAssets(),
+      ]);
+
+      final responseData = results[0] as Map<String, dynamic>;
+      final popularJson = results[1] as List<TokenModel>;
+
       final List assetsJson = responseData['assets'] ?? [];
       final parsedTokens = assetsJson
           .map((json) => TokenModel.fromJson(Map<String, dynamic>.from(json)))
           .toList();
 
-      final totalBalanceUsd = parsedTokens
-          .where((token) {
-            // Unknown assets remain in the general wallet list and totals.
-            // Only hidden, blocked, and spam assets are excluded.
-            if (_hiddenTokenKeys.contains(_getTokenKey(token))) return false;
-            return !isTokenBlocked(token);
-          })
-          .fold<num>(0, (total, token) => total + token.valueUsd);
+      _tokens = parsedTokens;
+      _popularAssets = popularJson;
 
       _wallet = WalletModel(
         address: responseData['address'] ?? address,
         displayName: 'Your Griot Account',
-        totalBalance: totalBalanceUsd,
+        totalBalance: 0,
         changePercent: 0,
       );
 
-      _tokens = parsedTokens;
+      _recalculateWalletTotals();
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -212,6 +280,7 @@ class WalletProvider extends ChangeNotifier {
     final key = _getTokenKey(token);
     _hiddenTokenKeys.add(key);
     await _walletService.saveHiddenTokens(_hiddenTokenKeys.toList());
+    _recalculateWalletTotals();
     notifyListeners();
   }
 
@@ -219,6 +288,7 @@ class WalletProvider extends ChangeNotifier {
     final key = _getTokenKey(token);
     _hiddenTokenKeys.remove(key);
     await _walletService.saveHiddenTokens(_hiddenTokenKeys.toList());
+    _recalculateWalletTotals();
     notifyListeners();
   }
 
@@ -229,7 +299,6 @@ class WalletProvider extends ChangeNotifier {
 
   Future<void> _saveFilters() async {
     await _walletService.saveWalletFilters({
-      'hideZeroBalance': _hideZeroBalance,
       'hideUnverified': _hideUnverified,
       'hideLowBalance': _hideLowBalance,
       'onlyProfit': _onlyProfit,
@@ -238,21 +307,17 @@ class WalletProvider extends ChangeNotifier {
     });
   }
 
-  void setHideZeroBalance(bool value) {
-    _hideZeroBalance = value;
-    _saveFilters();
-    notifyListeners();
-  }
-
   void setHideUnverified(bool value) {
     _hideUnverified = value;
     _saveFilters();
+    _recalculateWalletTotals();
     notifyListeners();
   }
 
   void setHideLowBalance(bool value) {
     _hideLowBalance = value;
     _saveFilters();
+    _recalculateWalletTotals();
     notifyListeners();
   }
 
@@ -260,6 +325,7 @@ class WalletProvider extends ChangeNotifier {
     _onlyProfit = value;
     if (value) _onlyLoss = false;
     _saveFilters();
+    _recalculateWalletTotals();
     notifyListeners();
   }
 
@@ -267,6 +333,7 @@ class WalletProvider extends ChangeNotifier {
     _onlyLoss = value;
     if (value) _onlyProfit = false;
     _saveFilters();
+    _recalculateWalletTotals();
     notifyListeners();
   }
 
@@ -277,17 +344,18 @@ class WalletProvider extends ChangeNotifier {
       _selectedChains.add(chain);
     }
     _saveFilters();
+    _recalculateWalletTotals();
     notifyListeners();
   }
 
   void clearFilters() {
-    _hideZeroBalance = false;
     _hideUnverified = false;
     _hideLowBalance = false;
     _onlyProfit = false;
     _onlyLoss = false;
     _selectedChains.clear();
     _saveFilters();
+    _recalculateWalletTotals();
     notifyListeners();
   }
 
@@ -302,7 +370,6 @@ class WalletProvider extends ChangeNotifier {
     _selectedTab = 0;
     _isLoading = false;
     _error = null;
-    _hideZeroBalance = false;
     _hideUnverified = false;
     _hideLowBalance = false;
     _onlyProfit = false;

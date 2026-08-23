@@ -1,5 +1,7 @@
 package com.griotcowrie.griot_cowrie
 
+import android.content.res.ColorStateList
+import android.graphics.drawable.GradientDrawable
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.Button
@@ -18,24 +20,34 @@ class GriotNativeAdFactory(private val layoutInflater: LayoutInflater) : GoogleM
     ): NativeAdView {
         val adView = layoutInflater.inflate(R.layout.griot_native_ad, null) as NativeAdView
 
-        // Default fallbacks in case customOptions are null or missing keys
+        // Default fallbacks (Dark theme colors)
         var primaryColor = 0xFFD4A84F.toInt()
         var onPrimaryColor = 0xFF000000.toInt()
         var surfaceColor = 0xFF0D231D.toInt()
         var onSurfaceColor = 0xFFF5F7FA.toInt()
         var onSurfaceVariantColor = 0xFFB6BEC9.toInt()
 
+        // Extract colors from customOptions with robust parsing
         customOptions?.let { options ->
-            (options["primary"] as? Number)?.toInt()?.let { primaryColor = it }
-            (options["onPrimary"] as? Number)?.toInt()?.let { onPrimaryColor = it }
-            (options["surface"] as? Number)?.toInt()?.let { surfaceColor = it }
-            (options["onSurface"] as? Number)?.toInt()?.let { onSurfaceColor = it }
-            (options["onSurfaceVariant"] as? Number)?.toInt()?.let { onSurfaceVariantColor = it }
+            fun parseColor(key: String): Int? {
+                val value = options[key]
+                return when (value) {
+                    is Number -> value.toInt()
+                    is Long -> value.toInt()
+                    is Int -> value
+                    else -> null
+                }
+            }
+
+            parseColor("primary")?.let { primaryColor = it }
+            parseColor("onPrimary")?.let { onPrimaryColor = it }
+            parseColor("surface")?.let { surfaceColor = it }
+            parseColor("onSurface")?.let { onSurfaceColor = it }
+            parseColor("onSurfaceVariant")?.let { onSurfaceVariantColor = it }
         }
 
-        // Card Background
-        val cardView = adView.findViewById<androidx.cardview.widget.CardView>(R.id.ad_card_container)
-        cardView?.setCardBackgroundColor(surfaceColor)
+        // Set background color to match Flutter container
+        adView.setBackgroundColor(surfaceColor)
 
         // Headline
         adView.headlineView = adView.findViewById(R.id.ad_headline)
@@ -64,15 +76,23 @@ class GriotNativeAdFactory(private val layoutInflater: LayoutInflater) : GoogleM
             } else {
                 it.visibility = View.VISIBLE
                 it.text = nativeAd.callToAction
-                it.backgroundTintList = android.content.res.ColorStateList.valueOf(primaryColor)
+                
+                // Programmatically create rounded background for CTA
+                val shape = GradientDrawable()
+                shape.cornerRadius = 24f // pill shape
+                shape.setColor(primaryColor)
+                it.background = shape
                 it.setTextColor(onPrimaryColor)
             }
         }
 
-        // Attribution Badge ("Ad")
+        // Attribution Badge ("Ad") - Modernized to match iOS
         val attribution = adView.findViewById<TextView>(R.id.ad_attribution)
         attribution?.let {
-            it.backgroundTintList = android.content.res.ColorStateList.valueOf(primaryColor)
+            val shape = GradientDrawable()
+            shape.cornerRadius = 8f
+            shape.setColor(primaryColor)
+            it.background = shape
             it.setTextColor(onPrimaryColor)
         }
 
@@ -83,6 +103,11 @@ class GriotNativeAdFactory(private val layoutInflater: LayoutInflater) : GoogleM
         } else {
             (adView.iconView as ImageView).setImageDrawable(nativeAd.icon?.drawable)
             adView.iconView?.visibility = View.VISIBLE
+            // Clip icon to rounded corners
+            adView.iconView?.clipToOutline = true
+            adView.iconView?.background = GradientDrawable().apply {
+                cornerRadius = 20f
+            }
         }
 
         // Media

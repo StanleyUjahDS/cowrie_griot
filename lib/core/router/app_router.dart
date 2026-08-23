@@ -29,6 +29,7 @@ import '../../features/settings/screens/appearance/accent_color_screen.dart';
 import '../../features/settings/screens/account/account_details_screen.dart';
 
 import '../../features/wallet/screens/wallet_screen.dart';
+import '../../features/wallet/screens/asset_search_screen.dart';
 import '../../features/wallet/screens/scanner_screen.dart';
 import '../../features/wallet/screens/asset_details_screen.dart';
 import '../../features/wallet/screens/send_screen.dart';
@@ -39,6 +40,7 @@ import '../../features/wallet/models/token_model.dart';
 
 import '../../features/p2p/screens/peer_2_peer.dart';
 import '../../features/miner/screens/miner_screen.dart';
+import '../../features/miner/screens/reputation_screen.dart';
 
 import '../ui/scaffolds/gradient_scaffold.dart';
 import '../ui/screens/app_loading_screen.dart';
@@ -278,6 +280,22 @@ class AppRouter {
       ),
 
       // ======================================================
+      // WALLET SEARCH
+      // ======================================================
+
+      GoRoute(
+        path: '/wallet/search',
+        builder: (context, state) {
+          final extra = state.extra;
+          final isSelectMode = state.uri.queryParameters['mode'] == 'select';
+          return AssetSearchScreen(
+            initialQuery: extra is String ? extra : null,
+            isSelectMode: isSelectMode,
+          );
+        },
+      ),
+
+      // ======================================================
       // ASSET DETAILS
       // ======================================================
 
@@ -363,6 +381,13 @@ class AppRouter {
         path: '/settings/user-details',
         builder: (context, state) {
           return const AccountDetailsScreen();
+        },
+      ),
+
+      GoRoute(
+        path: '/settings/reputation',
+        builder: (context, state) {
+          return const ReputationScreen();
         },
       ),
 

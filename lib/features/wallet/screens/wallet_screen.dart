@@ -12,6 +12,7 @@ import '../widgets/wallet_balance_card.dart';
 import '../widgets/wallet_address_card.dart';
 import '../widgets/wallet_actions.dart';
 import '../widgets/token_list.dart';
+import '../widgets/token_icon.dart';
 import '../widgets/wallet_loading.dart';
 import '../utils/wallet_formatters.dart';
 import '../utils/wallet_layout_utils.dart';
@@ -28,13 +29,122 @@ class WalletScreen extends StatefulWidget {
 }
 
 class _WalletScreenState extends State<WalletScreen> {
-  Future<void> _hideToken(BuildContext context, WalletProvider provider, TokenModel token) async {
-    final hide = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
-      title: Text('Hide ${token.symbol}?'),
-      content: const Text('This only removes the token from your wallet list. It does not affect your blockchain balance.'),
-      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Hide'))],
-    ));
-    if (hide == true) await provider.hideToken(token);
+  Future<void> _showAssetActions(BuildContext context, WalletProvider provider, TokenModel token) async {
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header with Token Info
+            Row(
+              children: [
+                TokenIcon(
+                  imageUrl: token.imageUrl,
+                  symbol: token.symbol,
+                  name: token.name,
+                  chainName: token.chain,
+                  isNative: token.isNative,
+                  radius: 24,
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        token.name.isEmpty ? token.symbol : token.name,
+                        style: text.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                      ),
+                      Text(
+                        '${token.symbol} • ${token.chain.toUpperCase()}',
+                        style: text.labelSmall?.copyWith(color: colors.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            Divider(color: colors.outlineVariant.withValues(alpha: 0.1)),
+            const SizedBox(height: 12),
+
+            // Actions
+            _actionTile(
+              context,
+              icon: Icons.visibility_off_rounded,
+              label: 'Hide from wallet',
+              subtitle: 'Removes this token from your view. Balances are safe.',
+              onTap: () async {
+                Navigator.pop(context);
+                await provider.hideToken(token);
+                if (context.mounted) {
+                  NotificationService.showSuccess(context, '${token.symbol} hidden');
+                }
+              },
+            ),
+            _actionTile(
+              context,
+              icon: Icons.copy_rounded,
+              label: 'Copy contract address',
+              onTap: () {
+                Navigator.pop(context);
+                Clipboard.setData(ClipboardData(text: token.contractAddress));
+                NotificationService.showSuccess(context, 'Address copied');
+              },
+              show: !token.isNative,
+            ),
+            _actionTile(
+              context,
+              icon: Icons.account_balance_wallet_outlined,
+              label: 'View profile',
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/wallet/asset', extra: token);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _actionTile(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    String? subtitle,
+    required VoidCallback onTap,
+    bool show = true,
+  }) {
+    if (!show) return const SizedBox.shrink();
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+
+    return ListTile(
+      onTap: onTap,
+      leading: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: colors.primary.withValues(alpha: 0.08),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: colors.primary, size: 20),
+      ),
+      title: Text(label, style: text.bodyLarge?.copyWith(fontWeight: FontWeight.w700)),
+      subtitle: subtitle != null ? Text(subtitle, style: text.labelSmall?.copyWith(color: colors.onSurfaceVariant)) : null,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    );
   }
   final ScrollController _scrollController = ScrollController();
 
@@ -155,7 +265,7 @@ class _WalletScreenState extends State<WalletScreen> {
                 SliverToBoxAdapter(
                   child: WalletBalanceCard(
                     balance: WalletFormatters.formatCurrency(provider.wallet?.totalBalance ?? 0),
-                    change: '${(provider.wallet?.changePercent ?? 0) >= 0 ? '+' : ''}${provider.wallet?.changePercent ?? 0}%',
+                    change: '${(provider.wallet?.changePercent ?? 0) >= 0 ? '+' : ''}${provider.wallet?.changePercent.toStringAsFixed(2)}%',
                     isProfit: (provider.wallet?.changePercent ?? 0) >= 0,
                   ),
                 ),
@@ -177,7 +287,7 @@ class _WalletScreenState extends State<WalletScreen> {
 
                 // CONTENT BASED ON SELECTED TAB
                 if (provider.selectedTab == 0) ...[
-                  // Verified Assets
+                  // Verified/Official Assets & Ecosystem Kings
                   if (provider.verifiedAssets.isNotEmpty) ...[
                     SliverToBoxAdapter(
                       child: _buildSectionHeader(context, 'Verified Assets', provider.verifiedAssets.length),
@@ -185,33 +295,33 @@ class _WalletScreenState extends State<WalletScreen> {
                     TokenList(
                       tokens: provider.verifiedAssets,
                       onTokenTap: (token) => context.push('/wallet/asset', extra: token),
-                      onTokenLongPress: (token) => _hideToken(context, provider, token),
+                      onTokenLongPress: (token) => _showAssetActions(context, provider, token),
                       emptyState: const SliverToBoxAdapter(child: SizedBox.shrink()),
                     ),
                   ],
 
-                  // Unverified Tokens
+                  // Unverified Assets (Security Scan Pending/Unknown)
                   if (provider.unverifiedAssets.isNotEmpty) ...[
                     SliverToBoxAdapter(
-                      child: _buildSectionHeader(context, 'Unverified Tokens', provider.unverifiedAssets.length),
+                      child: _buildSectionHeader(context, 'Unverified Assets', provider.unverifiedAssets.length),
                     ),
                     TokenList(
                       tokens: provider.unverifiedAssets,
                       onTokenTap: (token) => context.push('/wallet/asset', extra: token),
-                      onTokenLongPress: (token) => _hideToken(context, provider, token),
+                      onTokenLongPress: (token) => _showAssetActions(context, provider, token),
                       emptyState: const SliverToBoxAdapter(child: SizedBox.shrink()),
                     ),
                   ],
 
-                  // Blocked or hidden tokens
+                  // Blocked or spam tokens
                   if (provider.blockedAssets.isNotEmpty) ...[
                     SliverToBoxAdapter(
-                      child: _buildSectionHeader(context, 'Blocked or Hidden Tokens', provider.blockedAssets.length, isBlocked: true),
+                      child: _buildSectionHeader(context, 'Blocked or Spam Tokens', provider.blockedAssets.length, isBlocked: true),
                     ),
                     TokenList(
                       tokens: provider.blockedAssets,
                       onTokenTap: (token) => context.push('/wallet/asset', extra: token),
-                      onTokenLongPress: (token) => _hideToken(context, provider, token),
+                      onTokenLongPress: (token) => _showAssetActions(context, provider, token),
                       emptyState: const SliverToBoxAdapter(child: SizedBox.shrink()),
                     ),
                   ],

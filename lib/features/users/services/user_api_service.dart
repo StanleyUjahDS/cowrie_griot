@@ -63,8 +63,7 @@ class UserApiService {
     }
 
     final response = await _apiClient.get(
-      '${ApiConfig.usernameAvailability}'
-          '?username=${Uri.encodeQueryComponent(value)}',
+      ApiConfig.usernameAvailability(value),
     );
 
     if (response is! Map<String, dynamic>) {
@@ -171,8 +170,7 @@ class UserApiService {
     }
 
     final response = await _apiClient.get(
-      '${ApiConfig.usersSearch}?q='
-          '${Uri.encodeQueryComponent(trimmedQuery)}',
+      ApiConfig.usersSearch(trimmedQuery),
     );
 
     if (response is! Map<String, dynamic>) {

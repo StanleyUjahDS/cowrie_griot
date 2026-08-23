@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/theme/app_colors.dart';
 import '../models/chat_user.dart';
 
 class ChatListItem extends StatelessWidget {
@@ -94,6 +95,41 @@ class ChatListItem extends StatelessWidget {
               ),
             ),
           ),
+
+          if (user.reputation != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 6),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.parseHexColor(user.reputation!.badgeColor).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: AppColors.parseHexColor(user.reputation!.badgeColor).withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.stars_rounded,
+                      size: 10,
+                      color: AppColors.parseHexColor(user.reputation!.badgeColor),
+                    ),
+                    const SizedBox(width: 3),
+                    Text(
+                      user.reputation!.tierName.toUpperCase(),
+                      style: TextStyle(
+                        color: AppColors.parseHexColor(user.reputation!.badgeColor),
+                        fontSize: 8,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
 
           if (user.isDiscoverableByPhone)
             Padding(

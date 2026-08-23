@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../models/token_model.dart';
@@ -110,6 +109,17 @@ class _SendScreenState extends State<SendScreen> {
 
       setState(() => _message = 'Signing...');
       final tx = Map<String, dynamic>.from(unsigned);
+      final chainId = int.tryParse(tx['chainId']?.toString() ?? '') ?? int.tryParse(prepared['chainId']?.toString() ?? '');
+      
+      if (chainId == null) {
+        throw Exception('Transaction chain ID is missing');
+      }
+
+      final expectedChainId = _getExpectedChainId(token.chain);
+      if (expectedChainId == null || chainId != expectedChainId) {
+        throw Exception('Network and chain ID do not match for ${token.chain}');
+      }
+
       final signed = await walletService.signNativeTransaction(
         to: tx['to']?.toString() ?? '',
         valueRaw: tx['value']?.toString() ?? '0',
@@ -118,7 +128,7 @@ class _SendScreenState extends State<SendScreen> {
         gasPrice: tx['gasPrice']?.toString(),
         maxFeePerGas: tx['maxFeePerGas']?.toString(),
         maxPriorityFeePerGas: tx['maxPriorityFeePerGas']?.toString(),
-        chainId: int.tryParse(tx['chainId']?.toString() ?? '') ?? int.tryParse(prepared['chainId']?.toString() ?? '') ?? 1,
+        chainId: chainId,
         dataHex: tx['data']?.toString(),
       );
       if (signed == null || signed.isEmpty) throw Exception('Signing failed.');
@@ -219,19 +229,59 @@ class _SendScreenState extends State<SendScreen> {
     child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey)), Text(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15))]),
   );
 
+  int? _getExpectedChainId(String network) {
+    const expectedChainIds = {
+      'ethereum': 1,
+      'base': 8453,
+      'polygon': 137,
+      'arbitrum': 42161,
+      'optimism': 10,
+      'bsc': 56,
+    };
+    return expectedChainIds[network.toLowerCase()];
+  }
+
   void _pickToken() {
     final tokens = context.read<WalletProvider>().tokens.where((t) => t.balance >= 0).toList();
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
       builder: (_) => ListView.builder(
-        itemCount: tokens.length,
+        itemCount: tokens.length + 1,
         padding: const EdgeInsets.only(bottom: 20),
         itemBuilder: (_, i) {
-          final token = tokens[i];
+          if (i == 0) {
+            return ListTile(
+              leading: CircleAvatar(
+                backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                child: const Icon(Icons.search, color: Colors.blue),
+              ),
+              title: const Text('Search for more tokens', style: TextStyle(fontWeight: FontWeight.bold)),
+              onTap: () async {
+                Navigator.pop(context);
+                final selected = await context.push<TokenModel>('/wallet/search');
+                if (selected != null && mounted) {
+                  setState(() {
+                    _token = selected;
+                    _amount.clear();
+                  });
+                }
+              },
+            );
+          }
+
+          final token = tokens[i - 1];
           return ListTile(
             leading: TokenIcon(imageUrl: token.imageUrl, symbol: token.symbol, name: token.name, chainName: token.chain, isNative: token.isNative, radius: 18),
-            title: Text(token.symbol, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            title: Row(
+              children: [
+                Text(token.symbol, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                if (token.isOfficial) ...[
+                  const SizedBox(width: 4),
+                  Icon(Icons.verified_rounded, size: 14, color: Theme.of(context).colorScheme.tertiary),
+                ],
+              ],
+            ),
             subtitle: Text(token.chain.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey)),
             trailing: Text(WalletFormatters.formatBalance(token.balance), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
             onTap: () { setState(() { _token = token; _amount.clear(); }); Navigator.pop(context); },
@@ -341,20 +391,6 @@ class _SendScreenState extends State<SendScreen> {
                           if (result != null && mounted) _address.text = result;
                         },
                         icon: Icon(Icons.qr_code_scanner_rounded, size: 22, color: colors.primary.withValues(alpha: 0.8)),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                      IconButton(
-                        onPressed: () {
-                          if (_address.text.isNotEmpty) {
-                            SharePlus.instance.share(
-                              ShareParams(text: 'Wallet Address: ${_address.text}'),
-                            );
-                          } else {
-                            NotificationService.showInfo(context, 'Recipient address is empty');
-                          }
-                        },
-                        icon: Icon(Icons.share_rounded, size: 20, color: colors.onSurfaceVariant.withValues(alpha: 0.6)),
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                       ),
@@ -476,9 +512,16 @@ class _SendScreenState extends State<SendScreen> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: colors.surfaceContainerLow.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(32), // Large corner radius like Receive
-        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.15), width: 1.5),
+        color: colors.surface.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: colors.primary.withValues(alpha: 0.15), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: colors.primary.withValues(alpha: 0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -489,7 +532,7 @@ class _SendScreenState extends State<SendScreen> {
               Text(
                 label.toUpperCase(),
                 style: text.labelSmall?.copyWith(
-                  color: colors.onSurfaceVariant.withValues(alpha: 0.4),
+                  color: colors.primary.withValues(alpha: 0.5),
                   fontWeight: FontWeight.w900,
                   letterSpacing: 1.5,
                 ),

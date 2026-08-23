@@ -68,6 +68,11 @@ class UserProvider extends ChangeNotifier {
     _isLoading = true;
     _errorMessage = null;
 
+    // Load from local storage first for immediate display
+    if (_user == null) {
+      await loadLocalUser();
+    }
+
     notifyListeners();
 
     try {
@@ -79,7 +84,7 @@ class UserProvider extends ChangeNotifier {
       }
     } catch (error) {
       _errorMessage = _cleanError(error);
-      rethrow;
+      // We don't rethrow here to allow the cached user to be shown even if offline
     } finally {
       _isLoading = false;
       notifyListeners();

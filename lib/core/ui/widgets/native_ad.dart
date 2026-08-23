@@ -16,17 +16,22 @@ class _GriotNativeAdState extends State<GriotNativeAd> {
   // Track theme properties to detect changes
   Brightness? _lastBrightness;
   Color? _lastPrimaryColor;
+  Color? _lastSurfaceColor;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     
     // Check if theme has changed
-    if (_lastBrightness != theme.brightness || _lastPrimaryColor != theme.colorScheme.primary) {
+    if (_lastBrightness != theme.brightness || 
+        _lastPrimaryColor != colorScheme.primary ||
+        _lastSurfaceColor != colorScheme.surface) {
       _lastBrightness = theme.brightness;
-      _lastPrimaryColor = theme.colorScheme.primary;
+      _lastPrimaryColor = colorScheme.primary;
+      _lastSurfaceColor = colorScheme.surface;
       
       // Theme changed, reload the ad with new colors
       _loadAd(force: true);
@@ -87,14 +92,15 @@ class _GriotNativeAdState extends State<GriotNativeAd> {
 
     final Color borderColor = colorScheme.outline.withValues(alpha: isDark ? 0.20 : 0.12);
 
-    // Height 360dp provides more room for Medium templates to avoid "outside box" errors
-    const double adHeight = 360;
+    // Height 350dp is standard for Medium templates.
+    // The native templates now use flexible weights/constraints to fit this space.
+    const double adHeight = 350;
 
     // Placeholder/Loading state
     if (!_isLoaded || _nativeAd == null) {
       return Container(
         height: adHeight,
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
@@ -108,28 +114,27 @@ class _GriotNativeAdState extends State<GriotNativeAd> {
 
     // THE PREMIUM COMPLIANCE STACK:
     // 1. Background Card with Nice Border and Shadow.
-    // 2. Large 12pt padding to ensure NO AdMob assets are near the border.
-    // 3. AdWidget remains unclipped by parent boundaries.
+    // 2. Exact padding to ensure AdWidget stays within bounds.
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       height: adHeight,
       decoration: BoxDecoration(
         color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: colorScheme.outline.withValues(alpha: isDark ? 0.20 : 0.12),
+          color: colorScheme.outline.withValues(alpha: isDark ? 0.24 : 0.14),
           width: 1.0,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         child: Padding(
           padding: const EdgeInsets.all(12), 
           child: AdWidget(ad: _nativeAd!),

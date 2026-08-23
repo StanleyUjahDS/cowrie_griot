@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -1646,19 +1647,7 @@ class _MessageBubble
           crossAxisAlignment:
           CrossAxisAlignment.start,
           children: [
-            Text(
-              message.text,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(
-                color: isMe
-                    ? colorScheme
-                    .onPrimary
-                    : colorScheme
-                    .onSurface,
-              ),
-            ),
+            _buildMessageText(context),
             const SizedBox(height: 4),
             Align(
               alignment:
@@ -1681,6 +1670,60 @@ class _MessageBubble
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildMessageText(BuildContext context) {
+    final isMe = message.isMe;
+    final textStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: isMe ? colorScheme.onPrimary : colorScheme.onSurface,
+        );
+
+    final addressRegex = RegExp(r'0x[a-fA-F0-9]{40}');
+    final matches = addressRegex.allMatches(message.text);
+
+    if (matches.isEmpty) {
+      return Text(message.text, style: textStyle);
+    }
+
+    final children = <TextSpan>[];
+    int lastEnd = 0;
+
+    for (final match in matches) {
+      if (match.start > lastEnd) {
+        children.add(TextSpan(
+          text: message.text.substring(lastEnd, match.start),
+          style: textStyle,
+        ));
+      }
+
+      final address = match.group(0)!;
+      children.add(TextSpan(
+        text: address,
+        style: textStyle?.copyWith(
+          color: isMe ? Colors.white : colorScheme.primary,
+          fontWeight: FontWeight.bold,
+          decoration: TextDecoration.underline,
+          decorationColor: isMe ? Colors.white.withValues(alpha: 0.5) : colorScheme.primary.withValues(alpha: 0.5),
+        ),
+        recognizer: TapGestureRecognizer()
+          ..onTap = () {
+            context.push('/wallet/search', extra: address);
+          },
+      ));
+
+      lastEnd = match.end;
+    }
+
+    if (lastEnd < message.text.length) {
+      children.add(TextSpan(
+        text: message.text.substring(lastEnd),
+        style: textStyle,
+      ));
+    }
+
+    return RichText(
+      text: TextSpan(children: children),
     );
   }
 }

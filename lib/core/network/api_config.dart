@@ -11,9 +11,13 @@ class ApiConfig {
 
   static const String usersMe = '$baseUrl/users/me';
   static const String usersUpdate = '$baseUrl/users/me';
-  static const String usersSearch = '$baseUrl/users/search';
-  static const String usernameAvailability =
-      '$baseUrl/users/username/availability';
+
+  static String usersSearch(String query) => Uri.parse('$baseUrl/users/search')
+      .replace(queryParameters: {'q': query}).toString();
+
+  static String usernameAvailability(String username) =>
+      Uri.parse('$baseUrl/users/username/availability')
+          .replace(queryParameters: {'username': username}).toString();
 
   static const String walletBase = '$baseUrl/crypto/wallets';
   static const String walletNetworks = '$walletBase/networks';
@@ -114,6 +118,9 @@ class ApiConfig {
 
   static const String swapQuote =
       '$swapBase/quote';
+
+  static const String swapBroadcast =
+      '$swapBase/broadcast';
 
   static String swapStatus({
     required String transactionId,

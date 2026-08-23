@@ -159,14 +159,17 @@ class ReceiveScreen extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(16),
                                   border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.1)),
                                 ),
-                                child: Text(
-                                  _formatAddress(address),
-                                  textAlign: TextAlign.center,
-                                  style: text.bodyLarge?.copyWith(
-                                    color: colors.onSurface,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 1.0,
-                                    fontFamily: 'Monospace',
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    _formatAddress(address),
+                                    textAlign: TextAlign.center,
+                                    style: text.bodyLarge?.copyWith(
+                                      color: colors.onSurface,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 1.0,
+                                      fontFamily: 'Monospace',
+                                    ),
                                   ),
                                 ),
                               ),
@@ -219,7 +222,7 @@ class ReceiveScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'NETWORK: ${token?.chain.toUpperCase() ?? 'SMART CHAIN'}',
+                              'NETWORK: ${token?.chain.toUpperCase() ?? 'EVM (MULTIPLE CHAINS)'}',
                               style: text.labelSmall?.copyWith(
                                 fontWeight: FontWeight.w900,
                                 color: colors.primary,
@@ -228,7 +231,7 @@ class ReceiveScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Only send supported assets to this address. Other assets will be lost forever.',
+                              'This address supports all major EVM networks including Ethereum, BNB Chain, Polygon, Base, Arbitrum, and Optimism. Only send supported assets or they will be lost.',
                               style: text.bodySmall?.copyWith(
                                 color: colors.onSurfaceVariant.withValues(alpha: 0.6),
                                 fontWeight: FontWeight.w600,

@@ -261,21 +261,16 @@ class DisplayPhraseScreen extends StatelessWidget {
                                   // =================================
 
                                   Expanded(
-                                    child: Text(
-                                      word,
-                                      style: textTheme
-                                          .bodyMedium
-                                          ?.copyWith(
-                                        color:
-                                        colorScheme
-                                            .onSurface,
-                                        fontWeight:
-                                        FontWeight
-                                            .w500,
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        word,
+                                        style: textTheme.bodyMedium?.copyWith(
+                                          color: colorScheme.onSurface,
+                                          fontWeight: FontWeight.w500,
+                                        ),
                                       ),
-                                      overflow:
-                                      TextOverflow
-                                          .ellipsis,
                                     ),
                                   ),
                                 ],

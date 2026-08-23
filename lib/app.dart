@@ -23,6 +23,8 @@ import 'features/wallet/services/swap_api_service.dart';
 import 'features/wallet/services/wallet_rpc_service.dart';
 import 'features/miner/services/mining_api_service.dart';
 import 'features/miner/services/referral_api_service.dart';
+import 'features/miner/services/reputation_api_service.dart';
+import 'features/miner/providers/reputation_provider.dart';
 import 'features/wallet/providers/wallet_provider.dart';
 import 'core/services/navigation_scroll_service.dart';
 
@@ -49,6 +51,7 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
   late final WalletRpcService _walletRpcService;
   late final MiningApiService _miningApiService;
   late final ReferralApiService _referralApiService;
+  late final ReputationApiService _reputationApiService;
 
   @override
   void initState() {
@@ -93,6 +96,10 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
     );
 
     _referralApiService = ReferralApiService(
+      apiClient: _apiClient,
+    );
+
+    _reputationApiService = ReputationApiService(
       apiClient: _apiClient,
     );
 
@@ -147,6 +154,7 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
         Provider<WalletRpcService>.value(value: _walletRpcService),
         Provider<MiningApiService>.value(value: _miningApiService),
         Provider<ReferralApiService>.value(value: _referralApiService),
+        Provider<ReputationApiService>.value(value: _reputationApiService),
         ChangeNotifierProvider<NavigationScrollService>.value(
           value: NavigationScrollService.instance,
         ),
@@ -170,6 +178,16 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
             walletService: _walletService,
             walletApiService: _walletApiService,
           )..loadWallet(),
+        ),
+
+        // ======================================================
+        // REPUTATION PROVIDER
+        // ======================================================
+
+        ChangeNotifierProvider<ReputationProvider>(
+          create: (_) => ReputationProvider(
+            apiService: _reputationApiService,
+          )..loadReputation(),
         ),
 
         // ======================================================

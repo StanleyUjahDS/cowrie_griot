@@ -62,7 +62,7 @@ class GriotNativeAdFactory: NSObject, FLTNativeAdFactory {
 
         // Headline
         let headlineLabel = UILabel()
-        headlineLabel.font = .systemFont(ofSize: 16, weight: .bold)
+        headlineLabel.font = .systemFont(ofSize: 15, weight: .bold)
         headlineLabel.textColor = onSurfaceColor
         headlineLabel.numberOfLines = 1
         headlineLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -77,7 +77,7 @@ class GriotNativeAdFactory: NSObject, FLTNativeAdFactory {
         adView.addSubview(advertiserLabel)
         adView.advertiserView = advertiserLabel
 
-        // Media View
+        // Media View (Flexible)
         let mediaView = GADMediaView()
         mediaView.translatesAutoresizingMaskIntoConstraints = false
         adView.addSubview(mediaView)
@@ -85,7 +85,7 @@ class GriotNativeAdFactory: NSObject, FLTNativeAdFactory {
 
         // Body
         let bodyLabel = UILabel()
-        bodyLabel.font = .systemFont(ofSize: 14)
+        bodyLabel.font = .systemFont(ofSize: 13)
         bodyLabel.textColor = onSurfaceVariantColor
         bodyLabel.numberOfLines = 2
         bodyLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -94,56 +94,57 @@ class GriotNativeAdFactory: NSObject, FLTNativeAdFactory {
 
         // Call to Action
         let callToAction = UIButton(type: .system)
-        callToAction.titleLabel?.font = .systemFont(ofSize: 15, weight: .bold)
+        callToAction.titleLabel?.font = .systemFont(ofSize: 14, weight: .bold)
         callToAction.setTitleColor(onPrimaryColor, for: .normal)
         callToAction.backgroundColor = primaryColor
-        callToAction.layer.cornerRadius = 10
+        callToAction.layer.cornerRadius = 12
         callToAction.translatesAutoresizingMaskIntoConstraints = false
         adView.addSubview(callToAction)
         adView.callToActionView = callToAction
 
         // Constraints
         NSLayoutConstraint.activate([
-            // Ad Label
-            adLabel.topAnchor.constraint(equalTo: adView.topAnchor, constant: 4),
-            adLabel.leftAnchor.constraint(equalTo: adView.leftAnchor, constant: 4),
+            // Headline & Icon Row
+            iconView.topAnchor.constraint(equalTo: adView.topAnchor, constant: 4),
+            iconView.leftAnchor.constraint(equalTo: adView.leftAnchor, constant: 0),
+            iconView.widthAnchor.constraint(equalToConstant: 40),
+            iconView.heightAnchor.constraint(equalToConstant: 40),
+
+            headlineLabel.topAnchor.constraint(equalTo: adView.topAnchor, constant: 4),
+            headlineLabel.leftAnchor.constraint(equalTo: iconView.rightAnchor, constant: 10),
+            headlineLabel.rightAnchor.constraint(equalTo: adView.rightAnchor, constant: 0),
+
+            advertiserLabel.topAnchor.constraint(equalTo: headlineLabel.bottomAnchor, constant: 2),
+            advertiserLabel.leftAnchor.constraint(equalTo: iconView.rightAnchor, constant: 10),
+            advertiserLabel.rightAnchor.constraint(equalTo: adView.rightAnchor, constant: 0),
+
+            // Ad Label (Top right relative to headline area for compactness)
+            adLabel.centerYAnchor.constraint(equalTo: advertiserLabel.centerYAnchor),
+            adLabel.leftAnchor.constraint(equalTo: advertiserLabel.rightAnchor, constant: 6),
             adLabel.widthAnchor.constraint(equalToConstant: 24),
             adLabel.heightAnchor.constraint(equalToConstant: 15),
 
-            // Icon
-            iconView.topAnchor.constraint(equalTo: adView.topAnchor, constant: padding),
-            iconView.leftAnchor.constraint(equalTo: adView.leftAnchor, constant: padding),
-            iconView.widthAnchor.constraint(equalToConstant: 44),
-            iconView.heightAnchor.constraint(equalToConstant: 44),
-
-            // Headline
-            headlineLabel.topAnchor.constraint(equalTo: adView.topAnchor, constant: padding),
-            headlineLabel.leftAnchor.constraint(equalTo: iconView.rightAnchor, constant: padding),
-            headlineLabel.rightAnchor.constraint(equalTo: adView.rightAnchor, constant: -padding),
-
-            // Advertiser
-            advertiserLabel.topAnchor.constraint(equalTo: headlineLabel.bottomAnchor, constant: 2),
-            advertiserLabel.leftAnchor.constraint(equalTo: iconView.rightAnchor, constant: padding),
-            advertiserLabel.rightAnchor.constraint(equalTo: adView.rightAnchor, constant: -padding),
-
-            // Media View
-            mediaView.topAnchor.constraint(equalTo: iconView.bottomAnchor, constant: padding),
-            mediaView.leftAnchor.constraint(equalTo: adView.leftAnchor, constant: padding),
-            mediaView.rightAnchor.constraint(equalTo: adView.rightAnchor, constant: -padding),
-            mediaView.heightAnchor.constraint(equalTo: mediaView.widthAnchor, multiplier: 0.55),
+            // Media View (Flexible space)
+            mediaView.topAnchor.constraint(equalTo: iconView.bottomAnchor, constant: 12),
+            mediaView.leftAnchor.constraint(equalTo: adView.leftAnchor),
+            mediaView.rightAnchor.constraint(equalTo: adView.rightAnchor),
 
             // Body
-            bodyLabel.topAnchor.constraint(equalTo: mediaView.bottomAnchor, constant: padding),
-            bodyLabel.leftAnchor.constraint(equalTo: adView.leftAnchor, constant: padding),
-            bodyLabel.rightAnchor.constraint(equalTo: adView.rightAnchor, constant: -padding),
+            bodyLabel.topAnchor.constraint(equalTo: mediaView.bottomAnchor, constant: 10),
+            bodyLabel.leftAnchor.constraint(equalTo: adView.leftAnchor),
+            bodyLabel.rightAnchor.constraint(equalTo: adView.rightAnchor),
 
-            // Call To Action
-            callToAction.topAnchor.constraint(equalTo: bodyLabel.bottomAnchor, constant: padding),
-            callToAction.leftAnchor.constraint(equalTo: adView.leftAnchor, constant: padding),
-            callToAction.rightAnchor.constraint(equalTo: adView.rightAnchor, constant: -padding),
+            // Call To Action (Pinned to bottom)
+            callToAction.topAnchor.constraint(equalTo: bodyLabel.bottomAnchor, constant: 12),
+            callToAction.leftAnchor.constraint(equalTo: adView.leftAnchor),
+            callToAction.rightAnchor.constraint(equalTo: adView.rightAnchor),
             callToAction.heightAnchor.constraint(equalToConstant: 44),
-            callToAction.bottomAnchor.constraint(equalTo: adView.bottomAnchor, constant: -padding)
+            callToAction.bottomAnchor.constraint(equalTo: adView.bottomAnchor, constant: 0)
         ])
+
+        // Priority for MediaView to expand
+        mediaView.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
+        mediaView.setContentHuggingPriority(.defaultLow, for: .vertical)
 
         // Populate data
         (adView.headlineView as? UILabel)?.text = nativeAd.headline

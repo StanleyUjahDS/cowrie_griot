@@ -1,3 +1,5 @@
+import '../../users/models/user_model.dart';
+
 class ChatUser {
   // ==========================================================
   // IDENTITY
@@ -13,6 +15,8 @@ class ChatUser {
 
   /// Optional display name.
   final String? displayName;
+
+  final UserReputationBadge? reputation;
 
   // ==========================================================
   // PHONE DISCOVERY
@@ -60,6 +64,7 @@ class ChatUser {
     required this.timestamp,
     this.unreadCount = 0,
     this.isOnline = false,
+    this.reputation,
   });
 
   // ==========================================================
@@ -145,6 +150,7 @@ class ChatUser {
     DateTime? timestamp,
     int? unreadCount,
     bool? isOnline,
+    UserReputationBadge? reputation,
   }) {
     return ChatUser(
       id: id ?? this.id,
@@ -169,6 +175,8 @@ class ChatUser {
       unreadCount ?? this.unreadCount,
       isOnline:
       isOnline ?? this.isOnline,
+      reputation:
+      reputation ?? this.reputation,
     );
   }
 
@@ -191,6 +199,7 @@ class ChatUser {
       timestamp.toIso8601String(),
       'unreadCount': unreadCount,
       'isOnline': isOnline,
+      'reputation': reputation?.toJson(),
     };
   }
 
@@ -241,6 +250,12 @@ class ChatUser {
       isOnline:
       json['isOnline'] as bool? ??
           false,
+
+      reputation: json['reputation'] is Map
+          ? UserReputationBadge.fromJson(
+        Map<String, dynamic>.from(json['reputation']),
+      )
+          : null,
     );
   }
 

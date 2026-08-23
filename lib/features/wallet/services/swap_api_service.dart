@@ -16,7 +16,8 @@ class SwapApiService {
     required String fromAmount,
     required String fromAddress,
     String? toAddress,
-    double slippage = 0.005,
+    required String modeOfSlippage,
+    double? slippage,
     String? order,
   }) async {
     final body = <String, dynamic>{
@@ -26,9 +27,12 @@ class SwapApiService {
       'toToken': toToken,
       'fromAmount': fromAmount,
       'fromAddress': fromAddress,
-      'slippageMode': 'custom',
-      'slippage': slippage,
+      'slippageMode': modeOfSlippage,
     };
+
+    if (slippage != null) {
+      body['slippage'] = slippage;
+    }
 
     if (toAddress != null && toAddress.isNotEmpty) {
       body['toAddress'] = toAddress;
@@ -59,13 +63,46 @@ class SwapApiService {
     return data;
   }
 
+  Future<int> getNonce({
+    required String network,
+    required String address,
+  }) async {
+    final response = await _apiClient.get(
+      ApiConfig.blockchainNonce(network, address),
+    );
+
+    final data = _asMap(_unwrap(response));
+    final nonce = data['nonce'];
+    if (nonce == null) {
+      throw Exception('Backend did not return a transaction nonce');
+    }
+    return int.parse(nonce.toString());
+  }
+
+  Future<String> call({
+    required String network,
+    required String to,
+    required String data,
+  }) async {
+    final response = await _apiClient.post(
+      ApiConfig.blockchainCall(network),
+      body: {
+        'to': to,
+        'data': data,
+      },
+    );
+
+    final result = _unwrap(response);
+    return result?.toString() ?? '0x';
+  }
+
   Future<Map<String, dynamic>> broadcastSwap({
     required String network,
     required String signedTransaction,
     String? transactionType,
   }) async {
     final response = await _apiClient.post(
-      '${ApiConfig.swapBase}/broadcast',
+      ApiConfig.swapBroadcast,
       body: {
         'network': network,
         'signedTransaction': signedTransaction,

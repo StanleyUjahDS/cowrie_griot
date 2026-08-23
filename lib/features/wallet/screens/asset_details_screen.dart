@@ -106,17 +106,24 @@ class AssetDetailsScreen extends StatelessWidget {
                       radius: 42,
                     ),
                     const SizedBox(height: 16),
-                    Text(
-                      '${WalletFormatters.formatBalance(token.balance)} ${token.symbol}',
-                      style: text.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.5,
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        '${WalletFormatters.formatBalance(token.balance)} ${token.symbol}',
+                        style: text.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 4),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
+                        if (token.isEcosystem) ...[
+                          Icon(Icons.workspace_premium_rounded, size: 20, color: colors.primary),
+                          const SizedBox(width: 8),
+                        ],
                         Text(
                           WalletFormatters.formatCurrency(token.valueUsd),
                           style: text.titleMedium?.copyWith(
@@ -145,6 +152,32 @@ class AssetDetailsScreen extends StatelessWidget {
                         ),
                       ],
                     ),
+
+                    if (token.isGriotAsset) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: colors.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: colors.primary.withValues(alpha: 0.2)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.stars_rounded, size: 16, color: colors.primary),
+                            const SizedBox(width: 6),
+                            Text(
+                              "Griot Native Asset",
+                              style: text.labelLarge?.copyWith(
+                                color: colors.primary,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
 
                     const SizedBox(height: 40),
 
@@ -267,11 +300,11 @@ class AssetDetailsScreen extends StatelessWidget {
     final text = Theme.of(context).textTheme;
 
     final isBlocked = provider.isTokenBlocked(token);
-    final canSwap = provider.canSwap(token);
-    final isOfficial = token.isOfficial;
-    final security = token.security ?? {};
-    final isAvailable = security['available'] == true;
-    final riskLevel = security['riskLevel']?.toString().toLowerCase();
+    final status = token.status.toLowerCase();
+    
+    // Major assets (Native and Griot Assets) are always treated as Verified.
+    final isVerified = status == 'verified' || token.isNative || token.isGriotAsset;
+    final isOfficial = token.isOfficial || token.isGriotAsset;
 
     Color statusColor;
     String statusTitle;
@@ -280,25 +313,25 @@ class AssetDetailsScreen extends StatelessWidget {
 
     if (isOfficial) {
       statusColor = colors.tertiary;
+      statusTitle = token.isGriotAsset ? 'Griot Native Asset' : 'Official Griot Asset';
+      statusDesc = 'Verified & tradeable';
+      statusIcon = Icons.verified_rounded;
+    } else if (isVerified) {
+      statusColor = Colors.green;
       statusTitle = 'Verified';
-      statusDesc = 'Swap available';
+      statusDesc = 'Security check passed';
       statusIcon = Icons.verified_rounded;
     } else if (isBlocked) {
       statusColor = colors.error;
       statusTitle = 'High-risk token';
       statusDesc = 'Do not interact with this token';
       statusIcon = Icons.gpp_bad_rounded;
-    } else if (!isAvailable || riskLevel == 'unknown') {
+    } else {
+      // Unknown / Unverified
       statusColor = colors.onSurfaceVariant.withValues(alpha: 0.6);
       statusTitle = 'Security status: Not verified';
-      statusDesc = 'Swap disabled';
+      statusDesc = 'Ensure you trust this contract before trading';
       statusIcon = Icons.help_outline_rounded;
-    } else {
-      // Verified but non-official
-      statusColor = colors.primary;
-      statusTitle = 'Unverified / Third-party token';
-      statusDesc = canSwap ? 'Swap available with warning' : 'Swap disabled';
-      statusIcon = Icons.info_outline_rounded;
     }
 
     return Container(

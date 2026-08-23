@@ -119,18 +119,6 @@ void openWalletFilterSheet({
                               children: [
                                 _filterSwitchTile(
                                   context: context,
-                                  icon: Icons.visibility_off_rounded,
-                                  title: "Hide Zero Balance",
-                                  subtitle: "Hide tokens with no balance",
-                                  value: provider.hideZeroBalance,
-                                  onChanged: (value) {
-                                    provider.setHideZeroBalance(value);
-                                    refresh();
-                                  },
-                                ),
-                                _itemDivider(context),
-                                _filterSwitchTile(
-                                  context: context,
                                   icon: Icons.verified_user_rounded,
                                   title: "Hide Unverified",
                                   subtitle: "Hide assets without verified security",
@@ -195,13 +183,13 @@ void openWalletFilterSheet({
                             spacing: 10,
                             runSpacing: 10,
                             children: [
-                              _chainChip("Ethereum", provider, refresh),
-                              _chainChip("BNB Chain", provider, refresh),
-                              _chainChip("Polygon", provider, refresh),
-                              _chainChip("Arbitrum", provider, refresh),
-                              _chainChip("Optimism", provider, refresh),
-                              _chainChip("Base", provider, refresh),
-                              _chainChip("Avalanche", provider, refresh),
+                              _chainChip("Ethereum", "ethereum", provider, refresh),
+                              _chainChip("BNB Chain", "bsc", provider, refresh),
+                              _chainChip("Polygon", "polygon", provider, refresh),
+                              _chainChip("Arbitrum", "arbitrum", provider, refresh),
+                              _chainChip("Optimism", "optimism", provider, refresh),
+                              _chainChip("Base", "base", provider, refresh),
+                              _chainChip("Avalanche", "avalanche", provider, refresh),
                             ],
                           ),
 
@@ -223,7 +211,7 @@ void openWalletFilterSheet({
                               ),
                             ),
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 120),
                         ],
                       ),
                     ),
@@ -314,16 +302,16 @@ Widget _filterSwitchTile({
   );
 }
 
-Widget _chainChip(String chain, WalletProvider provider, VoidCallback refresh) {
+Widget _chainChip(String label, String chainId, WalletProvider provider, VoidCallback refresh) {
   return Builder(
     builder: (context) {
       final colors = Theme.of(context).colorScheme;
-      final selected = provider.selectedChains.contains(chain);
+      final selected = provider.selectedChains.contains(chainId);
 
       return InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () {
-          provider.toggleChain(chain);
+          provider.toggleChain(chainId);
           refresh();
         },
         child: AnimatedContainer(
@@ -344,10 +332,10 @@ Widget _chainChip(String chain, WalletProvider provider, VoidCallback refresh) {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _chainIcon(context, chain, selected),
+              _chainIcon(context, chainId, selected),
               const SizedBox(width: 8),
               Text(
-                chain,
+                label,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       fontWeight: FontWeight.w700,
                       color: selected ? colors.primary : colors.onSurface,
@@ -397,7 +385,6 @@ Widget _itemDivider(BuildContext context) {
 Widget _activeFilterCount(BuildContext context, WalletProvider provider) {
   final colors = Theme.of(context).colorScheme;
   int count = 0;
-  if (provider.hideZeroBalance) count++;
   if (provider.hideUnverified) count++;
   if (provider.hideLowBalance) count++;
   if (provider.onlyProfit) count++;

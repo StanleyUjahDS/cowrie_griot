@@ -623,49 +623,33 @@ class _RecoverAccountScreenState
                       borderColor,
                     ),
                   ),
-                  child:
-                  GridView.builder(
-                    padding:
-                    const EdgeInsets.all(
-                      2,
-                    ),
-                    keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior
-                        .onDrag,
-                    itemCount: 12,
-                    gridDelegate:
-                    const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 9,
-                      crossAxisSpacing: 9,
-                      childAspectRatio: 3.35,
-                    ),
-                    itemBuilder:
-                        (
-                        context,
-                        index,
-                        ) {
-                      return _SeedWordField(
-                        controller:
-                        _controllers[
-                        index],
-                        index: index,
-                        isValid:
-                        _validWords[
-                        index],
-                        fieldColor:
-                        fieldColor,
-                        borderColor:
-                        borderColor,
-                        colorScheme:
-                        colors,
-                        textTheme:
-                        text,
-                        onChanged:
-                            (value) {
-                          _onWordChanged(
-                            index,
-                            value,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final crossAxisCount = constraints.maxWidth > 600 ? 3 : 2;
+                      final childAspectRatio = constraints.maxWidth > 600 ? 4.0 : 3.2;
+                      
+                      return GridView.builder(
+                        padding: const EdgeInsets.all(2),
+                        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                        itemCount: 12,
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: crossAxisCount,
+                          mainAxisSpacing: 9,
+                          crossAxisSpacing: 9,
+                          childAspectRatio: childAspectRatio,
+                        ),
+                        itemBuilder: (context, index) {
+                          return _SeedWordField(
+                            controller: _controllers[index],
+                            index: index,
+                            isValid: _validWords[index],
+                            fieldColor: fieldColor,
+                            borderColor: borderColor,
+                            colorScheme: colors,
+                            textTheme: text,
+                            onChanged: (value) {
+                              _onWordChanged(index, value);
+                            },
                           );
                         },
                       );

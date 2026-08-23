@@ -1,3 +1,5 @@
+import '../utils/chain_assets.dart';
+
 class TokenModel {
   final String name;
   final String symbol;
@@ -13,6 +15,7 @@ class TokenModel {
   final bool isSpam;
   final bool isOfficial;
   final bool isTradeable;
+  final bool isEcosystem;
   final String status;
   final List<String> reasons;
   final Map<String, String> externalLinks;
@@ -33,13 +36,18 @@ class TokenModel {
     this.isSpam = false,
     this.isOfficial = false,
     this.isTradeable = false,
+    this.isEcosystem = false,
     this.status = 'unknown',
     this.reasons = const [],
     this.externalLinks = const {},
     this.security,
   });
 
-  String get identity => '${chain.toLowerCase()}:${contractAddress.toLowerCase().trim()}';
+  String get identity {
+    final net = ChainAssets.normalize(chain);
+    if (isNative) return '$net:native';
+    return '$net:${contractAddress.toLowerCase().trim()}';
+  }
 
   bool get isNative {
     final address = contractAddress.trim().toLowerCase();
@@ -50,6 +58,11 @@ class TokenModel {
 
   bool get isProfit => changePercent >= 0;
 
+  bool get isGriotAsset {
+    final net = ChainAssets.normalize(chain);
+    return symbol.toUpperCase() == 'HBADG' && net == 'bnb';
+  }
+
   double get value => valueUsd.toDouble();
 
   factory TokenModel.fromJson(Map<String, dynamic> json) {
@@ -59,10 +72,6 @@ class TokenModel {
         json['changePercent24h'] != null ||
         json['changePercent'] != null ||
         json['priceChangePercent'] != null;
-    final hasValue =
-        json['valueUsd'] != null ||
-        json['balanceUsd'] != null ||
-        json['usdValue'] != null;
 
     final securityData = json['security'] is Map ? Map<String, dynamic>.from(json['security']) : null;
     final classification = json['classification'] is Map
@@ -74,18 +83,18 @@ class TokenModel {
     bool isSpam;
 
     if (classification != null) {
-      // Direct mapping for Search Results
-      status = _string(classification['status']);
+      // Direct authoritative mapping from backend
+      status = _string(classification['status'] ?? 'unknown');
       isTradeable = classification['isTradeable'] == true;
       isSpam = classification['isSpam'] == true;
     } else {
-      // Safety is backend-owned. Missing classification is never treated as safe.
+      // Safe fallback for missing classification
       status = 'unknown';
       isTradeable = false;
       isSpam = json['isSpam'] == true;
     }
     
-    final reasonsRaw = classification?['reasons'];
+    final reasonsRaw = classification?['reasons'] ?? securityData?['reasons'];
     final reasons = reasonsRaw is List ? reasonsRaw.map((e) => e.toString()).toList() : <String>[];
 
     final linksRaw = json['externalLinks'];
@@ -99,9 +108,9 @@ class TokenModel {
       balance: _num(json['balance']),
       priceUsd: _num(json['priceUsd'] ?? json['price']),
       valueUsd: _num(
-        json['valueUsd'] ??
-            json['balanceUsd'] ??
-            json['usdValue'],
+        json['usdValue'] ??
+            json['valueUsd'] ??
+            json['balanceUsd'],
       ),
       changePercent: _num(
         json['changePercent24h'] ??
@@ -110,21 +119,23 @@ class TokenModel {
       ),
       chain: _string(json['chain'] ?? json['network']),
       contractAddress: _string(
-        json['contractAddress'] ?? json['tokenAddress'],
+        json['tokenAddress'] ??
+            json['contractAddress'],
       ),
       imageUrl: _string(
-        json['imageUrl'] ??
-            json['logo'] ??
+        json['logo'] ??
+            json['imageUrl'] ??
             json['logoUrl'],
       ),
       decimals: _resolveDecimals(
         _string(json['symbol']),
         _int(json['decimals'], fallback: 18),
       ),
-      hasMarketData: hasPrice || hasChange || hasValue,
+      hasMarketData: hasPrice || hasChange || (json['usdValue'] != null || json['valueUsd'] != null),
       isSpam: isSpam,
-      isOfficial: status == 'official',
+      isOfficial: json['isOfficial'] == true,
       isTradeable: isTradeable,
+      isEcosystem: json['isEcosystem'] == true,
       status: status,
       reasons: reasons,
       externalLinks: externalLinks,
