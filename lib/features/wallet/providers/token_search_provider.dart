@@ -7,7 +7,7 @@ class TokenSearchProvider extends ChangeNotifier {
   final WalletApiService _walletApiService;
   List<TokenModel> _holdings = [];
   bool _isWalletMode = false;
-
+  
   TokenSearchProvider({
     required WalletApiService walletApiService,
   }) : _walletApiService = walletApiService;
@@ -51,14 +51,7 @@ class TokenSearchProvider extends ChangeNotifier {
     // Perform local search immediately for holdings
     _performLocalSearch();
 
-    // The backend requires at least three characters for discovery searches.
-    if (_query.trim().length < 3) {
-      // If it's a contract address, we still want to search even if short (unlikely but possible)
-      if (!RegExp(r'^0x[a-fA-F0-9]{2,}$').hasMatch(_query.trim())) {
-        return;
-      }
-    }
-
+    // Debounce remote discovery search
     _debounceTimer = Timer(const Duration(milliseconds: 500), () {
       _performSearch();
     });
@@ -95,9 +88,40 @@ class TokenSearchProvider extends ChangeNotifier {
     }
 
     try {
-      final results = await _walletApiService.getPopularAssets(network: _network);
+      final popular = await _walletApiService.getPopularAssets(network: _network);
       if (requestId != _lastRequestId) return;
-      _results = results;
+
+      if (!_isWalletMode) {
+        // Selection Mode: Merge holdings and popular assets
+        final Map<String, TokenModel> merged = {};
+        
+        // Prioritize holdings
+        for (final t in _holdings) {
+          if (_network == null || t.chain.toLowerCase() == _network!.toLowerCase()) {
+            merged[t.identity] = t;
+          }
+        }
+        
+        // Add popular assets
+        for (final t in popular) {
+          if (!merged.containsKey(t.identity)) {
+            merged[t.identity] = t;
+          }
+        }
+        
+        _results = merged.values.toList();
+        
+        // Sort: Verified/Major first, then by value/balance
+        _results.sort((a, b) {
+          final av = a.status == 'verified' || a.isNative || a.isGriotAsset;
+          final bv = b.status == 'verified' || b.isNative || b.isGriotAsset;
+          if (av != bv) return av ? -1 : 1;
+          return b.valueUsd.compareTo(a.valueUsd);
+        });
+      } else {
+        _results = popular;
+      }
+
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -183,8 +207,11 @@ class TokenSearchProvider extends ChangeNotifier {
   }
 
   bool canSwap(TokenModel token) {
+    if (token.isNative) return true;
+
     final status = token.status.toLowerCase();
-    return token.isTradeable && status == 'verified';
+    // AUTHORITATIVE: status == verified && isTradeable == true && !isSpam
+    return status == 'verified' && token.isTradeable && !token.isSpam;
   }
 
   void clearSearch() {
