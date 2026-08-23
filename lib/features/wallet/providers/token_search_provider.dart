@@ -152,7 +152,8 @@ class TokenSearchProvider extends ChangeNotifier {
     try {
       final remoteResults = await _walletApiService.searchAssets(
         query: _query,
-        network: _network,
+        // Swap discovery is global; each result carries its own network.
+        network: null,
       );
 
       // Ignore stale responses
