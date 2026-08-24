@@ -162,23 +162,6 @@ class MainNavigationShell extends StatelessWidget {
                           ),
 
                           // ==================================================
-                          // P2P
-                          // ==================================================
-
-                          _NavigationItem(
-                            icon: Icons.swap_horiz_rounded,
-                            activeIcon: Icons.swap_horiz_rounded,
-                            label: 'P2P',
-                            index: 3,
-                            currentIndex:
-                            navigationShell.currentIndex,
-                            primary: primary,
-                            activeBackground: activeBackground,
-                            inactiveColor: inactiveColor,
-                            onTap: _goBranch,
-                          ),
-
-                          // ==================================================
                           // SETTINGS
                           // ==================================================
 
@@ -186,7 +169,7 @@ class MainNavigationShell extends StatelessWidget {
                             icon: Icons.settings_outlined,
                             activeIcon: Icons.settings_rounded,
                             label: 'Settings',
-                            index: 4,
+                            index: 3,
                             currentIndex:
                             navigationShell.currentIndex,
                             primary: primary,

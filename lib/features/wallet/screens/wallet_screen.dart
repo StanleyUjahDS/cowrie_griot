@@ -634,13 +634,6 @@ class _AdSpace extends StatelessWidget {
               onTap: () => context.go('/chat'),
             ),
             CarouselItem(
-              type: CarouselItemType.feature,
-              title: 'P2P Trading',
-              subtitle: 'Secure local trade offers',
-              icon: Icons.swap_horiz_rounded,
-              onTap: () => context.go('/p2p'),
-            ),
-            CarouselItem(
               type: CarouselItemType.ad,
             ),
             CarouselItem(

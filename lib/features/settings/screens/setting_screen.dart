@@ -491,27 +491,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ],
               ),
-              _sectionLabel(context, 'P2P Market'),
-              _sectionContainer(
-                context: context,
-                children: [
-                  _settingTile(
-                    context: context,
-                    icon: Icons.storefront_outlined,
-                    title: 'P2P Preferences',
-                    subtitle: 'Manage marketplace preferences',
-                    onTap: () => context.push('/settings/p2p-preferences'),
-                  ),
-                  _divider(context),
-                  _settingTile(
-                    context: context,
-                    icon: Icons.account_balance_outlined,
-                    title: 'Payment Methods',
-                    subtitle: 'Manage payment methods for P2P trades',
-                    onTap: () => context.push('/settings/payment-methods'),
-                  ),
-                ],
-              ),
               _sectionLabel(context, 'Privacy'),
               _sectionContainer(
                 context: context,

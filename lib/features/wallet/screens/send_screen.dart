@@ -405,7 +405,7 @@ class _SendScreenState extends State<SendScreen> {
                   context,
                   label: 'Amount',
                   trailing: token != null
-                      ? InkWell(onTap: _useMax, child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: colors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)), child: Text('MAX', style: TextStyle(color: colors.primary, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 0.5))))
+                      ? InkWell(onTap: _useMax, child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: colors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)), child: const Text('MAX', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 0.5))))
                       : null,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -555,7 +555,7 @@ class _SendScreenState extends State<SendScreen> {
                         letterSpacing: 1.5,
                       ),
                     ),
-                    if (trailing != null) trailing,
+                    ?trailing,
                   ],
                 ),
                 const SizedBox(height: 16),

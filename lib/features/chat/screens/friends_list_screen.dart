@@ -6,7 +6,6 @@ import 'package:griot_cowrie/features/chat/models/chat_user.dart';
 import 'package:griot_cowrie/features/users/models/user_model.dart';
 import 'package:griot_cowrie/core/theme/app_colors.dart';
 import 'package:griot_cowrie/core/services/notification_service.dart';
-import 'package:griot_cowrie/features/chat/widgets/chat_list_item.dart';
 import 'package:griot_cowrie/features/chat/widgets/chat_loading.dart';
 import 'package:griot_cowrie/features/chat/widgets/user_profile_sheet.dart';
 import 'package:griot_cowrie/core/ui/scaffolds/gradient_scaffold.dart';
@@ -42,9 +41,9 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
               Navigator.pop(context);
               try {
                 await context.read<MessagingProvider>().removeFriend(friend.id);
-                if (mounted) NotificationService.showSuccess(context, 'Friend removed');
+                if (context.mounted) NotificationService.showSuccess(context, 'Friend removed');
               } catch (e) {
-                if (mounted) NotificationService.showError(context, 'Failed to remove friend: $e');
+                if (context.mounted) NotificationService.showError(context, 'Failed to remove friend: $e');
               }
             },
             child: const Text('Remove', style: TextStyle(color: Colors.red)),
@@ -130,7 +129,7 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
                   child: ListView.separated(
                     padding: const EdgeInsets.only(bottom: 40),
                     itemCount: friends.length,
-                    separatorBuilder: (_, __) => Divider(height: 1, indent: 80, color: colors.outline.withValues(alpha: 0.1)),
+                    separatorBuilder: (context, index) => Divider(height: 1, indent: 80, color: colors.outline.withValues(alpha: 0.1)),
                     itemBuilder: (context, index) {
                       final f = friends[index];
                       final chatUser = ChatUser(
@@ -164,7 +163,7 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
                         trailing: PopupMenuButton<String>(
                           onSelected: (val) {
                             if (val == 'chat') {
-                              context.push('/chat/${f.id}');
+                              context.push('/chat/user/${f.id}');
                             } else if (val == 'remove') {
                               _showRemoveFriendDialog(f);
                             }

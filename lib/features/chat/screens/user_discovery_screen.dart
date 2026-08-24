@@ -1,18 +1,15 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../users/models/user_model.dart';
 import '../../users/services/user_api_service.dart';
 import '../providers/messaging_provider.dart';
-import '../models/message_request.dart';
 import '../widgets/user_profile_sheet.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
-import '../../../core/services/notification_service.dart';
 
 class UserDiscoveryScreen extends StatefulWidget {
   const UserDiscoveryScreen({super.key});

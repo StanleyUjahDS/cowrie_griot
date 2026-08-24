@@ -41,7 +41,6 @@ import '../../features/wallet/screens/swap_screen.dart';
 import '../../features/wallet/services/wallet_crypto_service.dart';
 import '../../features/wallet/models/token_model.dart';
 
-import '../../features/p2p/screens/peer_2_peer.dart';
 import '../../features/miner/screens/miner_screen.dart';
 import '../../features/miner/screens/reputation_screen.dart';
 import '../../features/miner/screens/referral_screen.dart';
@@ -93,16 +92,6 @@ class AppRouter {
       // ======================================================
 
       GoRoute(
-        path: '/chat/:userId',
-        builder: (context, state) {
-          final userId = state.pathParameters['userId'];
-          if (userId == null || userId.isEmpty) {
-            return const _InvalidRoute(message: 'Invalid chat user.');
-          }
-          return ChatScreen(userId: userId);
-        },
-      ),
-      GoRoute(
         path: '/conversation/:conversationId',
         builder: (context, state) {
           final conversationId = state.pathParameters['conversationId'];
@@ -111,6 +100,34 @@ class AppRouter {
           }
           return ChatScreen(conversationId: conversationId);
         },
+      ),
+      
+      // Moving /chat/:userId here would still conflict. 
+      // Let's use /messages/user/:userId to be safe and clean.
+      GoRoute(
+        path: '/chat/user/:userId',
+        builder: (context, state) {
+          final userId = state.pathParameters['userId'];
+          if (userId == null || userId.isEmpty) {
+            return const _InvalidRoute(message: 'Invalid chat user.');
+          }
+          return ChatScreen(userId: userId);
+        },
+      ),
+
+      GoRoute(
+        path: '/chat/friends',
+        builder: (context, state) => const FriendsListScreen(),
+      ),
+
+      GoRoute(
+        path: '/chat/requests',
+        builder: (context, state) => const MessageRequestsScreen(),
+      ),
+
+      GoRoute(
+        path: '/chat/discover',
+        builder: (context, state) => const UserDiscoveryScreen(),
       ),
 
       // ======================================================
@@ -466,20 +483,6 @@ class AppRouter {
               GoRoute(
                 path: '/chat',
                 builder: (context, state) => const ChatHomeScreen(),
-                routes: [
-                  GoRoute(
-                    path: 'discover',
-                    builder: (context, state) => const UserDiscoveryScreen(),
-                  ),
-                  GoRoute(
-                    path: 'requests',
-                    builder: (context, state) => const MessageRequestsScreen(),
-                  ),
-                  GoRoute(
-                    path: 'friends',
-                    builder: (context, state) => const FriendsListScreen(),
-                  ),
-                ],
               ),
             ],
           ),
@@ -509,21 +512,6 @@ class AppRouter {
                 path: '/wallet',
                 builder: (context, state) {
                   return const WalletScreen();
-                },
-              ),
-            ],
-          ),
-
-          // ==================================================
-          // P2P
-          // ==================================================
-
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/p2p',
-                builder: (context, state) {
-                  return const P2PScreen();
                 },
               ),
             ],

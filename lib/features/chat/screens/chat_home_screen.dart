@@ -7,19 +7,13 @@ import 'package:griot_cowrie/core/services/notification_service.dart';
 import 'package:griot_cowrie/core/services/navigation_scroll_service.dart';
 import 'package:griot_cowrie/features/chat/providers/messaging_provider.dart';
 import 'package:griot_cowrie/core/ui/scaffolds/gradient_scaffold.dart';
-import 'package:griot_cowrie/features/chat/models/chat_user.dart';
-import 'package:griot_cowrie/features/chat/models/chat_message.dart';
 import 'package:griot_cowrie/features/chat/models/conversation_model.dart';
-import 'package:griot_cowrie/features/chat/models/message_request.dart';
 import 'package:griot_cowrie/features/chat/models/chat_group.dart';
 import 'package:griot_cowrie/features/chat/models/chat_channel.dart';
-import 'package:griot_cowrie/features/users/models/user_model.dart';
-
 import 'package:griot_cowrie/features/chat/widgets/chat_list_item.dart';
 import 'package:griot_cowrie/features/chat/widgets/chat_loading.dart';
 import 'package:griot_cowrie/features/chat/widgets/group_list_item.dart' as group_widgets;
 import 'package:griot_cowrie/features/chat/widgets/channel_list_item.dart';
-import 'package:griot_cowrie/features/chat/widgets/message_request_card.dart' as request_widgets;
 
 class ChatHomeScreen extends StatelessWidget {
   const ChatHomeScreen({super.key});
@@ -133,24 +127,6 @@ class _ChatHomeViewState extends State<_ChatHomeView> with SingleTickerProviderS
   void _openFriends() => context.push('/chat/friends');
   void _openRequests() => context.push('/chat/requests');
 
-  Future<void> _acceptRequest(MessageRequest request) async {
-    try {
-      await context.read<MessagingProvider>().acceptRequest(request.id);
-      if (mounted) NotificationService.showSuccess(context, 'Request accepted');
-    } catch (_) {
-      if (mounted) NotificationService.showError(context, 'Failed to accept request');
-    }
-  }
-
-  Future<void> _declineRequest(MessageRequest request) async {
-    try {
-      await context.read<MessagingProvider>().declineRequest(request.id);
-      if (mounted) NotificationService.showSuccess(context, 'Request declined');
-    } catch (_) {
-      if (mounted) NotificationService.showError(context, 'Failed to decline request');
-    }
-  }
-
   void _handleFabAction() {
     if (selectedHub == HubSection.direct) {
       _openNewChat();
@@ -166,39 +142,53 @@ class _ChatHomeViewState extends State<_ChatHomeView> with SingleTickerProviderS
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) => Container(
-        padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(sheetContext).viewInsets.bottom + 20),
-        decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: const BorderRadius.vertical(top: Radius.circular(26))),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Create Group', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            TextField(controller: controller, decoration: const InputDecoration(labelText: 'Group Name', prefixIcon: Icon(Icons.groups_rounded))),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                onPressed: () async {
-                  final name = controller.text.trim();
-                  if (name.isEmpty) return;
-                  try {
-                    await context.read<MessagingProvider>().createGroup(name: name);
-                    if (sheetContext.mounted) {
-                      Navigator.pop(sheetContext);
-                      NotificationService.showSuccess(context, 'Group "$name" created');
-                    }
-                  } catch (e) {
-                    if (sheetContext.mounted) NotificationService.showError(context, 'Failed to create group: $e');
-                  }
-                },
-                child: const Text('Create Group'),
+      builder: (sheetContext) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(sheetContext).viewInsets.bottom + 20),
+          decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(32)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(2)),
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 24),
+              const Text('Create Group', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 16),
+              TextField(controller: controller, decoration: const InputDecoration(labelText: 'Group Name', prefixIcon: Icon(Icons.groups_rounded))),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    final name = controller.text.trim();
+                    if (name.isEmpty) return;
+                    try {
+                      await context.read<MessagingProvider>().createGroup(name: name);
+                      if (context.mounted) {
+                        Navigator.pop(sheetContext);
+                        NotificationService.showSuccess(context, 'Group "$name" created');
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        NotificationService.showError(context, 'Failed to create group: $e');
+                      }
+                    }
+                  },
+                  child: const Text('Create Group', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -209,39 +199,53 @@ class _ChatHomeViewState extends State<_ChatHomeView> with SingleTickerProviderS
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) => Container(
-        padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(sheetContext).viewInsets.bottom + 20),
-        decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: const BorderRadius.vertical(top: Radius.circular(26))),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Create Channel', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            TextField(controller: controller, decoration: const InputDecoration(labelText: 'Channel Name', prefixIcon: Icon(Icons.campaign_rounded))),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                onPressed: () async {
-                  final name = controller.text.trim();
-                  if (name.isEmpty) return;
-                  try {
-                    await context.read<MessagingProvider>().createChannel(name: name);
-                    if (sheetContext.mounted) {
-                      Navigator.pop(sheetContext);
-                      NotificationService.showSuccess(context, 'Channel "$name" created');
-                    }
-                  } catch (e) {
-                    if (sheetContext.mounted) NotificationService.showError(context, 'Failed to create channel: $e');
-                  }
-                },
-                child: const Text('Create Channel'),
+      builder: (sheetContext) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(sheetContext).viewInsets.bottom + 20),
+          decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(32)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(2)),
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 24),
+              const Text('Create Channel', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 16),
+              TextField(controller: controller, decoration: const InputDecoration(labelText: 'Channel Name', prefixIcon: Icon(Icons.campaign_rounded))),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    final name = controller.text.trim();
+                    if (name.isEmpty) return;
+                    try {
+                      await context.read<MessagingProvider>().createChannel(name: name);
+                      if (context.mounted) {
+                        Navigator.pop(sheetContext);
+                        NotificationService.showSuccess(context, 'Channel "$name" created');
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        NotificationService.showError(context, 'Failed to create channel: $e');
+                      }
+                    }
+                  },
+                  child: const Text('Create Channel', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -336,6 +340,10 @@ class _ChatHomeViewState extends State<_ChatHomeView> with SingleTickerProviderS
   }
 
   Widget _buildContent() {
+    if (searchQuery.isNotEmpty) {
+      return _buildSearchResults();
+    }
+
     return PageView(
       controller: _pageController,
       onPageChanged: _onPageChanged,
@@ -343,6 +351,52 @@ class _ChatHomeViewState extends State<_ChatHomeView> with SingleTickerProviderS
         _buildDirect(),
         _buildGroups(),
         _buildChannels(),
+      ],
+    );
+  }
+
+  Widget _buildSearchResults() {
+    final direct = filteredConversations;
+    final groups = filteredGroups;
+    final channels = filteredChannels;
+
+    if (direct.isEmpty && groups.isEmpty && channels.isEmpty) {
+      return const _EmptyState(
+        icon: Icons.search_off_rounded,
+        title: 'No results found',
+        message: 'No chats, groups, or channels match your search.',
+      );
+    }
+
+    final colors = Theme.of(context).colorScheme;
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 120, 16, 100),
+      physics: const BouncingScrollPhysics(),
+      children: [
+        if (direct.isNotEmpty) ...[
+          _SearchSectionHeader(title: 'DIRECT CHATS', count: direct.length),
+          ...direct.map((conv) {
+            final other = conv.otherUser;
+            if (other == null) return const SizedBox.shrink();
+            return ChatListItem(
+              user: other.copyWith(lastMessage: conv.lastMessage?.text ?? '', timestamp: conv.updatedAt, unreadCount: conv.unreadCount),
+              time: _formatTime(conv.updatedAt),
+              onTap: () => context.push('/conversation/${conv.id}'),
+            );
+          }),
+          const SizedBox(height: 24),
+        ],
+        if (groups.isNotEmpty) ...[
+          _SearchSectionHeader(title: 'GROUPS', count: groups.length),
+          ...groups.map((g) => group_widgets.GroupListItem(group: g, onTap: () => context.push('/conversation/${g.id}'))),
+          const SizedBox(height: 24),
+        ],
+        if (channels.isNotEmpty) ...[
+          _SearchSectionHeader(title: 'CHANNELS', count: channels.length),
+          ...channels.map((c) => ChannelListItem(channel: c)),
+          const SizedBox(height: 24),
+        ],
       ],
     );
   }
@@ -367,7 +421,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> with SingleTickerProviderS
             controller: _scrollController,
             padding: const EdgeInsets.only(top: 120, bottom: 100),
             itemCount: list.length,
-            separatorBuilder: (_, __) => Divider(height: 1, indent: 80, color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1)),
+            separatorBuilder: (context, index) => Divider(height: 1, indent: 80, color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1)),
             itemBuilder: (context, index) {
               final conv = list[index];
               final other = conv.otherUser;
@@ -396,7 +450,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> with SingleTickerProviderS
             controller: _scrollController,
             padding: const EdgeInsets.only(top: 120, bottom: 100),
             itemCount: list.length,
-            separatorBuilder: (_, __) => const Divider(height: 1, indent: 80),
+            separatorBuilder: (context, index) => const Divider(height: 1, indent: 80),
             itemBuilder: (context, index) => group_widgets.GroupListItem(group: list[index], onTap: () => context.push('/conversation/${list[index].id}')),
           ),
         );
@@ -416,7 +470,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> with SingleTickerProviderS
             controller: _scrollController,
             padding: const EdgeInsets.only(top: 120, bottom: 100),
             itemCount: list.length,
-            separatorBuilder: (_, __) => const Divider(height: 1, indent: 80),
+            separatorBuilder: (context, index) => const Divider(height: 1, indent: 80),
             itemBuilder: (context, index) => ChannelListItem(channel: list[index]),
           ),
         );
@@ -442,13 +496,13 @@ class _ChatSectionSwitcher extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     return Container(
       height: 44,
       padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(color: colors.surface.withValues(alpha: 0.95), borderRadius: BorderRadius.circular(12), border: Border.all(color: colors.outline.withValues(alpha: 0.1))),
+      decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.95), borderRadius: BorderRadius.circular(12), border: Border.all(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1))),
       child: Row(
         children: HubSection.values.map((s) {
+          final colors = Theme.of(context).colorScheme;
           final isSelected = selected == s;
           return Expanded(
             child: GestureDetector(
@@ -474,20 +528,51 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 120),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 64, color: c.onSurfaceVariant.withValues(alpha: 0.2)),
+            Icon(icon, size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.2)),
             const SizedBox(height: 16),
             Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            Text(message, style: TextStyle(color: c.onSurfaceVariant), textAlign: TextAlign.center),
+            Text(message, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant), textAlign: TextAlign.center),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _SearchSectionHeader extends StatelessWidget {
+  final String title;
+  final int count;
+  const _SearchSectionHeader({required this.title, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
+      child: Row(
+        children: [
+          Text(
+            title,
+            style: TextStyle(color: colors.primary, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 1.5),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(color: colors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
+            child: Text(
+              count.toString(),
+              style: TextStyle(color: colors.primary, fontWeight: FontWeight.bold, fontSize: 10),
+            ),
+          ),
+          const Expanded(child: Divider(indent: 16)),
+        ],
       ),
     );
   }

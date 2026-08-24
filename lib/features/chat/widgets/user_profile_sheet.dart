@@ -15,6 +15,8 @@ class UserProfileSheet extends StatefulWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
       builder: (context) => UserProfileSheet(user: user),
     );
@@ -31,14 +33,18 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
     setState(() => _isActionLoading = true);
     try {
       await context.read<MessagingProvider>().sendRequest(widget.user.id);
-      if (!mounted) return;
-      NotificationService.showSuccess(context, 'Request sent!');
-      Navigator.pop(context);
+      if (context.mounted) {
+        NotificationService.showSuccess(context, 'Request sent!');
+        Navigator.pop(context);
+      }
     } catch (e) {
-      if (!mounted) return;
-      NotificationService.showError(context, e.toString().contains('409') ? 'Already sent' : 'Failed to send');
+      if (context.mounted) {
+        NotificationService.showError(context, e.toString().contains('409') ? 'Already sent' : 'Failed to send');
+      }
     } finally {
-      if (mounted) setState(() => _isActionLoading = false);
+      if (context.mounted) {
+        setState(() => _isActionLoading = false);
+      }
     }
   }
 
@@ -60,95 +66,98 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
           r.senderWalletAddress.toLowerCase() == user.walletAddress.toLowerCase() && r.status == RequestStatus.pending
         ).firstOrNull;
         
-        return Container(
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(color: colors.surface, borderRadius: const BorderRadius.vertical(top: Radius.circular(32))),
-          child: Stack(
-            children: [
-              // Branded Backgrounds
-              Positioned(right: -60, top: 40, child: Opacity(opacity: 0.05, child: Image.asset('assets/cowrie_images/cowrie_ring.png', width: 200))),
-              Positioned(left: -50, bottom: -30, child: Opacity(opacity: 0.05, child: Image.asset('assets/cowrie_images/cowrie_stack.png', width: 180))),
+        return SafeArea(
+          child: Container(
+            margin: const EdgeInsets.all(12),
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(color: colors.surface, borderRadius: BorderRadius.circular(32)),
+            child: Stack(
+              children: [
+                // Branded Backgrounds
+                Positioned(right: -60, top: 40, child: Opacity(opacity: 0.05, child: Image.asset('assets/cowrie_images/cowrie_ring.png', width: 200))),
+                Positioned(left: -50, bottom: -30, child: Opacity(opacity: 0.05, child: Image.asset('assets/cowrie_images/cowrie_stack.png', width: 180))),
 
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 12, 24, 40),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(width: 40, height: 4, decoration: BoxDecoration(color: colors.onSurfaceVariant.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(2))),
-                    const SizedBox(height: 32),
-                    
-                    // Avatar & Reputation
-                    CircleAvatar(
-                      radius: 50,
-                      backgroundColor: colors.primary.withValues(alpha: 0.1),
-                      backgroundImage: user.avatarUrl != null ? NetworkImage(user.avatarUrl!) : null,
-                      child: user.avatarUrl == null ? Icon(Icons.person_rounded, size: 50, color: colors.primary) : null,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(user.displayName ?? 'Griot User', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
-                    if (user.username != null) Text('@${user.username}', style: TextStyle(color: colors.primary, fontWeight: FontWeight.bold, fontSize: 16)),
-                    const SizedBox(height: 8),
-                    if (user.reputation != null) _ReputationBadge(reputation: user.reputation!),
-                    
-                    const SizedBox(height: 24),
-                    if (user.bio != null && user.bio!.isNotEmpty)
-                      Text(user.bio!, textAlign: TextAlign.center, style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant)),
-                    
-                    const SizedBox(height: 32),
-                    
-                    // SYNCED ACTIONS
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildMainAction(
-                            context, 
-                            provider,
-                            isFriend: isFriend, 
-                            conversationId: conversation?.id, 
-                            sentReq: sentReq, 
-                            receivedReq: receivedReq
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(width: 40, height: 4, decoration: BoxDecoration(color: colors.onSurfaceVariant.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(2))),
+                      const SizedBox(height: 32),
+                      
+                      // Avatar & Reputation
+                      CircleAvatar(
+                        radius: 50,
+                        backgroundColor: colors.primary.withValues(alpha: 0.1),
+                        backgroundImage: user.avatarUrl != null ? NetworkImage(user.avatarUrl!) : null,
+                        child: user.avatarUrl == null ? Icon(Icons.person_rounded, size: 50, color: colors.primary) : null,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(user.displayName ?? 'Griot User', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+                      if (user.username != null) Text('@${user.username}', style: TextStyle(color: colors.primary, fontWeight: FontWeight.bold, fontSize: 16)),
+                      const SizedBox(height: 8),
+                      if (user.reputation != null) _ReputationBadge(reputation: user.reputation!),
+                      
+                      const SizedBox(height: 24),
+                      if (user.bio != null && user.bio!.isNotEmpty)
+                        Text(user.bio!, textAlign: TextAlign.center, style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant)),
+                      
+                      const SizedBox(height: 32),
+                      
+                      // SYNCED ACTIONS
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildMainAction(
+                              context, 
+                              provider,
+                              isFriend: isFriend, 
+                              conversationId: conversation?.id, 
+                              sentReq: sentReq, 
+                              receivedReq: receivedReq
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _ProfileActionButton(
-                            icon: Icons.account_balance_wallet_outlined,
-                            label: 'View Wallet',
-                            color: colors.secondary,
-                            onTap: () {
-                              Navigator.pop(context);
-                              context.push('/wallet/send', extra: user.walletAddress);
-                            },
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _ProfileActionButton(
+                              icon: Icons.account_balance_wallet_outlined,
+                              label: 'View Wallet',
+                              color: colors.secondary,
+                              onTap: () {
+                                Navigator.pop(context);
+                                context.push('/wallet/send', extra: user.walletAddress);
+                              },
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        TextButton.icon(
-                          onPressed: () => NotificationService.showInfo(context, 'User blocked'),
-                          icon: Icon(Icons.block_rounded, size: 14, color: colors.error),
-                          label: Text('Block User', style: TextStyle(color: colors.error, fontSize: 12, fontWeight: FontWeight.bold)),
-                        ),
-                        const SizedBox(width: 24),
-                        _ProfileActionButton(
-                          icon: Icons.volunteer_activism_outlined,
-                          label: 'Tip',
-                          color: Colors.amber[700],
-                          onTap: () => NotificationService.showInfo(context, 'Tipping coming soon'),
-                        ),
-                      ],
-                    ),
-                    
-                    const SizedBox(height: 16),
-                    Text('Wallet: ${user.walletAddress}', style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.4), fontSize: 10, fontFamily: 'Monospace')),
-                  ],
+                        ],
+                      ),
+                      
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          TextButton.icon(
+                            onPressed: () => NotificationService.showInfo(context, 'User blocked'),
+                            icon: Icon(Icons.block_rounded, size: 14, color: colors.error),
+                            label: Text('Block User', style: TextStyle(color: colors.error, fontSize: 12, fontWeight: FontWeight.bold)),
+                          ),
+                          const SizedBox(width: 24),
+                          _ProfileActionButton(
+                            icon: Icons.volunteer_activism_outlined,
+                            label: 'Tip',
+                            color: Colors.amber[700],
+                            onTap: () => NotificationService.showInfo(context, 'Tipping coming soon'),
+                          ),
+                        ],
+                      ),
+                      
+                      const SizedBox(height: 16),
+                      Text('Wallet: ${user.walletAddress}', style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.4), fontSize: 10, fontFamily: 'Monospace')),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -163,11 +172,13 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
         icon: Icons.chat_bubble_rounded,
         label: 'Open Chat',
         onTap: () {
-          Navigator.pop(context);
-          if (conversationId != null) {
-            context.push('/conversation/$conversationId');
-          } else {
-            context.push('/chat/${widget.user.id}');
+          if (context.mounted) {
+            Navigator.pop(context);
+            if (conversationId != null) {
+              context.push('/conversation/$conversationId');
+            } else {
+              context.push('/chat/user/${widget.user.id}');
+            }
           }
         },
       );

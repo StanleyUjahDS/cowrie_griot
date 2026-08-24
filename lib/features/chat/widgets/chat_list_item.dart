@@ -224,7 +224,7 @@ class ChatListItem extends StatelessWidget {
       // ==========================================================
 
       onTap: onTap ?? () {
-        context.push('/chat/${user.id}');
+        context.push('/chat/user/${user.id}');
       },
     );
   }
