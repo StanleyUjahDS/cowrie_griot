@@ -183,8 +183,8 @@ class MessagingApiService {
       ApiConfig.messagingGroups,
       body: {
         'name': name,
-        if (description != null) 'description': description,
-        if (memberIds != null) 'memberIds': memberIds,
+        ? 'description': description,
+        ? 'memberIds': memberIds,
       },
     );
     final data = response['data'] ?? response;
@@ -228,7 +228,7 @@ class MessagingApiService {
       ApiConfig.messagingChannels,
       body: {
         'name': name,
-        if (description != null) 'description': description,
+        ? 'description': description,
       },
     );
     final data = response['data'] ?? response;

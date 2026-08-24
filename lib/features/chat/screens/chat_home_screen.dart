@@ -13,11 +13,13 @@ import 'package:griot_cowrie/features/chat/models/conversation_model.dart';
 import 'package:griot_cowrie/features/chat/models/message_request.dart';
 import 'package:griot_cowrie/features/chat/models/chat_group.dart';
 import 'package:griot_cowrie/features/chat/models/chat_channel.dart';
+import 'package:griot_cowrie/features/users/models/user_model.dart';
 
 import 'package:griot_cowrie/features/chat/widgets/chat_list_item.dart';
 import 'package:griot_cowrie/features/chat/widgets/chat_loading.dart';
 import 'package:griot_cowrie/features/chat/widgets/group_list_item.dart' as group_widgets;
 import 'package:griot_cowrie/features/chat/widgets/channel_list_item.dart';
+import 'package:griot_cowrie/features/chat/widgets/message_request_card.dart' as request_widgets;
 
 class ChatHomeScreen extends StatelessWidget {
   const ChatHomeScreen({super.key});
@@ -35,11 +37,11 @@ class _ChatHomeView extends StatefulWidget {
   State<_ChatHomeView> createState() => _ChatHomeViewState();
 }
 
-class _ChatHomeViewState extends State<_ChatHomeView> {
+class _ChatHomeViewState extends State<_ChatHomeView> with SingleTickerProviderStateMixin {
   String searchQuery = '';
   final ScrollController _scrollController = ScrollController();
   final PageController _pageController = PageController();
-  ChatSection selectedSection = ChatSection.direct;
+  HubSection selectedHub = HubSection.direct;
 
   @override
   void initState() {
@@ -73,9 +75,9 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
     }
   }
 
-  void _onSectionChanged(ChatSection section) {
+  void _onSectionChanged(HubSection section) {
     setState(() {
-      selectedSection = section;
+      selectedHub = section;
       searchQuery = '';
     });
     _pageController.animateToPage(
@@ -87,7 +89,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
 
   void _onPageChanged(int index) {
     setState(() {
-      selectedSection = ChatSection.values[index];
+      selectedHub = HubSection.values[index];
       searchQuery = '';
     });
   }
@@ -131,12 +133,30 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
   void _openFriends() => context.push('/chat/friends');
   void _openRequests() => context.push('/chat/requests');
 
+  Future<void> _acceptRequest(MessageRequest request) async {
+    try {
+      await context.read<MessagingProvider>().acceptRequest(request.id);
+      if (mounted) NotificationService.showSuccess(context, 'Request accepted');
+    } catch (_) {
+      if (mounted) NotificationService.showError(context, 'Failed to accept request');
+    }
+  }
+
+  Future<void> _declineRequest(MessageRequest request) async {
+    try {
+      await context.read<MessagingProvider>().declineRequest(request.id);
+      if (mounted) NotificationService.showSuccess(context, 'Request declined');
+    } catch (_) {
+      if (mounted) NotificationService.showError(context, 'Failed to decline request');
+    }
+  }
+
   void _handleFabAction() {
-    if (selectedSection == ChatSection.direct) {
+    if (selectedHub == HubSection.direct) {
       _openNewChat();
-    } else if (selectedSection == ChatSection.groups) {
+    } else if (selectedHub == HubSection.groups) {
       _showCreateGroupSheet();
-    } else if (selectedSection == ChatSection.channels) {
+    } else if (selectedHub == HubSection.channels) {
       _showCreateChannelSheet();
     }
   }
@@ -299,7 +319,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
           child: TextField(
             onChanged: (v) => setState(() => searchQuery = v),
             decoration: InputDecoration(
-              hintText: 'Search ${selectedSection.name}...',
+              hintText: 'Search ${selectedHub.name}...',
               prefixIcon: const Icon(Icons.search_rounded, size: 20),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -308,7 +328,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
         ),
         const SizedBox(height: 8),
         _ChatSectionSwitcher(
-          selected: selectedSection,
+          selected: selectedHub,
           onChanged: _onSectionChanged,
         ),
       ],
@@ -328,10 +348,10 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
   }
 
   IconData _getFabIcon() {
-    switch (selectedSection) {
-      case ChatSection.direct: return Icons.chat_bubble_outline_rounded;
-      case ChatSection.groups: return Icons.group_add_rounded;
-      case ChatSection.channels: return Icons.campaign_rounded;
+    switch (selectedHub) {
+      case HubSection.direct: return Icons.chat_bubble_outline_rounded;
+      case HubSection.groups: return Icons.group_add_rounded;
+      case HubSection.channels: return Icons.campaign_rounded;
     }
   }
 
@@ -413,11 +433,11 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
   }
 }
 
-enum ChatSection { direct, groups, channels }
+enum HubSection { direct, groups, channels }
 
 class _ChatSectionSwitcher extends StatelessWidget {
-  final ChatSection selected;
-  final ValueChanged<ChatSection> onChanged;
+  final HubSection selected;
+  final ValueChanged<HubSection> onChanged;
   const _ChatSectionSwitcher({required this.selected, required this.onChanged});
 
   @override
@@ -428,7 +448,7 @@ class _ChatSectionSwitcher extends StatelessWidget {
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(color: colors.surface.withValues(alpha: 0.95), borderRadius: BorderRadius.circular(12), border: Border.all(color: colors.outline.withValues(alpha: 0.1))),
       child: Row(
-        children: ChatSection.values.map((s) {
+        children: HubSection.values.map((s) {
           final isSelected = selected == s;
           return Expanded(
             child: GestureDetector(

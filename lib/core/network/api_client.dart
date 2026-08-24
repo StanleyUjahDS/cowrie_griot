@@ -325,7 +325,7 @@ class ApiClient {
               'API 401: Refresh success, retrying original request...',
             );
 
-            return _request(
+            return await _request(
               method: method,
               url: url,
               body: body,

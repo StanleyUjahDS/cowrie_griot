@@ -164,8 +164,11 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
         label: 'Open Chat',
         onTap: () {
           Navigator.pop(context);
-          if (conversationId != null) context.push('/conversation/$conversationId');
-          else context.push('/chat/${widget.user.id}');
+          if (conversationId != null) {
+            context.push('/conversation/$conversationId');
+          } else {
+            context.push('/chat/${widget.user.id}');
+          }
         },
       );
     }
@@ -182,7 +185,9 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
         onTap: () async {
           try {
             await provider.acceptRequest(receivedReq.id);
-            if (mounted) NotificationService.showSuccess(context, 'Connected!');
+            if (context.mounted) {
+              NotificationService.showSuccess(context, 'Connected!');
+            }
           } catch (_) {}
         },
       );
