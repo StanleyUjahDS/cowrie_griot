@@ -55,9 +55,11 @@ class _ReputationScreenState extends State<ReputationScreen> {
       final shareLink = 'https://griot.network/join?ref=$referralCode';
       final shareText = 'My status on the Griot app: ${reputation.tier.name}! 🦡\n\nJoin the Cowrie Protocol legacy: $shareLink';
       
-      await SharePlus.shareXFiles(
-        [XFile(file.path)],
-        text: shareText,
+      await SharePlus.instance.shareXFiles(
+        ShareParams(
+          files: [XFile(file.path)],
+          text: shareText,
+        ),
       );
     } catch (e) {
       if (mounted) {

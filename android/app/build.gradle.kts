@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.griotcowrie.griot_cowrie"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 35
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -24,7 +24,7 @@ android {
 
         minSdk = flutter.minSdkVersion
 
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }

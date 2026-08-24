@@ -71,7 +71,12 @@ class _ReferralScreenState extends State<ReferralScreen> {
     final link = 'https://griot.network/join?ref=$code';
     final text = 'Join me on Griot! My code: $code\n\n$link';
     
-    await Share.share(text, subject: 'Join Griot');
+    await SharePlus.instance.share(
+      ShareParams(
+        text: text,
+        subject: 'Join Griot',
+      ),
+    );
   }
 
   Future<void> _showQRSheet(BuildContext context, String code) async {
@@ -186,9 +191,11 @@ class _ReferralScreenState extends State<ReferralScreen> {
       await file.writeAsBytes(buffer);
 
       final link = 'https://griot.network/join?ref=$code';
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        text: 'Join me on Griot! My code: $code\n\n$link',
+      await SharePlus.instance.shareXFiles(
+        ShareParams(
+          files: [XFile(file.path)],
+          text: 'Join me on Griot! My code: $code\n\n$link',
+        ),
       );
     } catch (e) {
       if (mounted) {

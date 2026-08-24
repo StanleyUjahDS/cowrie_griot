@@ -368,8 +368,6 @@ class _ChatHomeViewState extends State<_ChatHomeView> with SingleTickerProviderS
       );
     }
 
-    final colors = Theme.of(context).colorScheme;
-
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 120, 16, 100),
       physics: const BouncingScrollPhysics(),
