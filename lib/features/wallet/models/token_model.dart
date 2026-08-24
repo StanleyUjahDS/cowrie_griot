@@ -58,10 +58,7 @@ class TokenModel {
 
   bool get isProfit => changePercent >= 0;
 
-  bool get isGriotAsset {
-    final net = ChainAssets.normalize(chain);
-    return symbol.toUpperCase() == 'HBADG' && net == 'bnb';
-  }
+  bool get isGriotAsset => isEcosystem;
 
   double get value => valueUsd.toDouble();
 
@@ -127,10 +124,7 @@ class TokenModel {
             json['imageUrl'] ??
             json['logoUrl'],
       ),
-      decimals: _resolveDecimals(
-        _string(json['symbol']),
-        _int(json['decimals'], fallback: 18),
-      ),
+      decimals: _int(json['decimals'], fallback: 18),
       hasMarketData: hasPrice || hasChange || (json['usdValue'] != null || json['valueUsd'] != null),
       isSpam: isSpam,
       isOfficial: json['isOfficial'] == true,
@@ -158,16 +152,5 @@ class TokenModel {
     if (value is int) return value;
     if (value is num) return value.toInt();
     return int.tryParse(value?.toString() ?? '') ?? fallback;
-  }
-
-  static int _resolveDecimals(String symbol, int defaultDecimals) {
-    final cleanSymbol = symbol.trim().toUpperCase();
-    if (cleanSymbol == 'USDT' || cleanSymbol == 'USDC' || cleanSymbol == 'USDC.E') {
-      return 6;
-    }
-    if (cleanSymbol == 'WBTC') {
-      return 8;
-    }
-    return defaultDecimals;
   }
 }

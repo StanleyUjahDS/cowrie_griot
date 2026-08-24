@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/ui/scaffolds/gradient_scaffold.dart';
@@ -16,10 +18,25 @@ import 'widgets/profile_field.dart';
 import 'widgets/section_label.dart';
 import 'widgets/settings_container.dart';
 
-class AccountDetailsScreen extends StatelessWidget {
+class AccountDetailsScreen extends StatefulWidget {
   const AccountDetailsScreen({
     super.key,
   });
+
+  @override
+  State<AccountDetailsScreen> createState() => _AccountDetailsScreenState();
+}
+
+class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<UserProvider>().refreshUser();
+      }
+    });
+  }
 
   // ============================================================
   // EDIT USERNAME
@@ -165,10 +182,6 @@ class AccountDetailsScreen extends StatelessWidget {
         '${value.substring(value.length - 8)}';
   }
 
-  // ============================================================
-  // BUILD
-  // ============================================================
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -227,7 +240,30 @@ class AccountDetailsScreen extends StatelessWidget {
                   value: username,
                   onTap: () => _editUsername(context, username == '@username' ? '' : username),
                 ),
+
                 const SettingsDivider(),
+
+                // ==================================================
+                // REPUTATION
+                // ==================================================
+
+                if (user?.reputation != null) ...[
+                  ProfileField(
+                    icon: Icons.workspace_premium_rounded,
+                    iconColor: AppColors.parseHexColor(user!.reputation!.badgeColor),
+                    title: 'Reputation Tier',
+                    value: user.reputation!.tierName,
+                    onTap: () {
+                      context.push('/settings/reputation');
+                    },
+                  ),
+                  const SettingsDivider(),
+                ],
+
+                // ==================================================
+                // REFERRAL
+                // ==================================================
+
                 ProfileField(
                   icon: Icons.link_rounded,
                   title: 'Referral Code',
@@ -337,30 +373,35 @@ class _ProfileHero extends StatelessWidget {
         Text(
           displayName,
           textAlign: TextAlign.center,
-          style: text.headlineSmall?.copyWith(fontWeight: FontWeight.w900, letterSpacing: -0.4),
+          style: text.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w900,
+            letterSpacing: -0.4,
+          ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          username,
-          textAlign: TextAlign.center,
-          style: text.bodyMedium?.copyWith(color: colors.primary, fontWeight: FontWeight.w600),
-        ),
+
         if (reputation != null) ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: AppColors.parseHexColor(reputation!.badgeColor).withValues(alpha: 0.12),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.parseHexColor(reputation!.badgeColor),
+                  AppColors.parseHexColor(reputation!.badgeColor).withValues(alpha: 0.8),
+                ],
+              ),
               borderRadius: BorderRadius.circular(30),
               border: Border.all(
-                color: AppColors.parseHexColor(reputation!.badgeColor).withValues(alpha: 0.25),
+                color: Colors.white.withValues(alpha: 0.3),
                 width: 1.5,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.parseHexColor(reputation!.badgeColor).withValues(alpha: 0.1),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+                  color: AppColors.parseHexColor(reputation!.badgeColor).withValues(alpha: 0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
@@ -369,24 +410,35 @@ class _ProfileHero extends StatelessWidget {
               children: [
                 Icon(
                   Icons.workspace_premium_rounded,
-                  size: 20,
-                  color: AppColors.parseHexColor(reputation!.badgeColor),
+                  size: 18,
+                  color: Colors.white,
                 ),
                 const SizedBox(width: 8),
                 Text(
                   reputation!.tierName.toUpperCase(),
                   style: text.labelLarge?.copyWith(
-                    color: AppColors.parseHexColor(reputation!.badgeColor),
+                    color: Colors.white,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: 0.8,
-                    fontSize: 13,
+                    letterSpacing: 1.2,
+                    fontSize: 11,
                   ),
                 ),
               ],
             ),
-          ),
+          ).animate(onPlay: (c) => c.repeat())
+           .shimmer(delay: 3.seconds, duration: 2.seconds, color: Colors.white.withValues(alpha: 0.3)),
         ],
-        const SizedBox(height: 18),
+
+        const SizedBox(height: 8),
+
+        Text(
+          username,
+          textAlign: TextAlign.center,
+          style: text.bodyMedium?.copyWith(
+            color: colors.primary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         Material(
           color: Colors.transparent,
           child: InkWell(

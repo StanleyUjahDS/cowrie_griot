@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'package:overlay_support/overlay_support.dart';
+import 'package:toastification/toastification.dart';
 
 import 'app.dart';
 import 'core/theme/theme_controller.dart';
@@ -24,8 +24,8 @@ Future<void> main() async {
   // ==========================================================
 
   runApp(
-    OverlaySupport.global(
-      child: const GriotCowrieApp(),
+    const ToastificationWrapper(
+      child: GriotCowrieApp(),
     ),
   );
 }

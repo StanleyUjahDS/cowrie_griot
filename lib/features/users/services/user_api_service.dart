@@ -194,4 +194,18 @@ class UserApiService {
     )
         .toList();
   }
+
+  // ============================================================
+  // GET FRIENDS
+  // GET /api/users/friends
+  // ============================================================
+
+  Future<List<UserModel>> getFriends() async {
+    final response = await _apiClient.get(ApiConfig.usersFriends);
+    final data = response['data'] ?? response;
+    if (data is List) {
+      return data.map((u) => UserModel.fromJson(Map<String, dynamic>.from(u))).toList();
+    }
+    return [];
+  }
 }

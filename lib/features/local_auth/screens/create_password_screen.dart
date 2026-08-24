@@ -4,7 +4,8 @@ import '/core/ui/scaffolds/gradient_scaffold.dart';
 import '/core/services/notification_service.dart';
 
 class SetPassword extends StatefulWidget {
-  const SetPassword({super.key});
+  final Future<void> Function()? onSuccess;
+  const SetPassword({super.key, this.onSuccess});
 
   @override
   State<SetPassword> createState() => _SetPasswordState();
@@ -38,17 +39,20 @@ class _SetPasswordState extends State<SetPassword> {
         input += key;
       }
     });
+
+    if (input.length == 6) {
+      _onContinue();
+    }
   }
 
   void _onContinue() {
     if (input.length == 6) {
-      NotificationService.showSuccess(context, "Password set successfully");
-
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted) {
-          context.push('/confirm_password', extra: input);
-        }
-      });
+      if (mounted) {
+        context.pushReplacement('/confirm_password', extra: {
+          'pin': input,
+          'onSuccess': widget.onSuccess,
+        });
+      }
     } else {
       NotificationService.showError(context, "Enter a 6-digit PIN");
     }

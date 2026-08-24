@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/services/ad_service.dart';
 import '../../../core/services/notification_service.dart';
@@ -39,7 +40,8 @@ class _MinerScreenState extends State<MinerScreen>
   double cycleRewardPool = 3750000;
 
   double baseMiningWeight = 1.0;
-  double reputationMultiplier = 1.15;
+  // TODO: Connected to authoritative reputation backend
+  double reputationMultiplier = 1.0; 
   double plusMultiplier = 1.25;
   bool isPlusUser = true;
 
@@ -513,10 +515,11 @@ class _MinerScreenState extends State<MinerScreen>
                   _ActivityTile(
                     icon: Icons.person_add_alt_1_rounded,
                     title: 'Invite a friend',
-                    subtitle:
-                    'Bring someone into Griot',
+                    subtitle: 'Bring someone into Griot',
                     reward: '+50 pts',
-                    completed: true,
+                    onTap: () {
+                      context.push('/settings/referrals');
+                    },
                   ),
 
                   const SizedBox(height: 10),
@@ -872,7 +875,7 @@ class _PayoutCountdownCard extends StatelessWidget {
     final text = Theme.of(context).textTheme;
 
     return Container(
-      padding: const EdgeInsets.all(19),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         gradient: LinearGradient(
@@ -887,146 +890,164 @@ class _PayoutCountdownCard extends StatelessWidget {
           color: colors.primary.withValues(alpha: 0.15),
         ),
       ),
-      child: Column(
+      child: Stack(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: colors.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: Icon(
-                  Icons.account_balance_rounded,
-                  color: colors.primary,
-                ),
+          // Background Decorative Ring
+          Positioned(
+            right: -60,
+            top: -40,
+            child: Opacity(
+              opacity: 0.06,
+              child: Image.asset(
+                'assets/cowrie_images/cowrie_ring.png',
+                width: 250,
+                fit: BoxFit.contain,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(19),
+            child: Column(
+              children: [
+                Row(
                   children: [
-                    Text(
-                      'Next payout',
-                      style: text.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: colors.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      child: Icon(
+                        Icons.account_balance_rounded,
+                        color: colors.primary,
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      formatDate(payoutDate),
-                      style: text.bodySmall?.copyWith(
-                        color: colors.onSurfaceVariant,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Next payout',
+                            style: text.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            formatDate(payoutDate),
+                            style: text.bodySmall?.copyWith(
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colors.primary.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        'QUARTERLY',
+                        style: text.labelSmall?.copyWith(
+                          color: colors.primary,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                     ),
                   ],
                 ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: colors.primary.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  'QUARTERLY',
-                  style: text.labelSmall?.copyWith(
-                    color: colors.primary,
-                    fontWeight: FontWeight.w900,
+
+                const SizedBox(height: 20),
+
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 16,
+                    horizontal: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.surface.withValues(alpha: 0.48),
+                    borderRadius: BorderRadius.circular(17),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        'PAYOUT IN',
+                        style: text.labelSmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.1,
+                        ),
+                      ),
+                      const SizedBox(height: 7),
+                      FittedBox(
+                        child: Text(
+                          formatCountdown(countdown),
+                          style: text.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ],
-          ),
 
-          const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(
-              vertical: 16,
-              horizontal: 12,
-            ),
-            decoration: BoxDecoration(
-              color: colors.surface.withValues(alpha: 0.48),
-              borderRadius: BorderRadius.circular(17),
-            ),
-            child: Column(
-              children: [
-                Text(
-                  'PAYOUT IN',
-                  style: text.labelSmall?.copyWith(
-                    color: colors.onSurfaceVariant,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.1,
-                  ),
-                ),
-                const SizedBox(height: 7),
-                FittedBox(
-                  child: Text(
-                    formatCountdown(countdown),
-                    style: text.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.5,
+                Row(
+                  children: [
+                    Expanded(
+                      child: _PayoutMetric(
+                        label: 'Your points',
+                        value: cyclePoints.toStringAsFixed(0),
+                      ),
                     ),
+                    Container(
+                      width: 1,
+                      height: 38,
+                      color: colors.outline.withValues(alpha: 0.12),
+                    ),
+                    Expanded(
+                      child: _PayoutMetric(
+                        label: 'Your share',
+                        value: '${(share * 100).toStringAsFixed(3)}%',
+                      ),
+                    ),
+                    Container(
+                      width: 1,
+                      height: 38,
+                      color: colors.outline.withValues(alpha: 0.12),
+                    ),
+                    Expanded(
+                      child: _PayoutMetric(
+                        label: 'Est. reward',
+                        value: '${estimatedReward.toStringAsFixed(2)} GRT',
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 15),
+
+                Text(
+                  'Your final reward is calculated from your '
+                  'share of all eligible points at the end '
+                  'of the three-month cycle.',
+                  textAlign: TextAlign.center,
+                  style: text.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    height: 1.35,
                   ),
                 ),
               ],
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          Row(
-            children: [
-              Expanded(
-                child: _PayoutMetric(
-                  label: 'Your points',
-                  value: cyclePoints.toStringAsFixed(0),
-                ),
-              ),
-              Container(
-                width: 1,
-                height: 38,
-                color: colors.outline.withValues(alpha: 0.12),
-              ),
-              Expanded(
-                child: _PayoutMetric(
-                  label: 'Your share',
-                  value:
-                  '${(share * 100).toStringAsFixed(3)}%',
-                ),
-              ),
-              Container(
-                width: 1,
-                height: 38,
-                color: colors.outline.withValues(alpha: 0.12),
-              ),
-              Expanded(
-                child: _PayoutMetric(
-                  label: 'Est. reward',
-                  value:
-                  '${estimatedReward.toStringAsFixed(2)} GRT',
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 15),
-
-          Text(
-            'Your final reward is calculated from your '
-                'share of all eligible points at the end '
-                'of the three-month cycle.',
-            textAlign: TextAlign.center,
-            style: text.bodySmall?.copyWith(
-              color: colors.onSurfaceVariant,
-              height: 1.35,
             ),
           ),
         ],
@@ -1709,7 +1730,6 @@ class _ActivityTile extends StatelessWidget {
   final String subtitle;
   final String reward;
   final VoidCallback? onTap;
-  final bool completed;
 
   const _ActivityTile({
     required this.icon,
@@ -1717,7 +1737,6 @@ class _ActivityTile extends StatelessWidget {
     required this.subtitle,
     required this.reward,
     this.onTap,
-    this.completed = false,
   });
 
   @override
@@ -1728,7 +1747,7 @@ class _ActivityTile extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: completed ? null : onTap,
+        onTap: onTap,
         borderRadius: BorderRadius.circular(20),
         child: Ink(
           padding: const EdgeInsets.all(15),
@@ -1788,26 +1807,11 @@ class _ActivityTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              if (completed)
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: Colors.green.withValues(alpha: 0.10),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.check_rounded,
-                    size: 19,
-                    color: Colors.green,
-                  ),
-                )
-              else
-                Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  size: 15,
-                  color: colors.onSurfaceVariant,
-                ),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 15,
+                color: colors.onSurfaceVariant,
+              ),
             ],
           ),
         ),

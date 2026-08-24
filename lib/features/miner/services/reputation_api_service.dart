@@ -1,4 +1,5 @@
 import '../../../core/network/api_client.dart';
+import '../../../core/network/api_config.dart';
 import '../models/reputation_model.dart';
 
 class ReputationApiService {
@@ -7,7 +8,7 @@ class ReputationApiService {
   ReputationApiService({required ApiClient apiClient}) : _apiClient = apiClient;
 
   Future<ReputationData> getReputation() async {
-    final response = await _apiClient.get('/api/reputation/me');
+    final response = await _apiClient.get(ApiConfig.reputationMe);
     
     if (response is! Map<String, dynamic>) {
       throw Exception('Invalid response from server.');

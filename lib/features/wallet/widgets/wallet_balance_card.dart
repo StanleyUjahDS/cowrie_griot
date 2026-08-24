@@ -32,7 +32,19 @@ class WalletBalanceCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(24),
           child: Stack(
             children: [
-              // Branded Background Element (Matching Carousel Style)
+              // Branded Background Elements
+              Positioned(
+                left: -20,
+                top: -30,
+                child: Opacity(
+                  opacity: 0.05,
+                  child: Image.asset(
+                    'assets/cowrie_images/cowrie_ring.png',
+                    width: 140,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
               Positioned(
                 right: -40,
                 bottom: -30,

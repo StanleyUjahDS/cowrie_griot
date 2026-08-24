@@ -7,11 +7,13 @@ import '../models/chat_user.dart';
 class ChatListItem extends StatelessWidget {
   final ChatUser user;
   final String time;
+  final VoidCallback? onTap;
 
   const ChatListItem({
     super.key,
     required this.user,
     required this.time,
+    this.onTap,
   });
 
   @override
@@ -221,7 +223,7 @@ class ChatListItem extends StatelessWidget {
       // OPEN CHAT
       // ==========================================================
 
-      onTap: () {
+      onTap: onTap ?? () {
         context.push('/chat/${user.id}');
       },
     );

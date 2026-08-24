@@ -11,6 +11,7 @@ class ApiConfig {
 
   static const String usersMe = '$baseUrl/users/me';
   static const String usersUpdate = '$baseUrl/users/me';
+  static const String usersFriends = '$baseUrl/users/friends';
 
   static String usersSearch(String query) => Uri.parse('$baseUrl/users/search')
       .replace(queryParameters: {'q': query}).toString();
@@ -221,7 +222,10 @@ class ApiConfig {
       '$blockchainBase/receipt/$network/$hash';
 
   static const String referralBase =
-      '$baseUrl/crypto/referrals';
+      '$baseUrl/referrals';
+
+  static const String referralMe = '$referralBase/me';
+  static const String referralClaim = '$referralBase/claim';
 
   static const String referralStats =
       '$referralBase/stats';
@@ -238,4 +242,99 @@ class ApiConfig {
           'offset': '$offset',
         },
       ).toString();
+
+  static const String reputationBase = '$baseUrl/reputation';
+  static const String reputationMe = '$reputationBase/me';
+
+  // ==========================================================
+  // MESSAGING
+  // ==========================================================
+
+  static const String messagingBase = '$baseUrl/messaging';
+
+  static const String messagingDirect = '$messagingBase/direct';
+
+  static String messagingDirectList() => messagingDirect;
+
+  static String messagingDirectFind(String otherUserId) =>
+      '$messagingDirect/find/$otherUserId';
+
+  static String messagingDirectById(String conversationId) =>
+      '$messagingDirect/$conversationId';
+
+  static String messagingDirectMembers(String conversationId) =>
+      '$messagingDirect/$conversationId/members';
+
+  static String messagingDirectMembership(String conversationId) =>
+      '$messagingDirect/$conversationId/membership';
+
+  static const String messagingMessages = '$messagingBase/messages';
+
+  static String messagingMessagesByConversation(
+    String conversationId, {
+    int limit = 50,
+    String? before,
+  }) {
+    final query = <String, String>{
+      'limit': '$limit',
+    };
+    if (before != null && before.isNotEmpty) {
+      query['before'] = before;
+    }
+    return Uri.parse('$messagingMessages/conversation/$conversationId')
+        .replace(queryParameters: query)
+        .toString();
+  }
+
+  static String messagingMessageById(String messageId) =>
+      '$messagingMessages/$messageId';
+
+  static const String messagingRequests = '$messagingBase/requests';
+
+  static const String messagingRequestsReceived = '$messagingRequests/received';
+
+  static const String messagingRequestsSent = '$messagingRequests/sent';
+
+  static String messagingFriends = '$messagingBase/friends';
+  static String messagingFriendsSearch(String query) => 
+      Uri.parse('$messagingFriends/search').replace(queryParameters: {'q': query}).toString();
+  static String messagingFriendById(String friendId) => '$messagingFriends/$friendId';
+
+  static String messagingRequestById(String requestId) =>
+      '$messagingRequests/$requestId';
+
+  static String messagingRequestAccept(String requestId) =>
+      '$messagingRequests/$requestId/accept';
+
+  static String messagingRequestDecline(String requestId) =>
+      '$messagingRequests/$requestId/decline';
+
+  static String messagingRequestCancel(String requestId) =>
+      '$messagingRequests/$requestId/cancel';
+
+  static String messagingReceipts(String messageId) =>
+      '$messagingMessages/$messageId/receipts';
+
+  static String messagingReactions(String messageId) =>
+      '$messagingMessages/$messageId/reactions';
+
+  // ==========================================================
+  // GROUPS & CHANNELS
+  // ==========================================================
+
+  static const String messagingGroups = '$messagingBase/groups';
+
+  static String messagingGroupById(String conversationId) =>
+      '$messagingGroups/$conversationId';
+
+  static String messagingGroupMembers(String conversationId) =>
+      '$messagingGroups/$conversationId/members';
+
+  static const String messagingChannels = '$messagingBase/channels';
+
+  static String messagingChannelById(String conversationId) =>
+      '$messagingChannels/$conversationId';
+
+  static String messagingChannelSubscribe(String conversationId) =>
+      '$messagingChannels/$conversationId/subscribe';
 }

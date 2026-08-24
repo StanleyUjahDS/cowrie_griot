@@ -24,8 +24,15 @@ import 'features/wallet/services/wallet_rpc_service.dart';
 import 'features/miner/services/mining_api_service.dart';
 import 'features/miner/services/referral_api_service.dart';
 import 'features/miner/services/reputation_api_service.dart';
+import 'features/chat/services/messaging_api_service.dart';
 import 'features/miner/providers/reputation_provider.dart';
+import 'features/chat/providers/messaging_provider.dart';
+import 'features/miner/providers/referral_provider.dart';
 import 'features/wallet/providers/wallet_provider.dart';
+import 'features/local_auth/services/app_lock_service.dart';
+import 'features/local_auth/services/local_auth_service.dart';
+import 'features/local_auth/providers/app_lock_provider.dart';
+import 'features/local_auth/screens/pin_verification_screen.dart';
 import 'core/services/navigation_scroll_service.dart';
 
 class GriotCowrieApp extends StatefulWidget {
@@ -52,6 +59,9 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
   late final MiningApiService _miningApiService;
   late final ReferralApiService _referralApiService;
   late final ReputationApiService _reputationApiService;
+  late final MessagingApiService _messagingApiService;
+  late final AppLockService _appLockService;
+  late final LocalAuthService _localAuthService;
 
   @override
   void initState() {
@@ -70,6 +80,9 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
       cryptoService: WalletCryptoService(),
       storageService: walletStorage,
     );
+
+    _appLockService = AppLockService();
+    _localAuthService = LocalAuthService();
 
     _userApiService = UserApiService(
       apiClient: _apiClient,
@@ -100,6 +113,10 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
     );
 
     _reputationApiService = ReputationApiService(
+      apiClient: _apiClient,
+    );
+
+    _messagingApiService = MessagingApiService(
       apiClient: _apiClient,
     );
 
@@ -155,8 +172,21 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
         Provider<MiningApiService>.value(value: _miningApiService),
         Provider<ReferralApiService>.value(value: _referralApiService),
         Provider<ReputationApiService>.value(value: _reputationApiService),
+        Provider<MessagingApiService>.value(value: _messagingApiService),
+        Provider<AppLockService>.value(value: _appLockService),
+        Provider<LocalAuthService>.value(value: _localAuthService),
         ChangeNotifierProvider<NavigationScrollService>.value(
           value: NavigationScrollService.instance,
+        ),
+
+        // ======================================================
+        // APP LOCK PROVIDER
+        // ======================================================
+
+        ChangeNotifierProvider<AppLockProvider>(
+          create: (_) => AppLockProvider(
+            appLockService: _appLockService,
+          ),
         ),
 
         // ======================================================
@@ -184,10 +214,39 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
         // REPUTATION PROVIDER
         // ======================================================
 
-        ChangeNotifierProvider<ReputationProvider>(
+        ChangeNotifierProxyProvider<UserProvider, ReputationProvider>(
           create: (_) => ReputationProvider(
             apiService: _reputationApiService,
-          )..loadReputation(),
+          ),
+          update: (_, userProvider, reputation) =>
+              (reputation ?? ReputationProvider(apiService: _reputationApiService))
+                ..updateUserProvider(userProvider),
+        ),
+
+        // ======================================================
+        // MESSAGING PROVIDER
+        // ======================================================
+
+        ChangeNotifierProxyProvider<UserProvider, MessagingProvider>(
+          create: (context) => MessagingProvider(
+            apiService: _messagingApiService,
+            userProvider: context.read<UserProvider>(),
+          ),
+          update: (_, userProvider, messaging) =>
+              messaging ?? MessagingProvider(
+                apiService: _messagingApiService,
+                userProvider: userProvider,
+              ),
+        ),
+
+        // ======================================================
+        // REFERRAL PROVIDER
+        // ======================================================
+
+        ChangeNotifierProvider<ReferralProvider>(
+          create: (_) => ReferralProvider(
+            apiService: _referralApiService,
+          )..loadReferralStatus(),
         ),
 
         // ======================================================
@@ -210,7 +269,7 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
         animation: _themeController,
         builder: (
           context,
-          _,
+          child,
         ) {
           return MaterialApp.router(
             debugShowCheckedModeBanner: false,
@@ -244,9 +303,69 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
             // ==================================================
 
             routerConfig: AppRouter.router,
+
+            // ==================================================
+            // APP LOCK BUILDER
+            // ==================================================
+
+            builder: (context, child) {
+              return _AppLockOverlay(child: child);
+            },
           );
         },
       ),
+    );
+  }
+}
+
+class _AppLockOverlay extends StatefulWidget {
+  final Widget? child;
+  const _AppLockOverlay({this.child});
+
+  @override
+  State<_AppLockOverlay> createState() => _AppLockOverlayState();
+}
+
+class _AppLockOverlayState extends State<_AppLockOverlay> {
+  bool _biometricPrompted = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<AppLockProvider>(
+      builder: (context, lockProvider, _) {
+        if (!lockProvider.isLocked) {
+          _biometricPrompted = false;
+          return widget.child ?? const SizedBox.shrink();
+        }
+
+        // Automatic Biometric Prompt
+        if (lockProvider.biometricEnabled && !_biometricPrompted) {
+          _biometricPrompted = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) async {
+            final authService = context.read<LocalAuthService>();
+            final success = await authService.authenticateWithBiometrics();
+            if (success) {
+              lockProvider.unlock();
+            }
+          });
+        }
+
+        return Stack(
+          children: [
+            if (widget.child != null) widget.child!,
+            Positioned.fill(
+              child: PinVerificationScreen(
+                showAppBar: false,
+                title: 'App Locked',
+                description: 'Please enter your PIN to continue.',
+                onSuccess: () async {
+                  lockProvider.unlock();
+                },
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

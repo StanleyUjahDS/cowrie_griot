@@ -962,15 +962,58 @@ class _SwapScreenState extends State<SwapScreen> {
                   ],
                   const SizedBox(height: 16),
                   _buildSlippageSettings(context).animate().fadeIn(delay: 200.ms),
+
+                  // Recommendation Warnings
+                  if (_quote != null && _slippageMode == 'custom' && _quote!['recommendedSlippage'] != null) ...[
+                    if (_effectiveSlippage < (_quote!['recommendedSlippage'] as double))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: colors.error.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: colors.error.withValues(alpha: 0.2)),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.error_outline_rounded, color: colors.error, size: 22),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Slippage is too low for this trade. Minimum required is ${((_quote!['recommendedSlippage'] as double) * 100).toStringAsFixed(1)}% due to token taxes.',
+                                  style: text.bodySmall?.copyWith(color: colors.error, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ).animate().shake(),
+                  ],
+
                   const SizedBox(height: 48),
                   
                   // Premium Action Pill
                   Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      onTap: (_quote != null && !_isLoading && !_isApproving)
-                          ? (_isApprovalRequired ? _handleApprove : _handleSwap)
-                          : null,
+                      onTap: () {
+                        if (_quote == null || _isLoading || _isApproving) return;
+                        
+                        // Disable if slippage is too low in custom mode
+                        if (_slippageMode == 'custom') {
+                          final recommended = _quote!['recommendedSlippage'] as double?;
+                          if (recommended != null && _effectiveSlippage < recommended) {
+                            return;
+                          }
+                        }
+
+                        if (_isApprovalRequired) {
+                          _handleApprove();
+                        } else {
+                          _handleSwap();
+                        }
+                      },
                       borderRadius: BorderRadius.circular(24),
                       child: Container(
                         width: double.infinity,
@@ -1281,6 +1324,10 @@ class _SwapScreenState extends State<SwapScreen> {
     final providerFee = _asMap(_quote?['providerFee']);
     final transaction = _quote?['transaction'] ?? _quote?['transactionRequest'];
 
+    final buyTax = _quote?['buyTax'];
+    final sellTax = _quote?['sellTax'];
+    final recommendedSlippage = _quote?['recommendedSlippage'];
+
     final feePercent = griotFee['percent'];
     final feePercentDisplay = feePercent == null ? null : '$feePercent%';
 
@@ -1329,6 +1376,23 @@ class _SwapScreenState extends State<SwapScreen> {
         children: [
           _quoteRow(context, 'Rate', feePercentDisplay ?? '0.8%', valueColor: colors.primary, isBold: true),
           const SizedBox(height: 10),
+          if (buyTax != null && buyTax > 0) ...[
+            _quoteRow(context, 'Buy Tax', '${(buyTax * 100).toStringAsFixed(1)}%', valueColor: colors.error),
+            const SizedBox(height: 10),
+          ],
+          if (sellTax != null && sellTax > 0) ...[
+            _quoteRow(context, 'Sell Tax', '${(sellTax * 100).toStringAsFixed(1)}%', valueColor: colors.error),
+            const SizedBox(height: 10),
+          ],
+          if (recommendedSlippage != null && _slippageMode == 'custom') ...[
+            _quoteRow(
+              context, 
+              'Min. Required Slippage', 
+              '${(recommendedSlippage * 100).toStringAsFixed(1)}%',
+              valueColor: _effectiveSlippage < recommendedSlippage ? colors.error : colors.primary,
+            ),
+            const SizedBox(height: 10),
+          ],
           _quoteRow(context, 'Fee', providerIncluded ? 'Included' :
                 _formatFeeAmount(
                   providerFee['amount']?.toString(),

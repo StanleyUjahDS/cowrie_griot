@@ -7,6 +7,10 @@ enum RequestStatus {
 
 class MessageRequest {
   final String id;
+  
+  /// Real UUIDs of the users involved.
+  final String? senderId;
+  final String? receiverId;
 
   // ==========================================================
   // WALLET IDENTITY
@@ -69,6 +73,8 @@ class MessageRequest {
 
   MessageRequest({
     required this.id,
+    this.senderId,
+    this.receiverId,
     required this.senderWalletAddress,
     required this.receiverWalletAddress,
     this.senderUsername,
@@ -262,6 +268,9 @@ class MessageRequest {
       ) {
     return MessageRequest(
       id: json['id'] as String,
+
+      senderId: json['senderId']?.toString(),
+      receiverId: json['receiverId']?.toString(),
 
       senderWalletAddress:
       json['senderWalletAddress'] as String,

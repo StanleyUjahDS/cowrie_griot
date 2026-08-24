@@ -7,7 +7,7 @@ class ChatLoading extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const GriotBrandedLoading(
-      title: 'Connecting to Griot Network',
+      title: 'Connecting to Griot',
       message: 'Securely loading your private conversations and requests...',
       icon: Icons.chat_bubble_outline_rounded,
     );

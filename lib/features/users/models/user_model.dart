@@ -11,7 +11,7 @@ class UserReputationBadge {
 
   factory UserReputationBadge.fromJson(Map<String, dynamic> json) {
     return UserReputationBadge(
-      tierName: (json['tierName'] ?? json['tier_name'] ?? json['name'])?.toString() ?? 'Unknown Badger',
+      tierName: (json['tierName'] ?? json['tier_name'] ?? json['name'])?.toString() ?? '',
       badgeColor: (json['badgeColor'] ?? json['badge_color'] ?? json['color'])?.toString() ?? '#64748B',
     );
   }

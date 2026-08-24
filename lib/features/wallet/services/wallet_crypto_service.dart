@@ -131,19 +131,19 @@ class WalletCryptoService {
     final transactionData = _hexToBytes(dataHex);
 
     final transaction = web3.Transaction(
-      to: web3.EthereumAddress.fromHex(to),
-      value: web3.EtherAmount.inWei(
+      to: wallet.EthereumAddress.fromHex(to),
+      value: wallet.EtherAmount.inWei(
         BigInt.parse(valueRaw),
       ),
       nonce: nonce,
       gasPrice: gasPrice != null
-          ? web3.EtherAmount.inWei(BigInt.parse(gasPrice))
+          ? wallet.EtherAmount.inWei(BigInt.parse(gasPrice))
           : null,
       maxFeePerGas: maxFeePerGas != null
-          ? web3.EtherAmount.inWei(BigInt.parse(maxFeePerGas))
+          ? wallet.EtherAmount.inWei(BigInt.parse(maxFeePerGas))
           : null,
       maxPriorityFeePerGas: maxPriorityFeePerGas != null
-          ? web3.EtherAmount.inWei(BigInt.parse(maxPriorityFeePerGas))
+          ? wallet.EtherAmount.inWei(BigInt.parse(maxPriorityFeePerGas))
           : null,
       maxGas: int.parse(gasLimit),
       data: transactionData,

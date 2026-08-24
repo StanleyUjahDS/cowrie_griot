@@ -342,9 +342,10 @@ class _SendScreenState extends State<SendScreen> {
                     borderRadius: BorderRadius.circular(20),
                     child: Row(
                       children: [
-                        if (token != null)
+                        if (token != null) ...[
                           TokenIcon(imageUrl: token.imageUrl, symbol: token.symbol, name: token.name, chainName: token.chain, isNative: token.isNative, radius: 20),
-                        if (token != null) const SizedBox(width: 14),
+                          const SizedBox(width: 14),
+                        ],
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -510,7 +511,7 @@ class _SendScreenState extends State<SendScreen> {
     final text = Theme.of(context).textTheme;
 
     return Container(
-      padding: const EdgeInsets.all(24),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: colors.surface.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(32),
@@ -523,25 +524,45 @@ class _SendScreenState extends State<SendScreen> {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                label.toUpperCase(),
-                style: text.labelSmall?.copyWith(
-                  color: colors.primary.withValues(alpha: 0.5),
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.5,
-                ),
+          // Background Decorative Ring
+          Positioned(
+            right: -20,
+            bottom: -20,
+            child: Opacity(
+              opacity: 0.04,
+              child: Image.asset(
+                'assets/cowrie_images/cowrie_ring.png',
+                width: 100,
+                fit: BoxFit.contain,
               ),
-              ?trailing,
-            ],
+            ),
           ),
-          const SizedBox(height: 16),
-          child,
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      label.toUpperCase(),
+                      style: text.labelSmall?.copyWith(
+                        color: colors.primary.withValues(alpha: 0.5),
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                    if (trailing != null) trailing,
+                  ],
+                ),
+                const SizedBox(height: 16),
+                child,
+              ],
+            ),
+          ),
         ],
       ),
     );

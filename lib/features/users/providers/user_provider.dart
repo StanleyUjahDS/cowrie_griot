@@ -32,6 +32,8 @@ class UserProvider extends ChangeNotifier {
   // GETTERS
   // ============================================================
 
+  UserApiService get userApiService => _userApiService;
+
   UserModel? get user => _user;
 
   bool get isLoading => _isLoading;

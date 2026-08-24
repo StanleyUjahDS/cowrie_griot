@@ -1,55 +1,40 @@
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_config.dart';
+import '../models/referral_model.dart';
 
 class ReferralApiService {
   final ApiClient _apiClient;
 
-  ReferralApiService({
-    required ApiClient apiClient,
-  }) : _apiClient = apiClient;
+  ReferralApiService({required ApiClient apiClient}) : _apiClient = apiClient;
 
-  Future<Map<String, dynamic>> getReferralStats() async {
-    final response = await _apiClient.get(ApiConfig.referralStats);
-    return _asMap(_unwrap(response));
+  Future<ReferralData> getReferralStatus() async {
+    final response = await _apiClient.get(ApiConfig.referralMe);
+    
+    if (response is! Map<String, dynamic>) {
+      throw Exception('Invalid response from server.');
+    }
+
+    final data = (response.containsKey('data') ? response['data'] : response);
+    
+    if (data is! Map<String, dynamic>) {
+      throw Exception('Invalid referral data from server.');
+    }
+    
+    return ReferralData.fromJson(data);
   }
 
-  Future<List<Map<String, dynamic>>> getReferrals({
-    int limit = 20,
-    int offset = 0,
-  }) async {
-    final response = await _apiClient.get(
-      ApiConfig.referralList(
-        limit: limit,
-        offset: offset,
-      ),
+  Future<void> claimReferral(String referralCode) async {
+    final response = await _apiClient.post(
+      ApiConfig.referralClaim,
+      body: {'referralCode': referralCode},
     );
 
-    return _asMapList(_unwrap(response));
-  }
-
-  dynamic _unwrap(dynamic response) {
-    if (response is Map<String, dynamic> && response.containsKey('data')) {
-      return response['data'];
+    if (response is! Map<String, dynamic>) {
+      throw Exception('Invalid response from server.');
     }
-    return response;
-  }
 
-  Map<String, dynamic> _asMap(dynamic data) {
-    return data is Map<String, dynamic>
-        ? Map<String, dynamic>.from(data)
-        : {};
-  }
-
-  List<Map<String, dynamic>> _asMapList(dynamic data) {
-    if (data is List) {
-      return data.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+    if (response['success'] != true) {
+      throw Exception(response['message'] ?? 'Unable to claim referral.');
     }
-    if (data is Map<String, dynamic> && data.containsKey('referrals')) {
-      final referrals = data['referrals'];
-      if (referrals is List) {
-        return referrals.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
-      }
-    }
-    return [];
   }
 }

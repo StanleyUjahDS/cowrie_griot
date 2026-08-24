@@ -287,10 +287,10 @@ class _WalletScreenState extends State<WalletScreen> {
 
                 // CONTENT BASED ON SELECTED TAB
                 if (provider.selectedTab == 0) ...[
-                  // Verified/Official Assets & Ecosystem Kings
+                  // Trusted Assets (Verified/Official/Ecosystem/Native)
                   if (provider.verifiedAssets.isNotEmpty) ...[
                     SliverToBoxAdapter(
-                      child: _buildSectionHeader(context, 'Verified Assets', provider.verifiedAssets.length),
+                      child: _buildSectionHeader(context, 'Trusted Assets', provider.verifiedAssets.length),
                     ),
                     TokenList(
                       tokens: provider.verifiedAssets,
@@ -303,7 +303,7 @@ class _WalletScreenState extends State<WalletScreen> {
                   // Unverified Assets (Security Scan Pending/Unknown)
                   if (provider.unverifiedAssets.isNotEmpty) ...[
                     SliverToBoxAdapter(
-                      child: _buildSectionHeader(context, 'Unverified Assets', provider.unverifiedAssets.length),
+                      child: _buildSectionHeader(context, 'Other Assets', provider.unverifiedAssets.length),
                     ),
                     TokenList(
                       tokens: provider.unverifiedAssets,

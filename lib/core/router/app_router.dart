@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 
 import '../../features/splash/splash_screen.dart';
 import '../../features/splash/welcome_page_1.dart';
@@ -18,15 +17,19 @@ import '../../features/auth/screens/recover_account.dart';
 import '../../features/local_auth/screens/create_password_screen.dart';
 import '../../features/local_auth/screens/confirm_password_screen.dart';
 import '../../features/local_auth/screens/enable_biometrics_screen.dart';
+import '../../features/local_auth/screens/pin_verification_screen.dart';
 
 import '../../features/chat/screens/chat_home_screen.dart';
 import '../../features/chat/screens/chatting_screen.dart';
-import '../../features/chat/controllers/chat_controller.dart';
+import '../../features/chat/screens/user_discovery_screen.dart';
+import '../../features/chat/screens/message_requests_screen.dart';
+import '../../features/chat/screens/friends_list_screen.dart';
 
 import '../../features/settings/screens/setting_screen.dart';
 import '../../features/settings/screens/appearance/theme_settings_screen.dart';
 import '../../features/settings/screens/appearance/accent_color_screen.dart';
 import '../../features/settings/screens/account/account_details_screen.dart';
+import '../../features/settings/screens/security/app_security_screen.dart';
 
 import '../../features/wallet/screens/wallet_screen.dart';
 import '../../features/wallet/screens/asset_search_screen.dart';
@@ -41,6 +44,7 @@ import '../../features/wallet/models/token_model.dart';
 import '../../features/p2p/screens/peer_2_peer.dart';
 import '../../features/miner/screens/miner_screen.dart';
 import '../../features/miner/screens/reputation_screen.dart';
+import '../../features/miner/screens/referral_screen.dart';
 
 import '../ui/scaffolds/gradient_scaffold.dart';
 import '../ui/screens/app_loading_screen.dart';
@@ -92,16 +96,20 @@ class AppRouter {
         path: '/chat/:userId',
         builder: (context, state) {
           final userId = state.pathParameters['userId'];
-
           if (userId == null || userId.isEmpty) {
-            return const _InvalidRoute(
-              message: 'Invalid chat user.',
-            );
+            return const _InvalidRoute(message: 'Invalid chat user.');
           }
-
-          return ChatScreen(
-            userId: userId,
-          );
+          return ChatScreen(userId: userId);
+        },
+      ),
+      GoRoute(
+        path: '/conversation/:conversationId',
+        builder: (context, state) {
+          final conversationId = state.pathParameters['conversationId'];
+          if (conversationId == null || conversationId.isEmpty) {
+            return const _InvalidRoute(message: 'Invalid conversation.');
+          }
+          return ChatScreen(conversationId: conversationId);
         },
       ),
 
@@ -202,7 +210,10 @@ class AppRouter {
       GoRoute(
         path: '/set_password',
         builder: (context, state) {
-          return const SetPassword();
+          final extra = state.extra;
+          return SetPassword(
+            onSuccess: extra is Future<void> Function() ? extra : null,
+          );
         },
       ),
 
@@ -211,15 +222,21 @@ class AppRouter {
         builder: (context, state) {
           final extra = state.extra;
 
-          if (extra is! String) {
-            return const _InvalidRoute(
-              message:
-              'Invalid password configuration.',
+          if (extra is String) {
+            return VerifyPassword(
+              input: extra,
             );
           }
 
-          return VerifyPassword(
-            input: extra,
+          if (extra is Map<String, dynamic>) {
+            return VerifyPassword(
+              input: extra['pin'] as String,
+              onSuccess: extra['onSuccess'] as Future<void> Function()?,
+            );
+          }
+
+          return const _InvalidRoute(
+            message: 'Invalid password configuration.',
           );
         },
       ),
@@ -265,6 +282,20 @@ class AppRouter {
         path: '/enable_biometrics',
         builder: (context, state) {
           return const BiometricsScreen();
+        },
+      ),
+
+      // ======================================================
+      // PIN VERIFICATION
+      // ======================================================
+
+      GoRoute(
+        path: '/verify_pin',
+        builder: (context, state) {
+          final extra = state.extra;
+          return PinVerificationScreen(
+            onSuccess: extra is Future<void> Function() ? extra : null,
+          );
         },
       ),
 
@@ -374,6 +405,17 @@ class AppRouter {
       ),
 
       // ======================================================
+      // SETTINGS — SECURITY
+      // ======================================================
+
+      GoRoute(
+        path: '/settings/app-security',
+        builder: (context, state) {
+          return const AppSecurityScreen();
+        },
+      ),
+
+      // ======================================================
       // SETTINGS — USER DETAILS
       // ======================================================
 
@@ -388,6 +430,13 @@ class AppRouter {
         path: '/settings/reputation',
         builder: (context, state) {
           return const ReputationScreen();
+        },
+      ),
+
+      GoRoute(
+        path: '/settings/referrals',
+        builder: (context, state) {
+          return const ReferralScreen();
         },
       ),
 
@@ -416,14 +465,21 @@ class AppRouter {
             routes: [
               GoRoute(
                 path: '/chat',
-                builder: (context, state) {
-                  return ChangeNotifierProvider<
-                      ChatController>(
-                    create: (_) =>
-                    ChatController()..initialize(),
-                    child: const ChatHomeScreen(),
-                  );
-                },
+                builder: (context, state) => const ChatHomeScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'discover',
+                    builder: (context, state) => const UserDiscoveryScreen(),
+                  ),
+                  GoRoute(
+                    path: 'requests',
+                    builder: (context, state) => const MessageRequestsScreen(),
+                  ),
+                  GoRoute(
+                    path: 'friends',
+                    builder: (context, state) => const FriendsListScreen(),
+                  ),
+                ],
               ),
             ],
           ),

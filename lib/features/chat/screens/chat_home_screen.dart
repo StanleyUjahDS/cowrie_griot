@@ -1,44 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 
-import '../../../core/startup/app_startup_service.dart';
-import '../../../core/services/notification_service.dart';
-import '../../../core/services/navigation_scroll_service.dart';
-import '../controllers/chat_controller.dart';
-import '../../../core/ui/scaffolds/gradient_scaffold.dart';
-import '../models/chat_user.dart';
-import '../models/message_request.dart';
-import '../models/chat_group.dart';
-import '../models/chat_channel.dart';
+import 'package:griot_cowrie/core/startup/app_startup_service.dart';
+import 'package:griot_cowrie/core/services/notification_service.dart';
+import 'package:griot_cowrie/core/services/navigation_scroll_service.dart';
+import 'package:griot_cowrie/features/chat/providers/messaging_provider.dart';
+import 'package:griot_cowrie/core/ui/scaffolds/gradient_scaffold.dart';
+import 'package:griot_cowrie/features/chat/models/chat_user.dart';
+import 'package:griot_cowrie/features/chat/models/chat_message.dart';
+import 'package:griot_cowrie/features/chat/models/conversation_model.dart';
+import 'package:griot_cowrie/features/chat/models/message_request.dart';
+import 'package:griot_cowrie/features/chat/models/chat_group.dart';
+import 'package:griot_cowrie/features/chat/models/chat_channel.dart';
 
-import '../../../core/ui/widgets/griot_loader.dart';
-import '../widgets/chat_list_item.dart';
-import '../widgets/chat_loading.dart';
-import '../widgets/group_list_item.dart' as group_widgets;
-import '../widgets/channel_list_item.dart';
-import '../widgets/message_request_card.dart' as request_widgets;
-
-// ================================================================
-// CHAT HOME SCREEN
-// ================================================================
+import 'package:griot_cowrie/features/chat/widgets/chat_list_item.dart';
+import 'package:griot_cowrie/features/chat/widgets/chat_loading.dart';
+import 'package:griot_cowrie/features/chat/widgets/group_list_item.dart' as group_widgets;
+import 'package:griot_cowrie/features/chat/widgets/channel_list_item.dart';
 
 class ChatHomeScreen extends StatelessWidget {
-  const ChatHomeScreen({
-    super.key,
-  });
+  const ChatHomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider<ChatController>(
-      create: (_) => ChatController()..initialize(),
-      child: const _ChatHomeView(),
-    );
+    return const _ChatHomeView();
   }
 }
-
-// ================================================================
-// CHAT HOME VIEW
-// ================================================================
 
 class _ChatHomeView extends StatefulWidget {
   const _ChatHomeView();
@@ -50,29 +38,22 @@ class _ChatHomeView extends StatefulWidget {
 class _ChatHomeViewState extends State<_ChatHomeView> {
   String searchQuery = '';
   final ScrollController _scrollController = ScrollController();
-
-  ChatSection selectedSection = ChatSection.chats;
+  final PageController _pageController = PageController();
+  ChatSection selectedSection = ChatSection.direct;
 
   @override
   void initState() {
     super.initState();
     NavigationScrollService.instance.addListener(_onNavTap);
 
-    // ==============================================================
-    // APPLICATION STARTUP
-    // ==============================================================
-    //
-    // Triggered once when the user reaches the main application
-    // interface.
-    //
-    // 1. Restore local data
-    // 2. Establish backend session
-    // 3. Synchronize authoritative data
-    //
-    // ==============================================================
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AppStartupService>().initialize();
+      final messaging = context.read<MessagingProvider>();
+      messaging.loadConversations();
+      messaging.loadRequests();
+      messaging.loadFriends();
+      messaging.loadGroups();
+      messaging.loadChannels();
     });
   }
 
@@ -80,1424 +61,121 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
   void dispose() {
     NavigationScrollService.instance.removeListener(_onNavTap);
     _scrollController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
   void _onNavTap() {
-    if (NavigationScrollService.instance.tappedIndex == 0) { // Index 0 is Chat
+    if (NavigationScrollService.instance.tappedIndex == 0) {
       if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          0,
-          duration: const Duration(milliseconds: 500),
-          curve: Curves.easeOutCubic,
-        );
+        _scrollController.animateTo(0, duration: const Duration(milliseconds: 500), curve: Curves.easeOutCubic);
       }
     }
   }
 
-  // ==============================================================
-  // FORMAT TIME
-  // ==============================================================
+  void _onSectionChanged(ChatSection section) {
+    setState(() {
+      selectedSection = section;
+      searchQuery = '';
+    });
+    _pageController.animateToPage(
+      section.index,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+    );
+  }
 
-  String formatTime(DateTime time) {
-    final difference = DateTime.now().difference(time);
-
-    if (difference.inMinutes < 1) {
-      return 'now';
-    }
-
-    if (difference.inMinutes < 60) {
-      return '${difference.inMinutes}m';
-    }
-
-    if (difference.inHours < 24) {
-      return '${difference.inHours}h';
-    }
-
-    if (difference.inDays < 7) {
-      return '${difference.inDays}d';
-    }
-
-    return '${time.day}/${time.month}';
+  void _onPageChanged(int index) {
+    setState(() {
+      selectedSection = ChatSection.values[index];
+      searchQuery = '';
+    });
   }
 
   // ==============================================================
-  // FILTER CHATS
+  // FILTERS
   // ==============================================================
 
-  List<ChatUser> get filteredUsers {
-    final controller = context.read<ChatController>();
-    final users = controller.users;
-
+  List<Conversation> get filteredConversations {
+    final conversations = context.read<MessagingProvider>().conversations;
     final query = searchQuery.trim().toLowerCase();
-
-    if (query.isEmpty) {
-      return List<ChatUser>.from(users);
-    }
-
-    return users.where((user) {
-      final displayName =
-      (user.displayName ?? '').toLowerCase();
-
-      final walletAddress =
-      user.walletAddress.toLowerCase();
-
-      final lastMessage =
-      user.lastMessage.toLowerCase();
-
-      return displayName.contains(query) ||
-          walletAddress.contains(query) ||
-          lastMessage.contains(query);
+    if (query.isEmpty) return List<Conversation>.from(conversations);
+    return conversations.where((conv) {
+      final user = conv.otherUser;
+      if (user == null) return false;
+      return (user.displayName ?? '').toLowerCase().contains(query) ||
+          user.walletAddress.toLowerCase().contains(query) ||
+          (conv.lastMessage?.text ?? '').toLowerCase().contains(query);
     }).toList();
   }
-
-  // ==============================================================
-  // FILTER GROUPS
-  // ==============================================================
 
   List<ChatGroup> get filteredGroups {
-    final List<ChatGroup> groups = [];
-
+    final groups = context.read<MessagingProvider>().groups;
     final query = searchQuery.trim().toLowerCase();
-
-    if (query.isEmpty) {
-      return groups;
-    }
-
-    return groups.where((group) {
-      final name =
-      group.name.toLowerCase();
-
-      final description =
-      group.description.toLowerCase();
-
-      return name.contains(query) ||
-          description.contains(query);
-    }).toList();
+    if (query.isEmpty) return List<ChatGroup>.from(groups);
+    return groups.where((group) => group.name.toLowerCase().contains(query)).toList();
   }
-
-  // ==============================================================
-  // FILTER CHANNELS
-  // ==============================================================
 
   List<ChatChannel> get filteredChannels {
-    final List<ChatChannel> channels = [];
-
+    final channels = context.read<MessagingProvider>().channels;
     final query = searchQuery.trim().toLowerCase();
-
-    if (query.isEmpty) {
-      return channels;
-    }
-
-    return channels.where((channel) {
-      final name =
-      channel.name.toLowerCase();
-
-      final description =
-      channel.description.toLowerCase();
-
-      return name.contains(query) ||
-          description.contains(query);
-    }).toList();
+    if (query.isEmpty) return List<ChatChannel>.from(channels);
+    return channels.where((channel) => channel.name.toLowerCase().contains(query)).toList();
   }
 
   // ==============================================================
-  // ACCEPT REQUEST
+  // ACTIONS
   // ==============================================================
 
-  Future<void> _acceptRequest(
-      MessageRequest request,
-      ) async {
-    final controller =
-    context.read<ChatController>();
+  void _openNewChat() => context.push('/chat/discover');
+  void _openFriends() => context.push('/chat/friends');
+  void _openRequests() => context.push('/chat/requests');
 
-    try {
-      await controller.acceptRequest(request);
-
-      if (!mounted) {
-        return;
-      }
-
-      Navigator.of(context).pop();
-
-      NotificationService.showSuccess(context, 'Message request accepted');
-    } catch (_) {
-      // Controller handles the underlying error.
-    }
-  }
-
-  // ==============================================================
-  // DECLINE REQUEST
-  // ==============================================================
-
-  Future<void> _declineRequest(
-      MessageRequest request,
-      ) async {
-    final controller =
-    context.read<ChatController>();
-
-    try {
-      await controller.declineRequest(request);
-
-      if (!mounted) {
-        return;
-      }
-
-      Navigator.of(context).pop();
-
-      NotificationService.showSuccess(context, 'Message request declined');
-    } catch (_) {
-      // Controller handles the underlying error.
-    }
-  }
-
-  // ==============================================================
-  // MESSAGE REQUESTS
-  // ==============================================================
-
-  void _openMessageRequests() {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        return Consumer<ChatController>(
-          builder: (
-              context,
-              controller,
-              child,
-              ) {
-            final requests = controller.requests
-                .where(
-                  (request) =>
-              request.status ==
-                  RequestStatus.pending,
-            )
-                .toList();
-
-            final theme = Theme.of(context);
-            final colorScheme = theme.colorScheme;
-            final textTheme = theme.textTheme;
-
-            return Container(
-              constraints: const BoxConstraints(
-                maxHeight: 650,
-              ),
-              decoration: BoxDecoration(
-                color: colorScheme.surface,
-                borderRadius:
-                const BorderRadius.vertical(
-                  top: Radius.circular(26),
-                ),
-              ),
-              child: SafeArea(
-                child: Column(
-                  children: [
-                    const SizedBox(height: 10),
-
-                    Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: colorScheme
-                            .onSurfaceVariant
-                            .withValues(alpha: 0.3),
-                        borderRadius:
-                        BorderRadius.circular(20),
-                      ),
-                    ),
-
-                    const SizedBox(height: 18),
-
-                    Padding(
-                      padding:
-                      const EdgeInsets.symmetric(
-                        horizontal: 20,
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: colorScheme
-                                  .primary
-                                  .withValues(alpha: 0.10),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons
-                                  .person_add_alt_1_rounded,
-                              color:
-                              colorScheme.primary,
-                            ),
-                          ),
-
-                          const SizedBox(width: 12),
-
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment:
-                              CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Message Requests',
-                                  style: textTheme
-                                      .titleLarge
-                                      ?.copyWith(
-                                    fontWeight:
-                                    FontWeight.w700,
-                                  ),
-                                ),
-                                const SizedBox(
-                                  height: 2,
-                                ),
-                                Text(
-                                  '${requests.length} pending',
-                                  style: textTheme
-                                      .bodySmall
-                                      ?.copyWith(
-                                    color: colorScheme
-                                        .onSurfaceVariant,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          IconButton(
-                            onPressed: () {
-                              Navigator.of(
-                                sheetContext,
-                              ).pop();
-                            },
-                            icon: const Icon(
-                              Icons.close_rounded,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    Expanded(
-                      child: requests.isEmpty
-                          ? Center(
-                        child: Padding(
-                          padding:
-                          const EdgeInsets
-                              .all(30),
-                          child: Column(
-                            mainAxisSize:
-                            MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons
-                                    .mark_email_read_outlined,
-                                size: 48,
-                                color: colorScheme
-                                    .onSurfaceVariant,
-                              ),
-                              const SizedBox(
-                                height: 12,
-                              ),
-                              Text(
-                                'No message requests',
-                                style: textTheme
-                                    .titleMedium
-                                    ?.copyWith(
-                                  fontWeight:
-                                  FontWeight
-                                      .w600,
-                                ),
-                              ),
-                              const SizedBox(
-                                height: 5,
-                              ),
-                              Text(
-                                'When someone wants to connect with you, '
-                                    'their request will appear here.',
-                                textAlign:
-                                TextAlign.center,
-                                style: textTheme
-                                    .bodySmall
-                                    ?.copyWith(
-                                  color: colorScheme
-                                      .onSurfaceVariant,
-                                  height: 1.4,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                          : ListView.separated(
-                        padding:
-                        const EdgeInsets
-                            .fromLTRB(
-                          16,
-                          8,
-                          16,
-                          24,
-                        ),
-                        itemCount:
-                        requests.length,
-                        separatorBuilder:
-                            (context, index) =>
-                        const SizedBox(
-                          height: 10,
-                        ),
-                        itemBuilder:
-                            (context, index) {
-                          final request =
-                          requests[index];
-
-                          return request_widgets
-                              .MessageRequestCard(
-                            request: request,
-                            onAccept: () {
-                              _acceptRequest(
-                                request,
-                              );
-                            },
-                            onDecline: () {
-                              _declineRequest(
-                                request,
-                              );
-                            },
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // ==============================================================
-  // NEW CHAT
-  // ==============================================================
-
-  void _openNewChat() {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        return _NewChatSheet(
-          onSendRequest: (user) async {
-            final controller = context.read<ChatController>();
-            final navigator = Navigator.of(context);
-
-            try {
-              await controller.sendMessageRequest(
-                senderWalletAddress: user.walletAddress,
-                receiverWalletAddress: user.walletAddress,
-              );
-
-              if (!mounted) return;
-
-              if (sheetContext.mounted) {
-                navigator.pop();
-              }
-
-              NotificationService.showSuccess(context, 'Message request sent to ${user.displayName ?? 'user'}');
-            } catch (_) {
-              // Controller handles the underlying error.
-            }
-          },
-        );
-      },
-    );
-  }
-
-  // ==============================================================
-  // CREATE GROUP
-  // ==============================================================
-
-  void _createGroup() {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        final theme = Theme.of(sheetContext);
-        final colorScheme = theme.colorScheme;
-        final textTheme = theme.textTheme;
-
-        final controller =
-        TextEditingController();
-
-        return Container(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom: MediaQuery.of(sheetContext)
-                .viewInsets
-                .bottom +
-                20,
-          ),
-          decoration: BoxDecoration(
-            color: colorScheme.surface,
-            borderRadius:
-            const BorderRadius.vertical(
-              top: Radius.circular(26),
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment:
-            CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Create Group',
-                style:
-                textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-
-              const SizedBox(height: 6),
-
-              Text(
-                'Create a private group for conversations.',
-                style:
-                textTheme.bodySmall?.copyWith(
-                  color:
-                  colorScheme.onSurfaceVariant,
-                ),
-              ),
-
-              const SizedBox(height: 18),
-
-              TextField(
-                controller: controller,
-                decoration:
-                const InputDecoration(
-                  labelText: 'Group name',
-                  prefixIcon:
-                  Icon(Icons.group_rounded),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: () {
-                    final name =
-                    controller.text.trim();
-
-                    if (name.isEmpty) {
-                      return;
-                    }
-
-                    Navigator.of(
-                      sheetContext,
-                    ).pop();
-
-                    NotificationService.showSuccess(context, 'Group "$name" created');
-                  },
-                  child:
-                  const Text('Create Group'),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  // ==============================================================
-  // CREATE CHANNEL
-  // ==============================================================
-
-  void _createChannel() {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        final theme = Theme.of(sheetContext);
-        final colorScheme = theme.colorScheme;
-        final textTheme = theme.textTheme;
-
-        final controller =
-        TextEditingController();
-
-        return Container(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom: MediaQuery.of(sheetContext)
-                .viewInsets
-                .bottom +
-                20,
-          ),
-          decoration: BoxDecoration(
-            color: colorScheme.surface,
-            borderRadius:
-            const BorderRadius.vertical(
-              top: Radius.circular(26),
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment:
-            CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Create Channel',
-                style:
-                textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-
-              const SizedBox(height: 6),
-
-              Text(
-                'Create a channel for announcements and broadcasts.',
-                style:
-                textTheme.bodySmall?.copyWith(
-                  color:
-                  colorScheme.onSurfaceVariant,
-                ),
-              ),
-
-              const SizedBox(height: 18),
-
-              TextField(
-                controller: controller,
-                decoration:
-                const InputDecoration(
-                  labelText: 'Channel name',
-                  prefixIcon: Icon(
-                    Icons.campaign_rounded,
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: () {
-                    final name =
-                    controller.text.trim();
-
-                    if (name.isEmpty) {
-                      return;
-                    }
-
-                    Navigator.of(
-                      sheetContext,
-                    ).pop();
-
-                    NotificationService.showSuccess(context, 'Channel "$name" created');
-                  },
-                  child: const Text(
-                    'Create Channel',
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  // ==============================================================
-  // SECTION ACTION
-  // ==============================================================
-
-  void _handleSectionAction() {
-    if (selectedSection == ChatSection.chats) {
+  void _handleFabAction() {
+    if (selectedSection == ChatSection.direct) {
       _openNewChat();
-      return;
+    } else if (selectedSection == ChatSection.groups) {
+      _showCreateGroupSheet();
+    } else if (selectedSection == ChatSection.channels) {
+      _showCreateChannelSheet();
     }
-
-    if (selectedSection == ChatSection.groups) {
-      _createGroup();
-      return;
-    }
-
-    _createChannel();
   }
 
-  // ==============================================================
-  // BUILD
-  // ==============================================================
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return GradientScaffold(
-      appBar: AppBar(
-        title: Text(
-          'Chat',
-          style:
-          theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        backgroundColor:
-        theme.scaffoldBackgroundColor,
-        foregroundColor:
-        colorScheme.onSurface,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        surfaceTintColor: Colors.transparent,
-        actions: [
-          Consumer<ChatController>(
-            builder: (
-                context,
-                controller,
-                child,
-                ) {
-              final count =
-                  controller.pendingRequestCount;
-
-              return Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  IconButton(
-                    tooltip: 'Message requests',
-                    onPressed:
-                    _openMessageRequests,
-                    icon: const Icon(
-                      Icons
-                          .person_add_alt_1_rounded,
-                    ),
-                  ),
-
-                  if (count > 0)
-                    Positioned(
-                      right: 6,
-                      top: 6,
-                      child: Container(
-                        constraints:
-                        const BoxConstraints(
-                          minWidth: 17,
-                          minHeight: 17,
-                        ),
-                        padding:
-                        const EdgeInsets
-                            .symmetric(
-                          horizontal: 4,
-                        ),
-                        alignment:
-                        Alignment.center,
-                        decoration:
-                        BoxDecoration(
-                          color:
-                          colorScheme.primary,
-                          shape:
-                          BoxShape.circle,
-                        ),
-                        child: Text(
-                          count > 9
-                              ? '9+'
-                              : count.toString(),
-                          style: TextStyle(
-                            color: colorScheme
-                                .onPrimary,
-                            fontSize: 9,
-                            fontWeight:
-                            FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
-
-          IconButton(
-            tooltip:
-            selectedSection ==
-                ChatSection.chats
-                ? 'New chat'
-                : selectedSection ==
-                ChatSection.groups
-                ? 'Create group'
-                : 'Create channel',
-            onPressed:
-            _handleSectionAction,
-            icon: Icon(
-              selectedSection ==
-                  ChatSection.chats
-                  ? Icons.edit_square
-                  : selectedSection ==
-                  ChatSection.groups
-                  ? Icons.group_add_rounded
-                  : Icons.campaign_rounded,
-            ),
-          ),
-
-          const SizedBox(width: 4),
-        ],
-      ),
-
-      floatingActionButtonLocation:
-      FloatingActionButtonLocation.endFloat,
-
-      floatingActionButton: Padding(
-        padding:
-        const EdgeInsets.only(bottom: 75),
-        child: FloatingActionButton(
-          heroTag: 'chat_section_fab',
-          tooltip:
-          selectedSection ==
-              ChatSection.chats
-              ? 'New chat'
-              : selectedSection ==
-              ChatSection.groups
-              ? 'Create group'
-              : 'Create channel',
-          backgroundColor:
-          colorScheme.primary,
-          foregroundColor:
-          colorScheme.onPrimary,
-          elevation: 3,
-          onPressed:
-          _handleSectionAction,
-          child: Icon(
-            selectedSection ==
-                ChatSection.chats
-                ? Icons.edit_rounded
-                : selectedSection ==
-                ChatSection.groups
-                ? Icons.group_add_rounded
-                : Icons.campaign_rounded,
-          ),
-        ),
-      ),
-      child: _buildFloatingBody(),
-    );
-  }
-
-  // ==============================================================
-  // FLOATING BODY
-  // ==============================================================
-
-  Widget _buildFloatingBody() {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Positioned.fill(
-          child: _buildSectionContent(),
-        ),
-
-        Positioned(
-          top: 8,
-          left: 12,
-          right: 12,
-          child: _buildFloatingControls(),
-        ),
-      ],
-    );
-  }
-
-  // ==============================================================
-  // FLOATING CONTROLS
-  // ==============================================================
-
-  Widget _buildFloatingControls() {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          height: 46,
-          decoration: BoxDecoration(
-            color: colorScheme.surface
-                .withValues(alpha: 0.96),
-            borderRadius:
-            BorderRadius.circular(16),
-            border: Border.all(
-              color: colorScheme.outline
-                  .withValues(alpha: 0.10),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: colorScheme.shadow
-                    .withValues(alpha: 0.07),
-                blurRadius: 14,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: TextField(
-            onChanged: (value) {
-              setState(() {
-                searchQuery = value;
-              });
-            },
-            textAlignVertical:
-            TextAlignVertical.center,
-            decoration: InputDecoration(
-              hintText:
-              selectedSection ==
-                  ChatSection.chats
-                  ? 'Search chats or people'
-                  : selectedSection ==
-                  ChatSection.groups
-                  ? 'Search groups'
-                  : 'Search channels',
-              prefixIcon: const Icon(
-                Icons.search_rounded,
-                size: 21,
-              ),
-              suffixIcon:
-              searchQuery.isNotEmpty
-                  ? IconButton(
-                onPressed: () {
-                  setState(() {
-                    searchQuery = '';
-                  });
-                },
-                icon: const Icon(
-                  Icons.close_rounded,
-                  size: 19,
-                ),
-              )
-                  : null,
-              filled: true,
-              fillColor: Colors.transparent,
-              contentPadding:
-              const EdgeInsets.symmetric(
-                horizontal: 14,
-              ),
-              border: OutlineInputBorder(
-                borderRadius:
-                BorderRadius.circular(16),
-                borderSide: BorderSide.none,
-              ),
-              enabledBorder:
-              OutlineInputBorder(
-                borderRadius:
-                BorderRadius.circular(16),
-                borderSide: BorderSide.none,
-              ),
-              focusedBorder:
-              OutlineInputBorder(
-                borderRadius:
-                BorderRadius.circular(16),
-                borderSide: BorderSide(
-                  color: colorScheme.primary,
-                  width: 1.2,
-                ),
-              ),
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 8),
-
-        _ChatSectionSwitcher(
-          selectedSection:
-          selectedSection,
-          onChanged: (section) {
-            setState(() {
-              selectedSection = section;
-              searchQuery = '';
-            });
-          },
-        ),
-      ],
-    );
-  }
-
-  // ==============================================================
-  // SECTION CONTENT
-  // ==============================================================
-
-  Widget _buildSectionContent() {
-    if (selectedSection ==
-        ChatSection.chats) {
-      return _buildChats();
-    }
-
-    if (selectedSection ==
-        ChatSection.groups) {
-      return _buildGroups();
-    }
-
-    return _buildChannels();
-  }
-
-  // ==============================================================
-  // CHATS
-  // ==============================================================
-
-  Widget _buildChats() {
-    return Consumer<ChatController>(
-      builder: (
-          context,
-          controller,
-          child,
-          ) {
-        if (controller.isLoading &&
-            controller.users.isEmpty) {
-          return const ChatLoading();
-        }
-
-        if (controller.error != null &&
-            controller.users.isEmpty) {
-          return _EmptyState(
-            icon:
-            Icons.error_outline_rounded,
-            title:
-            'Unable to load chats',
-            message:
-            controller.error!,
-          );
-        }
-
-        final filtered =
-            filteredUsers;
-
-        if (filtered.isEmpty) {
-          return const _EmptyState(
-            icon:
-            Icons.search_off_rounded,
-            title:
-            'No chats found',
-            message:
-            'Try searching for another chat or start a new one.',
-          );
-        }
-
-        return RefreshIndicator(
-          onRefresh:
-          controller.refresh,
-          child: ListView.separated(
-            controller: _scrollController,
-            padding:
-            const EdgeInsets.only(
-              top: 116,
-              bottom: 170,
-            ),
-            physics:
-            const BouncingScrollPhysics(),
-            itemCount:
-            filtered.length,
-            separatorBuilder:
-                (context, index) =>
-                Divider(
-                  height: 1,
-                  indent: 80,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .outline
-                      .withValues(alpha: 0.12),
-                ),
-            itemBuilder:
-                (context, index) {
-              final user =
-              filtered[index];
-
-              return ChatListItem(
-                user: user,
-                time:
-                formatTime(
-                  user.timestamp,
-                ),
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-
-  // ==============================================================
-  // GROUPS
-  // ==============================================================
-
-  Widget _buildGroups() {
-    final groups =
-        filteredGroups;
-
-    if (groups.isEmpty) {
-      return const _EmptyState(
-        icon:
-        Icons.groups_outlined,
-        title:
-        'No groups found',
-        message:
-        'Create a group or search for another group.',
-      );
-    }
-
-    return ListView.separated(
-      controller: _scrollController,
-      padding:
-      const EdgeInsets.only(
-        top: 116,
-        bottom: 170,
-      ),
-      physics:
-      const BouncingScrollPhysics(),
-      itemCount:
-      groups.length,
-      separatorBuilder:
-          (context, index) =>
-      const Divider(
-        height: 1,
-        indent: 82,
-      ),
-      itemBuilder:
-          (context, index) {
-        final group =
-        groups[index];
-
-        return group_widgets
-            .GroupListItem(
-          group: group,
-        );
-      },
-    );
-  }
-
-  // ==============================================================
-  // CHANNELS
-  // ==============================================================
-
-  Widget _buildChannels() {
-    final channels =
-        filteredChannels;
-
-    if (channels.isEmpty) {
-      return const _EmptyState(
-        icon:
-        Icons.campaign_outlined,
-        title:
-        'No channels found',
-        message:
-        'Create a channel or search for another channel.',
-      );
-    }
-
-    return ListView.separated(
-      controller: _scrollController,
-      padding:
-      const EdgeInsets.only(
-        top: 116,
-        bottom: 170,
-      ),
-      physics:
-      const BouncingScrollPhysics(),
-      itemCount:
-      channels.length,
-      separatorBuilder:
-          (context, index) =>
-      const Divider(
-        height: 1,
-        indent: 82,
-      ),
-      itemBuilder:
-          (context, index) {
-        return ChannelListItem(
-          channel: channels[index],
-        );
-      },
-    );
-  }
-}
-
-// ================================================================
-// CHAT SECTION ENUM
-// ================================================================
-
-enum ChatSection {
-  chats,
-  groups,
-  channels,
-}
-
-// ================================================================
-// FLOATING SECTION SWITCHER
-// ================================================================
-
-class _ChatSectionSwitcher
-    extends StatelessWidget {
-  final ChatSection selectedSection;
-  final ValueChanged<ChatSection> onChanged;
-
-  const _ChatSectionSwitcher({
-    required this.selectedSection,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme =
-        theme.colorScheme;
-
-    return Container(
-      height: 50,
-      padding:
-      const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: colorScheme.surface
-            .withValues(alpha: 0.96),
-        borderRadius:
-        BorderRadius.circular(17),
-        border: Border.all(
-          color: colorScheme.outline
-              .withValues(alpha: 0.10),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: colorScheme.shadow
-                .withValues(alpha: 0.07),
-            blurRadius: 14,
-            offset:
-            const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _SectionButton(
-              label: 'Chats',
-              icon: Icons
-                  .chat_bubble_outline_rounded,
-              selected:
-              selectedSection ==
-                  ChatSection.chats,
-              onTap: () {
-                onChanged(
-                  ChatSection.chats,
-                );
-              },
-            ),
-          ),
-
-          Expanded(
-            child: _SectionButton(
-              label: 'Groups',
-              icon:
-              Icons.groups_outlined,
-              selected:
-              selectedSection ==
-                  ChatSection.groups,
-              onTap: () {
-                onChanged(
-                  ChatSection.groups,
-                );
-              },
-            ),
-          ),
-
-          Expanded(
-            child: _SectionButton(
-              label: 'Channels',
-              icon: Icons
-                  .campaign_outlined,
-              selected:
-              selectedSection ==
-                  ChatSection.channels,
-              onTap: () {
-                onChanged(
-                  ChatSection.channels,
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ================================================================
-// SECTION BUTTON
-// ================================================================
-
-class _SectionButton
-    extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _SectionButton({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme =
-        theme.colorScheme;
-    final textTheme =
-        theme.textTheme;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius:
-        BorderRadius.circular(13),
-        child: AnimatedContainer(
-          duration:
-          const Duration(
-            milliseconds: 180,
-          ),
-          curve:
-          Curves.easeOutCubic,
-          alignment:
-          Alignment.center,
-          decoration:
-          BoxDecoration(
-            color: selected
-                ? colorScheme
-                .surfaceContainerHighest
-                : Colors.transparent,
-            borderRadius:
-            BorderRadius.circular(
-              13,
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment:
-            MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 18,
-                color: selected
-                    ? colorScheme.primary
-                    : colorScheme
-                    .onSurfaceVariant,
-              ),
-
-              const SizedBox(
-                width: 6,
-              ),
-
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow:
-                  TextOverflow.ellipsis,
-                  style: textTheme
-                      .labelMedium
-                      ?.copyWith(
-                    fontWeight: selected
-                        ? FontWeight.w700
-                        : FontWeight.w500,
-                    color: selected
-                        ? colorScheme
-                        .onSurface
-                        : colorScheme
-                        .onSurfaceVariant,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ================================================================
-// EMPTY STATE
-// ================================================================
-
-class _EmptyState
-    extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String message;
-
-  const _EmptyState({
-    required this.icon,
-    required this.title,
-    required this.message,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme =
-        Theme.of(context).colorScheme;
-
-    final textTheme =
-        Theme.of(context).textTheme;
-
-    return Center(
-      child: Padding(
-        padding:
-        const EdgeInsets.all(30),
+  void _showCreateGroupSheet() {
+    final controller = TextEditingController();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Container(
+        padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(sheetContext).viewInsets.bottom + 20),
+        decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: const BorderRadius.vertical(top: Radius.circular(26))),
         child: Column(
-          mainAxisSize:
-          MainAxisSize.min,
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              icon,
-              size: 46,
-              color: colorScheme
-                  .onSurfaceVariant,
-            ),
-
-            const SizedBox(
-              height: 12,
-            ),
-
-            Text(
-              title,
-              style: textTheme
-                  .titleMedium
-                  ?.copyWith(
-                fontWeight:
-                FontWeight.w600,
-              ),
-            ),
-
-            const SizedBox(
-              height: 6,
-            ),
-
-            Text(
-              message,
-              textAlign:
-              TextAlign.center,
-              style: textTheme
-                  .bodySmall
-                  ?.copyWith(
-                color: colorScheme
-                    .onSurfaceVariant,
-                height: 1.4,
+            const Text('Create Group', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            TextField(controller: controller, decoration: const InputDecoration(labelText: 'Group Name', prefixIcon: Icon(Icons.groups_rounded))),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: () async {
+                  final name = controller.text.trim();
+                  if (name.isEmpty) return;
+                  try {
+                    await context.read<MessagingProvider>().createGroup(name: name);
+                    if (sheetContext.mounted) {
+                      Navigator.pop(sheetContext);
+                      NotificationService.showSuccess(context, 'Group "$name" created');
+                    }
+                  } catch (e) {
+                    if (sheetContext.mounted) NotificationService.showError(context, 'Failed to create group: $e');
+                  }
+                },
+                child: const Text('Create Group'),
               ),
             ),
           ],
@@ -1505,326 +183,289 @@ class _EmptyState
       ),
     );
   }
-}
 
-// ================================================================
-// NEW CHAT SHEET
-// ================================================================
-
-class _NewChatSheet
-    extends StatefulWidget {
-  final Future<void> Function(
-      ChatUser user,
-      ) onSendRequest;
-
-  const _NewChatSheet({
-    required this.onSendRequest,
-  });
-
-  @override
-  State<_NewChatSheet> createState() =>
-      _NewChatSheetState();
-}
-
-class _NewChatSheetState
-    extends State<_NewChatSheet> {
-  final TextEditingController
-  searchController =
-  TextEditingController();
-
-  List<ChatUser> results = [];
-
-  bool isSearching = false;
-
-  // ==============================================================
-  // DISPOSE
-  // ==============================================================
-
-  @override
-  void dispose() {
-    searchController.dispose();
-    super.dispose();
-  }
-
-  // ==============================================================
-  // SEARCH
-  // ==============================================================
-
-  Future<void> _search(
-      String value,
-      ) async {
-    final query =
-    value.trim();
-
-    if (query.isEmpty) {
-      setState(() {
-        results = [];
-        isSearching = false;
-      });
-
-      return;
-    }
-
-    setState(() {
-      isSearching = true;
-    });
-
-    final controller =
-    context.read<ChatController>();
-
-    final found =
-    await controller.searchUsers(
-      query,
+  void _showCreateChannelSheet() {
+    final controller = TextEditingController();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Container(
+        padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(sheetContext).viewInsets.bottom + 20),
+        decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: const BorderRadius.vertical(top: Radius.circular(26))),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Create Channel', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            TextField(controller: controller, decoration: const InputDecoration(labelText: 'Channel Name', prefixIcon: Icon(Icons.campaign_rounded))),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: () async {
+                  final name = controller.text.trim();
+                  if (name.isEmpty) return;
+                  try {
+                    await context.read<MessagingProvider>().createChannel(name: name);
+                    if (sheetContext.mounted) {
+                      Navigator.pop(sheetContext);
+                      NotificationService.showSuccess(context, 'Channel "$name" created');
+                    }
+                  } catch (e) {
+                    if (sheetContext.mounted) NotificationService.showError(context, 'Failed to create channel: $e');
+                  }
+                },
+                child: const Text('Create Channel'),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      results =
-      List<ChatUser>.from(found);
-      isSearching = false;
-    });
   }
-
-  // ==============================================================
-  // BUILD
-  // ==============================================================
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme =
-        theme.colorScheme;
-    final textTheme =
-        theme.textTheme;
+    final colors = Theme.of(context).colorScheme;
 
-    return Container(
-      height:
-      MediaQuery.of(context)
-          .size
-          .height *
-          0.72,
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius:
-        const BorderRadius.vertical(
-          top: Radius.circular(26),
+    return GradientScaffold(
+      appBar: AppBar(
+        title: const Text('Chat', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          IconButton(onPressed: _openNewChat, icon: const Icon(Icons.person_search_rounded), tooltip: 'Discover'),
+          IconButton(onPressed: _openFriends, icon: const Icon(Icons.people_outline_rounded), tooltip: 'Friends'),
+          Consumer<MessagingProvider>(
+            builder: (context, provider, child) {
+              final count = provider.pendingRequestCount;
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  IconButton(onPressed: _openRequests, icon: const Icon(Icons.notifications_none_rounded), tooltip: 'Requests'),
+                  if (count > 0)
+                    Positioned(
+                      right: 10, top: 10,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(color: colors.error, shape: BoxShape.circle),
+                        constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+                        child: Text(count.toString(), style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 80),
+        child: FloatingActionButton(
+          heroTag: 'chat_fab',
+          backgroundColor: colors.primary,
+          foregroundColor: colors.onPrimary,
+          onPressed: _handleFabAction,
+          child: Icon(_getFabIcon()),
         ),
       ),
-      child: SafeArea(
+      child: Stack(
+        children: [
+          Positioned.fill(child: _buildContent()),
+          Positioned(top: 8, left: 16, right: 16, child: _buildFloatingControls()),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFloatingControls() {
+    final colors = Theme.of(context).colorScheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          height: 48,
+          decoration: BoxDecoration(
+            color: colors.surface.withValues(alpha: 0.95),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: colors.outline.withValues(alpha: 0.1)),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
+          ),
+          child: TextField(
+            onChanged: (v) => setState(() => searchQuery = v),
+            decoration: InputDecoration(
+              hintText: 'Search ${selectedSection.name}...',
+              prefixIcon: const Icon(Icons.search_rounded, size: 20),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        _ChatSectionSwitcher(
+          selected: selectedSection,
+          onChanged: _onSectionChanged,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildContent() {
+    return PageView(
+      controller: _pageController,
+      onPageChanged: _onPageChanged,
+      children: [
+        _buildDirect(),
+        _buildGroups(),
+        _buildChannels(),
+      ],
+    );
+  }
+
+  IconData _getFabIcon() {
+    switch (selectedSection) {
+      case ChatSection.direct: return Icons.chat_bubble_outline_rounded;
+      case ChatSection.groups: return Icons.group_add_rounded;
+      case ChatSection.channels: return Icons.campaign_rounded;
+    }
+  }
+
+  Widget _buildDirect() {
+    return Consumer<MessagingProvider>(
+      builder: (context, provider, child) {
+        if (provider.isLoadingConversations && provider.conversations.isEmpty) return const ChatLoading();
+        final list = filteredConversations;
+        if (list.isEmpty) return const _EmptyState(icon: Icons.chat_bubble_outline_rounded, title: 'No direct chats', message: 'Search for people to start chatting.');
+        return RefreshIndicator(
+          onRefresh: provider.loadConversations,
+          child: ListView.separated(
+            controller: _scrollController,
+            padding: const EdgeInsets.only(top: 120, bottom: 100),
+            itemCount: list.length,
+            separatorBuilder: (_, __) => Divider(height: 1, indent: 80, color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1)),
+            itemBuilder: (context, index) {
+              final conv = list[index];
+              final other = conv.otherUser;
+              if (other == null) return const SizedBox.shrink();
+              return ChatListItem(
+                user: other.copyWith(lastMessage: conv.lastMessage?.text ?? '', timestamp: conv.updatedAt, unreadCount: conv.unreadCount),
+                time: _formatTime(conv.updatedAt),
+                onTap: () => context.push('/conversation/${conv.id}'),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildGroups() {
+    return Consumer<MessagingProvider>(
+      builder: (context, provider, child) {
+        if (provider.isLoadingGroups && provider.groups.isEmpty) return const ChatLoading();
+        final list = filteredGroups;
+        if (list.isEmpty) return const _EmptyState(icon: Icons.groups_outlined, title: 'No groups', message: 'Create or join a group to start.');
+        return RefreshIndicator(
+          onRefresh: provider.loadGroups,
+          child: ListView.separated(
+            controller: _scrollController,
+            padding: const EdgeInsets.only(top: 120, bottom: 100),
+            itemCount: list.length,
+            separatorBuilder: (_, __) => const Divider(height: 1, indent: 80),
+            itemBuilder: (context, index) => group_widgets.GroupListItem(group: list[index], onTap: () => context.push('/conversation/${list[index].id}')),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildChannels() {
+    return Consumer<MessagingProvider>(
+      builder: (context, provider, child) {
+        if (provider.isLoadingChannels && provider.channels.isEmpty) return const ChatLoading();
+        final list = filteredChannels;
+        if (list.isEmpty) return const _EmptyState(icon: Icons.campaign_outlined, title: 'No channels', message: 'Subscribe to channels for updates.');
+        return RefreshIndicator(
+          onRefresh: provider.loadChannels,
+          child: ListView.separated(
+            controller: _scrollController,
+            padding: const EdgeInsets.only(top: 120, bottom: 100),
+            itemCount: list.length,
+            separatorBuilder: (_, __) => const Divider(height: 1, indent: 80),
+            itemBuilder: (context, index) => ChannelListItem(channel: list[index]),
+          ),
+        );
+      },
+    );
+  }
+
+  String _formatTime(DateTime time) {
+    final diff = DateTime.now().difference(time);
+    if (diff.inMinutes < 1) return 'now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m';
+    if (diff.inHours < 24) return '${diff.inHours}h';
+    return '${time.day}/${time.month}';
+  }
+}
+
+enum ChatSection { direct, groups, channels }
+
+class _ChatSectionSwitcher extends StatelessWidget {
+  final ChatSection selected;
+  final ValueChanged<ChatSection> onChanged;
+  const _ChatSectionSwitcher({required this.selected, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(color: colors.surface.withValues(alpha: 0.95), borderRadius: BorderRadius.circular(12), border: Border.all(color: colors.outline.withValues(alpha: 0.1))),
+      child: Row(
+        children: ChatSection.values.map((s) {
+          final isSelected = selected == s;
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => onChanged(s),
+              child: Container(
+                decoration: BoxDecoration(color: isSelected ? colors.primary : Colors.transparent, borderRadius: BorderRadius.circular(8)),
+                alignment: Alignment.center,
+                child: Text(s.name.toUpperCase(), style: TextStyle(color: isSelected ? colors.onPrimary : colors.onSurfaceVariant, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1)),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+  const _EmptyState({required this.icon, required this.title, required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(
-              height: 10,
-            ),
-
-            Container(
-              width: 40,
-              height: 4,
-              decoration:
-              BoxDecoration(
-                color: colorScheme
-                    .onSurfaceVariant
-                    .withValues(alpha: 0.3),
-                borderRadius:
-                BorderRadius.circular(
-                  20,
-                ),
-              ),
-            ),
-
-            const SizedBox(
-              height: 18,
-            ),
-
-            Padding(
-              padding:
-              const EdgeInsets
-                  .symmetric(
-                horizontal: 20,
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    'New Chat',
-                    style: textTheme
-                        .titleLarge
-                        ?.copyWith(
-                      fontWeight:
-                      FontWeight.w700,
-                    ),
-                  ),
-
-                  const Spacer(),
-
-                  IconButton(
-                    onPressed: () {
-                      Navigator.of(
-                        context,
-                      ).pop();
-                    },
-                    icon: const Icon(
-                      Icons
-                          .close_rounded,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            Padding(
-              padding:
-              const EdgeInsets
-                  .fromLTRB(
-                16,
-                4,
-                16,
-                12,
-              ),
-              child: SizedBox(
-                height: 46,
-                child: TextField(
-                  controller:
-                  searchController,
-                  autofocus: true,
-                  onChanged: _search,
-                  decoration:
-                  InputDecoration(
-                    hintText:
-                    'Search name or wallet address',
-                    prefixIcon:
-                    const Icon(
-                      Icons
-                          .search_rounded,
-                    ),
-                    filled: true,
-                    fillColor:
-                    colorScheme
-                        .surfaceContainerHighest
-                        .withValues(alpha: 0.5),
-                    border:
-                    OutlineInputBorder(
-                      borderRadius:
-                      BorderRadius
-                          .circular(
-                        15,
-                      ),
-                      borderSide:
-                      BorderSide.none,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-            Expanded(
-              child: isSearching
-                  ? const Center(
-                      child: GriotLoader(
-                        size: 40,
-                        strokeWidth: 3.5,
-                      ),
-                    )
-                  : results.isEmpty
-                  ? const _EmptyState(
-                icon: Icons
-                    .person_search_rounded,
-                title:
-                'Find someone on Griot',
-                message:
-                'Search by name or wallet address to start a conversation.',
-              )
-                  : ListView
-                  .separated(
-                padding:
-                const EdgeInsets
-                    .symmetric(
-                  horizontal: 16,
-                ),
-                itemCount:
-                results.length,
-                separatorBuilder:
-                    (context,
-                    index) =>
-                const Divider(
-                  height: 1,
-                ),
-                itemBuilder:
-                    (context,
-                    index) {
-                  final user =
-                  results[
-                  index];
-
-                  final profileUrl =
-                      user.profileUrl ??
-                          '';
-
-                  return ListTile(
-                    leading:
-                    CircleAvatar(
-                      radius: 24,
-                      backgroundColor:
-                      colorScheme
-                          .surfaceContainerHighest,
-                      backgroundImage:
-                      profileUrl
-                          .isNotEmpty
-                          ? NetworkImage(
-                        profileUrl,
-                      )
-                          : null,
-                      child: profileUrl
-                          .isEmpty
-                          ? Icon(
-                        Icons
-                            .person_rounded,
-                        color: colorScheme
-                            .onSurfaceVariant,
-                      )
-                          : null,
-                    ),
-
-                    title: Text(
-                      user.displayName ??
-                          'Unknown user',
-                      style: textTheme
-                          .bodyLarge
-                          ?.copyWith(
-                        fontWeight:
-                        FontWeight
-                            .w700,
-                      ),
-                    ),
-
-                    subtitle:
-                    Text(
-                      user.walletAddress,
-                      overflow:
-                      TextOverflow
-                          .ellipsis,
-                    ),
-
-                    trailing:
-                    ElevatedButton(
-                      onPressed:
-                          () async {
-                        await widget
-                            .onSendRequest(
-                          user,
-                        );
-                      },
-                      child:
-                      const Text(
-                        'Request',
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
+            Icon(icon, size: 64, color: c.onSurfaceVariant.withValues(alpha: 0.2)),
+            const SizedBox(height: 16),
+            Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text(message, style: TextStyle(color: c.onSurfaceVariant), textAlign: TextAlign.center),
           ],
         ),
       ),

@@ -7,6 +7,7 @@ class ProfileField extends StatelessWidget {
   final String title;
   final String value;
   final VoidCallback onTap;
+  final Color? iconColor;
 
   const ProfileField({
     super.key,
@@ -14,12 +15,15 @@ class ProfileField extends StatelessWidget {
     required this.title,
     required this.value,
     required this.onTap,
+    this.iconColor,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+
+    final effectiveIconColor = iconColor ?? colorScheme.primary;
 
     return Material(
       color: Colors.transparent,
@@ -37,13 +41,13 @@ class ProfileField extends StatelessWidget {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: colorScheme.primary.withValues(alpha: 0.08),
+                  color: effectiveIconColor.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(13),
                 ),
                 child: Icon(
                   icon,
                   size: 21,
-                  color: colorScheme.primary,
+                  color: effectiveIconColor,
                 ),
               ),
               const SizedBox(width: 14),

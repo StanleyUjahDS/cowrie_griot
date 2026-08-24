@@ -1,5 +1,6 @@
 // lib/features/local_auth/screens/pin_verification_screen.dart
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -9,10 +10,16 @@ import '../services/local_auth_service.dart';
 
 class PinVerificationScreen extends StatefulWidget {
   final Future<void> Function()? onSuccess;
+  final bool showAppBar;
+  final String? title;
+  final String? description;
 
   const PinVerificationScreen({
     super.key,
     this.onSuccess,
+    this.showAppBar = true,
+    this.title,
+    this.description,
   });
 
   @override
@@ -27,28 +34,60 @@ class _PinVerificationScreenState
   String _pin = '';
   bool _loading = false;
   int? _pressedIndex;
+  int _failedAttempts = 0;
+  DateTime? _cooldownUntil;
+  Timer? _cooldownTimer;
 
   final List<String> _keys = const [
-    '1',
-    '2',
-    '3',
-    '4',
-    '5',
-    '6',
-    '7',
-    '8',
-    '9',
-    '',
-    '0',
-    '⌫',
+    '1', '2', '3',
+    '4', '5', '6',
+    '7', '8', '9',
+    '', '0', '⌫',
   ];
 
   @override
   void initState() {
     super.initState();
+    _authService = LocalAuthService();
+  }
 
-    _authService =
-        LocalAuthService();
+  @override
+  void dispose() {
+    _cooldownTimer?.cancel();
+    super.dispose();
+  }
+
+  bool get _isCooldownActive {
+    if (_cooldownUntil == null) return false;
+    return DateTime.now().isBefore(_cooldownUntil!);
+  }
+
+  String get _cooldownMessage {
+    if (_cooldownUntil == null) return '';
+    final remaining = _cooldownUntil!.difference(DateTime.now());
+    if (remaining.inSeconds <= 0) return '';
+    return 'Try again in ${remaining.inSeconds}s';
+  }
+
+  void _startCooldown(int seconds) {
+    setState(() {
+      _cooldownUntil = DateTime.now().add(Duration(seconds: seconds));
+      _pin = '';
+    });
+
+    _cooldownTimer?.cancel();
+    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        if (!_isCooldownActive) {
+          timer.cancel();
+          setState(() {
+            _cooldownUntil = null;
+          });
+        } else {
+          setState(() {});
+        }
+      }
+    });
   }
 
   // ============================================================
@@ -59,7 +98,7 @@ class _PinVerificationScreenState
       String key,
       int index,
       ) async {
-    if (_loading) {
+    if (_loading || _isCooldownActive) {
       return;
     }
 
@@ -110,7 +149,7 @@ class _PinVerificationScreenState
   // ============================================================
 
   Future<void> _verify() async {
-    if (_loading) {
+    if (_loading || _isCooldownActive) {
       return;
     }
 
@@ -118,38 +157,40 @@ class _PinVerificationScreenState
       _loading = true;
     });
 
-    final success =
-    await _authService
-        .authenticateWithPin(_pin);
+    final success = await _authService.authenticateWithPin(_pin);
 
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
 
     if (success) {
-      NotificationService.showSuccess(context, 'Unlocked');
+      setState(() {
+        _failedAttempts = 0;
+        _loading = false;
+      });
 
       if (widget.onSuccess != null) {
         await widget.onSuccess!();
-
-        if (!mounted) {
-          return;
-        }
-      }
-
-      if (mounted) {
+      } else if (mounted) {
         context.pop();
       }
-
       return;
     }
 
+    // Handle failure
     setState(() {
+      _failedAttempts++;
       _pin = '';
       _loading = false;
     });
 
-    NotificationService.showError(context, 'Incorrect PIN');
+    if (_failedAttempts >= 5) {
+      // 30 second cooldown after 5 failed attempts
+      _startCooldown(30);
+      NotificationService.showError(context, 'Too many failed attempts. Wait 30s.');
+    } else if (_failedAttempts >= 3) {
+      NotificationService.showError(context, 'Incorrect PIN. ${5 - _failedAttempts} attempts remaining.');
+    } else {
+      NotificationService.showError(context, 'Incorrect PIN');
+    }
   }
 
   // ============================================================
@@ -170,32 +211,27 @@ class _PinVerificationScreenState
         theme.textTheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title:
-        const Text('Unlock'),
-        centerTitle: true,
-        automaticallyImplyLeading:
-        false,
-      ),
+      appBar: widget.showAppBar
+          ? AppBar(
+              title: Text(widget.title ?? 'Unlock'),
+              centerTitle: true,
+              automaticallyImplyLeading: false,
+            )
+          : null,
       body: SafeArea(
         child: Padding(
-          padding:
-          const EdgeInsets.symmetric(
+          padding: const EdgeInsets.symmetric(
             horizontal: 24,
           ),
           child: Column(
-            mainAxisAlignment:
-            MainAxisAlignment.end,
+            mainAxisAlignment: MainAxisAlignment.end,
             children: [
               const Spacer(),
 
               Text(
-                'Enter your PIN',
-                style:
-                text.headlineSmall
-                    ?.copyWith(
-                  fontWeight:
-                  FontWeight.w700,
+                widget.title ?? 'Enter your PIN',
+                style: text.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
                 ),
               ),
 
@@ -204,14 +240,11 @@ class _PinVerificationScreenState
               ),
 
               Text(
-                'Enter your 6-digit PIN to continue.',
-                textAlign:
-                TextAlign.center,
-                style:
-                text.bodyMedium
-                    ?.copyWith(
-                  color: colors
-                      .onSurfaceVariant,
+                _isCooldownActive ? _cooldownMessage : (widget.description ?? 'Enter your 6-digit PIN to continue.'),
+                textAlign: TextAlign.center,
+                style: text.bodyMedium?.copyWith(
+                  color: _isCooldownActive ? colors.error : colors.onSurfaceVariant,
+                  fontWeight: _isCooldownActive ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
 

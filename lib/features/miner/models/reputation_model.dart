@@ -13,7 +13,7 @@ class ReputationTier {
 
   factory ReputationTier.fromJson(Map<String, dynamic> json) {
     return ReputationTier(
-      name: (json['name'] ?? json['tierName'] ?? json['tier_name'])?.toString() ?? 'Unknown Badger',
+      name: (json['name'] ?? json['tierName'] ?? json['tier_name'])?.toString() ?? '',
       minPoints: int.tryParse((json['minPoints'] ?? json['min_points'] ?? '0').toString()) ?? 0,
       maxPoints: (json['maxPoints'] ?? json['max_points']) == null
           ? null
@@ -45,9 +45,12 @@ class ReputationData {
   }
 
   double get progress {
-    if (nextTier == null) return 1.0;
-    final range = nextTier!.minPoints - tier.minPoints;
+    final next = nextTier;
+    if (next == null) return 1.0;
+
+    final range = next.minPoints - tier.minPoints;
     if (range <= 0) return 1.0;
+
     return ((points - tier.minPoints) / range).clamp(0.0, 1.0);
   }
 }

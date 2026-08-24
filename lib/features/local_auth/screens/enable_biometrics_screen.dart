@@ -130,12 +130,8 @@ class _BiometricsScreenState
       await _auth.authenticate(
         localizedReason:
         'Use biometrics to unlock your wallet',
-        options:
-        const AuthenticationOptions(
-          biometricOnly: false,
-          stickyAuth: true,
-          useErrorDialogs: true,
-        ),
+        biometricOnly: false,
+        persistAcrossBackgrounding: true,
       );
 
       // ========================================================

@@ -7,6 +7,7 @@ import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../auth/services/auth_session_service.dart';
 import '../../users/providers/user_provider.dart';
 import '../../wallet/providers/wallet_provider.dart';
+import '../../local_auth/providers/app_lock_provider.dart';
 import '../../../core/ui/widgets/banner_ad.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
 import '../../../core/services/navigation_scroll_service.dart';
@@ -84,10 +85,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final authSessionService = context.read<AuthSessionService>();
       final userProvider = context.read<UserProvider>();
       final walletProvider = context.read<WalletProvider>();
+      final appLockProvider = context.read<AppLockProvider>();
 
       await authSessionService.logout();
       userProvider.clearUser();
       walletProvider.reset();
+      appLockProvider.reset();
 
       if (!context.mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
@@ -246,17 +249,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                         ),
                         if (reputation != null) ...[
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 5),
                           Row(
                             children: [
-                              Icon(Icons.workspace_premium_rounded, size: 14, color: AppColors.parseHexColor(reputation.badgeColor)),
-                              const SizedBox(width: 5),
+                              Icon(
+                                Icons.workspace_premium_rounded,
+                                size: 16,
+                                color: AppColors.parseHexColor(reputation.badgeColor),
+                              ),
+                              const SizedBox(width: 6),
                               Text(
                                 reputation.tierName,
                                 style: theme.textTheme.labelSmall?.copyWith(
                                   color: AppColors.parseHexColor(reputation.badgeColor),
                                   fontWeight: FontWeight.w900,
-                                  letterSpacing: 0.2,
+                                  letterSpacing: 0.3,
+                                  fontSize: 11,
                                 ),
                               ),
                             ],
@@ -559,19 +567,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ],
               ),
-              _sectionLabel(context, 'Account'),
-              _sectionContainer(
-                context: context,
-                children: [
-                  _settingTile(
-                    context: context,
-                    icon: Icons.security_outlined,
-                    title: 'Account Security',
-                    subtitle: 'Manage account access and authentication',
-                    onTap: () => context.push('/settings/account-security'),
-                  ),
-                ],
-              ),
+            _sectionLabel(
+              context,
+              'Account',
+            ),
+
+            _sectionContainer(
+              context: context,
+              children: [
+                _settingTile(
+                  context: context,
+                  icon:
+                  Icons.security_outlined,
+                  title: 'Account Security',
+                  subtitle:
+                  'Manage account access and recovery',
+                  onTap: () {
+                    // Navigate to account details for now or 
+                    // dedicated account security screen.
+                    context.push('/settings/user-details');
+                  },
+                ),
+              ],
+            ),
               _sectionLabel(context, 'Account Actions'),
               _sectionContainer(
                 context: context,

@@ -12,8 +12,8 @@ class GriotNativeAdFactory: NSObject, FLTNativeAdFactory {
         return UIColor(red: r, green: g, blue: b, alpha: a)
     }
 
-    func createNativeAd(_ nativeAd: GADNativeAd, customOptions: [AnyHashable : Any]? = nil) -> GADNativeAdView? {
-        let adView = GADNativeAdView()
+    func createNativeAd(_ nativeAd: NativeAd, customOptions: [AnyHashable : Any]? = nil) -> NativeAdView? {
+        let adView = NativeAdView()
 
         // Get dynamic colors from Flutter theme
         var primaryColor = UIColor.systemBlue
@@ -78,7 +78,7 @@ class GriotNativeAdFactory: NSObject, FLTNativeAdFactory {
         adView.advertiserView = advertiserLabel
 
         // Media View (Flexible)
-        let mediaView = GADMediaView()
+        let mediaView = MediaView()
         mediaView.translatesAutoresizingMaskIntoConstraints = false
         adView.addSubview(mediaView)
         adView.mediaView = mediaView

@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '/core/ui/scaffolds/gradient_scaffold.dart';
 import '/core/services/notification_service.dart';
+import '../services/local_auth_service.dart';
+import '../providers/app_lock_provider.dart';
 
 class VerifyPassword extends StatefulWidget {
   final String input;
-  const VerifyPassword({super.key, required this.input});
+  final Future<void> Function()? onSuccess;
+  const VerifyPassword({super.key, required this.input, this.onSuccess});
 
   @override
   State<VerifyPassword> createState() => _VerifyPasswordState();
@@ -13,6 +17,7 @@ class VerifyPassword extends StatefulWidget {
 
 class _VerifyPasswordState extends State<VerifyPassword> {
   String confirminput = '';
+  bool _loading = false;
   int? _pressedIndex;
 
   final List<String> keys = [
@@ -23,6 +28,7 @@ class _VerifyPasswordState extends State<VerifyPassword> {
   ];
 
   void _onKeyTap(String key, int index) async {
+    if (_loading) return;
     setState(() => _pressedIndex = index);
 
     await Future.delayed(const Duration(milliseconds: 120));
@@ -40,17 +46,42 @@ class _VerifyPasswordState extends State<VerifyPassword> {
         confirminput += key;
       }
     });
+
+    if (confirminput.length == 6) {
+      _onContinue();
+    }
   }
 
-  void _onContinue() {
-    if (confirminput == widget.input) {
-      NotificationService.showSuccess(context, "Password confirmed");
+  Future<void> _onContinue() async {
+    if (_loading) return;
 
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted) {
-          context.push('/enable_biometrics');
+    if (confirminput == widget.input) {
+      setState(() => _loading = true);
+      
+      try {
+        final authService = context.read<LocalAuthService>();
+        final lockProvider = context.read<AppLockProvider>();
+
+        await authService.savePin(confirminput);
+        // Enable app lock by default when setting a new PIN
+        await lockProvider.setEnabled(true);
+
+        if (!mounted) return;
+        NotificationService.showSuccess(context, "Password confirmed");
+
+        if (widget.onSuccess != null) {
+          await widget.onSuccess!();
+        } else {
+          if (mounted) {
+            context.pushReplacement('/enable_biometrics');
+          }
         }
-      });
+      } catch (e) {
+        if (mounted) {
+          NotificationService.showError(context, "Failed to save password: $e");
+          setState(() => _loading = false);
+        }
+      }
     } else {
       NotificationService.showError(context, "Wrong password");
 

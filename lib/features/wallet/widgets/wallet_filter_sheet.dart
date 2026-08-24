@@ -120,8 +120,8 @@ void openWalletFilterSheet({
                                 _filterSwitchTile(
                                   context: context,
                                   icon: Icons.verified_user_rounded,
-                                  title: "Hide Unverified",
-                                  subtitle: "Hide assets without verified security",
+                                  title: "Hide Other Assets",
+                                  subtitle: "Only show trusted and official assets",
                                   value: provider.hideUnverified,
                                   onChanged: (value) {
                                     provider.setHideUnverified(value);

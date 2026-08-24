@@ -20,18 +20,12 @@ class ChatMessage {
   final String id;
 
   /// Conversation this message belongs to.
-  final String chatId;
+  final String conversationId;
 
-  /// Wallet address of the sender.
-  final String senderWalletAddress;
+  /// ID of the sender.
+  final String senderId;
 
-  /// Wallet address of the recipient.
-  ///
-  /// For group messages this can be null because the
-  /// group itself is the destination.
-  final String? receiverWalletAddress;
-
-  /// Message text.
+  /// Message text / content.
   final String text;
 
   final MessageType type;
@@ -57,9 +51,8 @@ class ChatMessage {
 
   const ChatMessage({
     required this.id,
-    required this.chatId,
-    required this.senderWalletAddress,
-    this.receiverWalletAddress,
+    required this.conversationId,
+    required this.senderId,
     required this.text,
     this.type = MessageType.text,
     this.status = MessageStatus.sent,
@@ -75,28 +68,15 @@ class ChatMessage {
   // HELPERS
   // ==========================================================
 
-  bool get isText {
-    return type == MessageType.text;
-  }
+  bool get isText => type == MessageType.text;
 
-  bool get isMedia {
-    return type == MessageType.image ||
-        type == MessageType.video;
-  }
+  bool get isMedia => type == MessageType.image || type == MessageType.video;
 
-  bool get isAudio {
-    return type == MessageType.audio ||
-        type == MessageType.voice;
-  }
+  bool get isAudio => type == MessageType.audio || type == MessageType.voice;
 
-  bool get isFile {
-    return type == MessageType.file;
-  }
+  bool get isFile => type == MessageType.file;
 
-  bool get hasReply {
-    return replyToMessageId != null &&
-        replyToMessageId!.isNotEmpty;
-  }
+  bool get hasReply => replyToMessageId != null && replyToMessageId!.isNotEmpty;
 
   // ==========================================================
   // COPY WITH
@@ -104,9 +84,8 @@ class ChatMessage {
 
   ChatMessage copyWith({
     String? id,
-    String? chatId,
-    String? senderWalletAddress,
-    String? receiverWalletAddress,
+    String? conversationId,
+    String? senderId,
     String? text,
     MessageType? type,
     MessageStatus? status,
@@ -119,29 +98,17 @@ class ChatMessage {
   }) {
     return ChatMessage(
       id: id ?? this.id,
-      chatId: chatId ?? this.chatId,
-      senderWalletAddress:
-      senderWalletAddress ??
-          this.senderWalletAddress,
-      receiverWalletAddress:
-      receiverWalletAddress ??
-          this.receiverWalletAddress,
+      conversationId: conversationId ?? this.conversationId,
+      senderId: senderId ?? this.senderId,
       text: text ?? this.text,
       type: type ?? this.type,
       status: status ?? this.status,
-      createdAt:
-      createdAt ?? this.createdAt,
-      mediaUrl:
-      mediaUrl ?? this.mediaUrl,
-      thumbnailUrl:
-      thumbnailUrl ?? this.thumbnailUrl,
-      replyToMessageId:
-      replyToMessageId ??
-          this.replyToMessageId,
-      isEdited:
-      isEdited ?? this.isEdited,
-      isDeleted:
-      isDeleted ?? this.isDeleted,
+      createdAt: createdAt ?? this.createdAt,
+      mediaUrl: mediaUrl ?? this.mediaUrl,
+      thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      replyToMessageId: replyToMessageId ?? this.replyToMessageId,
+      isEdited: isEdited ?? this.isEdited,
+      isDeleted: isDeleted ?? this.isDeleted,
     );
   }
 
@@ -149,59 +116,22 @@ class ChatMessage {
   // FROM JSON
   // ==========================================================
 
-  factory ChatMessage.fromJson(
-      Map<String, dynamic> json,
-      ) {
+  factory ChatMessage.fromJson(Map<String, dynamic> json) {
     return ChatMessage(
       id: json['id']?.toString() ?? '',
-
-      chatId:
-      json['chatId']?.toString() ?? '',
-
-      senderWalletAddress:
-      json['senderWalletAddress']
-          ?.toString() ??
-          '',
-
-      receiverWalletAddress:
-      json['receiverWalletAddress']
-          ?.toString(),
-
-      text:
-      json['text']?.toString() ?? '',
-
-      type:
-      _messageTypeFromString(
-        json['type']?.toString(),
-      ),
-
-      status:
-      _messageStatusFromString(
-        json['status']?.toString(),
-      ),
-
-      createdAt:
-      json['createdAt'] != null
-          ? DateTime.parse(
-        json['createdAt'].toString(),
-      )
+      conversationId: json['conversationId']?.toString() ?? '',
+      senderId: json['senderId']?.toString() ?? '',
+      text: json['content']?.toString() ?? json['text']?.toString() ?? '',
+      type: _messageTypeFromString(json['messageType']?.toString() ?? json['type']?.toString()),
+      status: _messageStatusFromString(json['status']?.toString()),
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'].toString())
           : DateTime.now(),
-
-      mediaUrl:
-      json['mediaUrl']?.toString(),
-
-      thumbnailUrl:
-      json['thumbnailUrl']?.toString(),
-
-      replyToMessageId:
-      json['replyToMessageId']
-          ?.toString(),
-
-      isEdited:
-      json['isEdited'] == true,
-
-      isDeleted:
-      json['isDeleted'] == true,
+      mediaUrl: json['mediaUrl']?.toString(),
+      thumbnailUrl: json['thumbnailUrl']?.toString(),
+      replyToMessageId: json['replyToMessageId']?.toString(),
+      isEdited: json['isEdited'] == true,
+      isDeleted: json['isDeleted'] == true,
     );
   }
 
@@ -212,20 +142,15 @@ class ChatMessage {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'chatId': chatId,
-      'senderWalletAddress':
-      senderWalletAddress,
-      'receiverWalletAddress':
-      receiverWalletAddress,
-      'text': text,
-      'type': type.name,
+      'conversationId': conversationId,
+      'senderId': senderId,
+      'content': text,
+      'messageType': type.name,
       'status': status.name,
-      'createdAt':
-      createdAt.toIso8601String(),
+      'createdAt': createdAt.toIso8601String(),
       'mediaUrl': mediaUrl,
       'thumbnailUrl': thumbnailUrl,
-      'replyToMessageId':
-      replyToMessageId,
+      'replyToMessageId': replyToMessageId,
       'isEdited': isEdited,
       'isDeleted': isDeleted,
     };
@@ -235,28 +160,20 @@ class ChatMessage {
   // MESSAGE TYPE PARSER
   // ==========================================================
 
-  static MessageType _messageTypeFromString(
-      String? value,
-      ) {
+  static MessageType _messageTypeFromString(String? value) {
     switch (value) {
       case 'image':
         return MessageType.image;
-
       case 'video':
         return MessageType.video;
-
       case 'audio':
         return MessageType.audio;
-
       case 'voice':
         return MessageType.voice;
-
       case 'file':
         return MessageType.file;
-
       case 'system':
         return MessageType.system;
-
       case 'text':
       default:
         return MessageType.text;
@@ -267,22 +184,16 @@ class ChatMessage {
   // MESSAGE STATUS PARSER
   // ==========================================================
 
-  static MessageStatus _messageStatusFromString(
-      String? value,
-      ) {
+  static MessageStatus _messageStatusFromString(String? value) {
     switch (value) {
       case 'sending':
         return MessageStatus.sending;
-
       case 'delivered':
         return MessageStatus.delivered;
-
       case 'read':
         return MessageStatus.read;
-
       case 'failed':
         return MessageStatus.failed;
-
       case 'sent':
       default:
         return MessageStatus.sent;
@@ -294,15 +205,9 @@ class ChatMessage {
   // ==========================================================
 
   @override
-  bool operator ==(
-      Object other,
-      ) {
-    if (identical(this, other)) {
-      return true;
-    }
-
-    return other is ChatMessage &&
-        other.id == id;
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is ChatMessage && other.id == id;
   }
 
   @override
@@ -314,12 +219,6 @@ class ChatMessage {
 
   @override
   String toString() {
-    return 'ChatMessage('
-        'id: $id, '
-        'chatId: $chatId, '
-        'sender: $senderWalletAddress, '
-        'type: ${type.name}, '
-        'status: ${status.name}'
-        ')';
+    return 'ChatMessage(id: $id, conversationId: $conversationId, sender: $senderId, type: ${type.name}, status: ${status.name})';
   }
 }

@@ -1,13 +1,24 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
+
+import 'package:griot_cowrie/features/chat/providers/messaging_provider.dart';
+import 'package:griot_cowrie/features/chat/models/chat_message.dart';
+import 'package:griot_cowrie/features/chat/models/conversation_model.dart';
+import 'package:griot_cowrie/features/chat/services/messaging_api_service.dart';
+import 'package:griot_cowrie/features/users/providers/user_provider.dart';
+import 'package:griot_cowrie/core/services/notification_service.dart';
 
 class ChatScreen extends StatefulWidget {
-  final String userId;
+  final String? userId;
+  final String? conversationId;
 
   const ChatScreen({
     super.key,
-    required this.userId,
+    this.userId,
+    this.conversationId,
   });
 
   @override
@@ -16,15 +27,11 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen>
     with SingleTickerProviderStateMixin {
-  final TextEditingController controller =
-  TextEditingController();
+  final TextEditingController controller = TextEditingController();
+  final ScrollController scrollController = ScrollController();
 
-  final ScrollController scrollController =
-  ScrollController();
-
-  final List<Message> messages =
-  List<Message>.from(mockMessages);
-
+  String? _conversationId;
+  Conversation? _conversation;
   late final AnimationController _recordAnimationController;
 
   bool _isRecording = false;
@@ -44,6 +51,48 @@ class _ChatScreenState extends State<ChatScreen>
     );
 
     controller.addListener(_onComposerChanged);
+
+    // Initialize Conversation
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.conversationId != null) {
+        _initConversationById(widget.conversationId!);
+      } else if (widget.userId != null) {
+        _initDirectConversation();
+      }
+    });
+  }
+
+  Future<void> _initConversationById(String conversationId) async {
+    setState(() => _conversationId = conversationId);
+    final provider = context.read<MessagingProvider>();
+    provider.loadMessages(conversationId, refresh: true);
+    
+    // Fetch conversation details to show correct header
+    try {
+      final conversation = await context.read<MessagingApiService>().getConversation(conversationId);
+      if (mounted) setState(() => _conversation = conversation);
+    } catch (e) {
+      debugPrint('Failed to load conversation details: $e');
+    }
+  }
+
+  Future<void> _initDirectConversation() async {
+    try {
+      final provider = context.read<MessagingProvider>();
+      final conversation = await provider.startDirectChat(widget.userId!);
+      
+      if (mounted) {
+        setState(() {
+          _conversationId = conversation.id;
+          _conversation = conversation;
+        });
+        provider.loadMessages(conversation.id, refresh: true);
+      }
+    } catch (e) {
+      if (mounted) {
+        NotificationService.showError(context, 'Failed to connect to chat: $e');
+      }
+    }
   }
 
   @override
@@ -87,7 +136,7 @@ class _ChatScreenState extends State<ChatScreen>
         if (!scrollController.hasClients) return;
 
         scrollController.animateTo(
-          scrollController.position.maxScrollExtent,
+          scrollController.position.minScrollExtent,
           duration: const Duration(milliseconds: 280),
           curve: Curves.easeOutCubic,
         );
@@ -99,25 +148,77 @@ class _ChatScreenState extends State<ChatScreen>
   // SEND MESSAGE
   // ============================================================
 
-  void _sendMessage() {
+  Future<void> _sendMessage() async {
     final text = controller.text.trim();
+    final conversationId = _conversationId;
 
-    if (text.isEmpty) return;
+    if (text.isEmpty || conversationId == null) return;
 
-    setState(() {
-      messages.add(
-        Message(
-          text: text,
-          isMe: true,
-          time: 'now',
-        ),
-      );
-
-      controller.clear();
-    });
-
-    _dismissKeyboard();
+    final provider = context.read<MessagingProvider>();
+    
+    // Clear first for better UX
+    controller.clear();
+    
+    await provider.sendMessage(conversationId, text);
     _scrollToBottom();
+  }
+
+  Widget _buildAvatar() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final otherUser = _conversation?.otherUser;
+    
+    return Hero(
+      tag: 'user_avatar_${widget.userId ?? widget.conversationId}',
+      child: Container(
+        width: 44, height: 44,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+            colors: [colorScheme.primary.withValues(alpha: 0.25), colorScheme.primary.withValues(alpha: 0.05)],
+          ),
+          border: Border.all(color: colorScheme.primary.withValues(alpha: 0.20)),
+        ),
+        child: ClipOval(
+          child: (otherUser?.profileUrl != null)
+            ? Image.network(otherUser!.profileUrl!, fit: BoxFit.cover)
+            : Image.asset(
+                'assets/cowrie_images/profile_placeholder.png',
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Icon(Icons.person_outline_rounded, color: colorScheme.primary),
+              ),
+        ),
+      ),
+    );
+  }
+
+  String _getDisplayName() {
+    if (_conversation != null) {
+      if (_conversation!.type == ConversationType.dm) {
+        return _conversation!.otherUser?.effectiveDisplayName ?? 'User';
+      }
+      return 'Group Chat'; // Future proof for groups
+    }
+    return widget.userId ?? 'Chat';
+  }
+
+  Widget _buildSubtitle() {
+    final theme = Theme.of(context);
+    final isOnline = _conversation?.otherUser?.isOnline ?? false;
+    
+    return Row(
+      children: [
+        Container(
+          width: 7, height: 7,
+          decoration: BoxDecoration(color: isOnline ? Colors.green : Colors.grey, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 5),
+        Text(
+          isOnline ? 'online' : 'offline',
+          style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        ),
+      ],
+    );
   }
 
   // ============================================================
@@ -125,7 +226,11 @@ class _ChatScreenState extends State<ChatScreen>
   // ============================================================
 
   void _openUserProfile() {
-    context.push('/profile/${widget.userId}');
+    if (widget.userId != null) {
+      context.push('/profile/${widget.userId}');
+    } else if (_conversation?.otherUser?.id != null) {
+      context.push('/profile/${_conversation!.otherUser!.id}');
+    }
   }
 
   // ============================================================
@@ -434,7 +539,7 @@ class _ChatScreenState extends State<ChatScreen>
                     const SizedBox(height: 12),
 
                     Text(
-                      'Tip ${widget.userId}',
+                      'Tip ${_getDisplayName()}',
                       style: theme
                           .textTheme
                           .titleLarge
@@ -817,15 +922,6 @@ class _ChatScreenState extends State<ChatScreen>
 
                           // TODO:
                           // Connect wallet.
-                          //
-                          // Recipient:
-                          // widget.userId
-                          //
-                          // Token:
-                          // _selectedToken
-                          //
-                          // Amount:
-                          // tokenAmount
                         },
                         icon: const Icon(
                           Icons
@@ -1019,106 +1115,25 @@ class _ChatScreenState extends State<ChatScreen>
           titleSpacing: 0,
 
           title: InkWell(
-            onTap: _openUserProfile,
-            borderRadius:
-            BorderRadius.circular(20),
+            onTap: _conversation?.type == ConversationType.dm ? _openUserProfile : null,
+            borderRadius: BorderRadius.circular(20),
             child: Row(
               children: [
-                Hero(
-                  tag:
-                  'user_avatar_${widget.userId}',
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        begin:
-                        Alignment.topLeft,
-                        end:
-                        Alignment.bottomRight,
-                        colors: [
-                          colorScheme.primary
-                              .withValues(alpha: 0.25),
-                          colorScheme.primary
-                              .withValues(alpha: 0.05),
-                        ],
-                      ),
-                      border: Border.all(
-                        color: colorScheme
-                            .primary
-                            .withValues(alpha: 0.20),
-                      ),
-                    ),
-                    child: ClipOval(
-                      child: Image.asset(
-                        'assets/cowrie_images/'
-                            'profile_placeholder.png',
-                        fit: BoxFit.cover,
-                        errorBuilder: (
-                            context,
-                            error,
-                            stackTrace,
-                            ) {
-                          return Icon(
-                            Icons
-                                .person_outline_rounded,
-                            color:
-                            colorScheme.primary,
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-
+                _buildAvatar(),
                 const SizedBox(width: 10),
-
                 Expanded(
                   child: Column(
-                    mainAxisSize:
-                    MainAxisSize.min,
-                    crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        widget.userId,
+                        _getDisplayName(),
                         maxLines: 1,
-                        overflow:
-                        TextOverflow.ellipsis,
-                        style: textTheme
-                            .titleMedium
-                            ?.copyWith(
-                          fontWeight:
-                          FontWeight.w800,
-                        ),
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
                       ),
                       const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          Container(
-                            width: 7,
-                            height: 7,
-                            decoration:
-                            const BoxDecoration(
-                              color: Colors.green,
-                              shape:
-                              BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(
-                              width: 5),
-                          Text(
-                            'online',
-                            style: textTheme
-                                .labelSmall
-                                ?.copyWith(
-                              color: colorScheme
-                                  .onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
+                      _buildSubtitle(),
                     ],
                   ),
                 ),
@@ -1306,32 +1321,38 @@ class _ChatScreenState extends State<ChatScreen>
                 // ==================================================
 
                 Expanded(
-                  child: ListView.builder(
-                    controller:
-                    scrollController,
-                    physics:
-                    const BouncingScrollPhysics(),
-                    keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior
-                        .onDrag,
-                    padding:
-                    const EdgeInsets
-                        .fromLTRB(
-                      12,
-                      16,
-                      12,
-                      16,
-                    ),
-                    itemCount:
-                    messages.length,
-                    itemBuilder:
-                        (context, index) {
-                      return _MessageBubble(
-                        message:
-                        messages[index],
-                        isDark: isDark,
-                        colorScheme:
-                        colorScheme,
+                  child: Consumer<MessagingProvider>(
+                    builder: (context, provider, child) {
+                      final cid = _conversationId;
+                      if (cid == null) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      final messages = provider.getMessagesForConversation(cid);
+                      final currentUserId = context.watch<UserProvider>().user?.id;
+
+                      if (provider.isLoadingMessages(cid) && messages.isEmpty) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      return ListView.builder(
+                        controller: scrollController,
+                        reverse: true,
+                        physics: const BouncingScrollPhysics(),
+                        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                        padding: const EdgeInsets.fromLTRB(12, 16, 12, 16),
+                        itemCount: messages.length,
+                        itemBuilder: (context, index) {
+                          final message = messages[index];
+                          final isMe = message.senderId == currentUserId;
+
+                          return _MessageBubble(
+                            message: message,
+                            isMe: isMe,
+                            isDark: isDark,
+                            colorScheme: colorScheme,
+                          );
+                        },
                       );
                     },
                   ),
@@ -1567,105 +1588,74 @@ class _AttachmentOption
 // MESSAGE BUBBLE
 // ================================================================
 
-class _MessageBubble
-    extends StatelessWidget {
-  final Message message;
+class _MessageBubble extends StatelessWidget {
+  final ChatMessage message;
+  final bool isMe;
   final bool isDark;
   final ColorScheme colorScheme;
 
   const _MessageBubble({
     required this.message,
+    required this.isMe,
     required this.isDark,
     required this.colorScheme,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isMe = message.isMe;
-
     return Align(
-      alignment: isMe
-          ? Alignment.centerRight
-          : Alignment.centerLeft,
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        margin:
-        const EdgeInsets.symmetric(
-          vertical: 4,
-        ),
-        padding:
-        const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 10,
-        ),
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         constraints: BoxConstraints(
-          maxWidth:
-          MediaQuery.of(context)
-              .size
-              .width *
-              0.76,
+          maxWidth: MediaQuery.of(context).size.width * 0.76,
         ),
         decoration: BoxDecoration(
-          color: isMe
-              ? colorScheme.primary
-              : colorScheme.surface,
-          borderRadius:
-          BorderRadius.only(
-            topLeft:
-            const Radius.circular(18),
-            topRight:
-            const Radius.circular(18),
-            bottomLeft:
-            Radius.circular(
-              isMe ? 18 : 5,
-            ),
-            bottomRight:
-            Radius.circular(
-              isMe ? 5 : 18,
-            ),
+          color: isMe ? colorScheme.primary : colorScheme.surface,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(18),
+            topRight: const Radius.circular(18),
+            bottomLeft: Radius.circular(isMe ? 18 : 5),
+            bottomRight: Radius.circular(isMe ? 5 : 18),
           ),
           border: isMe
               ? null
               : Border.all(
-            color: colorScheme
-                .outline
-                .withValues(alpha: isDark ? 0.15 : 0.20),
-          ),
+                  color: colorScheme.outline.withValues(alpha: isDark ? 0.15 : 0.20),
+                ),
           boxShadow: isMe
               ? [
-            BoxShadow(
-              color: colorScheme
-                  .primary
-                  .withValues(alpha: 0.12),
-              blurRadius: 12,
-              offset:
-              const Offset(0, 4),
-            ),
-          ]
+                  BoxShadow(
+                    color: colorScheme.primary.withValues(alpha: 0.12),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
               : null,
         ),
         child: Column(
-          crossAxisAlignment:
-          CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildMessageText(context),
             const SizedBox(height: 4),
-            Align(
-              alignment:
-              Alignment.centerRight,
-              child: Text(
-                message.time,
-                style: Theme.of(context)
-                    .textTheme
-                    .labelSmall
-                    ?.copyWith(
-                  color: isMe
-                      ? colorScheme
-                      .onPrimary
-                      .withValues(alpha: 0.68)
-                      : colorScheme
-                      .onSurfaceVariant,
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  DateFormat('HH:mm').format(message.createdAt),
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: isMe
+                            ? colorScheme.onPrimary.withValues(alpha: 0.68)
+                            : colorScheme.onSurfaceVariant,
+                      ),
                 ),
-              ),
+                if (isMe) ...[
+                  const SizedBox(width: 4),
+                  _buildStatusIcon(),
+                ],
+              ],
             ),
           ],
         ),
@@ -1673,8 +1663,34 @@ class _MessageBubble
     );
   }
 
+  Widget _buildStatusIcon() {
+    IconData icon;
+    Color color = colorScheme.onPrimary.withValues(alpha: 0.68);
+
+    switch (message.status) {
+      case MessageStatus.sending:
+        icon = Icons.access_time_rounded;
+        break;
+      case MessageStatus.sent:
+        icon = Icons.check_rounded;
+        break;
+      case MessageStatus.delivered:
+        icon = Icons.done_all_rounded;
+        break;
+      case MessageStatus.read:
+        icon = Icons.done_all_rounded;
+        color = Colors.blueAccent; 
+        break;
+      case MessageStatus.failed:
+        icon = Icons.error_outline_rounded;
+        color = colorScheme.error;
+        break;
+    }
+
+    return Icon(icon, size: 12, color: color);
+  }
+
   Widget _buildMessageText(BuildContext context) {
-    final isMe = message.isMe;
     final textStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
           color: isMe ? colorScheme.onPrimary : colorScheme.onSurface,
         );
@@ -2041,49 +2057,5 @@ class _ComposerIconButton
 }
 
 // ================================================================
-// MESSAGE MODEL
+// MESSAGE MODEL (OBSOLETE - REMOVE IF NOT USED ELSEWHERE)
 // ================================================================
-
-class Message {
-  final String text;
-  final bool isMe;
-  final String time;
-
-  const Message({
-    required this.text,
-    required this.isMe,
-    required this.time,
-  });
-}
-
-// ================================================================
-// MOCK MESSAGES
-// ================================================================
-
-final List<Message> mockMessages = [
-  const Message(
-    text: 'Hey 👋',
-    isMe: false,
-    time: '10:01',
-  ),
-  const Message(
-    text: 'Hello!',
-    isMe: true,
-    time: '10:02',
-  ),
-  const Message(
-    text: 'How are you?',
-    isMe: false,
-    time: '10:03',
-  ),
-  const Message(
-    text: "I'm good 👍",
-    isMe: true,
-    time: '10:04',
-  ),
-  const Message(
-    text: 'What about you?',
-    isMe: true,
-    time: '10:05',
-  ),
-];
