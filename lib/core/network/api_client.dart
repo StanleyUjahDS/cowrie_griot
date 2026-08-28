@@ -11,6 +11,13 @@ import 'api_config.dart';
 class ApiClient {
   final http.Client _client;
   final AuthStorageService _authStorageService;
+  
+  // ============================================================
+  // REFRESH SYNCHRONIZATION
+  // ============================================================
+  
+  bool _isRefreshing = false;
+  Future<bool>? _refreshFuture;
 
   ApiClient({
     http.Client? client,
@@ -115,17 +122,10 @@ class ApiClient {
   }) async {
     final uri = Uri.parse(url);
 
-    debugPrint(
-      'API REQUEST METHOD: $method',
-    );
-
-    debugPrint(
-      'API REQUEST URL: $url',
-    );
-
-    debugPrint(
-      'API REQUEST URI: $uri',
-    );
+    if (kDebugMode) {
+      debugPrint('API REQUEST METHOD: $method');
+      debugPrint('API REQUEST URL: $url');
+    }
 
     // ==========================================================
     // GET CURRENT ACCESS TOKEN
@@ -163,13 +163,13 @@ class ApiClient {
       requestHeaders['Authorization'] =
       'Bearer $accessToken';
 
-      debugPrint(
-        'API AUTHORIZATION: Bearer token attached',
-      );
+      if (kDebugMode) {
+        debugPrint('API AUTHORIZATION: Bearer token attached');
+      }
     } else {
-      debugPrint(
-        'API AUTHORIZATION: No access token',
-      );
+      if (kDebugMode) {
+        debugPrint('API AUTHORIZATION: No access token');
+      }
     }
 
     // ==========================================================
@@ -247,13 +247,10 @@ class ApiClient {
     // DEBUG RESPONSE
     // ==========================================================
 
-    debugPrint(
-      'API RESPONSE STATUS: ${response.statusCode}',
-    );
-
-    debugPrint(
-      'API RESPONSE URL: $url',
-    );
+    if (kDebugMode) {
+      debugPrint('API RESPONSE STATUS: ${response.statusCode}');
+      debugPrint('API RESPONSE URL: $url');
+    }
 
     // ==========================================================
     // DECODE RESPONSE
@@ -290,19 +287,53 @@ class ApiClient {
 
     if (response.statusCode == 401 &&
         !isRetry &&
-        url != ApiConfig.authRefresh) {
-      final refreshToken =
-          await _authStorageService.getRefreshToken();
+        url != ApiConfig.authRefresh &&
+        url != ApiConfig.authVerify) {
+      if (kDebugMode) debugPrint('API 401: Unauthorized for $url');
 
-      if (refreshToken != null &&
-          refreshToken.isNotEmpty) {
-        debugPrint('API 401: Attempting token refresh...');
+      // --------------------------------------------------------
+      // SYNC REFRESH
+      // --------------------------------------------------------
 
+      if (_isRefreshing) {
+        if (kDebugMode) debugPrint('API 401: Refresh already in progress, waiting...');
+        final success = await _refreshFuture;
+        
+        if (success == true) {
+          if (kDebugMode) debugPrint('API 401: Wait finished, retrying original request...');
+          return await _request(
+            method: method,
+            url: url,
+            body: body,
+            headers: headers,
+            isRetry: true,
+          );
+        } else {
+          throw ApiException(
+            message: 'Session expired. Please log in again.',
+            statusCode: 401,
+          );
+        }
+      }
+
+      _isRefreshing = true;
+      
+      _refreshFuture = (() async {
         try {
+          final refreshToken = await _authStorageService.getRefreshToken();
+
+          if (refreshToken == null || refreshToken.isEmpty) {
+            if (kDebugMode) debugPrint('API 401: No refresh token found.');
+            return false;
+          }
+
+          if (kDebugMode) debugPrint('API 401: Attempting token refresh...');
+          
           final refreshResponse = await _client.post(
             Uri.parse(ApiConfig.authRefresh),
             headers: {
               'Content-Type': 'application/json',
+              'Accept': 'application/json',
             },
             body: jsonEncode({
               'refreshToken': refreshToken,
@@ -310,36 +341,50 @@ class ApiClient {
           );
 
           if (refreshResponse.statusCode == 200) {
-            final refreshData =
-                jsonDecode(refreshResponse.body);
-
-            final newData =
-                refreshData['data'] ?? refreshData;
+            final refreshData = jsonDecode(refreshResponse.body);
+            final newData = refreshData['data'] ?? refreshData;
 
             await _authStorageService.saveSession(
               accessToken: newData['accessToken'],
               refreshToken: newData['refreshToken'],
             );
 
-            debugPrint(
-              'API 401: Refresh success, retrying original request...',
-            );
-
-            return await _request(
-              method: method,
-              url: url,
-              body: body,
-              headers: headers,
-              isRetry: true,
-            );
-          } else {
-            debugPrint(
-              'API 401: Refresh failed with status ${refreshResponse.statusCode}',
-            );
+            if (kDebugMode) debugPrint('API 401: Refresh success.');
+            return true;
           }
+          
+          if (kDebugMode) debugPrint('API 401: Refresh failed with status ${refreshResponse.statusCode}.');
+          return false;
         } catch (e) {
-          debugPrint('API 401: Refresh error: $e');
+          if (kDebugMode) debugPrint('API 401: Refresh error: $e');
+          return false;
         }
+      })();
+
+      try {
+        final success = await _refreshFuture;
+
+        if (success == true) {
+          if (kDebugMode) debugPrint('API 401: Retrying original request after refresh success...');
+          return await _request(
+            method: method,
+            url: url,
+            body: body,
+            headers: headers,
+            isRetry: true,
+          );
+        }
+
+        if (kDebugMode) debugPrint('API 401: Refresh failed, clearing session.');
+        await _authStorageService.clearSession();
+        
+        throw ApiException(
+          message: 'Session expired. Please log in again.',
+          statusCode: 401,
+        );
+      } finally {
+        _isRefreshing = false;
+        _refreshFuture = null;
       }
     }
 
@@ -359,13 +404,10 @@ class ApiClient {
       }
     }
 
-    debugPrint(
-      'API ERROR: $message',
-    );
-
-    debugPrint(
-      'API ERROR STATUS: ${response.statusCode}',
-    );
+    if (kDebugMode) {
+      debugPrint('API ERROR: $message');
+      debugPrint('API ERROR STATUS: ${response.statusCode}');
+    }
 
     throw ApiException(
       message: message,

@@ -5,7 +5,7 @@ class RaisedEndFloatLocation extends FloatingActionButtonLocation {
   final double rightDistance;
 
   const RaisedEndFloatLocation({
-    this.bottomDistance = 82,
+    this.bottomDistance = 110,
     this.rightDistance = 16,
   });
 

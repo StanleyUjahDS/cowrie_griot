@@ -2,7 +2,7 @@ enum RequestStatus {
   pending,
   accepted,
   declined,
-  cancelled,
+  withdrawn,
 }
 
 class MessageRequest {
@@ -11,6 +11,7 @@ class MessageRequest {
   /// Real UUIDs of the users involved.
   final String? senderId;
   final String? receiverId;
+  final String? conversationId;
 
   // ==========================================================
   // WALLET IDENTITY
@@ -23,30 +24,23 @@ class MessageRequest {
   // SENDER PROFILE
   // ==========================================================
 
-  /// Optional unique username.
-  ///
-  /// Example:
-  /// davidk
-  ///
-  /// Username is different from display name.
   final String? senderUsername;
-
-  /// Optional public display name.
-  ///
-  /// Example:
-  /// David K
   final String? senderDisplayName;
-
-  /// Optional phone number.
-  final String? senderPhoneNumber;
-
-  /// Profile image URL.
   final String? senderProfileUrl;
+
+  // ==========================================================
+  // RECEIVER PROFILE
+  // ==========================================================
+
+  final String? receiverUsername;
+  final String? receiverDisplayName;
+  final String? receiverProfileUrl;
 
   // ==========================================================
   // REQUEST CONTENT
   // ==========================================================
 
+  final String? requestType;
   final String message;
 
   // ==========================================================
@@ -60,6 +54,7 @@ class MessageRequest {
   // ==========================================================
 
   final DateTime createdAt;
+  final DateTime? respondedAt;
 
   // ==========================================================
   // STATUS
@@ -75,15 +70,20 @@ class MessageRequest {
     required this.id,
     this.senderId,
     this.receiverId,
+    this.conversationId,
     required this.senderWalletAddress,
     required this.receiverWalletAddress,
     this.senderUsername,
     this.senderDisplayName,
-    this.senderPhoneNumber,
     this.senderProfileUrl,
+    this.receiverUsername,
+    this.receiverDisplayName,
+    this.receiverProfileUrl,
+    this.requestType,
     this.message = '',
     this.senderIsOnline = false,
     required this.createdAt,
+    this.respondedAt,
     this.status = RequestStatus.pending,
   });
 
@@ -132,32 +132,23 @@ class MessageRequest {
   // ==========================================================
 
   String? get formattedUsername {
-    if (senderUsername == null ||
-        senderUsername!.trim().isEmpty) {
-      return null;
-    }
-
-    final value = senderUsername!.trim();
-
-    if (value.startsWith('@')) {
-      return value;
-    }
-
-    return '@$value';
+    final val = senderUsername?.trim();
+    if (val == null || val.isEmpty) return null;
+    return val.startsWith('@') ? val : '@$val';
   }
 
   // ==========================================================
-  // SHORT WALLET ADDRESS
+  // SHORT WALLET ADDRESS (CONTRACT: 3...3)
   // ==========================================================
 
   String get shortWalletAddress {
-    if (senderWalletAddress.length <= 12) {
+    if (senderWalletAddress.length <= 8) {
       return senderWalletAddress;
     }
 
-    return '${senderWalletAddress.substring(0, 6)}...'
+    return '${senderWalletAddress.substring(0, 3)}...'
         '${senderWalletAddress.substring(
-      senderWalletAddress.length - 4,
+      senderWalletAddress.length - 3,
     )}';
   }
 
@@ -174,157 +165,63 @@ class MessageRequest {
   bool get isDeclined =>
       status == RequestStatus.declined;
 
-  bool get isCancelled =>
-      status == RequestStatus.cancelled;
-
-  // ==========================================================
-  // COPY WITH
-  // ==========================================================
-
-  MessageRequest copyWith({
-    String? id,
-    String? senderWalletAddress,
-    String? receiverWalletAddress,
-    String? senderUsername,
-    String? senderDisplayName,
-    String? senderPhoneNumber,
-    String? senderProfileUrl,
-    String? message,
-    bool? senderIsOnline,
-    DateTime? createdAt,
-    RequestStatus? status,
-  }) {
-    return MessageRequest(
-      id: id ?? this.id,
-      senderWalletAddress:
-      senderWalletAddress ??
-          this.senderWalletAddress,
-      receiverWalletAddress:
-      receiverWalletAddress ??
-          this.receiverWalletAddress,
-      senderUsername:
-      senderUsername ??
-          this.senderUsername,
-      senderDisplayName:
-      senderDisplayName ??
-          this.senderDisplayName,
-      senderPhoneNumber:
-      senderPhoneNumber ??
-          this.senderPhoneNumber,
-      senderProfileUrl:
-      senderProfileUrl ??
-          this.senderProfileUrl,
-      message:
-      message ??
-          this.message,
-      senderIsOnline:
-      senderIsOnline ??
-          this.senderIsOnline,
-      createdAt:
-      createdAt ??
-          this.createdAt,
-      status:
-      status ??
-          this.status,
-    );
-  }
+  bool get isWithdrawn =>
+      status == RequestStatus.withdrawn;
 
   // ==========================================================
   // JSON
   // ==========================================================
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'senderWalletAddress':
-      senderWalletAddress,
-      'receiverWalletAddress':
-      receiverWalletAddress,
-      'senderUsername':
-      senderUsername,
-      'senderDisplayName':
-      senderDisplayName,
-      'senderPhoneNumber':
-      senderPhoneNumber,
-      'senderProfileUrl':
-      senderProfileUrl,
-      'message':
-      message,
-      'senderIsOnline':
-      senderIsOnline,
-      'createdAt':
-      createdAt.toIso8601String(),
-      'status':
-      status.name,
-    };
-  }
-
-  // ==========================================================
-  // FROM JSON
-  // ==========================================================
-
-  factory MessageRequest.fromJson(
-      Map<String, dynamic> json,
-      ) {
+  factory MessageRequest.fromJson(Map<String, dynamic> json) {
     return MessageRequest(
       id: json['id'] as String,
+      senderId: (json['senderId'] ?? json['sender_id'])?.toString(),
+      receiverId: (json['receiverId'] ?? json['receiver_id'])?.toString(),
+      conversationId: (json['conversationId'] ?? json['conversation_id'])?.toString(),
+      requestType: (json['requestType'] ?? json['request_type'])?.toString(),
+      
+      senderWalletAddress: (json['senderWalletAddress'] ?? json['sender_wallet_address'] ?? '').toString(),
+      receiverWalletAddress: (json['receiverWalletAddress'] ?? json['receiver_wallet_address'] ?? '').toString(),
+      
+      senderUsername: (json['senderUsername'] ?? json['sender_username'])?.toString(),
+      senderDisplayName: (json['senderDisplayName'] ?? json['sender_display_name'])?.toString(),
+      senderProfileUrl: (json['senderProfileUrl'] ?? json['sender_avatar_url'])?.toString(),
+      
+      receiverUsername: (json['receiverUsername'] ?? json['receiver_username'])?.toString(),
+      receiverDisplayName: (json['receiverDisplayName'] ?? json['receiver_display_name'])?.toString(),
+      receiverProfileUrl: (json['receiverProfileUrl'] ?? json['receiver_avatar_url'])?.toString(),
 
-      senderId: json['senderId']?.toString(),
-      receiverId: json['receiverId']?.toString(),
+      message: json['message']?.toString() ?? '',
+      senderIsOnline: (json['senderIsOnline'] ?? json['sender_is_online']) as bool? ?? false,
 
-      senderWalletAddress:
-      json['senderWalletAddress'] as String,
+      createdAt: DateTime.parse((json['createdAt'] ?? json['created_at'] ?? DateTime.now().toIso8601String()).toString()),
+      respondedAt: (json['respondedAt'] ?? json['responded_at']) != null ? DateTime.parse((json['respondedAt'] ?? json['responded_at']).toString()) : null,
 
-      receiverWalletAddress:
-      json['receiverWalletAddress'] as String,
-
-      senderUsername:
-      json['senderUsername'] as String?,
-
-      senderDisplayName:
-      json['senderDisplayName'] as String?,
-
-      senderPhoneNumber:
-      json['senderPhoneNumber'] as String?,
-
-      senderProfileUrl:
-      json['senderProfileUrl'] as String?,
-
-      message:
-      json['message'] as String? ?? '',
-
-      senderIsOnline:
-      json['senderIsOnline'] as bool? ?? false,
-
-      createdAt:
-      DateTime.parse(
-        json['createdAt'] as String,
-      ),
-
-      status:
-      RequestStatus.values.firstWhere(
-            (value) =>
-        value.name == json['status'],
-        orElse: () =>
-        RequestStatus.pending,
+      status: RequestStatus.values.firstWhere(
+        (v) => v.name == (json['status']?.toString().toLowerCase() ?? 'pending'),
+        orElse: () => RequestStatus.pending,
       ),
     );
   }
 
-  // ==========================================================
-  // DEBUG
-  // ==========================================================
-
-  @override
-  String toString() {
-    return 'MessageRequest('
-        'id: $id, '
-        'senderWalletAddress: $senderWalletAddress, '
-        'receiverWalletAddress: $receiverWalletAddress, '
-        'senderUsername: $senderUsername, '
-        'senderDisplayName: $senderDisplayName, '
-        'senderPhoneNumber: $senderPhoneNumber, '
-        'status: ${status.name}'
-        ')';
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'senderId': senderId,
+      'receiverId': receiverId,
+      'conversationId': conversationId,
+      'requestType': requestType,
+      'status': status.name,
+      'createdAt': createdAt.toIso8601String(),
+      'respondedAt': respondedAt?.toIso8601String(),
+      'senderWalletAddress': senderWalletAddress,
+      'receiverWalletAddress': receiverWalletAddress,
+      'senderUsername': senderUsername,
+      'senderDisplayName': senderDisplayName,
+      'senderProfileUrl': senderProfileUrl,
+      'receiverUsername': receiverUsername,
+      'receiverDisplayName': receiverDisplayName,
+      'receiverProfileUrl': receiverProfileUrl,
+    };
   }
 }

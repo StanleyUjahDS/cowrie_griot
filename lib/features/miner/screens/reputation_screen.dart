@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:provider/provider.dart';
@@ -55,7 +56,7 @@ class _ReputationScreenState extends State<ReputationScreen> {
       final shareLink = 'https://griot.network/join?ref=$referralCode';
       final shareText = 'My status on the Griot app: ${reputation.tier.name}! 🦡\n\nJoin the Cowrie Protocol legacy: $shareLink';
       
-      await SharePlus.instance.shareXFiles(
+      await SharePlus.instance.share(
         ShareParams(
           files: [XFile(file.path)],
           text: shareText,
@@ -247,7 +248,7 @@ class _ReputationScreenState extends State<ReputationScreen> {
             child: Opacity(
               opacity: 0.05,
               child: Image.asset(
-                'assets/cowrie_images/cowrie_ring.png',
+                'assets/cowrie_images/Cowrie7.png',
                 width: 160,
                 fit: BoxFit.contain,
               ),
@@ -335,14 +336,14 @@ class _ReputationScreenState extends State<ReputationScreen> {
     final text = theme.textTheme;
 
     final tiers = [
-      {'name': 'Starter Badger', 'desc': 'Your journey begins here.', 'color': '#64748B'},
-      {'name': 'Rookie Badger', 'desc': 'You are becoming an active member.', 'color': '#22C55E'},
-      {'name': 'Rising Badger', 'desc': 'Your consistency is being recognized.', 'color': '#3B82F6'},
-      {'name': 'Active Badger', 'desc': 'You are making a meaningful contribution.', 'color': '#A855F7'},
-      {'name': 'Guardian Badger', 'desc': 'You are becoming a trusted community member.', 'color': '#14B8A6'},
-      {'name': 'Warden Badger', 'desc': 'You demonstrate strong and consistent participation.', 'color': '#F97316'},
-      {'name': 'Elder Badger', 'desc': 'Your contribution carries significant weight.', 'color': '#EF4444'},
-      {'name': 'Ancient Badger', 'desc': 'You are among the most experienced members.', 'color': '#4F46E5'},
+      {'name': 'Initiate Badger', 'desc': 'Your journey begins here.', 'color': '#64748B'},
+      {'name': 'Seeker Badger', 'desc': 'You are becoming an active member.', 'color': '#22C55E'},
+      {'name': 'Scout Badger', 'desc': 'Your consistency is being recognized.', 'color': '#3B82F6'},
+      {'name': 'Explorer Badger', 'desc': 'You are making a meaningful contribution.', 'color': '#A855F7'},
+      {'name': 'Builder Badger', 'desc': 'You are becoming a trusted community member.', 'color': '#14B8A6'},
+      {'name': 'Guardian Badger', 'desc': 'You demonstrate strong and consistent participation.', 'color': '#F97316'},
+      {'name': 'Master Badger', 'desc': 'Your contribution carries significant weight.', 'color': '#EF4444'},
+      {'name': 'Champion Badger', 'desc': 'You are among the most experienced members.', 'color': '#4F46E5'},
       {'name': 'Legendary Badger', 'desc': 'Your reputation stands out across the community.', 'color': '#EAB308'},
       {'name': 'Ultimate Badger', 'desc': 'The highest level of Griot recognition.', 'color': '#67E8F9'},
     ];
@@ -441,7 +442,7 @@ class _PrestigePassport extends StatelessWidget {
                   child: Opacity(
                     opacity: isDark ? 0.07 : 0.04,
                     child: Image.asset(
-                      'assets/cowrie_images/cowrie_ring.png',
+                      'assets/cowrie_images/Cowrie8.png',
                       width: 550,
                       fit: BoxFit.contain,
                     ),
@@ -482,8 +483,8 @@ class _PrestigePassport extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Image.asset(
-                            'assets/coins_logo/ic_launcher.png',
+                          SvgPicture.asset(
+                            'assets/cowrie_images/cowriesvg.svg',
                             width: 14,
                             height: 14,
                           ),
@@ -699,9 +700,9 @@ class _PrestigePassport extends StatelessWidget {
                           size: 64.0,
                           gapless: true,
                           eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: Colors.black),
-                          embeddedImage: const AssetImage('assets/cowrie_images/wolrd_cowrie.png'),
+                          // embeddedImage: const AssetImage('assets/coins_logo/ic_launcher.png'),
                           embeddedImageStyle: const QrEmbeddedImageStyle(
-                            size: Size(16, 16),
+                            size: Size(28, 28),
                           ),
                         ),
                       ),

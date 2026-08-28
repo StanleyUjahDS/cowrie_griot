@@ -1,28 +1,33 @@
 class ApiConfig {
   ApiConfig._();
 
-  static const String baseUrl =
-      'http://192.168.1.95:5001/api';
+  static const String baseUrl = 'http://192.168.1.95:5001/api';
 
   static const String authNonce = '$baseUrl/auth/nonce';
   static const String authVerify = '$baseUrl/auth/verify';
   static const String authRefresh = '$baseUrl/auth/refresh';
   static const String authLogout = '$baseUrl/auth/logout';
 
+  static const String notificationDevices = '$baseUrl/notifications/devices';
+
+  static const String notificationDevicesAll =
+      '$baseUrl/notifications/devices/all';
+
   static const String usersMe = '$baseUrl/users/me';
   static const String usersUpdate = '$baseUrl/users/me';
-  static const String usersFriends = '$baseUrl/users/friends';
 
-  static String usersSearch(String query) => Uri.parse('$baseUrl/users/search')
-      .replace(queryParameters: {'q': query}).toString();
+  static String usersSearch(String query) => Uri.parse(
+    '$baseUrl/users/search',
+  ).replace(queryParameters: {'q': query}).toString();
 
-  static String usernameAvailability(String username) =>
-      Uri.parse('$baseUrl/users/username/availability')
-          .replace(queryParameters: {'username': username}).toString();
+  static String usernameAvailability(String username) => Uri.parse(
+    '$baseUrl/users/username/availability',
+  ).replace(queryParameters: {'username': username}).toString();
 
   static const String walletBase = '$baseUrl/crypto/wallets';
   static const String walletNetworks = '$walletBase/networks';
   static const String walletAssets = '$walletBase/assets';
+  static const String walletNfts = '$walletBase/nfts';
 
   static const String cryptoAssetsBase = '$baseUrl/crypto/assets';
 
@@ -31,26 +36,23 @@ class ApiConfig {
     if (network != null && network.isNotEmpty) {
       params['network'] = network;
     }
-    return Uri.parse('$cryptoAssetsBase/search')
-        .replace(queryParameters: params)
-        .toString();
+    return Uri.parse(
+      '$cryptoAssetsBase/search',
+    ).replace(queryParameters: params).toString();
   }
 
   static String walletAssetsPopular({String? network}) {
     final params = <String, String>{};
     if (network != null && network.isNotEmpty) params['network'] = network;
-    return Uri.parse('$cryptoAssetsBase/popular')
-        .replace(queryParameters: params)
-        .toString();
+    return Uri.parse(
+      '$cryptoAssetsBase/popular',
+    ).replace(queryParameters: params).toString();
   }
 
   static String walletAssetsByNetwork(String network) =>
       '$walletBase/assets/$network';
 
-  static String walletCustomToken(
-    String network,
-    String tokenAddress,
-  ) =>
+  static String walletCustomToken(String network, String tokenAddress) =>
       '$walletBase/custom-token/$network/$tokenAddress';
 
   static String walletNativeBalance(String network) =>
@@ -60,8 +62,7 @@ class ApiConfig {
 
   static const String walletTokens = '$walletBase/tokens';
 
-  static const String transactionBase =
-      '$baseUrl/crypto/transactions';
+  static const String transactionBase = '$baseUrl/crypto/transactions';
 
   static const String prepareNativeTransaction =
       '$transactionBase/prepare-native';
@@ -69,21 +70,14 @@ class ApiConfig {
   static const String prepareTokenTransaction =
       '$transactionBase/prepare-token';
 
-  static const String estimateTransaction =
-      '$transactionBase/estimate';
+  static const String estimateTransaction = '$transactionBase/estimate';
 
-  static const String broadcastTransaction =
-      '$transactionBase/broadcast';
+  static const String broadcastTransaction = '$transactionBase/broadcast';
 
-  static String transactionStatus(
-    String transactionId,
-    String network,
-  ) =>
+  static String transactionStatus(String transactionId, String network) =>
       Uri.parse(
         '$transactionBase/id/$transactionId/status',
-      ).replace(
-        queryParameters: {'network': network},
-      ).toString();
+      ).replace(queryParameters: {'network': network}).toString();
 
   static String transactionById(String transactionId) =>
       '$transactionBase/id/$transactionId';
@@ -94,10 +88,7 @@ class ApiConfig {
     int limit = 20,
     int offset = 0,
   }) {
-    final query = <String, String>{
-      'limit': '$limit',
-      'offset': '$offset',
-    };
+    final query = <String, String>{'limit': '$limit', 'offset': '$offset'};
 
     if (walletAccountId != null && walletAccountId.isNotEmpty) {
       query['walletAccountId'] = walletAccountId;
@@ -109,19 +100,14 @@ class ApiConfig {
 
     return Uri.parse(
       '$transactionBase/history',
-    ).replace(
-      queryParameters: query,
-    ).toString();
+    ).replace(queryParameters: query).toString();
   }
 
-  static const String swapBase =
-      '$baseUrl/crypto/swap';
+  static const String swapBase = '$baseUrl/crypto/swap';
 
-  static const String swapQuote =
-      '$swapBase/quote';
+  static const String swapQuote = '$swapBase/quote';
 
-  static const String swapBroadcast =
-      '$swapBase/broadcast';
+  static const String swapBroadcast = '$swapBase/broadcast';
 
   static String swapStatus({
     required String transactionId,
@@ -133,9 +119,7 @@ class ApiConfig {
     String? fromAddress,
     String? swapType,
   }) {
-    final query = <String, String>{
-      'transactionId': transactionId,
-    };
+    final query = <String, String>{'transactionId': transactionId};
 
     if (provider != null && provider.isNotEmpty) {
       query['provider'] = provider;
@@ -167,48 +151,26 @@ class ApiConfig {
 
     return Uri.parse(
       '$swapBase/status',
-    ).replace(
-      queryParameters: query,
-    ).toString();
+    ).replace(queryParameters: query).toString();
   }
 
-  static String swapReceipt({
-    required String network,
-    required String hash,
-  }) =>
+  static String swapReceipt({required String network, required String hash}) =>
       Uri.parse(
         '$swapBase/receipt',
-      ).replace(
-        queryParameters: {
-          'network': network,
-          'hash': hash,
-        },
-      ).toString();
+      ).replace(queryParameters: {'network': network, 'hash': hash}).toString();
 
-  static const String swapHealth =
-      '$swapBase/health';
+  static const String swapHealth = '$swapBase/health';
 
-  static const String miningBase =
-      '$baseUrl/crypto/mining';
+  static const String miningBase = '$baseUrl/crypto/mining';
 
-  static const String miningStatus =
-      '$miningBase/status';
+  static const String miningStatus = '$miningBase/status';
 
-  static const String miningStart =
-      '$miningBase/start';
+  static const String miningStart = '$miningBase/start';
 
-  static String miningHistory({
-    int limit = 20,
-    int offset = 0,
-  }) =>
-      Uri.parse(
-        '$miningBase/history',
-      ).replace(
-        queryParameters: {
-          'limit': '$limit',
-          'offset': '$offset',
-        },
-      ).toString();
+  static String miningHistory({int limit = 20, int offset = 0}) =>
+      Uri.parse('$miningBase/history')
+          .replace(queryParameters: {'limit': '$limit', 'offset': '$offset'})
+          .toString();
 
   static const String blockchainBase = '$baseUrl/crypto/blockchain';
 
@@ -221,27 +183,10 @@ class ApiConfig {
   static String blockchainReceipt(String network, String hash) =>
       '$blockchainBase/receipt/$network/$hash';
 
-  static const String referralBase =
-      '$baseUrl/referrals';
+  static const String referralBase = '$baseUrl/referrals';
 
   static const String referralMe = '$referralBase/me';
   static const String referralClaim = '$referralBase/claim';
-
-  static const String referralStats =
-      '$referralBase/stats';
-
-  static String referralList({
-    int limit = 20,
-    int offset = 0,
-  }) =>
-      Uri.parse(
-        '$referralBase/list',
-      ).replace(
-        queryParameters: {
-          'limit': '$limit',
-          'offset': '$offset',
-        },
-      ).toString();
 
   static const String reputationBase = '$baseUrl/reputation';
   static const String reputationMe = '$reputationBase/me';
@@ -254,7 +199,9 @@ class ApiConfig {
 
   static const String messagingDirect = '$messagingBase/direct';
 
-  static String messagingDirectList() => messagingDirect;
+  static const String messagingConversations = '$messagingBase/conversations';
+
+  static String messagingDirectList() => messagingConversations;
 
   static String messagingDirectFind(String otherUserId) =>
       '$messagingDirect/find/$otherUserId';
@@ -275,15 +222,13 @@ class ApiConfig {
     int limit = 50,
     String? before,
   }) {
-    final query = <String, String>{
-      'limit': '$limit',
-    };
+    final query = <String, String>{'limit': '$limit'};
     if (before != null && before.isNotEmpty) {
       query['before'] = before;
     }
-    return Uri.parse('$messagingMessages/conversation/$conversationId')
-        .replace(queryParameters: query)
-        .toString();
+    return Uri.parse(
+      '$messagingMessages/conversation/$conversationId',
+    ).replace(queryParameters: query).toString();
   }
 
   static String messagingMessageById(String messageId) =>
@@ -296,9 +241,14 @@ class ApiConfig {
   static const String messagingRequestsSent = '$messagingRequests/sent';
 
   static String messagingFriends = '$messagingBase/friends';
-  static String messagingFriendsSearch(String query) => 
-      Uri.parse('$messagingFriends/search').replace(queryParameters: {'q': query}).toString();
-  static String messagingFriendById(String friendId) => '$messagingFriends/$friendId';
+  static String messagingFriendsSearch(String query) => Uri.parse(
+    '$messagingFriends/search',
+  ).replace(queryParameters: {'q': query}).toString();
+  static String messagingFriendById(String friendId) =>
+      '$messagingFriends/$friendId';
+
+  static const String messagingBlocks = '$messagingBase/blocks';
+  static String messagingBlockUser(String userId) => '$messagingBlocks/$userId';
 
   static String messagingRequestById(String requestId) =>
       '$messagingRequests/$requestId';
@@ -331,6 +281,7 @@ class ApiConfig {
       '$messagingGroups/$conversationId/members';
 
   static const String messagingChannels = '$messagingBase/channels';
+  static const String messagingChannelsMe = '$messagingChannels/me';
 
   static String messagingChannelById(String conversationId) =>
       '$messagingChannels/$conversationId';

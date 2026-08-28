@@ -22,10 +22,11 @@ class SectionLabel extends StatelessWidget {
       ),
       child: Text(
         title.toUpperCase(),
-        style: theme.textTheme.labelSmall?.copyWith(
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1.0,
-          color: theme.colorScheme.onSurfaceVariant,
+        style: TextStyle(
+          color: theme.colorScheme.primary,
+          fontWeight: FontWeight.w900,
+          fontSize: 11,
+          letterSpacing: 1.5,
         ),
       ),
     );

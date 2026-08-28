@@ -87,18 +87,72 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final walletProvider = context.read<WalletProvider>();
       final appLockProvider = context.read<AppLockProvider>();
 
-      await authSessionService.logout();
+      await authSessionService.signOut();
       userProvider.clearUser();
       walletProvider.reset();
       appLockProvider.reset();
 
       if (!context.mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
-      context.go('/');
+      context.go('/login');
     } catch (e) {
       if (!context.mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
       NotificationService.showError(context, 'Logout failed: $e');
+    }
+  }
+
+  Future<void> _handleWipeData(BuildContext context) async {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Wipe All Data?'),
+        content: const Text(
+          'CRITICAL: This will permanently delete your wallet, mnemonic, and all local data from this device.\n\nEnsure you have backed up your recovery phrase first!',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel', style: TextStyle(color: colorScheme.onSurfaceVariant)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Wipe Data', style: TextStyle(color: colorScheme.error, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    if (!context.mounted) return;
+
+    showDialog(
+      context: context,
+      useRootNavigator: true,
+      barrierDismissible: false,
+      builder: (context) => const GriotOverlayLoader(message: 'Wiping data...'),
+    );
+
+    try {
+      final authSessionService = context.read<AuthSessionService>();
+      final userProvider = context.read<UserProvider>();
+      final walletProvider = context.read<WalletProvider>();
+      final appLockProvider = context.read<AppLockProvider>();
+
+      await authSessionService.wipeData();
+      userProvider.clearUser();
+      walletProvider.reset();
+      appLockProvider.reset();
+
+      if (!context.mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      context.go('/welcome_one');
+    } catch (e) {
+      if (!context.mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      NotificationService.showError(context, 'Reset failed: $e');
     }
   }
 
@@ -108,10 +162,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.only(left: 4, top: 26, bottom: 9),
       child: Text(
         title.toUpperCase(),
-        style: theme.textTheme.labelSmall?.copyWith(
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1.0,
-          color: theme.colorScheme.onSurfaceVariant,
+        style: TextStyle(
+          color: theme.colorScheme.primary,
+          fontWeight: FontWeight.w900,
+          fontSize: 11,
+          letterSpacing: 1.5,
         ),
       ),
     );
@@ -246,7 +301,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       children: [
                         Text(
                           user?.displayName ?? 'Your Griot Account',
-                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.3,
+                          ),
                         ),
                         if (reputation != null) ...[
                           const SizedBox(height: 5),
@@ -412,27 +470,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ],
               ),
-              _sectionLabel(context, 'Wallet'),
-              _sectionContainer(
-                context: context,
-                children: [
-                  _settingTile(
-                    context: context,
-                    icon: Icons.account_balance_wallet_outlined,
-                    title: 'Wallet Settings',
-                    subtitle: 'Manage your wallet preferences',
-                    onTap: () => context.push('/settings/wallet-settings'),
-                  ),
-                  _divider(context),
-                  _settingTile(
-                    context: context,
-                    icon: Icons.currency_exchange_rounded,
-                    title: 'Networks',
-                    subtitle: 'Manage supported blockchain networks',
-                    onTap: () => context.push('/settings/networks'),
-                  ),
-                ],
-              ),
               _sectionLabel(context, 'Security'),
               _sectionContainer(
                 context: context,
@@ -546,29 +583,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ],
               ),
-            _sectionLabel(
-              context,
-              'Account',
-            ),
-
-            _sectionContainer(
-              context: context,
-              children: [
-                _settingTile(
-                  context: context,
-                  icon:
-                  Icons.security_outlined,
-                  title: 'Account Security',
-                  subtitle:
-                  'Manage account access and recovery',
-                  onTap: () {
-                    // Navigate to account details for now or 
-                    // dedicated account security screen.
-                    context.push('/settings/user-details');
-                  },
-                ),
-              ],
-            ),
               _sectionLabel(context, 'Account Actions'),
               _sectionContainer(
                 context: context,
@@ -584,16 +598,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _settingTile(
                     context: context,
                     icon: Icons.delete_forever_outlined,
-                    title: 'Delete Account',
-                    subtitle: 'Permanently delete your account',
+                    title: 'Wipe All Data',
+                    subtitle: 'Delete wallet and all local data',
                     iconColor: Theme.of(context).colorScheme.error,
                     titleColor: Theme.of(context).colorScheme.error,
-                    onTap: () {},
+                    onTap: () => _handleWipeData(context),
                   ),
                 ],
               ),
               const SizedBox(height: 20),
-              const Padding(padding: EdgeInsets.symmetric(vertical: 20), child: GriotBannerAd()),
+              const Padding(padding: EdgeInsets.symmetric(vertical: 20), child: GriotBannerAd(isCompact: true)),
               const SizedBox(height: 16),
               Center(
                 child: Text(

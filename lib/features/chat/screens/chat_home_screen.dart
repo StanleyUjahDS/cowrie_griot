@@ -1,9 +1,10 @@
+import 'dart:async';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:griot_cowrie/core/startup/app_startup_service.dart';
-import 'package:griot_cowrie/core/services/notification_service.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:griot_cowrie/core/services/navigation_scroll_service.dart';
 import 'package:griot_cowrie/features/chat/providers/messaging_provider.dart';
 import 'package:griot_cowrie/core/ui/scaffolds/gradient_scaffold.dart';
@@ -14,6 +15,11 @@ import 'package:griot_cowrie/features/chat/widgets/chat_list_item.dart';
 import 'package:griot_cowrie/features/chat/widgets/chat_loading.dart';
 import 'package:griot_cowrie/features/chat/widgets/group_list_item.dart' as group_widgets;
 import 'package:griot_cowrie/features/chat/widgets/channel_list_item.dart';
+import 'package:griot_cowrie/features/users/models/user_model.dart';
+import 'package:griot_cowrie/features/users/services/user_api_service.dart';
+import 'package:griot_cowrie/core/ui/widgets/griot_loader.dart';
+
+enum HubSection { direct, groups, channels }
 
 class ChatHomeScreen extends StatelessWidget {
   const ChatHomeScreen({super.key});
@@ -31,11 +37,14 @@ class _ChatHomeView extends StatefulWidget {
   State<_ChatHomeView> createState() => _ChatHomeViewState();
 }
 
-class _ChatHomeViewState extends State<_ChatHomeView> with SingleTickerProviderStateMixin {
+class _ChatHomeViewState extends State<_ChatHomeView> {
   String searchQuery = '';
   final ScrollController _scrollController = ScrollController();
-  final PageController _pageController = PageController();
   HubSection selectedHub = HubSection.direct;
+  
+  List<UserModel> _globalUserResults = [];
+  bool _isGlobalSearching = false;
+  Timer? _globalSearchTimer;
 
   @override
   void initState() {
@@ -43,13 +52,17 @@ class _ChatHomeViewState extends State<_ChatHomeView> with SingleTickerProviderS
     NavigationScrollService.instance.addListener(_onNavTap);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AppStartupService>().initialize();
       final messaging = context.read<MessagingProvider>();
-      messaging.loadConversations();
-      messaging.loadRequests();
-      messaging.loadFriends();
-      messaging.loadGroups();
-      messaging.loadChannels();
+      // CONTRACT: Initial load if list is empty
+      if (messaging.conversations.isEmpty) {
+        messaging.loadConversations();
+      }
+      if (messaging.receivedRequests.isEmpty && messaging.sentRequests.isEmpty) {
+        messaging.loadRequests();
+      }
+      if (messaging.friends.isEmpty) {
+        messaging.loadFriends();
+      }
     });
   }
 
@@ -57,7 +70,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> with SingleTickerProviderS
   void dispose() {
     NavigationScrollService.instance.removeListener(_onNavTap);
     _scrollController.dispose();
-    _pageController.dispose();
+    _globalSearchTimer?.cancel();
     super.dispose();
   }
 
@@ -69,54 +82,41 @@ class _ChatHomeViewState extends State<_ChatHomeView> with SingleTickerProviderS
     }
   }
 
-  void _onSectionChanged(HubSection section) {
-    setState(() {
-      selectedHub = section;
-      searchQuery = '';
-    });
-    _pageController.animateToPage(
-      section.index,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOutCubic,
-    );
-  }
-
-  void _onPageChanged(int index) {
-    setState(() {
-      selectedHub = HubSection.values[index];
-      searchQuery = '';
-    });
-  }
-
   // ==============================================================
   // FILTERS
   // ==============================================================
 
   List<Conversation> get filteredConversations {
-    final conversations = context.read<MessagingProvider>().conversations;
+    final provider = context.read<MessagingProvider>();
+    final conversations = provider.conversations;
     final query = searchQuery.trim().toLowerCase();
-    if (query.isEmpty) return List<Conversation>.from(conversations);
-    return conversations.where((conv) {
-      final user = conv.otherUser;
-      if (user == null) return false;
-      return (user.displayName ?? '').toLowerCase().contains(query) ||
-          user.walletAddress.toLowerCase().contains(query) ||
-          (conv.lastMessage?.text ?? '').toLowerCase().contains(query);
+    
+    // 0. Hide blocked users
+    final visibleConversations = conversations.where((conv) {
+      if (conv.type == ConversationType.dm && conv.otherUser != null) {
+        return !provider.blockedUserIds.contains(conv.otherUser!.id);
+      }
+      return true;
     }).toList();
-  }
+    
+    // 1. Filter by Section
+    final sectionFiltered = visibleConversations.where((conv) {
+      if (selectedHub == HubSection.direct) return conv.type == ConversationType.dm;
+      if (selectedHub == HubSection.groups) return conv.type == ConversationType.group;
+      if (selectedHub == HubSection.channels) return conv.type == ConversationType.channel;
+      return true;
+    }).toList();
 
-  List<ChatGroup> get filteredGroups {
-    final groups = context.read<MessagingProvider>().groups;
-    final query = searchQuery.trim().toLowerCase();
-    if (query.isEmpty) return List<ChatGroup>.from(groups);
-    return groups.where((group) => group.name.toLowerCase().contains(query)).toList();
-  }
-
-  List<ChatChannel> get filteredChannels {
-    final channels = context.read<MessagingProvider>().channels;
-    final query = searchQuery.trim().toLowerCase();
-    if (query.isEmpty) return List<ChatChannel>.from(channels);
-    return channels.where((channel) => channel.name.toLowerCase().contains(query)).toList();
+    // 2. Filter by Query
+    if (query.isEmpty) return sectionFiltered;
+    
+    return sectionFiltered.where((conv) {
+      final title = conv.title?.toLowerCase() ?? '';
+      final user = conv.otherUser?.effectiveDisplayName.toLowerCase() ?? '';
+      final lastMsg = conv.lastMessage?.text.toLowerCase() ?? '';
+      
+      return title.contains(query) || user.contains(query) || lastMsg.contains(query);
+    }).toList();
   }
 
   // ==============================================================
@@ -124,132 +124,6 @@ class _ChatHomeViewState extends State<_ChatHomeView> with SingleTickerProviderS
   // ==============================================================
 
   void _openNewChat() => context.push('/chat/discover');
-  void _openFriends() => context.push('/chat/friends');
-  void _openRequests() => context.push('/chat/requests');
-
-  void _handleFabAction() {
-    if (selectedHub == HubSection.direct) {
-      _openNewChat();
-    } else if (selectedHub == HubSection.groups) {
-      _showCreateGroupSheet();
-    } else if (selectedHub == HubSection.channels) {
-      _showCreateChannelSheet();
-    }
-  }
-
-  void _showCreateGroupSheet() {
-    final controller = TextEditingController();
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      useRootNavigator: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) => SafeArea(
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(sheetContext).viewInsets.bottom + 20),
-          decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(32)),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  decoration: BoxDecoration(color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(2)),
-                ),
-              ),
-              const SizedBox(height: 24),
-              const Text('Create Group', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-              const SizedBox(height: 16),
-              TextField(controller: controller, decoration: const InputDecoration(labelText: 'Group Name', prefixIcon: Icon(Icons.groups_rounded))),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    final name = controller.text.trim();
-                    if (name.isEmpty) return;
-                    try {
-                      await context.read<MessagingProvider>().createGroup(name: name);
-                      if (context.mounted) {
-                        Navigator.pop(sheetContext);
-                        NotificationService.showSuccess(context, 'Group "$name" created');
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        NotificationService.showError(context, 'Failed to create group: $e');
-                      }
-                    }
-                  },
-                  child: const Text('Create Group', style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showCreateChannelSheet() {
-    final controller = TextEditingController();
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      useRootNavigator: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) => SafeArea(
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(sheetContext).viewInsets.bottom + 20),
-          decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(32)),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  decoration: BoxDecoration(color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(2)),
-                ),
-              ),
-              const SizedBox(height: 24),
-              const Text('Create Channel', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-              const SizedBox(height: 16),
-              TextField(controller: controller, decoration: const InputDecoration(labelText: 'Channel Name', prefixIcon: Icon(Icons.campaign_rounded))),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    final name = controller.text.trim();
-                    if (name.isEmpty) return;
-                    try {
-                      await context.read<MessagingProvider>().createChannel(name: name);
-                      if (context.mounted) {
-                        Navigator.pop(sheetContext);
-                        NotificationService.showSuccess(context, 'Channel "$name" created');
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        NotificationService.showError(context, 'Failed to create channel: $e');
-                      }
-                    }
-                  },
-                  child: const Text('Create Channel', style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -257,45 +131,51 @@ class _ChatHomeViewState extends State<_ChatHomeView> with SingleTickerProviderS
 
     return GradientScaffold(
       appBar: AppBar(
-        title: const Text('Chat', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+        title: const Text('Messenger'),
+        centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        actions: [
-          IconButton(onPressed: _openNewChat, icon: const Icon(Icons.person_search_rounded), tooltip: 'Discover'),
-          IconButton(onPressed: _openFriends, icon: const Icon(Icons.people_outline_rounded), tooltip: 'Friends'),
-          Consumer<MessagingProvider>(
-            builder: (context, provider, child) {
-              final count = provider.pendingRequestCount;
-              return Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  IconButton(onPressed: _openRequests, icon: const Icon(Icons.notifications_none_rounded), tooltip: 'Requests'),
-                  if (count > 0)
-                    Positioned(
-                      right: 10, top: 10,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(color: colors.error, shape: BoxShape.circle),
-                        constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
-                        child: Text(count.toString(), style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
-                      ),
-                    ),
-                ],
-              );
-            },
+        toolbarHeight: 64,
+        leadingWidth: 78,
+        leading: GestureDetector(
+          onTap: () => Scaffold.of(context).openDrawer(),
+          child: Center(
+            child: Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                color: colors.surface.withValues(alpha: 0.95),
+                border: Border.all(
+                  color: colors.primary.withValues(alpha: 0.08),
+                  width: 1,
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(4.0),
+                child: SvgPicture.asset(
+                  'assets/cowrie_images/cowriesvg.svg',
+                  width: 32,
+                  height: 32,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
           ),
-          const SizedBox(width: 8),
+        ),
+        actions: const [
+          SizedBox(width: 16),
         ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 80),
+        padding: const EdgeInsets.only(bottom: 110),
         child: FloatingActionButton(
-          heroTag: 'chat_fab',
+          onPressed: _openNewChat,
           backgroundColor: colors.primary,
-          foregroundColor: colors.onPrimary,
-          onPressed: _handleFabAction,
-          child: Icon(_getFabIcon()),
+          foregroundColor: Colors.white,
+          elevation: 6,
+          child: const Icon(Icons.add_rounded, size: 32),
         ),
       ),
       child: Stack(
@@ -307,36 +187,93 @@ class _ChatHomeViewState extends State<_ChatHomeView> with SingleTickerProviderS
     );
   }
 
+  // _buildDrawer was here, but we've removed it as it's now in the shell.
+  // We've also removed _drawerTile.
+
   Widget _buildFloatingControls() {
     final colors = Theme.of(context).colorScheme;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          height: 48,
-          decoration: BoxDecoration(
-            color: colors.surface.withValues(alpha: 0.95),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: colors.outline.withValues(alpha: 0.1)),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
-          ),
-          child: TextField(
-            onChanged: (v) => setState(() => searchQuery = v),
-            decoration: InputDecoration(
-              hintText: 'Search ${selectedHub.name}...',
-              prefixIcon: const Icon(Icons.search_rounded, size: 20),
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: colors.surface.withValues(alpha: 0.85),
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(color: colors.primary.withValues(alpha: 0.12)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 1. Search Row
+                  SizedBox(
+                    height: 48,
+                    child: TextField(
+                      onChanged: (v) {
+                        setState(() => searchQuery = v);
+                        _onSearchChanged(v);
+                      },
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                      decoration: InputDecoration(
+                        hintText: 'Search ${selectedHub.name}...',
+                        hintStyle: TextStyle(
+                            color: colors.onSurfaceVariant.withValues(alpha: 0.5),
+                            fontWeight: FontWeight.w600),
+                        prefixIcon: Icon(Icons.search_rounded,
+                            size: 22, color: colors.primary),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  // 2. Switcher Row
+                  _ChatSectionSwitcher(
+                    selected: selectedHub,
+                    onChanged: (section) => setState(() => selectedHub = section),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-        const SizedBox(height: 8),
-        _ChatSectionSwitcher(
-          selected: selectedHub,
-          onChanged: _onSectionChanged,
-        ),
       ],
     );
+  }
+
+  void _onSearchChanged(String v) {
+    _globalSearchTimer?.cancel();
+    if (v.trim().length < 2) {
+      setState(() {
+        _globalUserResults = [];
+        _isGlobalSearching = false;
+      });
+      return;
+    }
+
+    _globalSearchTimer = Timer(const Duration(milliseconds: 500), () {
+      _performGlobalSearch(v.trim());
+    });
+  }
+
+  Future<void> _performGlobalSearch(String query) async {
+    if (!mounted) return;
+    setState(() => _isGlobalSearching = true);
+    try {
+      final results = await context.read<UserApiService>().searchUsers(query);
+      if (!mounted) return;
+      setState(() {
+        _globalUserResults = results;
+        _isGlobalSearching = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _isGlobalSearching = false);
+    }
   }
 
   Widget _buildContent() {
@@ -344,91 +281,101 @@ class _ChatHomeViewState extends State<_ChatHomeView> with SingleTickerProviderS
       return _buildSearchResults();
     }
 
-    return PageView(
-      controller: _pageController,
-      onPageChanged: _onPageChanged,
-      children: [
-        _buildDirect(),
-        _buildGroups(),
-        _buildChannels(),
-      ],
-    );
+    return _buildUnifiedConversations();
   }
 
-  Widget _buildSearchResults() {
-    final direct = filteredConversations;
-    final groups = filteredGroups;
-    final channels = filteredChannels;
-
-    if (direct.isEmpty && groups.isEmpty && channels.isEmpty) {
-      return const _EmptyState(
-        icon: Icons.search_off_rounded,
-        title: 'No results found',
-        message: 'No chats, groups, or channels match your search.',
-      );
-    }
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 120, 16, 100),
-      physics: const BouncingScrollPhysics(),
-      children: [
-        if (direct.isNotEmpty) ...[
-          _SearchSectionHeader(title: 'DIRECT CHATS', count: direct.length),
-          ...direct.map((conv) {
-            final other = conv.otherUser;
-            if (other == null) return const SizedBox.shrink();
-            return ChatListItem(
-              user: other.copyWith(lastMessage: conv.lastMessage?.text ?? '', timestamp: conv.updatedAt, unreadCount: conv.unreadCount),
-              time: _formatTime(conv.updatedAt),
-              onTap: () => context.push('/conversation/${conv.id}'),
-            );
-          }),
-          const SizedBox(height: 24),
-        ],
-        if (groups.isNotEmpty) ...[
-          _SearchSectionHeader(title: 'GROUPS', count: groups.length),
-          ...groups.map((g) => group_widgets.GroupListItem(group: g, onTap: () => context.push('/conversation/${g.id}'))),
-          const SizedBox(height: 24),
-        ],
-        if (channels.isNotEmpty) ...[
-          _SearchSectionHeader(title: 'CHANNELS', count: channels.length),
-          ...channels.map((c) => ChannelListItem(channel: c)),
-          const SizedBox(height: 24),
-        ],
-      ],
-    );
-  }
-
-  IconData _getFabIcon() {
-    switch (selectedHub) {
-      case HubSection.direct: return Icons.chat_bubble_outline_rounded;
-      case HubSection.groups: return Icons.group_add_rounded;
-      case HubSection.channels: return Icons.campaign_rounded;
-    }
-  }
-
-  Widget _buildDirect() {
+  Widget _buildUnifiedConversations() {
     return Consumer<MessagingProvider>(
       builder: (context, provider, child) {
         if (provider.isLoadingConversations && provider.conversations.isEmpty) return const ChatLoading();
+        
         final list = filteredConversations;
-        if (list.isEmpty) return const _EmptyState(icon: Icons.chat_bubble_outline_rounded, title: 'No direct chats', message: 'Search for people to start chatting.');
+        
+        if (list.isEmpty) {
+          String emptyTitle = '';
+          String emptyMsg = '';
+          IconData icon = Icons.chat_bubble_outline_rounded;
+
+          switch (selectedHub) {
+            case HubSection.direct:
+              emptyTitle = 'Start a Story';
+              emptyMsg = 'Connect with friends and start your first decentralized chat.';
+              icon = Icons.chat_bubble_outline_rounded;
+              break;
+            case HubSection.groups:
+              emptyTitle = 'Private Circles';
+              emptyMsg = 'Create a secure group for your community or inner circle.';
+              icon = Icons.groups_rounded;
+              break;
+            case HubSection.channels:
+              emptyTitle = 'Broadcasting';
+              emptyMsg = 'Follow channels to stay updated with the latest Griot stories.';
+              icon = Icons.campaign_rounded;
+              break;
+          }
+          
+          return _EmptyState(
+            icon: icon, 
+            title: emptyTitle, 
+            message: emptyMsg,
+          );
+        }
+
         return RefreshIndicator(
           onRefresh: provider.loadConversations,
           child: ListView.separated(
             controller: _scrollController,
-            padding: const EdgeInsets.only(top: 120, bottom: 100),
+            padding: const EdgeInsets.fromLTRB(0, 140, 0, 120),
             itemCount: list.length,
-            separatorBuilder: (context, index) => Divider(height: 1, indent: 80, color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1)),
+            separatorBuilder: (context, index) => const SizedBox(height: 4),
             itemBuilder: (context, index) {
               final conv = list[index];
-              final other = conv.otherUser;
-              if (other == null) return const SizedBox.shrink();
-              return ChatListItem(
-                user: other.copyWith(lastMessage: conv.lastMessage?.text ?? '', timestamp: conv.updatedAt, unreadCount: conv.unreadCount),
-                time: _formatTime(conv.updatedAt),
-                onTap: () => context.push('/conversation/${conv.id}'),
-              );
+              final type = conv.type;
+              
+              if (type == ConversationType.dm) {
+                final other = conv.otherUser;
+                if (other == null) return const SizedBox.shrink();
+                return ChatListItem(
+                  user: other.copyWith(
+                    lastMessage: conv.lastMessage?.text ?? '', 
+                    timestamp: conv.updatedAt, 
+                    unreadCount: conv.unreadCount
+                  ),
+                  time: _formatTime(conv.updatedAt),
+                  onTap: () => context.push('/conversation/${conv.id}'),
+                  onAvatarTap: () => context.push('/user/profile', extra: other),
+                );
+              } else if (type == ConversationType.group) {
+                return group_widgets.GroupListItem(
+                  group: ChatGroup(
+                    id: conv.id,
+                    name: conv.title ?? 'Unknown Group',
+                    description: '',
+                    ownerWalletAddress: '',
+                    imageUrl: conv.avatarUrl,
+                    lastMessage: conv.lastMessage?.text ?? '',
+                    lastMessageAt: conv.updatedAt,
+                    memberCount: 0,
+                    unreadCount: conv.unreadCount,
+                  ),
+                  onTap: () => context.push('/conversation/${conv.id}'),
+                );
+              } else if (type == ConversationType.channel) {
+                return ChannelListItem(
+                  channel: ChatChannel(
+                    id: conv.id,
+                    name: conv.title ?? 'Unknown Channel',
+                    imageUrl: conv.avatarUrl,
+                    description: '',
+                    subscriberCount: 0,
+                    verified: false,
+                    lastPost: conv.lastMessage?.text ?? '',
+                    timestamp: conv.updatedAt,
+                  ),
+                );
+              }
+              
+              return const SizedBox.shrink();
             },
           ),
         );
@@ -436,43 +383,82 @@ class _ChatHomeViewState extends State<_ChatHomeView> with SingleTickerProviderS
     );
   }
 
-  Widget _buildGroups() {
-    return Consumer<MessagingProvider>(
-      builder: (context, provider, child) {
-        if (provider.isLoadingGroups && provider.groups.isEmpty) return const ChatLoading();
-        final list = filteredGroups;
-        if (list.isEmpty) return const _EmptyState(icon: Icons.groups_outlined, title: 'No groups', message: 'Create or join a group to start.');
-        return RefreshIndicator(
-          onRefresh: provider.loadGroups,
-          child: ListView.separated(
-            controller: _scrollController,
-            padding: const EdgeInsets.only(top: 120, bottom: 100),
-            itemCount: list.length,
-            separatorBuilder: (context, index) => const Divider(height: 1, indent: 80),
-            itemBuilder: (context, index) => group_widgets.GroupListItem(group: list[index], onTap: () => context.push('/conversation/${list[index].id}')),
-          ),
-        );
-      },
-    );
-  }
+  Widget _buildSearchResults() {
+    final list = filteredConversations;
 
-  Widget _buildChannels() {
-    return Consumer<MessagingProvider>(
-      builder: (context, provider, child) {
-        if (provider.isLoadingChannels && provider.channels.isEmpty) return const ChatLoading();
-        final list = filteredChannels;
-        if (list.isEmpty) return const _EmptyState(icon: Icons.campaign_outlined, title: 'No channels', message: 'Subscribe to channels for updates.');
-        return RefreshIndicator(
-          onRefresh: provider.loadChannels,
-          child: ListView.separated(
-            controller: _scrollController,
-            padding: const EdgeInsets.only(top: 120, bottom: 100),
-            itemCount: list.length,
-            separatorBuilder: (context, index) => const Divider(height: 1, indent: 80),
-            itemBuilder: (context, index) => ChannelListItem(channel: list[index]),
-          ),
-        );
-      },
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(0, 120, 0, 100),
+      children: [
+        if (list.isNotEmpty) ...[
+          _SearchSectionHeader(title: 'Conversations'),
+          ...list.map((conv) {
+            if (conv.type == ConversationType.dm) {
+              final other = conv.otherUser;
+              if (other == null) return const SizedBox.shrink();
+              return ChatListItem(
+                user: other.copyWith(lastMessage: conv.lastMessage?.text ?? '', timestamp: conv.updatedAt, unreadCount: conv.unreadCount),
+                time: _formatTime(conv.updatedAt),
+                onTap: () => context.push('/conversation/${conv.id}'),
+                onAvatarTap: () => context.push('/user/profile', extra: other),
+              );
+            } else if (conv.type == ConversationType.group) {
+              return group_widgets.GroupListItem(
+                group: ChatGroup(
+                  id: conv.id,
+                  name: conv.title ?? 'Unknown Group',
+                  description: '',
+                  ownerWalletAddress: '',
+                  imageUrl: conv.avatarUrl,
+                  lastMessage: conv.lastMessage?.text ?? '',
+                  lastMessageAt: conv.updatedAt,
+                  memberCount: 0,
+                  unreadCount: conv.unreadCount,
+                ),
+                onTap: () => context.push('/conversation/${conv.id}'),
+              );
+            } else if (conv.type == ConversationType.channel) {
+              return ChannelListItem(
+                channel: ChatChannel(
+                  id: conv.id,
+                  name: conv.title ?? 'Unknown Channel',
+                  imageUrl: conv.avatarUrl,
+                  description: '',
+                  subscriberCount: 0,
+                  verified: false,
+                  lastPost: conv.lastMessage?.text ?? '',
+                  timestamp: conv.updatedAt,
+                ),
+              );
+            }
+            return const SizedBox.shrink();
+          }),
+          const SizedBox(height: 24),
+        ],
+
+        _SearchSectionHeader(title: 'Discover Users'),
+        if (_isGlobalSearching)
+          Padding(padding: EdgeInsets.all(32), child: Center(child: GriotLoader(size: 32)))
+        else if (_globalUserResults.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(32),
+            child: Center(child: Text('No new users found.', style: TextStyle(color: Colors.grey, fontSize: 13))),
+          )
+        else
+          ..._globalUserResults.map((UserModel user) => ListTile(
+            onTap: () => context.push('/user/profile', extra: user),
+            leading: CircleAvatar(
+              radius: 20,
+              backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+              backgroundImage: user.avatarUrl != null ? NetworkImage(user.avatarUrl!) : null,
+              child: user.avatarUrl == null 
+                ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg')
+                : null,
+            ),
+            title: Text(user.displayName ?? user.username ?? 'Griot User', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+            subtitle: Text('@${user.username ?? (user.walletAddress.length > 8 ? "${user.walletAddress.substring(0, 3)}...${user.walletAddress.substring(user.walletAddress.length - 3)}" : user.walletAddress)}', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.primary)),
+            trailing: const Icon(Icons.chevron_right_rounded, size: 20, color: Colors.grey),
+          )),
+      ],
     );
   }
 
@@ -482,39 +468,6 @@ class _ChatHomeViewState extends State<_ChatHomeView> with SingleTickerProviderS
     if (diff.inMinutes < 60) return '${diff.inMinutes}m';
     if (diff.inHours < 24) return '${diff.inHours}h';
     return '${time.day}/${time.month}';
-  }
-}
-
-enum HubSection { direct, groups, channels }
-
-class _ChatSectionSwitcher extends StatelessWidget {
-  final HubSection selected;
-  final ValueChanged<HubSection> onChanged;
-  const _ChatSectionSwitcher({required this.selected, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 44,
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.95), borderRadius: BorderRadius.circular(12), border: Border.all(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1))),
-      child: Row(
-        children: HubSection.values.map((s) {
-          final colors = Theme.of(context).colorScheme;
-          final isSelected = selected == s;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => onChanged(s),
-              child: Container(
-                decoration: BoxDecoration(color: isSelected ? colors.primary : Colors.transparent, borderRadius: BorderRadius.circular(8)),
-                alignment: Alignment.center,
-                child: Text(s.name.toUpperCase(), style: TextStyle(color: isSelected ? colors.onPrimary : colors.onSurfaceVariant, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1)),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
   }
 }
 
@@ -544,33 +497,95 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
+class _ChatSectionSwitcher extends StatelessWidget {
+  final HubSection selected;
+  final ValueChanged<HubSection> onChanged;
+  const _ChatSectionSwitcher({required this.selected, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        children: HubSection.values.map((s) {
+          final isSelected = selected == s;
+          String label = '';
+          IconData icon;
+          
+          switch(s) {
+            case HubSection.direct:
+              label = 'Direct';
+              icon = Icons.chat_bubble_rounded;
+              break;
+            case HubSection.groups:
+              label = 'Groups';
+              icon = Icons.groups_rounded;
+              break;
+            case HubSection.channels:
+              label = 'Channels';
+              icon = Icons.sensors_rounded;
+              break;
+          }
+
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => onChanged(s),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOutCubic,
+                decoration: BoxDecoration(
+                  color: isSelected ? colors.primary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                alignment: Alignment.center,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      icon, 
+                      size: 16, 
+                      color: isSelected ? colors.onPrimary : colors.onSurfaceVariant.withValues(alpha: 0.4)
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      label,
+                      style: TextStyle(
+                        color: isSelected ? colors.onPrimary : colors.onSurfaceVariant.withValues(alpha: 0.6),
+                        fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
 class _SearchSectionHeader extends StatelessWidget {
   final String title;
-  final int count;
-  const _SearchSectionHeader({required this.title, required this.count});
+  const _SearchSectionHeader({required this.title});
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
-      child: Row(
-        children: [
-          Text(
-            title,
-            style: TextStyle(color: colors.primary, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 1.5),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(color: colors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
-            child: Text(
-              count.toString(),
-              style: TextStyle(color: colors.primary, fontWeight: FontWeight.bold, fontSize: 10),
-            ),
-          ),
-          const Expanded(child: Divider(indent: 16)),
-        ],
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+      child: Text(
+        title.toUpperCase(),
+        style: TextStyle(
+          color: colors.primary,
+          fontWeight: FontWeight.w900,
+          fontSize: 11,
+          letterSpacing: 1.5,
+        ),
       ),
     );
   }

@@ -133,21 +133,16 @@ class ChatController extends ChangeNotifier {
       MessageRequest request,
       ) async {
     try {
-      final accepted =
       await messageRequestOperations.acceptRequest(
         request.id,
       );
-
-      if (accepted == null) {
-        return;
-      }
 
       final index = _requests.indexWhere(
             (item) => item.id == request.id,
       );
 
       if (index != -1) {
-        _requests[index] = accepted;
+        _requests[index] = request..status = RequestStatus.accepted;
       }
 
       // ======================================================
@@ -174,11 +169,9 @@ class ChatController extends ChangeNotifier {
             displayName:
             request.senderDisplayName,
 
-            phoneNumber:
-            request.senderPhoneNumber,
+            phoneNumber: null,
 
-            phoneDiscoveryEnabled:
-            request.senderPhoneNumber != null,
+            phoneDiscoveryEnabled: false,
 
             profileUrl:
             request.senderProfileUrl,
@@ -213,21 +206,16 @@ class ChatController extends ChangeNotifier {
       MessageRequest request,
       ) async {
     try {
-      final declined =
       await messageRequestOperations.declineRequest(
         request.id,
       );
-
-      if (declined == null) {
-        return;
-      }
 
       final index = _requests.indexWhere(
             (item) => item.id == request.id,
       );
 
       if (index != -1) {
-        _requests[index] = declined;
+        _requests[index] = request..status = RequestStatus.declined;
       }
 
       notifyListeners();
@@ -243,41 +231,12 @@ class ChatController extends ChangeNotifier {
   // ==========================================================
 
   Future<MessageRequest?> sendMessageRequest({
-    required String senderWalletAddress,
-    required String receiverWalletAddress,
-    String? senderUsername,
-    String? senderDisplayName,
-    String? senderPhoneNumber,
-    String? senderProfileUrl,
-    String message = '',
-    bool senderIsOnline = false,
+    required String recipientId,
   }) async {
     try {
       final request =
       await messageRequestOperations.sendRequest(
-        senderWalletAddress:
-        senderWalletAddress,
-
-        receiverWalletAddress:
-        receiverWalletAddress,
-
-        senderUsername:
-        senderUsername,
-
-        senderDisplayName:
-        senderDisplayName,
-
-        senderPhoneNumber:
-        senderPhoneNumber,
-
-        senderProfileUrl:
-        senderProfileUrl,
-
-        message:
-        message,
-
-        senderIsOnline:
-        senderIsOnline,
+        recipientId: recipientId,
       );
 
       _requests.insert(

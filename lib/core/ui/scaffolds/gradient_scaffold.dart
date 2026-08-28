@@ -7,6 +7,9 @@ class GradientScaffold extends StatelessWidget {
   final Widget? floatingActionButton;
   final FloatingActionButtonLocation? floatingActionButtonLocation;
   final bool extendBodyBehindAppBar;
+  final Widget? drawer;
+  final Widget? endDrawer;
+  final bool useSafeArea;
 
   const GradientScaffold({
     super.key,
@@ -16,6 +19,9 @@ class GradientScaffold extends StatelessWidget {
     this.floatingActionButton,
     this.floatingActionButtonLocation,
     this.extendBodyBehindAppBar = false,
+    this.drawer,
+    this.endDrawer,
+    this.useSafeArea = true,
   });
 
   @override
@@ -29,7 +35,10 @@ class GradientScaffold extends StatelessWidget {
       extendBodyBehindAppBar: extendBodyBehindAppBar,
       backgroundColor: backgroundColor,
       appBar: appBar,
+      drawer: drawer,
+      endDrawer: endDrawer,
       body: Stack(
+        fit: StackFit.expand,
         children: [
           // ==================================================
           // BACKGROUND GRADIENT & IMAGE
@@ -76,9 +85,7 @@ class GradientScaffold extends StatelessWidget {
           // ==================================================
           // CONTENT
           // ==================================================
-          SafeArea(
-            child: child,
-          ),
+          useSafeArea ? SafeArea(child: child) : child,
         ],
       ),
       bottomNavigationBar: bottomNavigationBar,

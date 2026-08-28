@@ -3,7 +3,8 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../../config/app_config.dart';
 
 class GriotBannerAd extends StatefulWidget {
-  const GriotBannerAd({super.key});
+  final bool isCompact;
+  const GriotBannerAd({super.key, this.isCompact = false});
 
   @override
   State<GriotBannerAd> createState() => _GriotBannerAdState();
@@ -54,11 +55,26 @@ class _GriotBannerAdState extends State<GriotBannerAd> {
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
 
-    // Placeholder: Show a themed frame even if the ad isn't loaded
+    // Compact mode: Remove decoration and reduce margins
+    if (widget.isCompact) {
+      return Container(
+        margin: const EdgeInsets.symmetric(vertical: 2),
+        alignment: Alignment.center,
+        child: _isLoaded && _bannerAd != null
+            ? SizedBox(
+                width: _bannerAd!.size.width.toDouble(),
+                height: _bannerAd!.size.height.toDouble(),
+                child: AdWidget(ad: _bannerAd!),
+              )
+            : const SizedBox(height: 50),
+      );
+    }
+
+    // Standard mode: Show a themed frame even if the ad isn't loaded
     // to prevent the UI from jumping when it pops in.
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      padding: const EdgeInsets.all(4),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(14),

@@ -48,6 +48,20 @@ class WalletApiService {
     return data is Map<String, dynamic> ? data : {};
   }
 
+  Future<Map<String, dynamic>> getNfts({
+    List<String>? networks,
+  }) async {
+    final url = _buildQueryUrl(
+      ApiConfig.walletNfts,
+      networks: networks,
+    );
+
+    final response = await _apiClient.get(url);
+    final data = _unwrap(response);
+
+    return data is Map<String, dynamic> ? data : {};
+  }
+
   Future<List<Map<String, dynamic>>> getAssetsByNetwork(
     String network,
   ) async {
@@ -210,7 +224,8 @@ class WalletApiService {
       uri.queryParameters,
     );
 
-    queryParameters['networks'] = networks.join(',');
+    // FIX: Backend expects 'network' (singular) for the comma-separated list
+    queryParameters['network'] = networks.join(',');
 
     return uri
         .replace(

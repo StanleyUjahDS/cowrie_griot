@@ -1,5 +1,7 @@
 // auth_session_service.dart
 
+import 'package:flutter/foundation.dart';
+
 import 'auth_api_service.dart';
 import 'auth_storage_service.dart';
 import 'wallet_auth_service.dart';
@@ -7,17 +9,14 @@ import '../../wallet/services/wallet_service.dart';
 import '../../local_auth/services/app_lock_service.dart';
 import '../../local_auth/services/biometric_service.dart';
 import '../../local_auth/services/pin_storage_service.dart';
+import '../../../core/services/push_notification_service.dart';
 
-// ============================================================
-// AUTH SESSION SERVICE
-// ============================================================
-//
-// RESPONSIBILITY:
-//
-// This service is responsible ONLY for restoring the backend
-// authentication session and coordinating a full account logout.
-//
-// ============================================================
+enum AuthSessionStatus {
+  authenticated,
+  unauthenticated,
+  offline,
+  needsRegistration,
+}
 
 class AuthSessionService {
   final WalletService _walletService;
@@ -30,6 +29,12 @@ class AuthSessionService {
   final BiometricService _biometricService;
   final PinStorageService _pinStorageService;
 
+  // ============================================================
+  // AUTHENTICATION LOCK
+  // ============================================================
+
+  bool _isAuthenticating = false;
+
   AuthSessionService({
     required WalletService walletService,
     required AuthApiService authApiService,
@@ -38,21 +43,20 @@ class AuthSessionService {
     AppLockService? appLockService,
     BiometricService? biometricService,
     PinStorageService? pinStorageService,
-  })  : _walletService = walletService,
-        _authApiService = authApiService,
-        _authStorageService = authStorageService,
-        _walletAuthService = walletAuthService,
-        _appLockService = appLockService ?? AppLockService(),
-        _biometricService = biometricService ?? BiometricService(),
-        _pinStorageService = pinStorageService ?? const PinStorageService();
+  }) : _walletService = walletService,
+       _authApiService = authApiService,
+       _authStorageService = authStorageService,
+       _walletAuthService = walletAuthService,
+       _appLockService = appLockService ?? AppLockService(),
+       _biometricService = biometricService ?? BiometricService(),
+       _pinStorageService = pinStorageService ?? const PinStorageService();
 
   // ============================================================
   // HAS WALLET
   // ============================================================
 
   Future<bool> hasWallet() async {
-    final wallet =
-    await _walletService.loadWallet();
+    final wallet = await _walletService.loadWallet();
 
     return wallet != null;
   }
@@ -62,11 +66,9 @@ class AuthSessionService {
   // ============================================================
 
   Future<bool> hasRefreshSession() async {
-    final refreshToken =
-    await _authStorageService.getRefreshToken();
+    final refreshToken = await _authStorageService.getRefreshToken();
 
-    return refreshToken != null &&
-        refreshToken.isNotEmpty;
+    return refreshToken != null && refreshToken.isNotEmpty;
   }
 
   // ============================================================
@@ -78,101 +80,49 @@ class AuthSessionService {
   //
   // IMPORTANT:
   //
-  // If the refresh token fails, we DO NOT stop there.
+  // We ONLY attempt restoration via the refresh token here.
   //
-  // The local wallet is still available, therefore we
-  // authenticate the wallet again.
+  // We DO NOT automatically trigger wallet authentication
+  // (nonce signing) because it may be unexpected for the user
+  // and can cause duplicate signature requests.
   //
   // ============================================================
 
-  Future<bool> restoreSession() async {
-    // ----------------------------------------------------------
-    // STEP 1
-    // VERIFY LOCAL WALLET EXISTS
-    // ----------------------------------------------------------
-
-    final wallet =
-    await _walletService.loadWallet();
-
+  Future<AuthSessionStatus> restoreSession() async {
+    // 1. Verify local wallet
+    final wallet = await _walletService.loadWallet();
     if (wallet == null) {
-      return false;
+      debugPrint('AuthSession: No local wallet found.');
+      return AuthSessionStatus.needsRegistration;
     }
 
-    // ----------------------------------------------------------
-    // STEP 2
-    // TRY REFRESH TOKEN
-    // ----------------------------------------------------------
-
-    final refreshToken =
-    await _authStorageService.getRefreshToken();
-
-    if (refreshToken != null &&
-        refreshToken.isNotEmpty) {
+    // 2. Try refresh token
+    final refreshToken = await _authStorageService.getRefreshToken();
+    if (refreshToken != null && refreshToken.isNotEmpty) {
       try {
-        await _authApiService.refreshSession(
-          refreshToken: refreshToken,
-        );
+        debugPrint('AuthSession: Attempting refresh...');
+        await _authApiService.refreshSession(refreshToken: refreshToken);
+        debugPrint('AuthSession: Authenticated.');
+        return AuthSessionStatus.authenticated;
+      } catch (e) {
+        debugPrint('AuthSession: Refresh failed: $e');
 
-        // ------------------------------------------------------
-        // REFRESH SUCCESSFUL
-        //
-        // AuthApiService.refreshSession() is responsible for
-        // storing the new access/refresh tokens.
-        // ------------------------------------------------------
+        // Check if it's a 401/403 (Invalid Token) or Network Error
+        final errorString = e.toString().toLowerCase();
+        if (errorString.contains('unable to connect') || 
+            errorString.contains('500') || 
+            errorString.contains('502') || 
+            errorString.contains('503')) {
+          debugPrint('AuthSession: Server unreachable, keeping existing tokens.');
+          return AuthSessionStatus.offline;
+        }
 
-        return true;
-      } catch (_) {
-        // ------------------------------------------------------
-        // REFRESH FAILED
-        //
-        // DO NOT:
-        //
-        // - delete wallet
-        // - delete user
-        // - send user to recovery
-        //
-        // Continue with wallet authentication.
-        // ------------------------------------------------------
+        debugPrint('AuthSession: Token expired/invalid, clearing.');
+        await _authStorageService.clearSession();
       }
     }
 
-    // ----------------------------------------------------------
-    // STEP 3
-    // AUTHENTICATE EXISTING WALLET
-    // ----------------------------------------------------------
-    //
-    // WalletAuthService:
-    //
-    // wallet address
-    //      ↓
-    // backend nonce
-    //      ↓
-    // wallet signs nonce
-    //      ↓
-    // backend verifies signature
-    //      ↓
-    // new access + refresh tokens
-    //
-    // ----------------------------------------------------------
-
-    try {
-      await _walletAuthService
-          .authenticateWallet();
-
-      return true;
-    } catch (_) {
-      // --------------------------------------------------------
-      // Wallet authentication failed.
-      //
-      // IMPORTANT:
-      //
-      // The wallet remains untouched.
-      //
-      // The caller decides what UI should be shown.
-      // --------------------------------------------------------
-
-      return false;
-    }
+    return AuthSessionStatus.unauthenticated;
   }
 
   // ============================================================
@@ -181,23 +131,69 @@ class AuthSessionService {
   //
   // Explicit wallet authentication.
   //
-  // This is NOT automatically called separately by startup.
+  // This involves:
+  // 1. Requesting a nonce
+  // 2. Signing the nonce with the wallet
+  // 3. Verifying the signature
   //
   // ============================================================
 
   Future<bool> reauthenticateWallet() async {
-    try {
-      await _walletAuthService
-          .authenticateWallet();
-
-      return true;
-    } catch (_) {
+    if (_isAuthenticating) {
+      debugPrint(
+        'AuthSession: Already authenticating, ignoring duplicate request.',
+      );
       return false;
+    }
+
+    _isAuthenticating = true;
+
+    try {
+      debugPrint('AuthSession: Starting wallet authentication...');
+      await _walletAuthService.authenticateWallet();
+      debugPrint('AuthSession: Wallet authentication successful.');
+      await PushNotificationService.instance.syncTokenWithBackend();
+      return true;
+    } catch (e) {
+      debugPrint('AuthSession: Wallet authentication failed: $e');
+      return false;
+    } finally {
+      _isAuthenticating = false;
     }
   }
 
   // ============================================================
-  // LOGOUT
+  // SIGN OUT (SESSION ONLY)
+  // ============================================================
+  //
+  // ONLY clears the backend session and local tokens.
+  //
+  // DOES NOT delete:
+  // - Wallet / Mnemonic
+  // - Security Settings (PIN, Biometrics)
+  //
+  // ============================================================
+
+  Future<void> signOut() async {
+    // 1. Unregister notifications while we still have a token
+    try {
+      await PushNotificationService.instance.unregisterCurrentDevice();
+    } catch (_) {}
+
+    // 2. Backend revocation
+    final refreshToken = await _authStorageService.getRefreshToken();
+    if (refreshToken != null && refreshToken.isNotEmpty) {
+      try {
+        await _authApiService.logout(refreshToken: refreshToken);
+      } catch (_) {}
+    }
+
+    // 3. Local session wipe
+    await _authStorageService.clearSession();
+  }
+
+  // ============================================================
+  // WIPE DATA (FULL RESET)
   // ============================================================
   //
   // PERFORMS A FULL WIPE:
@@ -209,41 +205,14 @@ class AuthSessionService {
   //
   // ============================================================
 
-  Future<void> logout() async {
-    // ----------------------------------------------------------
-    // 1. BACKEND REVOCATION
-    // ----------------------------------------------------------
+  Future<void> wipeData() async {
+    // 1. Sign out first
+    await signOut();
 
-    final refreshToken =
-    await _authStorageService.getRefreshToken();
-
-    if (refreshToken != null &&
-        refreshToken.isNotEmpty) {
-      try {
-        await _authApiService.logout(
-          refreshToken: refreshToken,
-        );
-      } catch (_) {
-        // Backend may be offline.
-      }
-    }
-
-    // ----------------------------------------------------------
-    // 2. CLEAR SESSION (JWTs)
-    // ----------------------------------------------------------
-
-    await _authStorageService.clearSession();
-
-    // ----------------------------------------------------------
-    // 3. CLEAR WALLET (MNEMONIC/KEYS)
-    // ----------------------------------------------------------
-
+    // 2. Clear wallet
     await _walletService.clearWallet();
 
-    // ----------------------------------------------------------
-    // 4. CLEAR SECURITY SETTINGS
-    // ----------------------------------------------------------
-
+    // 3. Clear security
     await Future.wait([
       _appLockService.reset(),
       _biometricService.disable(),
@@ -257,5 +226,9 @@ class AuthSessionService {
 
   Future<void> clearSession() async {
     await _authStorageService.clearSession();
+  }
+
+  Future<String?> getAccessToken() {
+    return _authStorageService.getAccessToken();
   }
 }

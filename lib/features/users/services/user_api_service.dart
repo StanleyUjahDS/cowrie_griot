@@ -18,81 +18,26 @@ class UserApiService {
   // ============================================================
 
   Future<UserModel> getCurrentUser() async {
-    final response = await _apiClient.get(
-      ApiConfig.usersMe,
-    );
-
-    if (response is! Map<String, dynamic>) {
-      throw Exception(
-        'Invalid response from server.',
-      );
-    }
-
-    // Support both wrapped and unwrapped response
-    final data = (response.containsKey('data') ? response['data'] : response);
-
-    if (data is! Map<String, dynamic>) {
-      throw Exception(
-        'Invalid user data from server.',
-      );
-    }
-
-    return UserModel.fromJson(data);
+    final response = await _apiClient.get(ApiConfig.usersMe);
+    final data = _getData(response);
+    return UserModel.fromJson(Map<String, dynamic>.from(data));
   }
 
   // ============================================================
   // CHECK USERNAME AVAILABILITY
   // GET /api/users/username/availability?username=
   // ============================================================
-  //
-  // Called while the user is typing.
-  //
-  // Returns:
-  // true  = username is available
-  // false = username is already taken
-  //
-  // ============================================================
 
-  Future<bool> checkUsernameAvailability(
-      String username,
-      ) async {
+  Future<bool> checkUsernameAvailability(String username) async {
     final value = username.trim().toLowerCase();
+    if (value.isEmpty) return false;
 
-    if (value.isEmpty) {
-      return false;
-    }
-
-    final response = await _apiClient.get(
-      ApiConfig.usernameAvailability(value),
-    );
-
-    if (response is! Map<String, dynamic>) {
-      throw Exception(
-        'Invalid response from server.',
-      );
-    }
-
-    if (response['success'] != true) {
-      throw Exception(
-        response['message'] ??
-            'Unable to check username availability.',
-      );
-    }
-
-    final data = response['data'];
-
-    if (data is! Map<String, dynamic>) {
-      throw Exception(
-        'Invalid username availability response.',
-      );
-    }
+    final response = await _apiClient.get(ApiConfig.usernameAvailability(value));
+    final data = _getData(response);
 
     final available = data['available'];
-
     if (available is! bool) {
-      throw Exception(
-        'Invalid username availability value.',
-      );
+      throw Exception('Invalid username availability value.');
     }
 
     return available;
@@ -111,48 +56,17 @@ class UserApiService {
   }) async {
     final Map<String, dynamic> body = {};
 
-    if (username != null) {
-      body['username'] = username;
-    }
+    if (username != null) body['username'] = username;
+    if (displayName != null) body['displayName'] = displayName;
+    if (avatarUrl != null) body['avatarUrl'] = avatarUrl;
+    if (bio != null) body['bio'] = bio;
 
-    if (displayName != null) {
-      body['displayName'] = displayName;
-    }
+    if (body.isEmpty) throw Exception('No profile changes provided.');
 
-    if (avatarUrl != null) {
-      body['avatarUrl'] = avatarUrl;
-    }
+    final response = await _apiClient.patch(ApiConfig.usersUpdate, body: body);
+    final data = _getData(response);
 
-    if (bio != null) {
-      body['bio'] = bio;
-    }
-
-    if (body.isEmpty) {
-      throw Exception(
-        'No profile changes provided.',
-      );
-    }
-
-    final response = await _apiClient.patch(
-      ApiConfig.usersUpdate,
-      body: body,
-    );
-
-    if (response is! Map<String, dynamic>) {
-      throw Exception(
-        'Invalid response from server.',
-      );
-    }
-
-    final data = response['data'];
-
-    if (data is! Map<String, dynamic>) {
-      throw Exception(
-        'Invalid user data from server.',
-      );
-    }
-
-    return UserModel.fromJson(data);
+    return UserModel.fromJson(Map<String, dynamic>.from(data));
   }
 
   // ============================================================
@@ -160,52 +74,49 @@ class UserApiService {
   // GET /api/users/search?q=
   // ============================================================
 
-  Future<List<UserModel>> searchUsers(
-      String query,
-      ) async {
+  Future<List<UserModel>> searchUsers(String query) async {
     final trimmedQuery = query.trim();
+    if (trimmedQuery.isEmpty) return [];
 
-    if (trimmedQuery.isEmpty) {
-      return [];
-    }
-
-    final response = await _apiClient.get(
-      ApiConfig.usersSearch(trimmedQuery),
-    );
-
-    if (response is! Map<String, dynamic>) {
-      throw Exception(
-        'Invalid response from server.',
-      );
-    }
-
-    final data = response['data'];
+    final response = await _apiClient.get(ApiConfig.usersSearch(trimmedQuery));
+    final data = _getData(response);
 
     if (data is! List) {
-      throw Exception(
-        'Invalid users data from server.',
-      );
+      return [];
     }
 
     return data
         .whereType<Map<String, dynamic>>()
-        .map(
-          (json) => UserModel.fromJson(json),
-    )
+        .map((json) => UserModel.fromJson(json))
         .toList();
   }
 
   // ============================================================
   // GET FRIENDS
-  // GET /api/users/friends
+  // GET /api/messaging/friends
   // ============================================================
 
   Future<List<UserModel>> getFriends() async {
-    final response = await _apiClient.get(ApiConfig.usersFriends);
-    final data = response['data'] ?? response;
+    final response = await _apiClient.get(ApiConfig.messagingFriends);
+    final data = _getData(response);
+    
     if (data is List) {
       return data.map((u) => UserModel.fromJson(Map<String, dynamic>.from(u))).toList();
     }
     return [];
+  }
+
+  // ==========================================================
+  // HELPERS
+  // ==========================================================
+
+  dynamic _getData(dynamic response) {
+    if (response is Map<String, dynamic>) {
+      if (response['success'] == true) {
+        return response['data'];
+      }
+      throw Exception(response['message'] ?? 'Request failed');
+    }
+    return response;
   }
 }

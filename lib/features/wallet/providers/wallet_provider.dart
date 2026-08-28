@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/network/api_exception.dart';
+import '../models/nft_model.dart';
 import '../models/token_model.dart';
 import '../models/wallet_model.dart';
 import '../services/wallet_service.dart';
@@ -22,11 +24,17 @@ class WalletProvider extends ChangeNotifier {
 
   WalletModel? _wallet;
   List<TokenModel> _tokens = [];
+  List<NftModel> _nfts = [];
   List<TokenModel> _popularAssets = [];
   int _selectedTab = 0;
   bool _isLoading = false;
+  bool _isLoadingNfts = false;
   String? _error;
-  bool _hideUnverified = false;
+  String? _nftError;
+  DateTime? _lastFetchTime;
+  DateTime? _lastNftFetchTime;
+  static const Duration _fetchCooldown = Duration(seconds: 30);
+  static const Duration _nftFetchCooldown = Duration(seconds: 30);
   bool _hideLowBalance = false;
   bool _onlyProfit = false;
   bool _onlyLoss = false;
@@ -35,11 +43,13 @@ class WalletProvider extends ChangeNotifier {
 
   WalletModel? get wallet => _wallet;
   List<TokenModel> get tokens => List.unmodifiable(_tokens);
+  List<NftModel> get nfts => List.unmodifiable(_nfts);
   List<TokenModel> get popularAssets => List.unmodifiable(_popularAssets);
   int get selectedTab => _selectedTab;
   bool get isLoading => _isLoading;
+  bool get isLoadingNfts => _isLoadingNfts;
   String? get error => _error;
-  bool get hideUnverified => _hideUnverified;
+  String? get nftError => _nftError;
   bool get hideLowBalance => _hideLowBalance;
   bool get onlyProfit => _onlyProfit;
   bool get onlyLoss => _onlyLoss;
@@ -58,53 +68,41 @@ class WalletProvider extends ChangeNotifier {
     return _hiddenTokenKeys.contains(_getTokenKey(token));
   }
 
-  List<TokenModel> get verifiedAssets {
+  List<TokenModel> get visibleAssets {
     return _tokens.where((token) {
       if (_hiddenTokenKeys.contains(_getTokenKey(token))) return false;
-      if (_hideLowBalance && token.valueUsd < 1) return false;
       
-      final status = token.status.toLowerCase();
-      if (status == 'blocked' || token.isSpam) return false;
-      
-      // Verified/Major Assets: status verified/official, native assets, or Griot ecosystem assets
-      return status == 'verified' || status == 'official' || token.isNative || token.isGriotAsset;
-    }).toList()..sort((a, b) => b.valueUsd.compareTo(a.valueUsd));
-  }
+      // CONTRACT: always show HBADG; always show native assets with a positive balance.
+      if (token.isEcosystem) return true;
+      final balance = num.tryParse(token.balance) ?? 0;
+      if (token.isNative) return balance > 0;
 
-  List<TokenModel> get unverifiedAssets {
-    if (_hideUnverified) return [];
+      // Other assets require positive balance
+      if (balance <= 0) return false;
 
-    return _tokens.where((token) {
-      if (_hiddenTokenKeys.contains(_getTokenKey(token))) return false;
-      if (_hideLowBalance && token.valueUsd < 1) return false;
+      // Filter settings
+      final isMajor = token.isNative || token.isEcosystem;
+      // FIX: Ensure wallet filters work when market data is unavailable.
+      // If we don't have market data, we don't hide the token even if hideLowBalance is ON.
+      if (!isMajor && _hideLowBalance && token.hasMarketData && (token.valueUsd ?? 0) < 1) return false;
       
-      final status = token.status.toLowerCase();
-      if (status == 'blocked' || token.isSpam) return false;
-      
-      // Unverified Assets: status unknown and NOT a major asset
-      return status == 'unknown' && !token.isNative && !token.isGriotAsset;
-    }).toList()..sort((a, b) => b.valueUsd.compareTo(a.valueUsd));
+      return true;
+    }).toList()..sort((a, b) => (b.valueUsd ?? 0).compareTo(a.valueUsd ?? 0));
   }
 
   List<TokenModel> get blockedAssets {
-    return _tokens.where((token) {
-      final status = token.status.toLowerCase();
-      // AUTHORITATIVE: status == blocked || isSpam == true
-      return status == 'blocked' || token.isSpam;
-    }).toList()..sort((a, b) => b.valueUsd.compareTo(a.valueUsd));
+    return []; // No longer provided by backend in this format
   }
 
   bool isTokenBlocked(TokenModel token) {
-    final status = token.status.toLowerCase();
-    return status == 'blocked' || token.isSpam;
+    return false; // No longer provided by backend in this format
   }
 
   bool canSwap(TokenModel token) {
-    if (token.isNative || token.isGriotAsset) return true;
-
-    final status = token.status.toLowerCase();
-    // AUTHORITATIVE: status == verified && isTradeable == true && !isSpam
-    return status == 'verified' && token.isTradeable && !token.isSpam;
+    // CONTRACT: Allow swap if asset is in wallet (has balance), is a popular/official asset, 
+    // or is a Griot native asset.
+    final hasBalance = (num.tryParse(token.balance) ?? 0) > 0;
+    return hasBalance || token.isOfficial || token.isNative || token.isEcosystem || token.isFeatured;
   }
 
   List<TokenModel> get filteredTokens {
@@ -115,29 +113,35 @@ class WalletProvider extends ChangeNotifier {
         return false;
       }
 
-      // Negative balances are never valid wallet holdings for presentation.
-      // They must stay hidden regardless of the user's filter settings.
-      if (token.balance < 0) {
-        return false;
-      }
-
       if (_hiddenTokenKeys.contains(_getTokenKey(token))) {
         return false;
       }
 
-      if (_hideUnverified && token.status.toLowerCase() == 'unknown') {
+      // CONTRACT: always show HBADG; always show native assets with a positive balance.
+      if (token.isEcosystem) {
+        // Proceed
+      } else {
+        final balance = num.tryParse(token.balance) ?? 0;
+        if (token.isNative && balance > 0) {
+          // Proceed
+        } else if (balance <= 0) {
+          return false;
+        }
+      }
+
+      final isMajor = token.isNative || token.isEcosystem;
+
+      // CONTRACT: Native/Ecosystem exempt from low balance filter.
+      // FIX: Ensure wallet filters work when market data is unavailable.
+      if (!isMajor && _hideLowBalance && token.hasMarketData && (token.valueUsd ?? 0) < 1) {
         return false;
       }
 
-      if (_hideLowBalance && token.valueUsd < 1) {
+      if (_onlyProfit && (token.changePercent ?? 0) < 0) {
         return false;
       }
 
-      if (_onlyProfit && token.changePercent < 0) {
-        return false;
-      }
-
-      if (_onlyLoss && token.changePercent > 0) {
+      if (_onlyLoss && (token.changePercent ?? 0) > 0) {
         return false;
       }
 
@@ -149,7 +153,7 @@ class WalletProvider extends ChangeNotifier {
       return true;
     }).toList();
 
-    result.sort((a, b) => b.valueUsd.compareTo(a.valueUsd));
+    result.sort((a, b) => (b.valueUsd ?? 0).compareTo(a.valueUsd ?? 0));
     return result;
   }
 
@@ -166,17 +170,27 @@ class WalletProvider extends ChangeNotifier {
       // 2. Blocked/Spam (Always excluded)
       if (isTokenBlocked(token)) return false;
 
-      final status = token.status.toLowerCase();
-      final isMajor =
-          status == 'verified' || status == 'official' || token.isNative || token.isGriotAsset;
+      // 3. Zero/Negative balances
+      // CONTRACT: always show HBADG; always show native assets with a positive balance.
+      if (token.isEcosystem) {
+        // Proceed
+      } else {
+        final balance = num.tryParse(token.balance) ?? 0;
+        if (token.isNative && balance > 0) {
+          // Proceed
+        } else if (balance <= 0) {
+          return false;
+        }
+      }
 
-      // 3. Unverified Filter
-      if (_hideUnverified && status == 'unknown' && !isMajor) return false;
+      final isMajor = token.isNative || token.isEcosystem;
 
       // 4. Low Balance Filter
-      if (_hideLowBalance && token.valueUsd < 1) return false;
+      // CONTRACT: Native/Ecosystem exempt from low balance filter.
+      // FIX: Ensure wallet filters work when market data is unavailable.
+      if (!isMajor && _hideLowBalance && token.hasMarketData && (token.valueUsd ?? 0) < 1) return false;
 
-      // 5. Chain Filter
+      // 6. Chain Filter
       if (_selectedChains.isNotEmpty && !_selectedChains.contains(token.chain)) {
         return false;
       }
@@ -186,18 +200,19 @@ class WalletProvider extends ChangeNotifier {
 
     final totalBalanceUsd = visibleTokens.fold<num>(
       0,
-      (total, token) => total + token.valueUsd,
+      (total, token) => total + (token.valueUsd ?? 0),
     );
 
     // Calculate aggregate portfolio percentage change (24h) for visible assets
     num totalPreviousValueUsd = 0;
     for (final token in visibleTokens) {
-      if (token.hasMarketData && token.valueUsd > 0) {
-        final previousValue =
-            token.valueUsd / (1 + (token.changePercent / 100));
+      final valUsd = token.valueUsd ?? 0;
+      final change = token.changePercent ?? 0;
+      if (token.hasMarketData && valUsd > 0) {
+        final previousValue = valUsd / (1 + (change / 100));
         totalPreviousValueUsd += previousValue;
       } else {
-        totalPreviousValueUsd += token.valueUsd;
+        totalPreviousValueUsd += valUsd;
       }
     }
 
@@ -212,8 +227,14 @@ class WalletProvider extends ChangeNotifier {
     );
   }
 
-  Future<void> loadWallet() async {
+  Future<void> loadWallet({bool force = false}) async {
     if (_isLoading) return;
+
+    final now = DateTime.now();
+    if (!force && _lastFetchTime != null && now.difference(_lastFetchTime!) < _fetchCooldown) {
+      debugPrint('WalletProvider: Skipping token fetch, cooldown active.');
+      return;
+    }
 
     _setLoading(true);
 
@@ -233,7 +254,6 @@ class WalletProvider extends ChangeNotifier {
       _hiddenTokenKeys.addAll(hiddenList);
 
       final filterSettings = await _walletService.getWalletFilters();
-      _hideUnverified = filterSettings['hideUnverified'] == true;
       _hideLowBalance = filterSettings['hideLowBalance'] == true;
       _onlyProfit = filterSettings['onlyProfit'] == true;
       _onlyLoss = filterSettings['onlyLoss'] == true;
@@ -269,10 +289,64 @@ class WalletProvider extends ChangeNotifier {
       );
 
       _recalculateWalletTotals();
+      _lastFetchTime = DateTime.now();
+      
+      // If we are on the NFT tab, try to load NFTs too
+      if (_selectedTab == 1) {
+        loadNfts(force: force);
+      }
     } catch (e) {
-      _error = e.toString();
+      debugPrint('WalletProvider: Error loading wallet: $e');
+      
+      if (e is ApiException && e.statusCode == 401) {
+        _error = 'Session expired. Please log in again.';
+      } else if (_tokens.isNotEmpty) {
+        _error = 'Rate limit reached. Showing cached data.';
+      } else {
+        _error = e.toString();
+      }
     } finally {
       _setLoading(false);
+    }
+  }
+
+  Future<void> loadNfts({bool force = false}) async {
+    if (_isLoadingNfts) return;
+
+    final now = DateTime.now();
+    if (!force && _lastNftFetchTime != null && now.difference(_lastNftFetchTime!) < _nftFetchCooldown) {
+      debugPrint('WalletProvider: Skipping NFT fetch, cooldown active.');
+      return;
+    }
+
+    _isLoadingNfts = true;
+    _nftError = null;
+    notifyListeners();
+
+    try {
+      final nftResponse = await _walletApiService.getNfts();
+      final List nftsJson = nftResponse['nfts'] ?? [];
+      
+      final parsedNfts = nftsJson
+          .map((json) => NftModel.fromJson(Map<String, dynamic>.from(json)))
+          .where((nft) => !nft.classification.isSpam) // Hide spam NFTs
+          .toList();
+
+      _nfts = parsedNfts;
+      _lastNftFetchTime = DateTime.now();
+    } catch (e) {
+      debugPrint('WalletProvider: Error loading NFTs: $e');
+      
+      if (e is ApiException && e.statusCode == 429) {
+        _nftError = 'NFTs temporarily unavailable (Rate limit)';
+      } else {
+        _nftError = 'Failed to load NFTs';
+      }
+      
+      // We keep existing NFTs on error if we have them
+    } finally {
+      _isLoadingNfts = false;
+      notifyListeners();
     }
   }
 
@@ -295,23 +369,20 @@ class WalletProvider extends ChangeNotifier {
   void setTab(int index) {
     _selectedTab = index;
     notifyListeners();
+    
+    // CONTRACT: Load NFTs only when the NFT tab is opened
+    if (index == 1 && _nfts.isEmpty) {
+      loadNfts();
+    }
   }
 
   Future<void> _saveFilters() async {
     await _walletService.saveWalletFilters({
-      'hideUnverified': _hideUnverified,
       'hideLowBalance': _hideLowBalance,
       'onlyProfit': _onlyProfit,
       'onlyLoss': _onlyLoss,
       'selectedChains': _selectedChains.toList(),
     });
-  }
-
-  void setHideUnverified(bool value) {
-    _hideUnverified = value;
-    _saveFilters();
-    _recalculateWalletTotals();
-    notifyListeners();
   }
 
   void setHideLowBalance(bool value) {
@@ -349,7 +420,6 @@ class WalletProvider extends ChangeNotifier {
   }
 
   void clearFilters() {
-    _hideUnverified = false;
     _hideLowBalance = false;
     _onlyProfit = false;
     _onlyLoss = false;
@@ -370,7 +440,6 @@ class WalletProvider extends ChangeNotifier {
     _selectedTab = 0;
     _isLoading = false;
     _error = null;
-    _hideUnverified = false;
     _hideLowBalance = false;
     _onlyProfit = false;
     _onlyLoss = false;

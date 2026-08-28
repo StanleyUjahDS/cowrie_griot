@@ -9,6 +9,7 @@ import '../providers/wallet_provider.dart';
 import '../services/wallet_api_service.dart';
 import '../widgets/token_icon.dart';
 import '../utils/wallet_formatters.dart';
+import '../../../core/services/notification_service.dart';
 
 class AssetSearchScreen extends StatelessWidget {
   final String? initialQuery;
@@ -93,6 +94,7 @@ class _AssetSearchContentState extends State<_AssetSearchContent> {
     final provider = context.watch<TokenSearchProvider>();
 
     return GradientScaffold(
+      useSafeArea: false,
       appBar: AppBar(
         title: Text(widget.isSelectMode ? 'Select Asset' : 'Search Assets'),
         elevation: 0,
@@ -126,7 +128,7 @@ class _AssetSearchContentState extends State<_AssetSearchContent> {
             ),
           ),
           if (provider.isLoading)
-            const Expanded(child: Center(child: CircularProgressIndicator()))
+            Expanded(child: Center(child: CircularProgressIndicator()))
           else if (provider.error != null)
             Expanded(
               child: Center(
@@ -256,186 +258,203 @@ class _TokenSearchResultItem extends StatelessWidget {
     final text = theme.textTheme;
     final walletProvider = context.watch<WalletProvider>();
 
-    final isBlocked = token.status == 'blocked';
     final isHidden = walletProvider.isTokenHidden(token);
     final canSwap = context.read<TokenSearchProvider>().canSwap(token);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-      child: InkWell(
-        onTap: () {
-          if (isSelectMode) {
-            if (canSwap) {
+      child: Opacity(
+        opacity: (isSelectMode && !canSwap) ? 0.5 : 1.0,
+        child: InkWell(
+          onTap: () {
+            if (isSelectMode) {
+              if (!canSwap) {
+                NotificationService.showInfo(
+                  context, 
+                  'Always verify you trust this token before transaction.',
+                );
+              }
               Navigator.pop(context, token);
+            } else {
+              context.push('/wallet/asset', extra: token);
             }
-          } else {
-            context.push('/wallet/asset', extra: token);
-          }
-        },
-        onLongPress: isSelectMode ? null : onLongPress,
-        borderRadius: BorderRadius.circular(24),
-        child: Ink(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: isBlocked 
-              ? colors.error.withValues(alpha: 0.05) 
-              : colors.surfaceContainerLow.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: isBlocked 
-                ? colors.error.withValues(alpha: 0.2) 
-                : isHidden
-                  ? colors.primary.withValues(alpha: 0.3)
-                  : colors.outlineVariant.withValues(alpha: 0.1),
+          },
+          onLongPress: isSelectMode ? null : onLongPress,
+          borderRadius: BorderRadius.circular(24),
+          child: Ink(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: colors.surfaceContainerLow.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: isHidden
+                    ? colors.primary.withValues(alpha: 0.3)
+                    : colors.outlineVariant.withValues(alpha: 0.1),
+              ),
             ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  TokenIcon(
-                    imageUrl: token.imageUrl,
-                    symbol: token.symbol,
-                    name: token.name,
-                    chainName: token.chain,
-                    isNative: token.isNative,
-                    radius: 20,
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                token.name.isEmpty ? token.symbol : token.name,
-                                style: text.bodyLarge?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: -0.2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    TokenIcon(
+                      imageUrl: token.imageUrl,
+                      symbol: token.symbol,
+                      name: token.name,
+                      chainName: token.chain,
+                      isNative: token.isNative,
+                      radius: 20,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  token.name.isEmpty ? token.symbol : token.name,
+                                  style: text.bodyLarge?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -0.2,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                          if (token.isGriotAsset) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              "Griot Native Asset",
+                              style: text.labelSmall?.copyWith(
+                                color: colors.primary,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 10,
                               ),
                             ),
-                            if (token.status == 'verified' || token.isNative || token.isGriotAsset) ...[
-                              const SizedBox(width: 4),
-                              Icon(
-                                Icons.verified_rounded,
-                                size: 14,
-                                color: Colors.green,
-                              ),
-                            ],
-                            if (token.isEcosystem) ...[
-                              const SizedBox(width: 4),
-                              Icon(
-                                Icons.workspace_premium_rounded,
-                                size: 16,
-                                color: colors.primary,
-                              ),
-                            ],
                           ],
-                        ),
-                        if (token.isGriotAsset) ...[
                           const SizedBox(height: 2),
                           Text(
-                            "Griot Native Asset",
+                            '${token.symbol} • ${token.chain.toUpperCase()}',
                             style: text.labelSmall?.copyWith(
-                              color: colors.primary,
+                              color: colors.onSurfaceVariant.withValues(alpha: 0.5),
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                          if (token.hasMarketData && token.priceUsd != null) ...[
+                            const SizedBox(height: 2),
+                            Row(
+                              children: [
+                                Text(
+                                  WalletFormatters.formatCurrency(token.priceUsd, isUnitPrice: true),
+                                  style: text.labelSmall?.copyWith(
+                                    color: colors.onSurfaceVariant.withValues(alpha: 0.4),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '${(token.changePercent ?? 0) >= 0 ? '+' : ''}${token.changePercent?.toStringAsFixed(2)}%',
+                                  style: text.labelSmall?.copyWith(
+                                    color: (token.changePercent ?? 0) >= 0 ? Colors.green : Colors.red,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 9,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ] else ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              '—',
+                              style: text.labelSmall?.copyWith(
+                                color: colors.onSurfaceVariant.withValues(alpha: 0.2),
+                              ),
+                            ),
+                          ],
+                          if ((num.tryParse(token.balance) ?? 0) > 0) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              'Holding: ${WalletFormatters.formatBalance(token.balance)}',
+                              style: text.labelSmall?.copyWith(
+                                color: isHidden ? colors.onSurfaceVariant : colors.primary,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    if (!isSelectMode && (num.tryParse(token.balance) ?? 0) > 0)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Transform.scale(
+                            scale: 0.7,
+                            alignment: Alignment.centerRight,
+                            child: Switch.adaptive(
+                              value: !isHidden,
+                              onChanged: (value) async {
+                                if (value) {
+                                  await walletProvider.showToken(token);
+                                } else {
+                                  await walletProvider.hideToken(token);
+                                }
+                              },
+                              activeTrackColor: colors.primary,
+                              activeThumbColor: Colors.white,
+                            ),
+                          ),
+                          Text(
+                            isHidden ? "HIDDEN" : "VISIBLE",
+                            style: text.labelSmall?.copyWith(
+                              fontSize: 7,
                               fontWeight: FontWeight.w900,
+                              color: isHidden ? colors.onSurfaceVariant : colors.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+                if (!token.isOfficial && !token.isNative && token.contractAddress.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: colors.surfaceContainerHighest.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            token.contractAddress,
+                            style: text.labelSmall?.copyWith(
+                              color: colors.onSurfaceVariant.withValues(alpha: 0.6),
+                              fontFamily: 'monospace',
                               fontSize: 10,
                             ),
-                          ),
-                        ],
-                        const SizedBox(height: 2),
-                        Text(
-                          '${token.symbol} • ${token.chain.toUpperCase()}',
-                          style: text.labelSmall?.copyWith(
-                            color: colors.onSurfaceVariant.withValues(alpha: 0.5),
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.2,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        if (token.balance > 0) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            'Holding: ${WalletFormatters.formatBalance(token.balance)}',
-                            style: text.labelSmall?.copyWith(
-                              color: isHidden ? colors.onSurfaceVariant : colors.primary,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  if (!isSelectMode && token.balance > 0)
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Transform.scale(
-                          scale: 0.7,
-                          alignment: Alignment.centerRight,
-                          child: Switch.adaptive(
-                            value: !isHidden,
-                            onChanged: (value) async {
-                              if (value) {
-                                await walletProvider.showToken(token);
-                              } else {
-                                await walletProvider.hideToken(token);
-                              }
-                            },
-                            activeTrackColor: colors.primary,
-                            activeThumbColor: Colors.white,
-                          ),
-                        ),
-                        Text(
-                          isHidden ? "HIDDEN" : "VISIBLE",
-                          style: text.labelSmall?.copyWith(
-                            fontSize: 7,
-                            fontWeight: FontWeight.w900,
-                            color: isHidden ? colors.onSurfaceVariant : colors.primary,
-                          ),
-                        ),
-                      ],
-                    ),
                 ],
-              ),
-              if (!token.isOfficial && !token.isNative && token.contractAddress.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: colors.surfaceContainerHighest.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          token.contractAddress,
-                          style: text.labelSmall?.copyWith(
-                            color: colors.onSurfaceVariant.withValues(alpha: 0.6),
-                            fontFamily: 'monospace',
-                            fontSize: 10,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Spacer(),
+                    _buildLinksRow(token),
+                  ],
                 ),
               ],
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  const Spacer(),
-                  _buildLinksRow(token),
-                ],
-              ),
-            ],
+            ),
           ),
         ),
       ),

@@ -37,7 +37,7 @@ class _SwapScreenState extends State<SwapScreen> {
   bool _isLoading = false;
   bool _isApproving = false;
   bool _isApprovalRequired = false;
-  bool _isUsdMode = false;
+  final bool _isUsdMode = false;
   String _loadingMessage = '';
   Map<String, dynamic>? _quote;
   Timer? _debounce;
@@ -74,12 +74,13 @@ class _SwapScreenState extends State<SwapScreen> {
   void _syncControllers(String value, {required bool sourceIsUsd}) {
     if (_fromToken == null) return;
     final amount = double.tryParse(value) ?? 0.0;
-    final price = _fromToken!.priceUsd.toDouble();
+    final price = _fromToken!.priceUsd?.toDouble() ?? 0.0;
 
     if (sourceIsUsd) {
       if (price > 0) {
         final tokenAmount = amount / price;
-        _amountController.text = tokenAmount.toStringAsFixed(_fromToken!.decimals > 6 ? 6 : _fromToken!.decimals);
+        final decimals = _fromToken!.decimals ?? 18;
+        _amountController.text = tokenAmount.toStringAsFixed(decimals > 6 ? 6 : decimals);
       } else {
         _amountController.text = '0';
       }
@@ -95,10 +96,10 @@ class _SwapScreenState extends State<SwapScreen> {
 
   void _onMaxPressed() {
     if (_fromToken == null) return;
-    final maxBalance = _fromToken!.balance.toDouble();
+    final maxBalance = num.tryParse(_fromToken!.balance)?.toDouble() ?? 0.0;
 
     if (_isUsdMode) {
-      final price = _fromToken!.priceUsd.toDouble();
+      final price = _fromToken!.priceUsd?.toDouble() ?? 0.0;
       final maxUsd = maxBalance * price;
       _usdController.text = maxUsd.toStringAsFixed(2);
       _syncControllers(_usdController.text, sourceIsUsd: true);
@@ -110,11 +111,7 @@ class _SwapScreenState extends State<SwapScreen> {
     _getQuote();
   }
 
-  void _toggleCurrencyMode() {
-    setState(() {
-      _isUsdMode = !_isUsdMode;
-    });
-  }
+
 
   Future<void> _getQuote() async {
     final fromToken = _fromToken;
@@ -135,7 +132,7 @@ class _SwapScreenState extends State<SwapScreen> {
     }
 
     final enteredAmount = double.tryParse(amount) ?? 0.0;
-    final maxBalance = fromToken.balance.toDouble();
+    final maxBalance = num.tryParse(fromToken.balance)?.toDouble() ?? 0.0;
     if (enteredAmount > maxBalance) {
       if (mounted) {
         setState(() {
@@ -159,7 +156,7 @@ class _SwapScreenState extends State<SwapScreen> {
 
     if (fromTokenAddress.isEmpty || toTokenAddress.isEmpty) return;
 
-    final fromAmountRaw = _toBaseUnits(amount, fromToken.decimals);
+    final fromAmountRaw = _toBaseUnits(amount, fromToken.decimals ?? 18);
     if (fromAmountRaw == null || fromAmountRaw == '0') return;
 
     final requestVersion = ++_quoteRequestVersion;
@@ -256,7 +253,8 @@ class _SwapScreenState extends State<SwapScreen> {
 
     final amount = _amountController.text.trim();
     final enteredAmount = double.tryParse(amount) ?? 0.0;
-    if (enteredAmount > fromToken.balance.toDouble()) {
+    final balance = num.tryParse(fromToken.balance)?.toDouble() ?? 0.0;
+    if (enteredAmount > balance) {
       NotificationService.showError(context, 'Insufficient balance.');
       return;
     }
@@ -413,7 +411,7 @@ class _SwapScreenState extends State<SwapScreen> {
       _loadingMessage = 'Preparing...';
     });
     try {
-      final fromAmountRaw = _toBaseUnits(_amountController.text, fromToken.decimals);
+      final fromAmountRaw = _toBaseUnits(_amountController.text, fromToken.decimals ?? 18);
       final data = walletService.crypto.encodeErc20Approve(
         spender: approvalAddress,
         amount: fromAmountRaw!,
@@ -791,7 +789,7 @@ class _SwapScreenState extends State<SwapScreen> {
   String _formatFeeAmount(String? amount, TokenModel? token) {
     if (amount == null || amount.isEmpty || amount == '0') return '-';
     if (token == null) return amount;
-    final value = double.tryParse(_fromBaseUnits(amount, token.decimals));
+    final value = double.tryParse(_fromBaseUnits(amount, token.decimals ?? 18));
     if (value == null) return amount;
     return WalletFormatters.formatBalance(value, symbol: token.symbol);
   }
@@ -846,474 +844,372 @@ class _SwapScreenState extends State<SwapScreen> {
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: GradientScaffold(
+        useSafeArea: true,
+        extendBodyBehindAppBar: true,
         appBar: AppBar(
-          title: Text(
-            'SWAP',
-            style: text.titleMedium?.copyWith(fontWeight: FontWeight.w900, letterSpacing: 1),
-          ),
+          title: const Text('Swap'),
           centerTitle: true,
           backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
           elevation: 0,
         ),
-        bottomNavigationBar: const SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              GriotBannerAd(),
-            ],
-          ),
-        ),
-        child: Stack(
+        child: Column(
           children: [
-            // Decorative Glow
-            Positioned(
-              top: -50,
-              right: -50,
-              child: Container(
-                width: 250,
-                height: 250,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      colors.primary.withValues(alpha: 0.1),
-                      colors.primary.withValues(alpha: 0.0),
-                    ],
-                  ),
-                ),
-              ).animate(onPlay: (c) => c.repeat(reverse: true))
-               .scale(begin: const Offset(0.8, 0.8), end: const Offset(1.2, 1.2), duration: 5.seconds),
-            ),
-
-            SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
-              physics: const BouncingScrollPhysics(),
-              child: Column(
+            Expanded(
+              child: Stack(
                 children: [
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Column(
-                        children: [
-                          _buildSwapCard(
-                            context,
-                            label: 'You Pay',
-                            token: _fromToken,
-                            controller: _isUsdMode ? _usdController : _amountController,
-                            onChanged: _onAmountChanged,
-                            showCurrencyToggle: true,
-                            onMaxTap: _onMaxPressed,
-                            subValue: _isUsdMode
-                              ? '${_amountController.text} ${_fromToken?.symbol ?? ""}'
-                              : (_usdController.text.isNotEmpty ? '\$${_usdController.text}' : null),
-                            onTokenTap: () => _showTokenPicker(context, isFrom: true),
-                          ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0),
-                          const SizedBox(height: 8),
-                          _buildSwapCard(
-                            context,
-                            label: 'You Receive',
-                            token: _toToken,
-                            isReadOnly: true,
-                            value: _fromBaseUnits(
-                              _quote?['toAmount']?.toString(),
-                              _toToken?.decimals ?? 18,
-                            ),
-                            subValue: _quote != null && _toToken != null && _toToken!.priceUsd > 0
-                                ? WalletFormatters.formatCurrency(
-                                    (double.tryParse(_fromBaseUnits(_quote!['toAmount']?.toString(), _toToken!.decimals)) ?? 0) *
-                                    _toToken!.priceUsd.toDouble()
-                                  )
-                                : null,
-                            onTokenTap: () => _showTokenPicker(context, isFrom: false),
-                          ).animate().fadeIn(duration: 400.ms, delay: 100.ms).slideY(begin: 0.1, end: 0),
-                        ],
-                      ),
-                      Positioned(
-                        child: Container(
-                          height: 48,
-                          width: 48,
-                          decoration: BoxDecoration(
-                            color: colors.surface,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.2), width: 2),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.15),
-                                blurRadius: 15,
-                                offset: const Offset(0, 5),
-                              ),
-                            ],
-                          ),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: _swapTokens,
-                              customBorder: const CircleBorder(),
-                              child: Icon(Icons.swap_vert_rounded, color: colors.primary, size: 26),
-                            ),
-                          ),
-                        ),
-                      ).animate().scale(delay: 300.ms),
-                    ],
-                  ),
-                  if (_quote != null) ...[
-                    const SizedBox(height: 24),
-                    _buildQuoteDetails(context).animate().fadeIn(),
-                  ],
-                  const SizedBox(height: 16),
-                  _buildSlippageSettings(context).animate().fadeIn(delay: 200.ms),
-
-                  // Recommendation Warnings
-                  if (_quote != null && _slippageMode == 'custom' && _quote!['recommendedSlippage'] != null) ...[
-                    if (_effectiveSlippage < (_quote!['recommendedSlippage'] as double))
-                      Padding(
-                        padding: const EdgeInsets.only(top: 16),
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: colors.error.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: colors.error.withValues(alpha: 0.2)),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.error_outline_rounded, color: colors.error, size: 22),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  'Slippage is too low for this trade. Minimum required is ${((_quote!['recommendedSlippage'] as double) * 100).toStringAsFixed(1)}% due to token taxes.',
-                                  style: text.bodySmall?.copyWith(color: colors.error, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ).animate().shake(),
-                  ],
-
-                  const SizedBox(height: 48),
-                  
-                  // Premium Action Pill
-                  Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () {
-                        if (_quote == null || _isLoading || _isApproving) return;
-                        
-                        // Disable if slippage is too low in custom mode
-                        if (_slippageMode == 'custom') {
-                          final recommended = _quote!['recommendedSlippage'] as double?;
-                          if (recommended != null && _effectiveSlippage < recommended) {
-                            return;
-                          }
-                        }
-
-                        if (_isApprovalRequired) {
-                          _handleApprove();
-                        } else {
-                          _handleSwap();
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(24),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 20),
-                        decoration: BoxDecoration(
-                          color: colors.primary,
-                          borderRadius: BorderRadius.circular(24),
-                          boxShadow: [
-                            BoxShadow(
-                              color: colors.primary.withValues(alpha: 0.35),
-                              blurRadius: 20,
-                              offset: const Offset(0, 10),
-                            ),
+                  // Decorative Glow
+                  Positioned(
+                    top: -50,
+                    right: -50,
+                    child: Container(
+                      width: 250,
+                      height: 250,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            colors.primary.withValues(alpha: 0.1),
+                            colors.primary.withValues(alpha: 0.0),
                           ],
                         ),
-                        child: (_isLoading || _isApproving)
-                            ? Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white60,
-                                      strokeWidth: 3,
+                      ),
+                    ).animate(onPlay: (c) => c.repeat(reverse: true))
+                     .scale(begin: const Offset(0.8, 0.8), end: const Offset(1.2, 1.2), duration: 5.seconds),
+                  ),
+
+                  SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                    physics: const BouncingScrollPhysics(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildInputLabel(context, 'You Pay'),
+                        const SizedBox(height: 8),
+                        _buildSwapInput(
+                          context,
+                          token: _fromToken,
+                          controller: _isUsdMode ? _usdController : _amountController,
+                          onChanged: _onAmountChanged,
+                          onTokenTap: () => _showTokenPicker(context, isFrom: true),
+                          showMax: true,
+                          onMaxTap: _onMaxPressed,
+                          subValue: _isUsdMode
+                            ? '${_amountController.text} ${_fromToken?.symbol ?? ""}'
+                            : (_usdController.text.isNotEmpty ? '\$${_usdController.text}' : null),
+                        ),
+                        
+                        const SizedBox(height: 12),
+                        Center(
+                          child: Container(
+                            height: 44,
+                            width: 44,
+                            decoration: BoxDecoration(
+                              color: colors.surface,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.2), width: 1.5),
+                              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4))],
+                            ),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: _swapTokens,
+                                customBorder: const CircleBorder(),
+                                child: Icon(Icons.swap_vert_rounded, color: colors.primary, size: 24),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _buildInputLabel(context, 'You Receive'),
+                        const SizedBox(height: 8),
+                        _buildSwapInput(
+                          context,
+                          token: _toToken,
+                          isReadOnly: true,
+                          value: _fromBaseUnits(
+                            _quote?['toAmount']?.toString(),
+                            _toToken?.decimals ?? 18,
+                          ),
+                          onTokenTap: () => _showTokenPicker(context, isFrom: false),
+                          subValue: _quote != null && _toToken != null && (_toToken!.priceUsd ?? 0) > 0
+                              ? WalletFormatters.formatCurrency(
+                                  (double.tryParse(_fromBaseUnits(_quote!['toAmount']?.toString(), _toToken!.decimals ?? 18)) ?? 0) *
+                                  (_toToken!.priceUsd?.toDouble() ?? 0)
+                                )
+                              : null,
+                        ),
+
+                        if (_quote != null) ...[
+                          const SizedBox(height: 24),
+                          _buildQuoteDetails(context).animate().fadeIn(),
+                        ],
+                        const SizedBox(height: 24),
+                        _buildInputLabel(context, 'Settings'),
+                        const SizedBox(height: 8),
+                        _buildSlippageSettings(context).animate().fadeIn(delay: 200.ms),
+
+                        // Recommendation Warnings
+                        if (_quote != null && _slippageMode == 'custom' && _quote!['recommendedSlippage'] != null) ...[
+                          if (_effectiveSlippage < (_quote!['recommendedSlippage'] as double))
+                            Padding(
+                              padding: const EdgeInsets.only(top: 16),
+                              child: Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: colors.error.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: colors.error.withValues(alpha: 0.2)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.error_outline_rounded, color: colors.error, size: 22),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        'Slippage is too low for this trade. Minimum required is ${((_quote!['recommendedSlippage'] as double) * 100).toStringAsFixed(1)}% due to token taxes.',
+                                        style: text.bodySmall?.copyWith(color: colors.error, fontWeight: FontWeight.bold),
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Text(
-                                    _loadingMessage,
-                                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Colors.white),
-                                  ),
-                                ],
-                              )
-                            : Center(
-                                child: Text(
-                                  _isApprovalRequired
-                                      ? 'APPROVE ${_fromToken?.symbol ?? "TOKEN"}'
-                                      : 'SWAP ASSETS',
-                                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 1.5, color: Colors.white),
+                                  ],
                                 ),
                               ),
-                      ),
+                            ).animate().shake(),
+                        ],
+
+                        const SizedBox(height: 48),
+                        
+                        // Premium Action Pill
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () {
+                              if (_quote == null || _isLoading || _isApproving) return;
+                              
+                              // Disable if slippage is too low in custom mode
+                              if (_slippageMode == 'custom') {
+                                final recommended = _quote!['recommendedSlippage'] as double?;
+                                if (recommended != null && _effectiveSlippage < recommended) {
+                                  return;
+                                }
+                              }
+
+                              if (_isApprovalRequired) {
+                                _handleApprove();
+                              } else {
+                                _handleSwap();
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(24),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(vertical: 20),
+                              decoration: BoxDecoration(
+                                color: colors.primary,
+                                borderRadius: BorderRadius.circular(24),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: colors.primary.withValues(alpha: 0.35),
+                                    blurRadius: 20,
+                                    offset: const Offset(0, 10),
+                                  ),
+                                ],
+                              ),
+                              child: (_isLoading || _isApproving)
+                                  ? Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        SizedBox(
+                                          height: 20,
+                                          width: 20,
+                                          child: CircularProgressIndicator(
+                                            color: Colors.white60,
+                                            strokeWidth: 3,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Text(
+                                          _loadingMessage,
+                                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Colors.white),
+                                        ),
+                                      ],
+                                    )
+                                  : Center(
+                                      child: Text(
+                                        _isApprovalRequired
+                                            ? 'APPROVE ${_fromToken?.symbol ?? "TOKEN"}'
+                                            : 'SWAP ASSETS',
+                                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 1.5, color: Colors.white),
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ).animate().fadeIn(duration: 600.ms, delay: 400.ms).scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1)),
+                        const SizedBox(height: 20),
+                      ],
                     ),
-                  ).animate().fadeIn(duration: 600.ms, delay: 400.ms).scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1)),
+                  ),
                 ],
               ),
             ),
+            const GriotBannerAd(isCompact: true),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSwapCard(
+  Widget _buildInputLabel(BuildContext context, String label) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Text(
+        label.toUpperCase(),
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.primary,
+          fontWeight: FontWeight.w900,
+          fontSize: 11,
+          letterSpacing: 1.5,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSwapInput(
     BuildContext context, {
-    required String label,
     required TokenModel? token,
     required VoidCallback onTokenTap,
     TextEditingController? controller,
     String? value,
     bool isReadOnly = false,
     ValueChanged<String>? onChanged,
-    bool showCurrencyToggle = false,
-    String? subValue,
+    bool showMax = false,
     VoidCallback? onMaxTap,
+    String? subValue,
   }) {
     final colors = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
 
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: colors.surfaceContainerLow.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(32),
-        border: Border.all(
-          color: colors.outlineVariant.withValues(alpha: 0.15),
-          width: 1.5,
-        ),
+        color: colors.surfaceContainerLow.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                label.toUpperCase(),
-                style: text.labelSmall?.copyWith(
-                  color: colors.onSurfaceVariant.withValues(alpha: 0.4),
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.5,
-                ),
-              ),
-              if (token != null)
-                Text(
-                  'Bal: ${WalletFormatters.formatBalance(token.balance)}',
-                  style: text.labelSmall?.copyWith(
-                    color: colors.onSurfaceVariant.withValues(alpha: 0.4),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (isReadOnly)
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          value ?? '0.00',
-                          style: text.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.5,
-                            color: (value == null || value == '0.00')
-                                ? colors.onSurface.withValues(alpha: 0.1)
-                                : colors.onSurface,
-                          ),
-                        ),
-                      )
-                    else
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
-                        children: [
-                          if (showCurrencyToggle && _isUsdMode)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 4),
-                              child: Text(
-                                r'$',
-                                style: text.headlineSmall?.copyWith(
-                                  fontWeight: FontWeight.w900,
-                                  color: colors.onSurface,
-                                ),
-                              ),
-                            ),
-                          Expanded(
-                            child: TextField(
-                              controller: controller,
-                              onChanged: onChanged,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              textInputAction: TextInputAction.done,
-                              cursorHeight: 28,
-                              cursorWidth: 2,
-                              style: text.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: -0.5,
-                                color: colors.onSurface,
-                              ),
-                              decoration: InputDecoration(
-                                hintText: '0',
-                                hintStyle: TextStyle(color: colors.onSurface.withValues(alpha: 0.1)),
-                                border: InputBorder.none,
-                                isDense: true,
-                                contentPadding: const EdgeInsets.symmetric(vertical: 4),
-                              ),
-                            ),
-                          ),
-                        ],
+                child: isReadOnly 
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Text(
+                        value ?? '0.00',
+                        style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
                       ),
-                    const SizedBox(height: 4),
-                    if (subValue != null && subValue.isNotEmpty)
-                      Text(
-                        subValue,
-                        style: text.labelMedium?.copyWith(
-                          color: colors.onSurfaceVariant.withValues(alpha: 0.3),
-                          fontWeight: FontWeight.w600,
+                    )
+                  : TextField(
+                      controller: controller,
+                      onChanged: onChanged,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
+                      decoration: InputDecoration(
+                        hintText: '0.00',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.2)),
                         ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.2)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: colors.primary, width: 2),
+                        ),
+                        filled: true,
+                        fillColor: colors.surfaceContainerHighest.withValues(alpha: 0.3),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        isDense: true,
                       ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: onTokenTap,
-                  borderRadius: BorderRadius.circular(20),
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
-                    decoration: BoxDecoration(
-                      color: token == null ? colors.primary : colors.surfaceContainerHighest.withValues(alpha: 0.6),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        if (token == null)
-                          BoxShadow(
-                            color: colors.primary.withValues(alpha: 0.2),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                      ],
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (token != null) ...[
-                          TokenIcon(
-                            imageUrl: token.imageUrl,
-                            symbol: token.symbol,
-                            name: token.name,
-                            chainName: token.chain,
-                            isNative: token.isNative,
-                            radius: 14,
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            token.symbol,
-                            style: text.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.2,
-                            ),
-                          ),
-                        ] else
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: Text(
-                              'Select',
-                              style: text.titleSmall?.copyWith(
-                                color: colors.onPrimary,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.keyboard_arrow_down_rounded,
-                          size: 20,
-                          color: token == null ? colors.onPrimary : colors.onSurfaceVariant.withValues(alpha: 0.5),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
               ),
+              const SizedBox(width: 16),
+              _buildTokenBadge(context, token, onTokenTap),
             ],
           ),
-          if (showCurrencyToggle) ...[
-            const SizedBox(height: 20),
+          if (subValue != null || token != null) ...[
+            const SizedBox(height: 12),
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                InkWell(
-                  onTap: _toggleCurrencyMode,
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: colors.secondaryContainer.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          _isUsdMode ? Icons.toll_rounded : Icons.attach_money_rounded,
-                          size: 14,
-                          color: colors.secondary,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          _isUsdMode ? 'Use ${token?.symbol ?? "Token"}' : 'Use USD',
-                          style: text.labelSmall?.copyWith(
-                            color: colors.secondary,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.5,
+                if (subValue != null)
+                  Text(
+                    subValue,
+                    style: text.labelSmall?.copyWith(color: colors.onSurfaceVariant.withValues(alpha: 0.4), fontWeight: FontWeight.w600),
+                  )
+                else
+                  const SizedBox.shrink(),
+                Row(
+                  children: [
+                    if (token != null)
+                      Text(
+                        'Balance: ${WalletFormatters.formatBalance(token.balance)}',
+                        style: text.labelSmall?.copyWith(color: colors.onSurfaceVariant.withValues(alpha: 0.4), fontWeight: FontWeight.w600),
+                      ),
+                    if (showMax) ...[
+                      const SizedBox(width: 8),
+                      InkWell(
+                        onTap: onMaxTap,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: colors.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            'MAX',
+                            style: TextStyle(color: colors.primary, fontWeight: FontWeight.w900, fontSize: 10),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
+                      ),
+                    ],
+                  ],
                 ),
-                const Spacer(),
-                if (onMaxTap != null)
-                  InkWell(
-                    onTap: onMaxTap,
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: colors.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        'MAX',
-                        style: text.labelSmall?.copyWith(
-                          color: colors.primary,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                  ),
               ],
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildTokenBadge(BuildContext context, TokenModel? token, VoidCallback onTap) {
+    final colors = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: token == null ? colors.primary : colors.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (token != null) ...[
+              TokenIcon(imageUrl: token.imageUrl, symbol: token.symbol, name: token.name, chainName: token.chain, isNative: token.isNative, radius: 12),
+              const SizedBox(width: 6),
+              Text(token.symbol, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+            ] else
+              Text('Select', style: TextStyle(color: colors.onPrimary, fontWeight: FontWeight.w900, fontSize: 13)),
+            const SizedBox(width: 4),
+            Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: token == null ? colors.onPrimary : colors.onSurfaceVariant),
+          ],
+        ),
       ),
     );
   }
@@ -1356,8 +1252,8 @@ class _SwapScreenState extends State<SwapScreen> {
                   token.chain.toLowerCase() == _fromToken?.chain.toLowerCase(),
             );
         gasSymbol = nativeToken.symbol;
-        if (gasNative != null && nativeToken.priceUsd.toDouble() > 0) {
-          gasUsd = gasNative * nativeToken.priceUsd.toDouble();
+        if (gasNative != null && (nativeToken.priceUsd?.toDouble() ?? 0) > 0) {
+          gasUsd = gasNative * (nativeToken.priceUsd?.toDouble() ?? 0);
         }
       } catch (_) { }
     }
@@ -1544,6 +1440,8 @@ class _SwapScreenState extends State<SwapScreen> {
       ],
     );
   }
+
+
 }
 
 class _SlippagePickerSheet extends StatefulWidget {

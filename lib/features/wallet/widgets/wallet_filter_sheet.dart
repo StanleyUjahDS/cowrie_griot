@@ -119,18 +119,6 @@ void openWalletFilterSheet({
                               children: [
                                 _filterSwitchTile(
                                   context: context,
-                                  icon: Icons.verified_user_rounded,
-                                  title: "Hide Other Assets",
-                                  subtitle: "Only show trusted and official assets",
-                                  value: provider.hideUnverified,
-                                  onChanged: (value) {
-                                    provider.setHideUnverified(value);
-                                    refresh();
-                                  },
-                                ),
-                                _itemDivider(context),
-                                _filterSwitchTile(
-                                  context: context,
                                   icon: Icons.money_off_rounded,
                                   title: "Hide Small Balances",
                                   subtitle: "Hide tiny balances below the wallet threshold",
@@ -385,7 +373,6 @@ Widget _itemDivider(BuildContext context) {
 Widget _activeFilterCount(BuildContext context, WalletProvider provider) {
   final colors = Theme.of(context).colorScheme;
   int count = 0;
-  if (provider.hideUnverified) count++;
   if (provider.hideLowBalance) count++;
   if (provider.onlyProfit) count++;
   if (provider.onlyLoss) count++;

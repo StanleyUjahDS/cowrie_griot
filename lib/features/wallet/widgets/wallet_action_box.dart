@@ -19,17 +19,17 @@ class WalletActionBox extends StatelessWidget {
     final textTheme = theme.textTheme;
 
     return Material(
-      color: Colors.transparent,
+      color: colorScheme.surface,
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(
             vertical: 12,
           ),
           decoration: BoxDecoration(
-            color: colorScheme.surface,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: colorScheme.outline.withValues(alpha: 0.15),

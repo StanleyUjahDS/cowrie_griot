@@ -4,11 +4,14 @@ import 'chat_message.dart';
 enum ConversationType {
   dm,
   group,
+  channel,
 }
 
 class Conversation {
   final String id;
   final ConversationType type;
+  final String? title;
+  final String? avatarUrl;
   final List<String> memberIds;
   
   /// For DMs, this is the other user's info if available.
@@ -22,6 +25,8 @@ class Conversation {
   const Conversation({
     required this.id,
     required this.type,
+    this.title,
+    this.avatarUrl,
     required this.memberIds,
     this.otherUser,
     this.lastMessage,
@@ -31,11 +36,18 @@ class Conversation {
   });
 
   factory Conversation.fromJson(Map<String, dynamic> json) {
+    final typeString = json['type']?.toString() ?? 'direct';
+    final type = typeString == 'group' 
+        ? ConversationType.group 
+        : typeString == 'channel'
+            ? ConversationType.channel
+            : ConversationType.dm;
+
     return Conversation(
       id: json['id']?.toString() ?? '',
-      type: json['type']?.toString() == 'group' 
-          ? ConversationType.group 
-          : ConversationType.dm,
+      type: type,
+      title: json['title']?.toString(),
+      avatarUrl: json['avatarUrl']?.toString(),
       memberIds: (json['memberIds'] as List?)?.map((e) => e.toString()).toList() ?? [],
       otherUser: json['otherUser'] != null 
           ? ChatUser.fromJson(Map<String, dynamic>.from(json['otherUser']))
@@ -57,6 +69,8 @@ class Conversation {
     return {
       'id': id,
       'type': type.name,
+      'title': title,
+      'avatarUrl': avatarUrl,
       'memberIds': memberIds,
       'otherUser': otherUser?.toJson(),
       'lastMessage': lastMessage?.toJson(),
@@ -64,5 +78,31 @@ class Conversation {
       'updatedAt': updatedAt.toIso8601String(),
       'createdAt': createdAt.toIso8601String(),
     };
+  }
+
+  Conversation copyWith({
+    String? id,
+    ConversationType? type,
+    String? title,
+    String? avatarUrl,
+    List<String>? memberIds,
+    ChatUser? otherUser,
+    ChatMessage? lastMessage,
+    int? unreadCount,
+    DateTime? updatedAt,
+    DateTime? createdAt,
+  }) {
+    return Conversation(
+      id: id ?? this.id,
+      type: type ?? this.type,
+      title: title ?? this.title,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      memberIds: memberIds ?? this.memberIds,
+      otherUser: otherUser ?? this.otherUser,
+      lastMessage: lastMessage ?? this.lastMessage,
+      unreadCount: unreadCount ?? this.unreadCount,
+      updatedAt: updatedAt ?? this.updatedAt,
+      createdAt: createdAt ?? this.createdAt,
+    );
   }
 }

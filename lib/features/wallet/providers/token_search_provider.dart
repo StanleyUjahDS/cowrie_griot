@@ -111,12 +111,31 @@ class TokenSearchProvider extends ChangeNotifier {
         
         _results = merged.values.toList();
         
-        // Sort: Verified/Major first, then by value/balance
+        // Sort: Priority/Verified/Major first, then by value/balance
         _results.sort((a, b) {
-          final av = a.status == 'verified' || a.isNative || a.isGriotAsset;
-          final bv = b.status == 'verified' || b.isNative || b.isGriotAsset;
+          // 1. Always Display (Top Priority)
+          if (a.alwaysDisplay != b.alwaysDisplay) return a.alwaysDisplay ? -1 : 1;
+          
+          // 2. Featured
+          if (a.isFeatured != b.isFeatured) return a.isFeatured ? -1 : 1;
+          
+          // 3. Official / Native / Griot Asset
+          final av = a.isOfficial || a.isNative || a.isGriotAsset;
+          final bv = b.isOfficial || b.isNative || b.isGriotAsset;
           if (av != bv) return av ? -1 : 1;
-          return b.valueUsd.compareTo(a.valueUsd);
+
+          // 4. Wallet Holdings (Positive Balance)
+          final ab = (num.tryParse(a.balance) ?? 0) > 0;
+          final bb = (num.tryParse(b.balance) ?? 0) > 0;
+          if (ab != bb) return ab ? -1 : 1;
+          
+          // 5. Explicit Display Order
+          if (a.displayOrder != null && b.displayOrder != null) {
+            if (a.displayOrder != b.displayOrder) return a.displayOrder!.compareTo(b.displayOrder!);
+          }
+
+          // 6. Value/Market Cap/Price
+          return (b.valueUsd ?? 0).compareTo(a.valueUsd ?? 0);
         });
       } else {
         _results = popular;
@@ -152,8 +171,7 @@ class TokenSearchProvider extends ChangeNotifier {
     try {
       final remoteResults = await _walletApiService.searchAssets(
         query: _query,
-        // Swap discovery is global; each result carries its own network.
-        network: null,
+        network: _network,
       );
 
       // Ignore stale responses
@@ -188,12 +206,31 @@ class TokenSearchProvider extends ChangeNotifier {
 
       _results = merged.values.toList();
       
-      // Sort backend-verified assets first, then by value.
+        // Sort: Priority/Verified/Major first, then by value/balance
       _results.sort((a, b) {
-        final av = a.status == 'verified' && a.isTradeable;
-        final bv = b.status == 'verified' && b.isTradeable;
+        // 1. Always Display (Top Priority)
+        if (a.alwaysDisplay != b.alwaysDisplay) return a.alwaysDisplay ? -1 : 1;
+        
+        // 2. Featured
+        if (a.isFeatured != b.isFeatured) return a.isFeatured ? -1 : 1;
+        
+        // 3. Official / Native / Griot Asset
+        final av = a.isOfficial || a.isNative || a.isGriotAsset;
+        final bv = b.isOfficial || b.isNative || b.isGriotAsset;
         if (av != bv) return av ? -1 : 1;
-        return b.valueUsd.compareTo(a.valueUsd);
+
+        // 4. Wallet Holdings (Positive Balance)
+        final ab = (num.tryParse(a.balance) ?? 0) > 0;
+        final bb = (num.tryParse(b.balance) ?? 0) > 0;
+        if (ab != bb) return ab ? -1 : 1;
+
+        // 5. Explicit Display Order
+        if (a.displayOrder != null && b.displayOrder != null) {
+          if (a.displayOrder != b.displayOrder) return a.displayOrder!.compareTo(b.displayOrder!);
+        }
+
+        // 6. Value/Market Cap/Price
+        return (b.valueUsd ?? 0).compareTo(a.valueUsd ?? 0);
       });
 
       _isLoading = false;
@@ -208,11 +245,10 @@ class TokenSearchProvider extends ChangeNotifier {
   }
 
   bool canSwap(TokenModel token) {
-    if (token.isNative) return true;
-
-    final status = token.status.toLowerCase();
-    // AUTHORITATIVE: status == verified && isTradeable == true && !isSpam
-    return status == 'verified' && token.isTradeable && !token.isSpam;
+    // CONTRACT: Allow swap if asset is in wallet (has balance), is a popular/official asset, 
+    // or is a Griot native asset.
+    final hasBalance = (num.tryParse(token.balance) ?? 0) > 0;
+    return hasBalance || token.isOfficial || token.isNative || token.isGriotAsset || token.isFeatured;
   }
 
   void clearSearch() {

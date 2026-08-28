@@ -542,7 +542,7 @@ class _UsernameEditSheetState
                           ),
                           const SizedBox(height: 3),
                           Text(
-                            'Choose a unique Griot username',
+                            'Choose a unique Griot username (min. 3 characters)',
                             style: theme
                                 .textTheme
                                 .bodySmall
@@ -578,7 +578,7 @@ class _UsernameEditSheetState
                   decoration: InputDecoration(
                     counterText: '',
                     hintText:
-                    'Enter your username',
+                    'Enter your username (min. 3 characters)',
                     prefixIcon: const Icon(
                       Icons.alternate_email_rounded,
                     ),

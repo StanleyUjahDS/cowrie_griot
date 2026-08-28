@@ -11,6 +11,7 @@ import 'features/auth/services/auth_api_service.dart';
 import 'features/auth/services/auth_session_service.dart';
 import 'features/auth/services/auth_storage_service.dart';
 import 'features/auth/services/wallet_auth_service.dart';
+import 'features/auth/auth_controller.dart';
 import 'features/users/providers/user_provider.dart';
 import 'features/users/services/user_api_service.dart';
 import 'features/wallet/services/wallet_crypto_service.dart';
@@ -27,6 +28,7 @@ import 'features/miner/services/reputation_api_service.dart';
 import 'features/chat/services/messaging_api_service.dart';
 import 'features/miner/providers/reputation_provider.dart';
 import 'features/chat/providers/messaging_provider.dart';
+import 'features/miner/providers/mining_provider.dart';
 import 'features/miner/providers/referral_provider.dart';
 import 'features/wallet/providers/wallet_provider.dart';
 import 'features/local_auth/services/app_lock_service.dart';
@@ -34,11 +36,11 @@ import 'features/local_auth/services/local_auth_service.dart';
 import 'features/local_auth/providers/app_lock_provider.dart';
 import 'features/local_auth/screens/pin_verification_screen.dart';
 import 'core/services/navigation_scroll_service.dart';
+import 'core/services/connectivity_service.dart';
+import 'core/services/push_notification_service.dart';
 
 class GriotCowrieApp extends StatefulWidget {
-  const GriotCowrieApp({
-    super.key,
-  });
+  const GriotCowrieApp({super.key});
 
   @override
   State<GriotCowrieApp> createState() => _GriotCowrieAppState();
@@ -60,6 +62,7 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
   late final ReferralApiService _referralApiService;
   late final ReputationApiService _reputationApiService;
   late final MessagingApiService _messagingApiService;
+  late final AuthController _authController;
   late final AppLockService _appLockService;
   late final LocalAuthService _localAuthService;
 
@@ -73,6 +76,23 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
 
     _apiClient = ApiClient();
 
+    PushNotificationService.instance.configure(
+      apiClient: _apiClient,
+      onNotificationTap: (data) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final type = data['type']?.toString();
+          if (type == 'chat_message') {
+            final conversationId = data['conversationId']?.toString();
+            if (conversationId != null && conversationId.isNotEmpty) {
+              AppRouter.router.push('/conversation/$conversationId');
+            }
+          } else if (type == 'message_request') {
+            AppRouter.router.push('/chat/requests');
+          }
+        });
+      },
+    );
+
     final walletStorage = WalletStorageService();
     final authStorage = AuthStorageService();
 
@@ -84,41 +104,23 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
     _appLockService = AppLockService();
     _localAuthService = LocalAuthService();
 
-    _userApiService = UserApiService(
-      apiClient: _apiClient,
-    );
+    _userApiService = UserApiService(apiClient: _apiClient);
 
-    _walletApiService = WalletApiService(
-      apiClient: _apiClient,
-    );
+    _walletApiService = WalletApiService(apiClient: _apiClient);
 
-    _transactionApiService = TransactionApiService(
-      apiClient: _apiClient,
-    );
+    _transactionApiService = TransactionApiService(apiClient: _apiClient);
 
-    _swapApiService = SwapApiService(
-      apiClient: _apiClient,
-    );
+    _swapApiService = SwapApiService(apiClient: _apiClient);
 
-    _walletRpcService = WalletRpcService(
-      apiClient: _apiClient,
-    );
+    _walletRpcService = WalletRpcService(apiClient: _apiClient);
 
-    _miningApiService = MiningApiService(
-      apiClient: _apiClient,
-    );
+    _miningApiService = MiningApiService(apiClient: _apiClient);
 
-    _referralApiService = ReferralApiService(
-      apiClient: _apiClient,
-    );
+    _referralApiService = ReferralApiService(apiClient: _apiClient);
 
-    _reputationApiService = ReputationApiService(
-      apiClient: _apiClient,
-    );
+    _reputationApiService = ReputationApiService(apiClient: _apiClient);
 
-    _messagingApiService = MessagingApiService(
-      apiClient: _apiClient,
-    );
+    _messagingApiService = MessagingApiService(apiClient: _apiClient);
 
     _authApiService = AuthApiService(
       apiClient: _apiClient,
@@ -137,13 +139,18 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
       walletAuthService: walletAuthService,
     );
 
+    _authController = AuthController(
+      authService: _authApiService,
+      walletService: _walletService,
+    );
+
+    ConnectivityService.instance.initialize();
+
     // ==========================================================
     // THEME CONTROLLER
     // ==========================================================
 
-    AppRouter.setThemeController(
-      _themeController,
-    );
+    AppRouter.setThemeController(_themeController);
   }
 
   @override
@@ -154,9 +161,7 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
   }
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
         // ======================================================
@@ -164,6 +169,7 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
         // ======================================================
 
         Provider<WalletService>.value(value: _walletService),
+        Provider<UserApiService>.value(value: _userApiService),
         Provider<AuthSessionService>.value(value: _authSessionService),
         Provider<WalletApiService>.value(value: _walletApiService),
         Provider<TransactionApiService>.value(value: _transactionApiService),
@@ -175,6 +181,7 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
         Provider<MessagingApiService>.value(value: _messagingApiService),
         Provider<AppLockService>.value(value: _appLockService),
         Provider<LocalAuthService>.value(value: _localAuthService),
+        ChangeNotifierProvider<AuthController>.value(value: _authController),
         ChangeNotifierProvider<NavigationScrollService>.value(
           value: NavigationScrollService.instance,
         ),
@@ -182,81 +189,84 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
         // ======================================================
         // APP LOCK PROVIDER
         // ======================================================
-
         ChangeNotifierProvider<AppLockProvider>(
-          create: (_) => AppLockProvider(
-            appLockService: _appLockService,
-          ),
+          create: (_) => AppLockProvider(appLockService: _appLockService),
         ),
 
         // ======================================================
         // USER PROVIDER
         // ======================================================
-
         ChangeNotifierProvider<UserProvider>(
-          create: (_) => UserProvider(
-            userApiService: _userApiService,
-          ),
+          create: (_) => UserProvider(userApiService: _userApiService),
         ),
 
         // ======================================================
         // WALLET PROVIDER
         // ======================================================
-
         ChangeNotifierProvider<WalletProvider>(
           create: (_) => WalletProvider(
             walletService: _walletService,
             walletApiService: _walletApiService,
-          )..loadWallet(),
+          ),
         ),
 
         // ======================================================
         // REPUTATION PROVIDER
         // ======================================================
-
         ChangeNotifierProxyProvider<UserProvider, ReputationProvider>(
-          create: (_) => ReputationProvider(
-            apiService: _reputationApiService,
-          ),
+          create: (_) => ReputationProvider(apiService: _reputationApiService),
           update: (_, userProvider, reputation) =>
-              (reputation ?? ReputationProvider(apiService: _reputationApiService))
+              (reputation ??
+                    ReputationProvider(apiService: _reputationApiService))
                 ..updateUserProvider(userProvider),
         ),
 
         // ======================================================
         // MESSAGING PROVIDER
         // ======================================================
-
         ChangeNotifierProxyProvider<UserProvider, MessagingProvider>(
           create: (context) => MessagingProvider(
             apiService: _messagingApiService,
             userProvider: context.read<UserProvider>(),
           ),
-          update: (_, userProvider, messaging) =>
-              messaging ?? MessagingProvider(
-                apiService: _messagingApiService,
-                userProvider: userProvider,
-              ),
+          update: (_, userProvider, messaging) {
+            final provider = messaging ??
+                MessagingProvider(
+                  apiService: _messagingApiService,
+                  userProvider: userProvider,
+                );
+            _authController.setMessagingProvider(provider);
+            return provider;
+          },
         ),
 
         // ======================================================
         // REFERRAL PROVIDER
         // ======================================================
-
         ChangeNotifierProvider<ReferralProvider>(
-          create: (_) => ReferralProvider(
-            apiService: _referralApiService,
-          )..loadReferralStatus(),
+          create: (_) => ReferralProvider(apiService: _referralApiService),
+        ),
+
+        // ======================================================
+        // MINING PROVIDER
+        // ======================================================
+        ChangeNotifierProvider<MiningProvider>(
+          create: (_) => MiningProvider(apiService: _miningApiService),
         ),
 
         // ======================================================
         // STARTUP SERVICE
         // ======================================================
-
-        ProxyProvider2<AuthSessionService, UserProvider, AppStartupService>(
-          update: (_, auth, user, previous) => AppStartupService(
+        ProxyProvider3<
+          AuthSessionService,
+          UserProvider,
+          MessagingProvider,
+          AppStartupService
+        >(
+          update: (_, auth, user, messaging, previous) => AppStartupService(
             authSessionService: auth,
             userProvider: user,
+            messagingProvider: messaging,
           ),
         ),
       ],
@@ -264,20 +274,15 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
       // ========================================================
       // APP
       // ========================================================
-
       child: AnimatedBuilder(
         animation: _themeController,
-        builder: (
-          context,
-          child,
-        ) {
+        builder: (context, child) {
           return MaterialApp.router(
             debugShowCheckedModeBanner: false,
 
             // ==================================================
             // LIGHT THEME
             // ==================================================
-
             theme: AppTheme.theme(
               style: _themeController.themeStyle,
               brightness: Brightness.light,
@@ -286,7 +291,6 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
             // ==================================================
             // DARK THEME
             // ==================================================
-
             darkTheme: AppTheme.theme(
               style: _themeController.themeStyle,
               brightness: Brightness.dark,
@@ -295,19 +299,16 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
             // ==================================================
             // CURRENT THEME MODE
             // ==================================================
-
             themeMode: _themeController.themeMode,
 
             // ==================================================
             // ROUTER
             // ==================================================
-
             routerConfig: AppRouter.router,
 
             // ==================================================
             // APP LOCK BUILDER
             // ==================================================
-
             builder: (context, child) {
               return _AppLockOverlay(child: child);
             },

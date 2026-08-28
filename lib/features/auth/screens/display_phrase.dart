@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:overlay_support/overlay_support.dart';
 
+import '../../../core/services/notification_service.dart';
 import '/core/ui/scaffolds/gradient_scaffold.dart';
 
 import '/features/wallet/services/wallet_crypto_service.dart';
@@ -36,21 +36,9 @@ class DisplayPhraseScreen extends StatelessWidget {
       return;
     }
 
-    final theme = Theme.of(context);
-
-    showSimpleNotification(
-      const Text(
-        'Recovery phrase copied',
-      ),
-      leading: const Icon(
-        Icons.check_circle_outline_rounded,
-      ),
-      position: NotificationPosition.top,
-      background: theme.colorScheme.surface,
-      foreground: theme.colorScheme.onSurface,
-      duration: const Duration(
-        seconds: 2,
-      ),
+    NotificationService.showSuccess(
+      context,
+      'Recovery phrase copied',
     );
   }
 

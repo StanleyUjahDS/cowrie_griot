@@ -47,10 +47,10 @@ class GriotAvatar extends StatelessWidget {
   Widget _buildFallback(ColorScheme colorScheme) {
     return Center(
       child: SvgPicture.asset(
-        'assets/chains/Hbadger.svg',
-        width: radius * 1.4,
-        height: radius * 1.4,
-        fit: BoxFit.contain,
+        'assets/coins_logo/hbadger_logo.svg',
+        width: radius * 2,
+        height: radius * 2,
+        fit: BoxFit.cover,
         placeholderBuilder: (context) => Icon(
           Icons.person_outline_rounded,
           color: iconColor ?? colorScheme.primary,

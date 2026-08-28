@@ -49,6 +49,15 @@ class AssetDetailsScreen extends StatelessWidget {
     }
   }
 
+  String _getTokenType(String chain) {
+    final c = chain.toLowerCase();
+    if (c == 'solana' || c == 'sol') return 'SPL';
+    if (c == 'bsc' || c == 'binance') return 'BEP-20';
+    if (c == 'polygon' || c == 'matic') return 'ERC-20';
+    if (c == 'arbitrum' || c == 'optimism' || c == 'base' || c == 'eth' || c == 'ethereum') return 'ERC-20';
+    return 'Token';
+  }
+
   Future<void> _launchUrl(BuildContext context, String url) async {
     if (url.isEmpty) return;
     final uri = Uri.parse(url);
@@ -67,9 +76,12 @@ class AssetDetailsScreen extends StatelessWidget {
     final colors = theme.colorScheme;
     final text = theme.textTheme;
 
-    final bool isPositive = token.changePercent >= 0;
+    final bool isEcosystem = token.isEcosystem;
+    final bool isNative = token.isNative;
+    final bool isPositive = (token.changePercent ?? 0) >= 0;
 
     return GradientScaffold(
+      useSafeArea: false,
       appBar: AppBar(
         title: Text(token.name.isEmpty ? token.symbol : token.name),
         centerTitle: true,
@@ -109,75 +121,72 @@ class AssetDetailsScreen extends StatelessWidget {
                     FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
-                        '${WalletFormatters.formatBalance(token.balance)} ${token.symbol}',
+                        token.valueUsd != null 
+                            ? WalletFormatters.formatCurrency(token.valueUsd!) 
+                            : '--',
                         style: text.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.5,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -1.0,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        if (token.isEcosystem) ...[
-                          Icon(Icons.workspace_premium_rounded, size: 20, color: colors.primary),
-                          const SizedBox(width: 8),
-                        ],
                         Text(
-                          WalletFormatters.formatCurrency(token.valueUsd),
-                          style: text.titleMedium?.copyWith(
-                            color: colors.onSurfaceVariant,
+                          '${WalletFormatters.formatBalance(token.balance)} ${token.symbol}',
+                          style: text.bodyLarge?.copyWith(
+                            color: colors.onSurfaceVariant.withValues(alpha: 0.7),
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                         const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
+                            horizontal: 6,
+                            vertical: 2,
                           ),
                           decoration: BoxDecoration(
                             color: (isPositive ? colors.tertiary : colors.error)
                                 .withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
-                            '${isPositive ? '+' : ''}${token.changePercent.toStringAsFixed(2)}%',
-                            style: text.labelMedium?.copyWith(
+                            '${isPositive ? '+' : ''}${(token.changePercent ?? 0).toStringAsFixed(2)}%',
+                            style: text.labelSmall?.copyWith(
                               color: isPositive ? colors.tertiary : colors.error,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w900,
                             ),
                           ),
                         ),
                       ],
                     ),
-
-                    if (token.isGriotAsset) ...[
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: colors.primary.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: colors.primary.withValues(alpha: 0.2)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.stars_rounded, size: 16, color: colors.primary),
-                            const SizedBox(width: 6),
-                            Text(
-                              "Griot Native Asset",
-                              style: text.labelLarge?.copyWith(
-                                color: colors.primary,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ],
-                        ),
+                    const SizedBox(height: 12),
+                    Text(
+                      '1 ${token.symbol} = ${WalletFormatters.formatCurrency(token.priceUsd, isUnitPrice: true)}',
+                      style: text.bodyMedium?.copyWith(
+                        color: colors.primary,
+                        fontWeight: FontWeight.w800,
                       ),
-                    ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (isEcosystem) ...[
+                          _Tag(
+                            label: 'Ecosystem',
+                            color: colors.primary,
+                            icon: Icons.workspace_premium_rounded,
+                          ),
+                        ] else if (isNative) ...[
+                          _Tag(label: 'Native', color: colors.secondary),
+                        ] else ...[
+                          _Tag(label: 'Token', color: colors.onSurfaceVariant),
+                        ],
+                      ],
+                    ),
 
                     const SizedBox(height: 40),
 
@@ -206,11 +215,7 @@ class AssetDetailsScreen extends StatelessWidget {
 
                     const SizedBox(height: 48),
 
-                    // Market Info or Charts could go here
-                    _buildSecurityCard(context),
-                    const SizedBox(height: 32),
-
-                    _buildSectionHeader(context, 'About ${token.name}'),
+                    _buildSectionHeader(context, 'About Asset'),
                     const SizedBox(height: 16),
                     _buildInfoCard(context),
 
@@ -260,17 +265,10 @@ class AssetDetailsScreen extends StatelessWidget {
                       },
                     ),
 
-                    const SizedBox(height: 32),
-
-                    // Recent Activity
-                    _buildSectionHeader(context, 'Recent Activity'),
-                    const SizedBox(height: 16),
-                    _buildEmptyActivity(context),
-
                     const SizedBox(height: 48),
 
                     // Ad Space
-                    const GriotBannerAd(),
+                    const GriotBannerAd(isCompact: true),
 
                     const SizedBox(height: 80),
                   ],
@@ -294,92 +292,18 @@ class AssetDetailsScreen extends StatelessWidget {
     NotificationService.showSuccess(context, 'Contract address copied');
   }
 
-  Widget _buildSecurityCard(BuildContext context) {
-    final provider = context.read<WalletProvider>();
-    final colors = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
-
-    final isBlocked = provider.isTokenBlocked(token);
-    final status = token.status.toLowerCase();
-    
-    // Major assets (Native and Griot Assets) are always treated as Verified.
-    final isVerified = status == 'verified' || token.isNative || token.isGriotAsset;
-    final isOfficial = token.isOfficial || token.isGriotAsset;
-
-    Color statusColor;
-    String statusTitle;
-    String statusDesc;
-    IconData statusIcon;
-
-    if (isOfficial) {
-      statusColor = colors.tertiary;
-      statusTitle = token.isGriotAsset ? 'Griot Native Asset' : 'Official Griot Asset';
-      statusDesc = 'Verified & tradeable';
-      statusIcon = Icons.verified_rounded;
-    } else if (isVerified) {
-      statusColor = Colors.green;
-      statusTitle = 'Verified';
-      statusDesc = 'Security check passed';
-      statusIcon = Icons.verified_rounded;
-    } else if (isBlocked) {
-      statusColor = colors.error;
-      statusTitle = 'High-risk token';
-      statusDesc = 'Do not interact with this token';
-      statusIcon = Icons.gpp_bad_rounded;
-    } else {
-      // Unknown / Unverified
-      statusColor = colors.onSurfaceVariant.withValues(alpha: 0.6);
-      statusTitle = 'Security status: Not verified';
-      statusDesc = 'Ensure you trust this contract before trading';
-      statusIcon = Icons.help_outline_rounded;
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: statusColor.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: statusColor.withValues(alpha: 0.2)),
-      ),
-      child: Row(
-        children: [
-          Icon(statusIcon, color: statusColor, size: 28),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  statusTitle,
-                  style: text.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: statusColor,
-                  ),
-                ),
-                Text(
-                  statusDesc,
-                  style: text.bodySmall?.copyWith(
-                    color: colors.onSurfaceVariant,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildSectionHeader(BuildContext context, String title) {
+    final colors = Theme.of(context).colorScheme;
     return Align(
       alignment: Alignment.centerLeft,
       child: Text(
-        title,
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
+        title.toUpperCase(),
+        style: TextStyle(
+          color: colors.primary,
+          fontWeight: FontWeight.w900,
+          fontSize: 11,
+          letterSpacing: 1.5,
+        ),
       ),
     );
   }
@@ -398,9 +322,9 @@ class AssetDetailsScreen extends StatelessWidget {
         children: [
           _infoRow(context, 'Network', token.chain.toUpperCase()),
           const Divider(height: 32),
-          _infoRow(context, 'Price', WalletFormatters.formatCurrency(token.priceUsd)),
+          _infoRow(context, 'Type', token.isNative ? 'Native' : _getTokenType(token.chain)),
           const Divider(height: 32),
-          _infoRow(context, 'Symbol', token.symbol),
+          _infoRow(context, 'Decimals', (token.decimals ?? 18).toString()),
           if (!token.isNative) ...[
             const Divider(height: 32),
             _infoRow(
@@ -420,52 +344,24 @@ class AssetDetailsScreen extends StatelessWidget {
   }
 
   Widget _infoRow(BuildContext context, String label, String value, {VoidCallback? onTap, Widget? trailing}) {
-    final colors = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: text.bodyMedium?.copyWith(color: colors.onSurfaceVariant)),
+          Text(label, style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant)),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(value, style: text.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
+              Text(value, style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
               if (trailing != null) ...[
                 const SizedBox(width: 8),
                 trailing,
               ],
             ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyActivity(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
-    return Container(
-      height: 160,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerLow.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: colors.outlineVariant.withValues(alpha: 0.2),
-          style: BorderStyle.solid,
-        ),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.history_rounded, size: 32, color: colors.onSurfaceVariant.withValues(alpha: 0.5)),
-          const SizedBox(height: 12),
-          Text(
-            'No transactions yet',
-            style: text.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
           ),
         ],
       ),
@@ -564,6 +460,43 @@ class _LinkItem {
     required this.icon,
     required this.onTap,
   });
+}
+
+class _Tag extends StatelessWidget {
+  final String label;
+  final Color color;
+  final IconData? icon;
+
+  const _Tag({required this.label, required this.color, this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 10, color: color.withValues(alpha: 0.8)),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              color: color.withValues(alpha: 0.8),
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ActionButton extends StatelessWidget {

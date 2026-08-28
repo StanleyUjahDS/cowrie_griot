@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../../core/theme/app_colors.dart';
 import '../models/chat_user.dart';
 
@@ -8,12 +9,14 @@ class ChatListItem extends StatelessWidget {
   final ChatUser user;
   final String time;
   final VoidCallback? onTap;
+  final VoidCallback? onAvatarTap;
 
   const ChatListItem({
     super.key,
     required this.user,
     required this.time,
     this.onTap,
+    this.onAvatarTap,
   });
 
   @override
@@ -36,25 +39,22 @@ class ChatListItem extends StatelessWidget {
       // PROFILE IMAGE + ONLINE STATUS
       // ==========================================================
 
-      leading: SizedBox(
-        width: 54,
-        height: 54,
-        child: Stack(
-          children: [
-            CircleAvatar(
-              radius: 26,
-              backgroundColor:
-              colorScheme.surfaceContainerHighest,
-              backgroundImage: hasProfileImage
-                  ? NetworkImage(profileUrl)
+      leading: GestureDetector(
+        onTap: onAvatarTap,
+        child: SizedBox(
+          width: 54,
+          height: 54,
+          child: Stack(
+            children: [
+              CircleAvatar(
+                radius: 26,
+                backgroundColor:
+                colorScheme.surfaceContainerHighest,
+                backgroundImage: hasProfileImage ? NetworkImage(profileUrl) : null,
+                child: !hasProfileImage 
+                  ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg')
                   : null,
-              child: !hasProfileImage
-                  ? Icon(
-                Icons.person_rounded,
-                color: colorScheme.onSurfaceVariant,
-              )
-                  : null,
-            ),
+              ),
 
             // ======================================================
             // ONLINE INDICATOR
@@ -80,6 +80,7 @@ class ChatListItem extends StatelessWidget {
           ],
         ),
       ),
+    ),
 
       // ==========================================================
       // NAME + PHONE DISCOVERY

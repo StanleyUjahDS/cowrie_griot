@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:toastification/toastification.dart';
 
 class NotificationService {
@@ -209,7 +210,7 @@ class NotificationService {
             children: [
               Row(
                 children: [
-                  Image.asset('assets/coins_logo/ic_launcher.png', width: 16, height: 16),
+                  SvgPicture.asset('assets/cowrie_images/cowriesvg.svg', width: 16, height: 16),
                   const SizedBox(width: 8),
                   Text(
                     'GRIOT OFFICIAL',

@@ -1,15 +1,19 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 
 import 'package:griot_cowrie/features/chat/providers/messaging_provider.dart';
 import 'package:griot_cowrie/features/chat/models/chat_message.dart';
+import 'package:griot_cowrie/features/chat/models/chat_user.dart';
+import 'package:griot_cowrie/features/chat/models/message_request.dart';
 import 'package:griot_cowrie/features/chat/models/conversation_model.dart';
 import 'package:griot_cowrie/features/chat/services/messaging_api_service.dart';
 import 'package:griot_cowrie/features/users/providers/user_provider.dart';
 import 'package:griot_cowrie/core/services/notification_service.dart';
+import 'package:griot_cowrie/core/ui/widgets/griot_loader.dart';
 
 class ChatScreen extends StatefulWidget {
   final String? userId;
@@ -182,10 +186,10 @@ class _ChatScreenState extends State<ChatScreen>
         child: ClipOval(
           child: (otherUser?.profileUrl != null)
             ? Image.network(otherUser!.profileUrl!, fit: BoxFit.cover)
-            : Image.asset(
-                'assets/cowrie_images/profile_placeholder.png',
+            : SvgPicture.asset(
+                'assets/coins_logo/hbadger_logo.svg',
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Icon(Icons.person_outline_rounded, color: colorScheme.primary),
+                placeholderBuilder: (context) => Icon(Icons.person_outline_rounded, color: colorScheme.primary),
               ),
         ),
       ),
@@ -197,15 +201,23 @@ class _ChatScreenState extends State<ChatScreen>
       if (_conversation!.type == ConversationType.dm) {
         return _conversation!.otherUser?.effectiveDisplayName ?? 'User';
       }
-      return 'Group Chat'; // Future proof for groups
+      return _conversation!.title ?? (_conversation!.type == ConversationType.group ? 'Group Chat' : 'Channel');
     }
-    return widget.userId ?? 'Chat';
+    return 'Chat';
   }
 
   Widget _buildSubtitle() {
     final theme = Theme.of(context);
-    final isOnline = _conversation?.otherUser?.isOnline ?? false;
+    final type = _conversation?.type;
     
+    if (type == ConversationType.group || type == ConversationType.channel) {
+      return Text(
+        type == ConversationType.group ? 'group' : 'channel',
+        style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+      );
+    }
+
+    final isOnline = _conversation?.otherUser?.isOnline ?? false;
     return Row(
       children: [
         Container(
@@ -226,10 +238,29 @@ class _ChatScreenState extends State<ChatScreen>
   // ============================================================
 
   void _openUserProfile() {
-    if (widget.userId != null) {
-      context.push('/profile/${widget.userId}');
-    } else if (_conversation?.otherUser?.id != null) {
-      context.push('/profile/${_conversation!.otherUser!.id}');
+    final otherUser = _conversation?.otherUser;
+    if (otherUser != null) {
+      context.push('/user/profile', extra: otherUser.toUserModel());
+    }
+  }
+
+  Future<void> _handleBlockUser() async {
+    final otherUser = _conversation?.otherUser;
+    if (otherUser == null) return;
+
+    final provider = context.read<MessagingProvider>();
+    final isBlocked = provider.blockedUserIds.contains(otherUser.id);
+
+    try {
+      if (isBlocked) {
+        await provider.unblockUser(otherUser.id);
+        if (mounted) NotificationService.showSuccess(context, 'User unblocked');
+      } else {
+        await provider.blockUser(otherUser.id);
+        if (mounted) NotificationService.showSuccess(context, 'User blocked');
+      }
+    } catch (e) {
+      if (mounted) NotificationService.showError(context, 'Failed to update block status');
     }
   }
 
@@ -1203,83 +1234,74 @@ class _ChatScreenState extends State<ChatScreen>
                   case 'settings':
                     break;
                   case 'block':
+                    _handleBlockUser();
                     break;
                 }
               },
-              itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: 'profile',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons
-                            .person_outline_rounded,
-                      ),
-                      SizedBox(width: 12),
-                      Text('View profile'),
-                    ],
+              itemBuilder: (context) {
+                final provider = context.read<MessagingProvider>();
+                final isBlocked = _conversation?.otherUser != null && 
+                                 provider.blockedUserIds.contains(_conversation!.otherUser!.id);
+                
+                return [
+                  const PopupMenuItem(
+                    value: 'profile',
+                    child: Row(
+                      children: [
+                        Icon(Icons.person_outline_rounded),
+                        SizedBox(width: 12),
+                        Text('View profile'),
+                      ],
+                    ),
                   ),
-                ),
-                const PopupMenuItem(
-                  value: 'search',
-                  child: Row(
-                    children: [
-                      Icon(
-                          Icons.search_rounded),
-                      SizedBox(width: 12),
-                      Text(
-                          'Search messages'),
-                    ],
+                  const PopupMenuItem(
+                    value: 'search',
+                    child: Row(
+                      children: [
+                        Icon(Icons.search_rounded),
+                        SizedBox(width: 12),
+                        Text('Search messages'),
+                      ],
+                    ),
                   ),
-                ),
-                const PopupMenuItem(
-                  value: 'mute',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons
-                            .notifications_off_outlined,
-                      ),
-                      SizedBox(width: 12),
-                      Text(
-                          'Mute notifications'),
-                    ],
+                  const PopupMenuItem(
+                    value: 'mute',
+                    child: Row(
+                      children: [
+                        Icon(Icons.notifications_off_outlined),
+                        SizedBox(width: 12),
+                        Text('Mute notifications'),
+                      ],
+                    ),
                   ),
-                ),
-                const PopupMenuItem(
-                  value: 'settings',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.settings_outlined,
-                      ),
-                      SizedBox(width: 12),
-                      Text('Chat settings'),
-                    ],
+                  const PopupMenuItem(
+                    value: 'settings',
+                    child: Row(
+                      children: [
+                        Icon(Icons.settings_outlined),
+                        SizedBox(width: 12),
+                        Text('Chat settings'),
+                      ],
+                    ),
                   ),
-                ),
-                PopupMenuItem(
-                  value: 'block',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.block_rounded,
-                        color:
-                        colorScheme.error,
-                      ),
-                      const SizedBox(
-                          width: 12),
-                      Text(
-                        'Block user',
-                        style: TextStyle(
-                          color:
-                          colorScheme.error,
+                  PopupMenuItem(
+                    value: 'block',
+                    child: Row(
+                      children: [
+                        Icon(
+                          isBlocked ? Icons.block_flipped : Icons.block_rounded,
+                          color: colorScheme.error,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 12),
+                        Text(
+                          isBlocked ? 'Unblock user' : 'Block user',
+                          style: TextStyle(color: colorScheme.error),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ];
+              },
             ),
 
             const SizedBox(width: 5),
@@ -1325,14 +1347,14 @@ class _ChatScreenState extends State<ChatScreen>
                     builder: (context, provider, child) {
                       final cid = _conversationId;
                       if (cid == null) {
-                        return const Center(child: CircularProgressIndicator());
+                        return const Center(child: GriotLoader());
                       }
 
                       final messages = provider.getMessagesForConversation(cid);
                       final currentUserId = context.watch<UserProvider>().user?.id;
 
                       if (provider.isLoadingMessages(cid) && messages.isEmpty) {
-                        return const Center(child: CircularProgressIndicator());
+                        return const Center(child: GriotLoader());
                       }
 
                       return ListView.builder(
@@ -1362,27 +1384,166 @@ class _ChatScreenState extends State<ChatScreen>
                 // COMPOSER
                 // ==================================================
 
-                _MessageInput(
-                  controller: controller,
-                  colorScheme: colorScheme,
-                  textTheme: textTheme,
-                  onSend: _sendMessage,
-                  onAttachment:
-                  _showAttachmentSheet,
-                  isRecording:
-                  _isRecording,
-                  hasText: _hasText,
-                  onStartRecording:
-                  _startRecording,
-                  onStopRecording:
-                  _stopRecording,
-                  animation:
-                  _recordAnimationController,
+                Consumer<MessagingProvider>(
+                  builder: (context, provider, child) {
+                    final otherUser = _conversation?.otherUser;
+                    final isDM = _conversation?.type == ConversationType.dm;
+                    
+                    if (isDM && otherUser != null) {
+                      final isFriend = provider.friends.any((f) => f.id == otherUser.id);
+                      if (!isFriend) {
+                        return _buildClosedComposer(provider, otherUser);
+                      }
+                    }
+
+                    return _MessageInput(
+                      controller: controller,
+                      colorScheme: colorScheme,
+                      textTheme: textTheme,
+                      onSend: _sendMessage,
+                      onAttachment: _showAttachmentSheet,
+                      isRecording: _isRecording,
+                      hasText: _hasText,
+                      onStartRecording: _startRecording,
+                      onStopRecording: _stopRecording,
+                      animation: _recordAnimationController,
+                    );
+                  },
                 ),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildClosedComposer(MessagingProvider provider, ChatUser otherUser) {
+    final colors = Theme.of(context).colorScheme;
+    
+    // Requirement 11: Check if blocked
+    final isBlocked = provider.blockedUserIds.contains(otherUser.id);
+    if (isBlocked) {
+      return Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        decoration: BoxDecoration(
+          color: colors.surface.withValues(alpha: 0.95),
+          border: Border(top: BorderSide(color: colors.outline.withValues(alpha: 0.1))),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.block_rounded, color: colors.error.withValues(alpha: 0.5), size: 32),
+            const SizedBox(height: 12),
+            const Text(
+              'User Blocked',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'You have blocked this user. Unblock them to resume messaging.',
+              style: TextStyle(fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () => provider.unblockUser(otherUser.id),
+                child: const Text('Unblock User'),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    // Check for received request
+    final receivedReq = provider.receivedRequests.where((r) => 
+      r.senderWalletAddress.toLowerCase() == otherUser.walletAddress.toLowerCase() && r.status == RequestStatus.pending
+    ).firstOrNull;
+
+    // Check for sent request
+    final sentReq = provider.sentRequests.where((r) => 
+      r.receiverWalletAddress.toLowerCase() == otherUser.walletAddress.toLowerCase() && r.status == RequestStatus.pending
+    ).firstOrNull;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      decoration: BoxDecoration(
+        color: colors.surface.withValues(alpha: 0.95),
+        border: Border(top: BorderSide(color: colors.outline.withValues(alpha: 0.1))),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            receivedReq != null ? Icons.waving_hand_rounded : Icons.lock_person_rounded, 
+            color: colors.primary.withValues(alpha: 0.5), 
+            size: 32
+          ),
+          const SizedBox(height: 12),
+          Text(
+            receivedReq != null 
+              ? '${otherUser.effectiveDisplayName} wants to chat!' 
+              : 'You are not friends yet.',
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            receivedReq != null 
+              ? 'Accept their request to start messaging.' 
+              : 'Connect with this user to start messaging.',
+            style: TextStyle(color: colors.onSurfaceVariant, fontSize: 13),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 20),
+          
+          if (receivedReq != null)
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => provider.declineRequest(receivedReq.id),
+                    child: const Text('Decline'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => provider.acceptRequest(receivedReq.id),
+                    child: const Text('Accept'),
+                  ),
+                ),
+              ],
+            )
+          else if (sentReq != null)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: colors.primary.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.hourglass_top_rounded, size: 18),
+                  const SizedBox(width: 10),
+                  const Text('Request Pending', style: TextStyle(fontWeight: FontWeight.w700)),
+                ],
+              ),
+            )
+          else
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => provider.sendRequest(otherUser.id),
+                icon: const Icon(Icons.person_add_alt_1_rounded),
+                label: const Text('Connect to Chat'),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -1624,15 +1785,6 @@ class _MessageBubble extends StatelessWidget {
               : Border.all(
                   color: colorScheme.outline.withValues(alpha: isDark ? 0.15 : 0.20),
                 ),
-          boxShadow: isMe
-              ? [
-                  BoxShadow(
-                    color: colorScheme.primary.withValues(alpha: 0.12),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

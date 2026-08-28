@@ -249,7 +249,7 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
                   child: Opacity(
                     opacity: 0.12,
                     child: Image.asset(
-                      'assets/cowrie_images/cowrie_stack.png',
+                      'assets/cowrie_images/Cowrie5.png',
                       width: 150,
                       fit: BoxFit.contain,
                     ),

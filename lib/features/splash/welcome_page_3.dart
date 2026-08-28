@@ -13,7 +13,7 @@ class WelcomePage3 extends StatelessWidget {
     final textTheme = theme.textTheme;
     final colorScheme = theme.colorScheme;
 
-    const double progress = 0.6;
+    const double progress = 0.75;
 
     return GradientScaffold(
       child: Scaffold(

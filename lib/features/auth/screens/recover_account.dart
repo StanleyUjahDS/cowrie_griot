@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:overlay_support/overlay_support.dart';
 
+import '../../../core/services/notification_service.dart';
 import '../services/mnemonic_validation_service.dart';
 
 import '../../wallet/services/wallet_crypto_service.dart';
@@ -80,38 +80,6 @@ class _RecoverAccountScreenState
     super.dispose();
   }
 
-  // ============================================================
-  // NOTIFICATION
-  // ============================================================
-
-  void _showNotification(
-      String message, {
-        IconData icon = Icons.info_outline_rounded,
-      }) {
-    if (!mounted) {
-      return;
-    }
-
-    final colors = Theme.of(context).colorScheme;
-
-    showSimpleNotification(
-      Text(
-        message,
-        style: TextStyle(
-          color: colors.onSurface,
-        ),
-      ),
-      leading: Icon(
-        icon,
-        color: colors.onSurface,
-      ),
-      position: NotificationPosition.top,
-      background: colors.surface,
-      duration: const Duration(
-        seconds: 2,
-      ),
-    );
-  }
 
   // ============================================================
   // WORD CHANGED
@@ -195,9 +163,9 @@ class _RecoverAccountScreenState
     // ----------------------------------------------------------
 
     if (words.length != 12) {
-      _showNotification(
+      NotificationService.showError(
+        context,
         'Recovery phrase must contain exactly 12 words.',
-        icon: Icons.warning_amber_rounded,
       );
 
       return;
@@ -242,9 +210,9 @@ class _RecoverAccountScreenState
     );
 
     if (invalidIndex != -1) {
-      _showNotification(
+      NotificationService.showError(
+        context,
         'Word ${invalidIndex + 1} is not a valid BIP-39 recovery word.',
-        icon: Icons.warning_amber_rounded,
       );
 
       return;
@@ -260,9 +228,9 @@ class _RecoverAccountScreenState
     );
 
     if (!isValidPhrase) {
-      _showNotification(
+      NotificationService.showError(
+        context,
         'The recovery phrase is not valid. Check the words and their order.',
-        icon: Icons.warning_amber_rounded,
       );
 
       return;
@@ -272,9 +240,9 @@ class _RecoverAccountScreenState
     // SUCCESS
     // ----------------------------------------------------------
 
-    _showNotification(
+    NotificationService.showSuccess(
+      context,
       'Valid recovery phrase.',
-      icon: Icons.check_circle_outline_rounded,
     );
   }
 
@@ -290,9 +258,9 @@ class _RecoverAccountScreenState
       }
     });
 
-    _showNotification(
+    NotificationService.showInfo(
+      context,
       'All fields cleared.',
-      icon: Icons.delete_outline_rounded,
     );
   }
 
@@ -326,9 +294,9 @@ class _RecoverAccountScreenState
     );
 
     if (emptyIndex != -1) {
-      _showNotification(
+      NotificationService.showError(
+        context,
         'Please enter recovery word ${emptyIndex + 1}.',
-        icon: Icons.warning_amber_rounded,
       );
 
       return;
@@ -351,9 +319,9 @@ class _RecoverAccountScreenState
         _validWords[invalidIndex] = false;
       });
 
-      _showNotification(
+      NotificationService.showError(
+        context,
         'Word ${invalidIndex + 1} is not a valid BIP-39 recovery word.',
-        icon: Icons.warning_amber_rounded,
       );
 
       return;
@@ -369,9 +337,9 @@ class _RecoverAccountScreenState
     );
 
     if (!isValidPhrase) {
-      _showNotification(
+      NotificationService.showError(
+        context,
         'The recovery phrase is invalid. Check the words and their order.',
-        icon: Icons.warning_amber_rounded,
       );
 
       return;

@@ -13,7 +13,7 @@ class WelcomePage4 extends StatelessWidget {
     final textTheme = theme.textTheme;
     final colorScheme = theme.colorScheme;
 
-    const double progress = 0.8;
+    const double progress = 1.0;
 
     return GradientScaffold(
       child: Scaffold(
@@ -31,11 +31,11 @@ class WelcomePage4 extends StatelessWidget {
         body: SafeArea(
           child: WelcomePageWidget(
             order: 4,
-            title: "Trade Without Borders",
-            description: "A decentralized peer-to-peer marketplace for crypto trading. Escrow protection,"
-                " reputation-based trust, and chat integration ensure secure and seamless global "
-                "transactions.",
-            imagePath: "assets/cowrie_images/fourth_frame.png",
+            title: "Get Started",
+            description: "Begin your journey with Griot by Cowrie — the Web3 super-app for connection, "
+                "earning, and freedom. Chat, earn,"
+                " and transact seamlessly in one unified ecosystem.",
+            imagePath: "assets/cowrie_images/fifth_frame.png",
           
 
             bottomAction: Row(
@@ -63,7 +63,7 @@ class WelcomePage4 extends StatelessWidget {
                   width:12,
                 ),
                 ElevatedButton(
-                  onPressed: () => context.push('/welcome_five'),
+                  onPressed: () => context.go('/login'),
                   style: ElevatedButton.styleFrom(
                     shape: const CircleBorder(),
                     padding: const EdgeInsets.all(16),
@@ -71,7 +71,7 @@ class WelcomePage4 extends StatelessWidget {
                     foregroundColor: colorScheme.onPrimary,
                     elevation: 4,
                   ),
-                  child: const Icon(Icons.arrow_forward),
+                  child: const Icon(Icons.check),
                 ),
               ],
             ),

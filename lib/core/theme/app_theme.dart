@@ -150,6 +150,16 @@ class AppTheme {
 
         surfaceTintColor: Colors.transparent,
 
+        titleTextStyle: TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.w900,
+          letterSpacing: -0.5,
+          fontFamily: AppText.fontFamily,
+          color: dark
+              ? AppColors.darkTextPrimary
+              : AppColors.lightTextPrimary,
+        ),
+
         systemOverlayStyle: SystemUiOverlayStyle(
           statusBarColor: colors.background,
 

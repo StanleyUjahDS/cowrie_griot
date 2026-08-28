@@ -26,244 +26,258 @@ class ReceiveScreen extends StatelessWidget {
 
     return Consumer<WalletProvider>(
       builder: (context, provider, child) {
-        final address = provider.wallet?.address ?? 'No address found';
+        if (provider.isLoading && provider.wallet == null) {
+          return const GradientScaffold(
+            useSafeArea: false,
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final address = provider.wallet?.address;
+        if (address == null || address.isEmpty) {
+          return GradientScaffold(
+            useSafeArea: true,
+            extendBodyBehindAppBar: true,
+            appBar: AppBar(
+              title: const Text('Receive', style: TextStyle(fontWeight: FontWeight.w800)),
+              centerTitle: true,
+              backgroundColor: Colors.transparent,
+              surfaceTintColor: Colors.transparent,
+              elevation: 0,
+            ),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.error_outline_rounded, size: 48, color: colors.error),
+                  const SizedBox(height: 16),
+                  const Text('No wallet address found'),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: () => provider.loadWallet(force: true),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                    ),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
         final symbol = token?.symbol ?? 'Assets';
+        final isEvm = _isEvm(token?.chain ?? 'ethereum');
 
         return GradientScaffold(
+          useSafeArea: true,
+          extendBodyBehindAppBar: true,
           appBar: AppBar(
-            title: Text('Receive $symbol', style: text.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+            title: Text('Receive $symbol', style: const TextStyle(fontWeight: FontWeight.w800)),
             centerTitle: true,
             backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
             elevation: 0,
           ),
-          bottomNavigationBar: const SafeArea(child: GriotBannerAd()),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-            child: Column(
-              children: [
-                const SizedBox(height: 12),
-                
-                // Animated Premium QR Section
-                Center(
-                  child: Stack(
-                    alignment: Alignment.center,
+          child: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  physics: const BouncingScrollPhysics(),
+                  child: Column(
                     children: [
-                      // Outer Decorative Glow
+                      const SizedBox(height: 20),
+                      
+                      // QR Card
                       Container(
-                        width: 300,
-                        height: 300,
+                        padding: const EdgeInsets.all(32),
                         decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(
-                            colors: [
-                              colors.primary.withValues(alpha: 0.15),
-                              colors.primary.withValues(alpha: 0.0),
-                            ],
-                          ),
-                        ),
-                      ).animate(onPlay: (controller) => controller.repeat(reverse: true))
-                       .scale(begin: const Offset(0.8, 0.8), end: const Offset(1.2, 1.2), duration: 3.seconds, curve: Curves.easeInOut),
-
-                      // Main Card
-                      Container(
-                        padding: const EdgeInsets.all(28),
-                        decoration: BoxDecoration(
-                          color: colors.surface.withValues(alpha: 0.7),
-                          borderRadius: BorderRadius.circular(48),
-                          border: Border.all(
-                            color: colors.outlineVariant.withValues(alpha: 0.15),
-                            width: 2,
-                          ),
+                          color: colors.surface,
+                          borderRadius: BorderRadius.circular(32),
+                          border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.1)),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.1),
-                              blurRadius: 30,
-                              offset: const Offset(0, 15),
+                              color: Colors.black.withValues(alpha: 0.05),
+                              blurRadius: 20,
+                              offset: const Offset(0, 10),
                             ),
                           ],
                         ),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'YOUR $symbol ADDRESS',
-                                  style: text.labelSmall?.copyWith(
-                                    color: colors.onSurfaceVariant.withValues(alpha: 0.4),
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 2.0,
-                                  ),
-                                ),
-                                IconButton(
-                                  onPressed: () {
-                                    SharePlus.instance.share(
-                                      ShareParams(
-                                        text: 'My Cowrie Griot Wallet Address ($symbol):\n\n$address',
-                                        subject: 'My Wallet Address',
-                                      ),
-                                    );
-                                  },
-                                  icon: Icon(Icons.share_rounded, size: 20, color: colors.primary.withValues(alpha: 0.6)),
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
-                                ),
-                              ],
+                            Text(
+                              'YOUR $symbol ADDRESS',
+                              style: text.labelSmall?.copyWith(
+                                color: colors.onSurfaceVariant.withValues(alpha: 0.5),
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.5,
+                              ),
                             ),
-                            const SizedBox(height: 20),
-                            // QR Code with Logo and Gradient
+                            const SizedBox(height: 24),
+                            // QR Code
                             Container(
-                              padding: const EdgeInsets.all(12),
+                              padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
                                 color: Colors.white,
-                                borderRadius: BorderRadius.circular(32),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: colors.primary.withValues(alpha: 0.1),
-                                    blurRadius: 20,
-                                    spreadRadius: 2,
-                                  ),
-                                ],
+                                borderRadius: BorderRadius.circular(24),
                               ),
                               child: QrImageView(
                                 data: address,
                                 version: QrVersions.auto,
-                                size: 220.0,
-                                // Eye Style with Brand Gradient
+                                size: 200.0,
                                 eyeStyle: QrEyeStyle(
                                   eyeShape: QrEyeShape.circle,
                                   color: colors.primary,
                                 ),
-                                // Data Module with softer circular shape and brand blending
                                 dataModuleStyle: QrDataModuleStyle(
                                   dataModuleShape: QrDataModuleShape.circle,
-                                  color: colors.primary.withValues(alpha: 0.9),
-                                ),
-                                embeddedImage: const AssetImage('assets/cowrie_images/wolrd_cowrie.png'),
-                                embeddedImageStyle: const QrEmbeddedImageStyle(
-                                  size: Size(54, 54),
+                                  color: colors.primary.withValues(alpha: 0.8),
                                 ),
                               ),
                             ),
                             const SizedBox(height: 24),
-                            GestureDetector(
+                            // Address display
+                            InkWell(
                               onTap: () {
                                 Clipboard.setData(ClipboardData(text: address));
-                                NotificationService.showSuccess(context, 'Copied');
+                                NotificationService.showSuccess(context, 'Address copied');
                               },
+                              borderRadius: BorderRadius.circular(12),
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                                 decoration: BoxDecoration(
                                   color: colors.surfaceContainerHighest.withValues(alpha: 0.3),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.1)),
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                                child: FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  child: Text(
-                                    _formatAddress(address),
-                                    textAlign: TextAlign.center,
-                                    style: text.bodyLarge?.copyWith(
-                                      color: colors.onSurface,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 1.0,
-                                      fontFamily: 'Monospace',
-                                    ),
+                                child: Text(
+                                  _formatAddress(address),
+                                  textAlign: TextAlign.center,
+                                  style: text.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'monospace',
+                                    letterSpacing: 0.5,
                                   ),
                                 ),
                               ),
                             ),
                           ],
                         ),
-                      ).animate().fadeIn(duration: 600.ms).slideY(begin: 0.1, end: 0),
-                    ],
-                  ),
-                ),
-                
-                const SizedBox(height: 40),
-                
-                // COPY Action Button (Sharing is now integrated above)
-                SizedBox(
-                  width: double.infinity,
-                  child: _ActionPill(
-                    icon: Icons.copy_all_rounded,
-                    label: 'COPY ADDRESS',
-                    onTap: () {
-                      Clipboard.setData(ClipboardData(text: address));
-                      NotificationService.showSuccess(context, 'Address copied');
-                    },
-                  ),
-                ).animate().fadeIn(delay: 300.ms),
-                
-                const SizedBox(height: 40),
-                
-                // Network Badge & Note
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  decoration: BoxDecoration(
-                    color: colors.surfaceContainerLow.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.1)),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: colors.primary.withValues(alpha: 0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(Icons.info_outline_rounded, color: colors.primary, size: 20),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'NETWORK: ${token?.chain.toUpperCase() ?? 'EVM (MULTIPLE CHAINS)'}',
-                              style: text.labelSmall?.copyWith(
-                                fontWeight: FontWeight.w900,
-                                color: colors.primary,
-                                letterSpacing: 0.5,
-                              ),
+                      ).animate().fadeIn(duration: 600.ms).scale(begin: const Offset(0.9, 0.9)),
+                      
+                      const SizedBox(height: 32),
+                      
+                      // Action Buttons
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _ActionButton(
+                              icon: Icons.copy_rounded,
+                              label: 'Copy',
+                              onTap: () {
+                                Clipboard.setData(ClipboardData(text: address));
+                                NotificationService.showSuccess(context, 'Address copied');
+                              },
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'This address supports all major EVM networks including Ethereum, BNB Chain, Polygon, Base, Arbitrum, and Optimism. Only send supported assets or they will be lost.',
-                              style: text.bodySmall?.copyWith(
-                                color: colors.onSurfaceVariant.withValues(alpha: 0.6),
-                                fontWeight: FontWeight.w600,
-                                height: 1.3,
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: _ActionButton(
+                              icon: Icons.share_rounded,
+                              label: 'Share',
+                              onTap: () {
+                                SharePlus.instance.share(
+                                  ShareParams(
+                                    text: 'My Cowrie Griot Wallet Address ($symbol):\n\n$address',
+                                    subject: 'My Wallet Address',
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      
+                      const SizedBox(height: 40),
+                      
+                      // Info Section
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: colors.primary.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: colors.primary.withValues(alpha: 0.1)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline_rounded, color: colors.primary, size: 20),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'NETWORK: ${token?.chain.toUpperCase() ?? 'MULTICHAIN'}',
+                                    style: text.labelSmall?.copyWith(
+                                      fontWeight: FontWeight.w900,
+                                      color: colors.primary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    isEvm
+                                        ? 'This address only supports EVM compatible assets. Sending other assets will result in permanent loss.'
+                                        : 'Ensure you are sending assets on the correct network (${token?.chain.toUpperCase() ?? 'MULTICHAIN'}). Incorrect network usage may result in loss.',
+                                    style: text.bodySmall?.copyWith(
+                                      color: colors.onSurfaceVariant.withValues(alpha: 0.7),
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
                       ),
+                      const SizedBox(height: 20),
                     ],
                   ),
-                ).animate().fadeIn(delay: 500.ms),
-              ],
-            ),
+                ),
+              ),
+              const GriotBannerAd(isCompact: true),
+            ],
           ),
         );
       },
     );
   }
 
+  bool _isEvm(String network) {
+    final n = network.toLowerCase();
+    return n == 'ethereum' ||
+        n == 'eth' ||
+        n == 'base' ||
+        n == 'polygon' ||
+        n == 'matic' ||
+        n == 'arbitrum' ||
+        n == 'optimism' ||
+        n == 'bsc' ||
+        n == 'binance';
+  }
+
   String _formatAddress(String addr) {
-    if (addr.length < 20) return addr;
-    return '${addr.substring(0, 10)}...${addr.substring(addr.length - 8)}';
+    if (addr.length < 24) return addr;
+    return '${addr.substring(0, 12)}...${addr.substring(addr.length - 10)}';
   }
 }
 
-class _ActionPill extends StatelessWidget {
+class _ActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
 
-  const _ActionPill({
+  const _ActionButton({
     required this.icon,
     required this.label,
     required this.onTap,
@@ -272,37 +286,28 @@ class _ActionPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
-
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 20),
+          padding: const EdgeInsets.symmetric(vertical: 16),
           decoration: BoxDecoration(
-            color: colors.primary,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: colors.primary.withValues(alpha: 0.3),
-                blurRadius: 15,
-                offset: const Offset(0, 8),
-              ),
-            ],
+            color: colors.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: colors.primary.withValues(alpha: 0.2)),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          child: Column(
             children: [
-              Icon(icon, color: colors.onPrimary, size: 22),
-              const SizedBox(width: 10),
+              Icon(icon, color: colors.primary),
+              const SizedBox(height: 8),
               Text(
                 label,
-                style: text.labelLarge?.copyWith(
-                  color: colors.onPrimary,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.2,
+                style: TextStyle(
+                  color: colors.primary,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
                 ),
               ),
             ],

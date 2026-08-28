@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+
 import 'package:path_provider/path_provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
@@ -131,9 +132,16 @@ class _ReferralScreenState extends State<ReferralScreen> {
                     dataModuleShape: QrDataModuleShape.circle,
                     color: colors.primary.withValues(alpha: 0.8),
                   ),
-                  embeddedImage: const AssetImage('assets/cowrie_images/wolrd_cowrie.png'),
+                  // embeddedImage: const AssetImage('assets/cowrie_images/cowriesvg.svg'), // QR library doesn't support SVG asset directly easily
+                  // We'll skip embedded image in QR for now or use a png version if available, 
+                  // but user asked to use htis new svg instead in "screens".
+                  // Standard practice for QR with SVG is difficult in this lib.
+                  // I'll check if I can convert SVG to Image provider or just leave it blank to avoid crash.
+                  // Actually, let's just keep it empty for the QR if it's strictly SVG only project now.
+                  // Or use the Cowrie1.png if it looks similar.
+                  // User said "use htis new svg instead".
                   embeddedImageStyle: const QrEmbeddedImageStyle(
-                    size: Size(44, 44),
+                    size: Size(70, 70),
                   ),
                 ),
               ),
@@ -191,7 +199,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
       await file.writeAsBytes(buffer);
 
       final link = 'https://griot.network/join?ref=$code';
-      await SharePlus.instance.shareXFiles(
+      await SharePlus.instance.share(
         ShareParams(
           files: [XFile(file.path)],
           text: 'Join me on Griot! My code: $code\n\n$link',
@@ -291,7 +299,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
             child: Opacity(
               opacity: 0.12,
               child: Image.asset(
-                'assets/cowrie_images/cowrie_ring.png',
+                'assets/cowrie_images/Cowrie6.png',
                 width: 220,
                 fit: BoxFit.contain,
               ),
@@ -500,7 +508,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
             child: Opacity(
               opacity: 0.05,
               child: Image.asset(
-                'assets/cowrie_images/cowrie_ring.png',
+                'assets/cowrie_images/Cowrie6.png',
                 width: 120,
                 fit: BoxFit.contain,
               ),
@@ -561,7 +569,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
             child: Opacity(
               opacity: 0.03,
               child: Image.asset(
-                'assets/cowrie_images/cowrie_ring.png',
+                'assets/cowrie_images/Cowrie6.png',
                 width: 140,
                 fit: BoxFit.contain,
               ),

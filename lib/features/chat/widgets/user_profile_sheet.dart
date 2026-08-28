@@ -4,8 +4,10 @@ import 'package:go_router/go_router.dart';
 import '../providers/messaging_provider.dart';
 import '../models/message_request.dart';
 import '../../users/models/user_model.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/ui/widgets/griot_loader.dart';
 
 class UserProfileSheet extends StatefulWidget {
   final UserModel user;
@@ -33,16 +35,16 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
     setState(() => _isActionLoading = true);
     try {
       await context.read<MessagingProvider>().sendRequest(widget.user.id);
-      if (context.mounted) {
+      if (mounted) {
         NotificationService.showSuccess(context, 'Request sent!');
         Navigator.pop(context);
       }
     } catch (e) {
-      if (context.mounted) {
+      if (mounted) {
         NotificationService.showError(context, e.toString().contains('409') ? 'Already sent' : 'Failed to send');
       }
     } finally {
-      if (context.mounted) {
+      if (mounted) {
         setState(() => _isActionLoading = false);
       }
     }
@@ -74,8 +76,8 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
             child: Stack(
               children: [
                 // Branded Backgrounds
-                Positioned(right: -60, top: 40, child: Opacity(opacity: 0.05, child: Image.asset('assets/cowrie_images/cowrie_ring.png', width: 200))),
-                Positioned(left: -50, bottom: -30, child: Opacity(opacity: 0.05, child: Image.asset('assets/cowrie_images/cowrie_stack.png', width: 180))),
+                Positioned(right: -60, top: 40, child: Opacity(opacity: 0.05, child: Image.asset('assets/cowrie_images/Cowrie1.png', width: 200))),
+                Positioned(left: -50, bottom: -30, child: Opacity(opacity: 0.05, child: Image.asset('assets/cowrie_images/Cowrie2.png', width: 180))),
 
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
@@ -90,7 +92,9 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
                         radius: 50,
                         backgroundColor: colors.primary.withValues(alpha: 0.1),
                         backgroundImage: user.avatarUrl != null ? NetworkImage(user.avatarUrl!) : null,
-                        child: user.avatarUrl == null ? Icon(Icons.person_rounded, size: 50, color: colors.primary) : null,
+                        child: user.avatarUrl == null 
+                          ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg')
+                          : null,
                       ),
                       const SizedBox(height: 16),
                       Text(user.displayName ?? 'Griot User', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
@@ -250,7 +254,7 @@ class _ProfileActionButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(color: btnColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(16), border: Border.all(color: btnColor.withValues(alpha: 0.2))),
           child: isLoading 
-            ? Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: btnColor)))
+            ? Center(child: GriotLoader(size: 20, strokeWidth: 2, color: btnColor))
             : Column(mainAxisSize: MainAxisSize.min, children: [
                 Icon(icon, color: btnColor, size: 20),
                 const SizedBox(height: 4),

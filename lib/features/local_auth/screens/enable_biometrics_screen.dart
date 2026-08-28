@@ -167,12 +167,8 @@ class _BiometricsScreenState
       // CONTINUE TO APPLICATION
       // ========================================================
       //
-      // AppStartupService will now handle:
-      //
-      // 1. Local user restoration
-      // 2. Backend session restoration
-      // 3. Wallet authentication if required
-      // 4. Current user synchronization
+      // Redirect to the Splash screen (/) to perform full
+      // application initialization and backend login.
       //
       // ========================================================
 
@@ -180,7 +176,7 @@ class _BiometricsScreenState
         return;
       }
 
-      context.go('/chat');
+      context.go('/');
     } catch (e) {
       if (!mounted) {
         return;
@@ -231,12 +227,17 @@ class _BiometricsScreenState
       // ========================================================
       // CONTINUE TO APPLICATION
       // ========================================================
+      //
+      // Redirect to the Splash screen (/) to perform full
+      // application initialization and backend login.
+      //
+      // ========================================================
 
       if (!mounted) {
         return;
       }
 
-      context.go('/chat');
+      context.go('/');
     } catch (e) {
       if (!mounted) {
         return;

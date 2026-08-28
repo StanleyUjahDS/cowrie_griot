@@ -11,8 +11,9 @@ import com.griotcowrie.griot_cowrie.R
 import com.google.android.gms.ads.nativead.NativeAd
 import com.google.android.gms.ads.nativead.NativeAdView
 import io.flutter.plugins.googlemobileads.GoogleMobileAdsPlugin
+import io.flutter.plugins.googlemobileads.NativeAdFactory
 
-class GriotNativeAdFactory(private val layoutInflater: LayoutInflater) : GoogleMobileAdsPlugin.NativeAdFactory {
+class GriotNativeAdFactory(private val layoutInflater: LayoutInflater) : NativeAdFactory {
 
     override fun createNativeAd(
         nativeAd: NativeAd,

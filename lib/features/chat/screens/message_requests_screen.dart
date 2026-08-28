@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../providers/messaging_provider.dart';
 import '../models/message_request.dart';
-import '../widgets/user_profile_sheet.dart';
 import '../../users/models/user_model.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
+import '../../../core/services/notification_service.dart';
 
 class MessageRequestsScreen extends StatefulWidget {
   const MessageRequestsScreen({super.key});
@@ -35,14 +37,15 @@ class _MessageRequestsScreenState extends State<MessageRequestsScreen> with Sing
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+    final colors = Theme.of(context).colorScheme;
 
     return GradientScaffold(
       appBar: AppBar(
         title: const Text('Message Requests'),
+        centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
+        surfaceTintColor: Colors.transparent,
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: colors.primary,
@@ -74,12 +77,12 @@ class _ReceivedRequestsList extends StatelessWidget {
           return const Center(child: GriotLoader(size: 44));
         }
 
-        final requests = provider.receivedRequests;
+        final requests = provider.receivedRequests.where((r) => r.status == RequestStatus.pending).toList();
 
         if (requests.isEmpty) {
           return const _EmptyRequests(
-            title: 'No message requests',
-            message: 'New requests will appear here.',
+            title: 'No pending requests',
+            message: 'Incoming requests will appear here.',
             icon: Icons.mark_email_read_outlined,
           );
         }
@@ -109,12 +112,12 @@ class _SentRequestsList extends StatelessWidget {
           return const Center(child: GriotLoader(size: 44));
         }
 
-        final requests = provider.sentRequests;
+        final requests = provider.sentRequests.where((r) => r.status == RequestStatus.pending).toList();
 
         if (requests.isEmpty) {
           return const _EmptyRequests(
             title: 'No sent requests',
-            message: 'Find someone to start a conversation.',
+            message: 'Pending sent requests will appear here.',
             icon: Icons.send_rounded,
           );
         }
@@ -135,136 +138,154 @@ class _SentRequestsList extends StatelessWidget {
   }
 }
 
-class _RequestCard extends StatelessWidget {
+class _RequestCard extends StatefulWidget {
   final MessageRequest request;
   final bool isReceived;
 
   const _RequestCard({required this.request, required this.isReceived});
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    final text = theme.textTheme;
+  State<_RequestCard> createState() => _RequestCardState();
+}
 
-    return Card(
+class _RequestCardState extends State<_RequestCard> {
+  bool _isLoading = false;
+
+  Future<void> _handleAction(Future<void> Function() action, String successMsg) async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+    try {
+      await action();
+      if (mounted && successMsg.isNotEmpty) NotificationService.showSuccess(context, successMsg);
+    } catch (e) {
+      if (mounted) NotificationService.showError(context, 'Action failed');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    final request = widget.request;
+    final isReceived = widget.isReceived;
+
+    final String targetId = (isReceived ? request.senderId : request.receiverId) ?? '';
+    final String targetWallet = isReceived ? request.senderWalletAddress : request.receiverWalletAddress;
+    final String? targetUsername = isReceived ? request.senderUsername : request.receiverUsername;
+    final String? targetDisplayName = isReceived ? request.senderDisplayName : request.receiverDisplayName;
+    final String? targetProfileUrl = isReceived ? request.senderProfileUrl : request.receiverProfileUrl;
+
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      color: colors.surfaceContainerLow.withValues(alpha: 0.6),
-      elevation: 0,
-      child: InkWell(
-        onTap: () {
-          // Construct a partial UserModel to show the profile
-          final user = UserModel(
-            id: isReceived ? (request.senderId ?? '') : (request.receiverId ?? ''),
-            walletAddress: isReceived ? request.senderWalletAddress : request.receiverWalletAddress,
-            username: isReceived ? request.senderUsername : null,
-            displayName: isReceived ? request.senderDisplayName : null,
-            avatarUrl: isReceived ? request.senderProfileUrl : null,
-          );
-          UserProfileSheet.show(context, user);
-        },
-        borderRadius: BorderRadius.circular(20),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundColor: colors.primary.withValues(alpha: 0.1),
-                    backgroundImage: request.profileUrl != null ? NetworkImage(request.profileUrl!) : null,
-                    child: request.profileUrl == null ? Icon(Icons.person_rounded, color: colors.primary) : null,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                request.displayName,
-                                style: text.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            Text(
-                              DateFormat('MMM d').format(request.createdAt),
-                              style: text.labelSmall?.copyWith(color: colors.onSurfaceVariant),
-                            ),
-                          ],
-                        ),
-                        if (request.username != null)
-                          Text('@${request.username}', style: text.bodySmall?.copyWith(color: colors.primary, fontWeight: FontWeight.w600)),
-                        Text(
-                          request.shortWalletAddress,
-                          style: text.labelSmall?.copyWith(color: colors.onSurfaceVariant, fontFamily: 'Monospace'),
-                        ),
-                      ],
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: colors.primary.withValues(alpha: 0.08)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            final user = UserModel(
+              id: targetId,
+              walletAddress: targetWallet,
+              username: targetUsername,
+              displayName: targetDisplayName,
+              avatarUrl: targetProfileUrl,
+            );
+            context.push('/user/profile', extra: user);
+          },
+          borderRadius: BorderRadius.circular(24),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 26,
+                      backgroundColor: colors.surfaceContainerHighest,
+                      backgroundImage: targetProfileUrl != null ? NetworkImage(targetProfileUrl) : null,
+                      child: targetProfileUrl == null 
+                        ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg', width: 32, height: 32)
+                        : null,
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: isReceived 
-                  ? [
-                      _ActionButton(
-                        label: 'Decline',
-                        onTap: () => context.read<MessagingProvider>().declineRequest(request.id),
-                        color: colors.error,
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            targetDisplayName ?? targetUsername ?? _formatAddress(targetWallet),
+                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            _formatAddress(targetWallet),
+                            style: TextStyle(
+                              color: colors.onSurfaceVariant.withValues(alpha: 0.4), 
+                              fontSize: 10, 
+                              fontFamily: 'monospace', 
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      _ActionButton(
-                        label: 'Accept',
-                        onTap: () => context.read<MessagingProvider>().acceptRequest(request.id),
-                        color: colors.primary,
-                        isFilled: true,
-                      ),
-                    ]
-                  : [
-                      if (request.status == RequestStatus.pending)
-                        _ActionButton(
-                          label: 'Cancel Request',
-                          onTap: () => context.read<MessagingProvider>().cancelRequest(request.id),
-                          color: colors.onSurfaceVariant,
-                        ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: _getStatusColor(request.status, colors).withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          request.status.name.toUpperCase(),
-                          style: TextStyle(
-                            color: _getStatusColor(request.status, colors),
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
+                    ),
+                    Text(
+                      DateFormat('MMM d').format(request.createdAt),
+                      style: text.labelSmall?.copyWith(color: colors.onSurfaceVariant.withValues(alpha: 0.5)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: isReceived 
+                    ? [
+                        Expanded(
+                          child: _ActionButton(
+                            label: 'Decline',
+                            onTap: () => _handleAction(() => context.read<MessagingProvider>().declineRequest(request.id), ''),
+                            color: colors.error,
+                            isLoading: _isLoading,
                           ),
                         ),
-                      ),
-                    ],
-              ),
-            ],
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _ActionButton(
+                            label: 'Accept',
+                            onTap: () => _handleAction(() => context.read<MessagingProvider>().acceptRequest(request.id), 'Connected!'),
+                            color: colors.primary,
+                            isFilled: true,
+                            isLoading: _isLoading,
+                          ),
+                        ),
+                      ]
+                    : [
+                        Expanded(
+                          child: _ActionButton(
+                            label: 'Withdraw',
+                            onTap: () => _handleAction(() => context.read<MessagingProvider>().withdrawRequest(request.id), 'Request withdrawn'),
+                            color: colors.error,
+                            isLoading: _isLoading,
+                          ),
+                        ),
+                      ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Color _getStatusColor(RequestStatus status, ColorScheme colors) {
-    switch (status) {
-      case RequestStatus.pending: return colors.primary;
-      case RequestStatus.accepted: return Colors.green;
-      case RequestStatus.declined: return colors.error;
-      case RequestStatus.cancelled: return colors.onSurfaceVariant;
-    }
+  String _formatAddress(String addr) {
+    if (addr.length < 8) return addr;
+    return '${addr.substring(0, 3)}...${addr.substring(addr.length - 3)}';
   }
 }
 
@@ -273,34 +294,38 @@ class _ActionButton extends StatelessWidget {
   final VoidCallback onTap;
   final Color color;
   final bool isFilled;
+  final bool isLoading;
 
   const _ActionButton({
     required this.label,
     required this.onTap,
     required this.color,
     this.isFilled = false,
+    this.isLoading = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      onTap: isLoading ? null : onTap,
+      borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: isFilled ? color : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          border: isFilled ? null : Border.all(color: color.withValues(alpha: 0.3)),
+          color: isLoading ? color.withValues(alpha: 0.1) : (isFilled ? color : color.withValues(alpha: 0.1)),
+          borderRadius: BorderRadius.circular(16),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isFilled ? Colors.white : color,
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
-          ),
-        ),
+        alignment: Alignment.center,
+        child: isLoading 
+          ? SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: isFilled ? Colors.white : color))
+          : Text(
+              label,
+              style: TextStyle(
+                color: isFilled ? Colors.white : color,
+                fontWeight: FontWeight.w900,
+                fontSize: 13,
+              ),
+            ),
       ),
     );
   }

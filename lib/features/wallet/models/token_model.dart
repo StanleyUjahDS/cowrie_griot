@@ -3,48 +3,65 @@ import '../utils/chain_assets.dart';
 class TokenModel {
   final String name;
   final String symbol;
-  final num balance;
-  final num priceUsd;
-  final num valueUsd;
-  final num changePercent;
+  final String balance; // formatted string
+  final String rawBalance; // integer string
+  final num? priceUsd;
+  final num? valueUsd;
+  final num? changePercent;
   final String chain;
+  final String rawNetwork;
   final String contractAddress;
   final String imageUrl;
-  final int decimals;
+  final int? decimals;
   final bool hasMarketData;
-  final bool isSpam;
   final bool isOfficial;
-  final bool isTradeable;
   final bool isEcosystem;
-  final String status;
-  final List<String> reasons;
+  final bool isFeatured;
+  final bool alwaysDisplay;
+  final int? displayOrder;
+  final String marketDataSource;
   final Map<String, String> externalLinks;
-  final Map<String, dynamic>? security;
+
+  // Added Backend Fields
+  final String? id;
+  final String? type;
+  final String? chainId;
+  final num? marketCapUsd;
+  final num? volume24hUsd;
+  final DateTime? priceUpdatedAt;
 
   const TokenModel({
     required this.name,
     required this.symbol,
     required this.balance,
-    this.priceUsd = 0,
-    required this.valueUsd,
-    required this.changePercent,
+    required this.rawBalance,
+    this.priceUsd,
+    this.valueUsd,
+    this.changePercent,
     required this.chain,
+    this.rawNetwork = '',
     required this.contractAddress,
     required this.imageUrl,
-    this.decimals = 18,
+    this.decimals,
     this.hasMarketData = false,
-    this.isSpam = false,
     this.isOfficial = false,
-    this.isTradeable = false,
     this.isEcosystem = false,
-    this.status = 'unknown',
-    this.reasons = const [],
+    this.isFeatured = false,
+    this.alwaysDisplay = false,
+    this.displayOrder,
+    this.marketDataSource = '',
     this.externalLinks = const {},
-    this.security,
+    this.id,
+    this.type,
+    this.chainId,
+    this.marketCapUsd,
+    this.volume24hUsd,
+    this.priceUpdatedAt,
   });
 
   String get identity {
-    final net = ChainAssets.normalize(chain);
+    // CONTRACT: use network + tokenAddress as token identity
+    final net = rawNetwork.isNotEmpty ? rawNetwork.toLowerCase() : ChainAssets.normalize(chain);
     if (isNative) return '$net:native';
     return '$net:${contractAddress.toLowerCase().trim()}';
   }
@@ -56,43 +73,22 @@ class TokenModel {
         address == '0x0000000000000000000000000000000000000000';
   }
 
-  bool get isProfit => changePercent >= 0;
+  bool get isProfit => (changePercent ?? 0) >= 0;
 
   bool get isGriotAsset => isEcosystem;
 
-  double get value => valueUsd.toDouble();
+  double get value => (valueUsd ?? 0).toDouble();
 
   factory TokenModel.fromJson(Map<String, dynamic> json) {
-    final hasPrice =
-        json['priceUsd'] != null || json['price'] != null;
-    final hasChange =
-        json['changePercent24h'] != null ||
-        json['changePercent'] != null ||
-        json['priceChangePercent'] != null;
+    final String balanceText = _string(json['balance'] ?? '0');
+    final String rawBalance = _string(json['rawBalance'] ?? '0');
 
-    final securityData = json['security'] is Map ? Map<String, dynamic>.from(json['security']) : null;
-    final classification = json['classification'] is Map
-        ? Map<String, dynamic>.from(json['classification'])
-        : null;
+    // Market Data Priority mapping
+    final num? priceUsd = _numOrNull(json['priceUsd']);
+    final num? valueUsd = _numOrNull(json['valueUsd'] ?? json['balanceUsd']);
+    final num? changePercent = _numOrNull(json['changePercent24h'] ?? json['changePercent']);
 
-    String status;
-    bool isTradeable;
-    bool isSpam;
-
-    if (classification != null) {
-      // Direct authoritative mapping from backend
-      status = _string(classification['status'] ?? 'unknown');
-      isTradeable = classification['isTradeable'] == true;
-      isSpam = classification['isSpam'] == true;
-    } else {
-      // Safe fallback for missing classification
-      status = 'unknown';
-      isTradeable = false;
-      isSpam = json['isSpam'] == true;
-    }
-    
-    final reasonsRaw = classification?['reasons'] ?? securityData?['reasons'];
-    final reasons = reasonsRaw is List ? reasonsRaw.map((e) => e.toString()).toList() : <String>[];
+    final bool hasMarketData = priceUsd != null || valueUsd != null;
 
     final linksRaw = json['externalLinks'];
     final externalLinks = linksRaw is Map 
@@ -102,38 +98,30 @@ class TokenModel {
     return TokenModel(
       name: _string(json['name']),
       symbol: _string(json['symbol']),
-      balance: _num(json['balance']),
-      priceUsd: _num(json['priceUsd'] ?? json['price']),
-      valueUsd: _num(
-        json['usdValue'] ??
-            json['valueUsd'] ??
-            json['balanceUsd'],
-      ),
-      changePercent: _num(
-        json['changePercent24h'] ??
-            json['changePercent'] ??
-            json['priceChangePercent'],
-      ),
+      balance: balanceText,
+      rawBalance: rawBalance,
+      priceUsd: priceUsd,
+      valueUsd: valueUsd,
+      changePercent: changePercent,
       chain: _string(json['chain'] ?? json['network']),
-      contractAddress: _string(
-        json['tokenAddress'] ??
-            json['contractAddress'],
-      ),
-      imageUrl: _string(
-        json['logo'] ??
-            json['imageUrl'] ??
-            json['logoUrl'],
-      ),
-      decimals: _int(json['decimals'], fallback: 18),
-      hasMarketData: hasPrice || hasChange || (json['usdValue'] != null || json['valueUsd'] != null),
-      isSpam: isSpam,
+      rawNetwork: _string(json['network'] ?? json['chain']),
+      contractAddress: _string(json['tokenAddress'] ?? json['contractAddress']),
+      imageUrl: _string(json['logo'] ?? json['imageUrl']),
+      decimals: _intOrNull(json['decimals']),
+      hasMarketData: hasMarketData,
       isOfficial: json['isOfficial'] == true,
-      isTradeable: isTradeable,
       isEcosystem: json['isEcosystem'] == true,
-      status: status,
-      reasons: reasons,
+      isFeatured: json['isFeatured'] == true,
+      alwaysDisplay: json['alwaysDisplay'] == true,
+      displayOrder: _intOrNull(json['displayOrder']),
+      marketDataSource: _string(json['marketDataSource']),
       externalLinks: externalLinks,
-      security: securityData,
+      id: json['id']?.toString(),
+      type: json['type']?.toString(),
+      chainId: json['chainId']?.toString(),
+      marketCapUsd: _numOrNull(json['marketCapUsd']),
+      volume24hUsd: _numOrNull(json['volume24hUsd']),
+      priceUpdatedAt: json['priceUpdatedAt'] != null ? DateTime.tryParse(json['priceUpdatedAt'].toString()) : null,
     );
   }
 
@@ -142,15 +130,16 @@ class TokenModel {
     return value.toString();
   }
 
-  static num _num(dynamic value) {
-    if (value == null) return 0;
+  static num? _numOrNull(dynamic value) {
+    if (value == null) return null;
     if (value is num) return value;
-    return num.tryParse(value.toString()) ?? 0;
+    return num.tryParse(value.toString());
   }
 
-  static int _int(dynamic value, {required int fallback}) {
+  static int? _intOrNull(dynamic value) {
+    if (value == null) return null;
     if (value is int) return value;
     if (value is num) return value.toInt();
-    return int.tryParse(value?.toString() ?? '') ?? fallback;
+    return int.tryParse(value.toString());
   }
 }

@@ -5,13 +5,13 @@ import 'package:provider/provider.dart';
 
 import '../providers/wallet_provider.dart';
 import '../models/token_model.dart';
-import '../widgets/easy_buy_sheet.dart';
 import '../widgets/wallet_filter_sheet.dart';
 import '../widgets/wallet_header.dart';
 import '../widgets/wallet_balance_card.dart';
 import '../widgets/wallet_address_card.dart';
 import '../widgets/wallet_actions.dart';
 import '../widgets/token_list.dart';
+import '../widgets/nft_item.dart';
 import '../widgets/token_icon.dart';
 import '../widgets/wallet_loading.dart';
 import '../utils/wallet_formatters.dart';
@@ -152,6 +152,14 @@ class _WalletScreenState extends State<WalletScreen> {
   void initState() {
     super.initState();
     NavigationScrollService.instance.addListener(_onNavTap);
+    
+    // CONTRACT: Initial load if list is empty
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provider = context.read<WalletProvider>();
+      if (provider.tokens.isEmpty) {
+        provider.loadWallet();
+      }
+    });
   }
 
   @override
@@ -162,7 +170,7 @@ class _WalletScreenState extends State<WalletScreen> {
   }
 
   void _onNavTap() {
-    if (NavigationScrollService.instance.tappedIndex == 2) { // Index 2 is Wallet
+    if (NavigationScrollService.instance.tappedIndex == 3) { // Index 3 is Wallet
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
           0,
@@ -177,7 +185,6 @@ class _WalletScreenState extends State<WalletScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final text = theme.textTheme;
 
     return Consumer<WalletProvider>(
       builder: (context, provider, child) {
@@ -186,13 +193,10 @@ class _WalletScreenState extends State<WalletScreen> {
         }
 
         return GradientScaffold(
+          useSafeArea: false,
           appBar: AppBar(
-            title: Text(
-              'Wallet',
-              style: text.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+            title: const Text('Wallet'),
+            centerTitle: true,
             actions: [
               IconButton(
                 onPressed: () => context.push('/wallet/search'),
@@ -207,28 +211,37 @@ class _WalletScreenState extends State<WalletScreen> {
             scrolledUnderElevation: 0,
             surfaceTintColor: Colors.transparent,
           ),
-          floatingActionButton: SafeArea(
-            minimum: const EdgeInsets.only(right: 4, bottom: 18),
-            child: FloatingActionButton.extended(
-              heroTag: 'easy_buy_fab',
-              backgroundColor: colors.primary,
-              foregroundColor: colors.onPrimary,
-              elevation: 6,
-              tooltip: 'Buy crypto',
-              onPressed: () => openEasyBuySheet(context),
-              icon: const Icon(Icons.shopping_cart_outlined),
-              label: const Text(
-                'Buy',
-                style: TextStyle(fontWeight: FontWeight.w700),
+          floatingActionButton: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              FloatingActionButton(
+                heroTag: 'dapp_browser_fab',
+                backgroundColor: colors.secondaryContainer,
+                foregroundColor: colors.onSecondaryContainer,
+                elevation: 6,
+                tooltip: 'DApp Browser',
+                onPressed: () => context.push('/wallet/browser'),
+                child: const Icon(Icons.public_rounded, size: 24),
               ),
-            ),
+              const SizedBox(height: 12),
+              FloatingActionButton(
+                heroTag: 'easy_buy_fab',
+                backgroundColor: colors.primary,
+                foregroundColor: colors.onPrimary,
+                elevation: 6,
+                tooltip: 'Flash exchange',
+                onPressed: () => context.push('/wallet/flash'),
+                child: const Icon(Icons.currency_exchange_rounded, size: 24),
+              ),
+            ],
           ),
           floatingActionButtonLocation: const RaisedEndFloatLocation(
-            bottomDistance: 82,
+            bottomDistance: 125,
             rightDistance: 16,
           ),
           child: RefreshIndicator(
-            onRefresh: provider.loadWallet,
+            onRefresh: () => provider.loadWallet(force: true),
             displacement: 30,
             edgeOffset: 0,
             color: colors.primary,
@@ -276,7 +289,7 @@ class _WalletScreenState extends State<WalletScreen> {
                     onSendTap: () => context.push('/wallet/send'),
                     onReceiveTap: () => context.push('/wallet/receive'),
                     onSwapTap: () => context.push('/wallet/swap'),
-                    onBuyTap: () => openEasyBuySheet(context),
+                    onBuyTap: () => context.push('/wallet/flash'),
                   ),
                 ),
 
@@ -287,39 +300,13 @@ class _WalletScreenState extends State<WalletScreen> {
 
                 // CONTENT BASED ON SELECTED TAB
                 if (provider.selectedTab == 0) ...[
-                  // Trusted Assets (Verified/Official/Ecosystem/Native)
-                  if (provider.verifiedAssets.isNotEmpty) ...[
+                  // Unified Assets List
+                  if (provider.visibleAssets.isNotEmpty) ...[
                     SliverToBoxAdapter(
-                      child: _buildSectionHeader(context, 'Trusted Assets', provider.verifiedAssets.length),
+                      child: _buildSectionHeader(context, 'Assets', provider.visibleAssets.length),
                     ),
                     TokenList(
-                      tokens: provider.verifiedAssets,
-                      onTokenTap: (token) => context.push('/wallet/asset', extra: token),
-                      onTokenLongPress: (token) => _showAssetActions(context, provider, token),
-                      emptyState: const SliverToBoxAdapter(child: SizedBox.shrink()),
-                    ),
-                  ],
-
-                  // Unverified Assets (Security Scan Pending/Unknown)
-                  if (provider.unverifiedAssets.isNotEmpty) ...[
-                    SliverToBoxAdapter(
-                      child: _buildSectionHeader(context, 'Other Assets', provider.unverifiedAssets.length),
-                    ),
-                    TokenList(
-                      tokens: provider.unverifiedAssets,
-                      onTokenTap: (token) => context.push('/wallet/asset', extra: token),
-                      onTokenLongPress: (token) => _showAssetActions(context, provider, token),
-                      emptyState: const SliverToBoxAdapter(child: SizedBox.shrink()),
-                    ),
-                  ],
-
-                  // Blocked or spam tokens
-                  if (provider.blockedAssets.isNotEmpty) ...[
-                    SliverToBoxAdapter(
-                      child: _buildSectionHeader(context, 'Blocked or Spam Tokens', provider.blockedAssets.length, isBlocked: true),
-                    ),
-                    TokenList(
-                      tokens: provider.blockedAssets,
+                      tokens: provider.visibleAssets,
                       onTokenTap: (token) => context.push('/wallet/asset', extra: token),
                       onTokenLongPress: (token) => _showAssetActions(context, provider, token),
                       emptyState: const SliverToBoxAdapter(child: SizedBox.shrink()),
@@ -330,7 +317,37 @@ class _WalletScreenState extends State<WalletScreen> {
                     _buildEmptyTokenState(context),
                 ] else if (provider.selectedTab == 1) ...[
                   // NFTs Tab
-                  _buildEmptyNFTState(context),
+                  if (provider.isLoadingNfts && provider.nfts.isEmpty)
+                    const SliverToBoxAdapter(
+                      child: SizedBox(
+                        height: 300,
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+                    )
+                  else if (provider.nftError != null && provider.nfts.isEmpty)
+                    _buildNftErrorState(context, provider.nftError!)
+                  else if (provider.nfts.isNotEmpty)
+                    SliverPadding(
+                      padding: const EdgeInsets.all(8),
+                      sliver: SliverGrid(
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          childAspectRatio: 0.75,
+                        ),
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final nft = provider.nfts[index];
+                            return NftItem(
+                              nft: nft,
+                              onTap: () => context.push('/wallet/nft', extra: nft),
+                            );
+                          },
+                          childCount: provider.nfts.length,
+                        ),
+                      ),
+                    )
+                  else
+                    _buildEmptyNFTState(context),
                 ] else if (provider.selectedTab == 2) ...[
                   // Activity Tab
                   _buildEmptyActivityState(context),
@@ -422,17 +439,18 @@ class _WalletScreenState extends State<WalletScreen> {
 
   Widget _buildSectionHeader(BuildContext context, String title, int count, {bool isBlocked = false}) {
     final colors = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
       child: Row(
         children: [
           Text(
-            title,
-            style: text.titleSmall?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: isBlocked ? colors.error : colors.onSurface,
+            title.toUpperCase(),
+            style: TextStyle(
+              color: isBlocked ? colors.error : colors.primary,
+              fontWeight: FontWeight.w900,
+              fontSize: 11,
+              letterSpacing: 1.5,
             ),
           ),
           const SizedBox(width: 8),
@@ -444,9 +462,10 @@ class _WalletScreenState extends State<WalletScreen> {
             ),
             child: Text(
               count.toString(),
-              style: text.labelSmall?.copyWith(
+              style: TextStyle(
                 color: isBlocked ? colors.error : colors.primary,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.bold,
+                fontSize: 10,
               ),
             ),
           ),
@@ -456,8 +475,8 @@ class _WalletScreenState extends State<WalletScreen> {
   }
 
   Widget _buildEmptyTokenState(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
 
     return SliverToBoxAdapter(
       child: SizedBox(
@@ -482,12 +501,12 @@ class _WalletScreenState extends State<WalletScreen> {
               const SizedBox(height: 12),
               Text(
                 'No tokens found',
-                style: text.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 4),
               Text(
                 'Your assets will appear here.',
-                style: text.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+                style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
               ),
             ],
           ),
@@ -497,8 +516,8 @@ class _WalletScreenState extends State<WalletScreen> {
   }
 
   Widget _buildEmptyNFTState(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
 
     return SliverToBoxAdapter(
       child: SizedBox(
@@ -523,12 +542,39 @@ class _WalletScreenState extends State<WalletScreen> {
               const SizedBox(height: 12),
               Text(
                 'No NFTs found',
-                style: text.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 4),
               Text(
                 'Collectibles will appear here.',
-                style: text.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+                style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNftErrorState(BuildContext context, String error) {
+    final colors = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+
+    return SliverToBoxAdapter(
+      child: SizedBox(
+        height: 300,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline_rounded, size: 48, color: colors.error.withValues(alpha: 0.5)),
+              const SizedBox(height: 16),
+              Text(error, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 12),
+              TextButton.icon(
+                onPressed: () => context.read<WalletProvider>().loadNfts(force: true),
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Try Again'),
               ),
             ],
           ),
@@ -538,8 +584,8 @@ class _WalletScreenState extends State<WalletScreen> {
   }
 
   Widget _buildEmptyActivityState(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
 
     return SliverToBoxAdapter(
       child: SizedBox(
@@ -564,12 +610,12 @@ class _WalletScreenState extends State<WalletScreen> {
               const SizedBox(height: 12),
               Text(
                 'No activity yet',
-                style: text.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 4),
               Text(
                 'Transactions will appear here.',
-                style: text.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+                style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
               ),
             ],
           ),

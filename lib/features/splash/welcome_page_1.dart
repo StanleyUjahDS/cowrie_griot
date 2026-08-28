@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../widgets/onboarding/welcome_page_widget.dart';
-import '../../widgets/onboarding/animated_progress_bar.dart';
-import '../../core/ui/scaffolds/gradient_scaffold.dart';
+import '/widgets/onboarding/welcome_page_widget.dart';
+import '/widgets/onboarding/animated_progress_bar.dart';
+import '/core/ui/scaffolds/gradient_scaffold.dart';
 
 class WelcomePage1 extends StatelessWidget {
   const WelcomePage1({super.key});
@@ -12,7 +12,7 @@ class WelcomePage1 extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    const double progress = 0.2;
+    const double progress = 0.25;
 
     return GradientScaffold(
       child: Scaffold(
@@ -49,7 +49,7 @@ class WelcomePage1 extends StatelessWidget {
                   ),
                 ),
       
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
       
                 Expanded(
                   child: AnimatedProgressBar(

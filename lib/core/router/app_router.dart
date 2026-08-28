@@ -6,7 +6,6 @@ import '../../features/splash/welcome_page_1.dart';
 import '../../features/splash/welcome_page_2.dart';
 import '../../features/splash/welcome_page_3.dart';
 import '../../features/splash/welcome_page_4.dart';
-import '../../features/splash/welcome_page_5.dart';
 
 import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/create_account.dart';
@@ -23,25 +22,34 @@ import '../../features/chat/screens/chat_home_screen.dart';
 import '../../features/chat/screens/chatting_screen.dart';
 import '../../features/chat/screens/user_discovery_screen.dart';
 import '../../features/chat/screens/message_requests_screen.dart';
+import '../../features/chat/screens/activity_screen.dart';
 import '../../features/chat/screens/friends_list_screen.dart';
+import '../../features/chat/screens/user_profile_screen.dart';
+import '../../features/users/models/user_model.dart' as users;
 
 import '../../features/settings/screens/setting_screen.dart';
 import '../../features/settings/screens/appearance/theme_settings_screen.dart';
 import '../../features/settings/screens/appearance/accent_color_screen.dart';
 import '../../features/settings/screens/account/account_details_screen.dart';
+import '../../features/settings/screens/account/griot_plus_screen.dart';
 import '../../features/settings/screens/security/app_security_screen.dart';
 
 import '../../features/wallet/screens/wallet_screen.dart';
 import '../../features/wallet/screens/asset_search_screen.dart';
 import '../../features/wallet/screens/scanner_screen.dart';
 import '../../features/wallet/screens/asset_details_screen.dart';
+import '../../features/wallet/screens/nft_details_screen.dart';
 import '../../features/wallet/screens/send_screen.dart';
 import '../../features/wallet/screens/receive_screen.dart';
 import '../../features/wallet/screens/swap_screen.dart';
+import '../../features/wallet/screens/flash_exchange_screen.dart';
+import '../../features/wallet/screens/dapp_browser_screen.dart';
 import '../../features/wallet/services/wallet_crypto_service.dart';
 import '../../features/wallet/models/token_model.dart';
+import '../../features/wallet/models/nft_model.dart';
 
 import '../../features/miner/screens/miner_screen.dart';
+import '../../features/miner/screens/mining_rules_screen.dart';
 import '../../features/miner/screens/reputation_screen.dart';
 import '../../features/miner/screens/referral_screen.dart';
 
@@ -130,6 +138,17 @@ class AppRouter {
         builder: (context, state) => const UserDiscoveryScreen(),
       ),
 
+      GoRoute(
+        path: '/user/profile',
+        builder: (context, state) {
+          final user = state.extra as users.UserModel?;
+          if (user == null) {
+            return const _InvalidRoute(message: 'User data missing.');
+          }
+          return UserProfileScreen(user: user);
+        },
+      ),
+
       // ======================================================
       // WELCOME
       // ======================================================
@@ -159,13 +178,6 @@ class AppRouter {
         path: '/welcome_four',
         builder: (context, state) {
           return const WelcomePage4();
-        },
-      ),
-
-      GoRoute(
-        path: '/welcome_five',
-        builder: (context, state) {
-          return const WelcomePage5();
         },
       ),
 
@@ -365,6 +377,27 @@ class AppRouter {
       ),
 
       // ======================================================
+      // NFT DETAILS
+      // ======================================================
+
+      GoRoute(
+        path: '/wallet/nft',
+        builder: (context, state) {
+          final extra = state.extra;
+
+          if (extra is! NftModel) {
+            return const _InvalidRoute(
+              message: 'NFT data was not provided.',
+            );
+          }
+
+          return NftDetailsScreen(
+            nft: extra,
+          );
+        },
+      ),
+
+      // ======================================================
       // WALLET ACTIONS
       // ======================================================
 
@@ -396,6 +429,19 @@ class AppRouter {
           return SwapScreen(
             initialFromToken: extra is TokenModel ? extra : null,
           );
+        },
+      ),
+
+      GoRoute(
+        path: '/wallet/flash',
+        builder: (context, state) => const FlashExchangeScreen(),
+      ),
+
+      GoRoute(
+        path: '/wallet/browser',
+        builder: (context, state) {
+          final url = state.extra as String?;
+          return DAppBrowserScreen(initialUrl: url ?? 'https://app.uniswap.org');
         },
       ),
 
@@ -444,6 +490,13 @@ class AppRouter {
       ),
 
       GoRoute(
+        path: '/settings/griot-plus',
+        builder: (context, state) {
+          return const GriotPlusScreen();
+        },
+      ),
+
+      GoRoute(
         path: '/settings/reputation',
         builder: (context, state) {
           return const ReputationScreen();
@@ -457,6 +510,11 @@ class AppRouter {
         },
       ),
 
+      GoRoute(
+        path: '/miner/rules',
+        builder: (context, state) => const MiningRulesScreen(),
+      ),
+
       // ======================================================
       // MAIN NAVIGATION SHELL
       // ======================================================
@@ -468,6 +526,7 @@ class AppRouter {
             navigationShell,
             ) {
           return GradientScaffold(
+            useSafeArea: false,
             child: MainNavigationShell(
               navigationShell: navigationShell,
             ),
@@ -483,6 +542,19 @@ class AppRouter {
               GoRoute(
                 path: '/chat',
                 builder: (context, state) => const ChatHomeScreen(),
+              ),
+            ],
+          ),
+
+          // ==================================================
+          // ACTIVITY
+          // ==================================================
+
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/activity',
+                builder: (context, state) => const ActivityScreen(),
               ),
             ],
           ),

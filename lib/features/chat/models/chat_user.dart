@@ -112,13 +112,13 @@ class ChatUser {
   // ==========================================================
 
   String get shortWalletAddress {
-    if (walletAddress.length <= 12) {
+    if (walletAddress.length <= 8) {
       return walletAddress;
     }
 
-    return '${walletAddress.substring(0, 6)}...'
+    return '${walletAddress.substring(0, 3)}...'
         '${walletAddress.substring(
-      walletAddress.length - 4,
+      walletAddress.length - 3,
     )}';
   }
 
@@ -132,6 +132,22 @@ class ChatUser {
     return phone != null &&
         phone.isNotEmpty &&
         phoneDiscoveryEnabled;
+  }
+
+  // ==========================================================
+  // CONVERSIONS
+  // ==========================================================
+
+  UserModel toUserModel() {
+    return UserModel(
+      id: id,
+      walletAddress: walletAddress,
+      username: username,
+      displayName: displayName,
+      avatarUrl: profileUrl,
+      reputation: reputation,
+      relationshipStatus: 'friend',
+    );
   }
 
   // ==========================================================

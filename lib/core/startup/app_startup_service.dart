@@ -4,111 +4,61 @@ import 'package:flutter/foundation.dart';
 
 import '../../features/auth/services/auth_session_service.dart';
 import '../../features/users/providers/user_provider.dart';
-
-// ============================================================
-// APP STARTUP SERVICE
-// ============================================================
-//
-// THIS IS NOW THE SINGLE OWNER OF APPLICATION STARTUP.
-//
-// Startup:
-//
-// 1. Load local user
-// 2. Restore backend session
-// 3. Load current user from backend
-//
-// There is NO second restoreSession() elsewhere during startup.
-//
-// ============================================================
+import '../../features/chat/providers/messaging_provider.dart';
+import '../services/push_notification_service.dart';
 
 class AppStartupService {
   final AuthSessionService _authSessionService;
   final UserProvider _userProvider;
+  final MessagingProvider _messagingProvider;
 
   AppStartupService({
     required AuthSessionService authSessionService,
     required UserProvider userProvider,
-  })  : _authSessionService = authSessionService,
-        _userProvider = userProvider;
-
-  // ============================================================
-  // INITIALIZE APPLICATION
-  // ============================================================
+    required MessagingProvider messagingProvider,
+  }) : _authSessionService = authSessionService,
+       _userProvider = userProvider,
+       _messagingProvider = messagingProvider;
 
   Future<bool> initialize() async {
     try {
-      // --------------------------------------------------------
-      // STEP 1
-      // RESTORE LOCAL USER
-      // --------------------------------------------------------
+      debugPrint('AppStartup: Starting initialization...');
 
+      // 1. Restore Local Data (Immediate UI)
       await _userProvider.loadLocalUser();
 
-      // --------------------------------------------------------
-      // STEP 2
-      // RESTORE BACKEND SESSION
-      // --------------------------------------------------------
-      //
-      // This happens exactly once.
-      //
-      // AuthSessionService internally:
-      //
-      // refresh token
-      //      ↓
-      // if failed
-      //      ↓
-      // wallet authentication
-      //
-      // --------------------------------------------------------
+      // 2. Restore Session (Network)
+      AuthSessionStatus status = await _authSessionService.restoreSession();
 
-      final sessionRestored =
-      await _authSessionService.restoreSession();
-
-      if (!sessionRestored) {
-        // ------------------------------------------------------
-        // No valid backend session could be established.
-        //
-        // We do not delete the wallet or local user.
-        // ------------------------------------------------------
-
-        return false;
+      if (status == AuthSessionStatus.needsRegistration) {
+        debugPrint('AppStartup: Identity missing. Redirection required.');
+        return false; 
       }
 
-      // --------------------------------------------------------
-      // STEP 3
-      // LOAD CURRENT USER
-      // --------------------------------------------------------
-      //
-      // At this point ApiClient has a valid access token.
-      //
-      // GET /users/me
-      //
-      // --------------------------------------------------------
+      // 3. Sync Profile and Init Real-time
+      if (status == AuthSessionStatus.authenticated) {
+        debugPrint('AppStartup: Authenticated. Syncing profile...');
+        try {
+          await _userProvider.loadUser();
+          
+          final accessToken = await _authSessionService.getAccessToken();
+          if (accessToken != null) {
+            _messagingProvider.initSocket(accessToken);
+          }
 
-      await _userProvider.loadUser();
-
-      if (!_userProvider.hasUser) {
-        return false;
+          await PushNotificationService.instance.syncTokenWithBackend();
+          _messagingProvider.loadBlocks();
+        } catch (e) {
+          debugPrint('AppStartup: Profile sync failed (Backend unreachable).');
+        }
+      } else {
+        debugPrint('AppStartup: Continuing in ${status.name} mode.');
       }
 
-      // --------------------------------------------------------
-      // STEP 4
-      // STARTUP SUCCESSFUL
-      // --------------------------------------------------------
-
-      // TODO:
-      // Initialize messaging.
-      // Initialize sockets.
-      // Initialize notifications.
-      // Initialize wallet live-data services.
-      // etc.
-
-      return true;
+      // CONTRACT: If a wallet exists, always return true to enter the app.
+      return true; 
     } catch (e) {
-      debugPrint(
-        'AppStartupService initialization error: $e',
-      );
-
+      debugPrint('AppStartup: Critical initialization error: $e');
       return false;
     }
   }

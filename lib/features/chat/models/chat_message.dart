@@ -28,6 +28,8 @@ class ChatMessage {
   /// Message text / content.
   final String text;
 
+  String get content => text;
+
   final MessageType type;
 
   final MessageStatus status;

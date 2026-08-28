@@ -1,3 +1,4 @@
+// Version: Fixed build errors
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -49,17 +50,19 @@ class _SendScreenState extends State<SendScreen> {
   double get _entered {
     final value = double.tryParse(_amount.text.trim()) ?? 0;
     if (!_usdMode) return value;
-    final price = _token?.priceUsd.toDouble() ?? 0;
+    final price = _token?.priceUsd?.toDouble() ?? 0;
     return price > 0 ? value / price : 0;
   }
 
   void _useMax() {
     final token = _token;
     if (token == null) return;
+    final balance = num.tryParse(token.balance)?.toDouble() ?? 0.0;
     if (_usdMode) {
-      _amount.text = (token.balance.toDouble() * token.priceUsd.toDouble()).toStringAsFixed(2);
+      final price = token.priceUsd?.toDouble() ?? 0.0;
+      _amount.text = (balance * price).toStringAsFixed(2);
     } else {
-      _amount.text = token.balance.toString();
+      _amount.text = balance.toString();
     }
     setState(() {});
   }
@@ -67,21 +70,25 @@ class _SendScreenState extends State<SendScreen> {
   Future<void> _send() async {
     final token = _token;
     final recipient = _address.text.trim();
-    final amount = _entered;
 
     if (token == null) {
       if (mounted) NotificationService.showError(context, 'Select an asset.');
       return;
     }
-    if (!RegExp(r'^0x[a-fA-F0-9]{40}$').hasMatch(recipient)) {
-      if (mounted) NotificationService.showError(context, 'Invalid recipient address.');
+    if (!_isValidAddress(recipient, token.chain)) {
+      if (mounted) NotificationService.showError(context, 'Invalid recipient address for ${token.chain.toUpperCase()}.');
       return;
     }
-    if (amount <= 0) {
+    final amountRaw = _toBaseUnits(_amount.text.trim(), token.decimals ?? 18);
+    if (amountRaw == null || amountRaw == '0') {
       if (mounted) NotificationService.showError(context, 'Enter a valid amount.');
       return;
     }
-    if (amount > token.balance) {
+
+    final balanceRaw = BigInt.tryParse(token.rawBalance) ?? BigInt.zero;
+    final enteredRaw = BigInt.tryParse(amountRaw) ?? BigInt.zero;
+    
+    if (enteredRaw > balanceRaw) {
       if (mounted) NotificationService.showError(context, 'Insufficient balance.');
       return;
     }
@@ -94,8 +101,8 @@ class _SendScreenState extends State<SendScreen> {
     if (mounted) setState(() { _loading = true; _message = 'Preparing...'; });
     try {
       final prepared = token.isNative
-          ? await api.prepareNativeSend(network: token.chain, toAddress: recipient, amount: amount.toString())
-          : await api.prepareTokenSend(network: token.chain, tokenAddress: token.contractAddress, toAddress: recipient, amount: amount.toString());
+          ? await api.prepareNativeSend(network: token.chain, toAddress: recipient, amount: amountRaw)
+          : await api.prepareTokenSend(network: token.chain, tokenAddress: token.contractAddress, toAddress: recipient, amount: amountRaw);
 
       final id = prepared['transactionId']?.toString();
       final unsigned = prepared['unsignedTransaction'];
@@ -104,7 +111,7 @@ class _SendScreenState extends State<SendScreen> {
       }
 
       if (!mounted) return;
-      final confirmed = await _review(context, token, recipient, amount, prepared, walletProvider);
+      final confirmed = await _review(context, token, recipient, amountRaw, prepared, walletProvider);
       if (!confirmed || !mounted) return;
 
       setState(() => _message = 'Signing...');
@@ -182,12 +189,20 @@ class _SendScreenState extends State<SendScreen> {
     }
   }
 
-  Future<bool> _review(BuildContext context, TokenModel token, String recipient, double amount, Map<String, dynamic> prepared, WalletProvider provider) async {
+  Future<bool> _review(BuildContext context, TokenModel token, String recipient, String amountRaw, Map<String, dynamic> prepared, WalletProvider provider) async {
     final colors = Theme.of(context).colorScheme;
     final feeRaw = BigInt.tryParse(prepared['estimatedNetworkFeeRaw']?.toString() ?? '');
     final native = provider.tokens.where((t) => t.isNative && t.chain == token.chain).cast<TokenModel?>().firstWhere((t) => t != null, orElse: () => null);
-    final feeNative = feeRaw == null ? null : feeRaw.toDouble() / 1e18;
-    final feeUsd = native == null || feeNative == null ? null : feeNative * native.priceUsd.toDouble();
+    
+    double? feeNative;
+    if (feeRaw != null) {
+      final decimals = native?.decimals ?? 18;
+      feeNative = feeRaw.toDouble() / (BigInt.from(10).pow(decimals).toDouble());
+    }
+
+    final feeUsd = native == null || feeNative == null ? null : feeNative * (native.priceUsd?.toDouble() ?? 0);
+
+    final displayAmount = _fromBaseUnits(amountRaw, token.decimals ?? 18);
 
     final result = await showModalBottomSheet<bool>(
       context: context,
@@ -203,7 +218,7 @@ class _SendScreenState extends State<SendScreen> {
           const SizedBox(height: 32),
           TokenIcon(imageUrl: token.imageUrl, symbol: token.symbol, name: token.name, chainName: token.chain, isNative: token.isNative, radius: 28),
           const SizedBox(height: 16),
-          Text('${WalletFormatters.formatBalance(amount)} ${token.symbol}', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900)),
+          Text('$displayAmount ${token.symbol}', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900)),
           const SizedBox(height: 6),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -241,8 +256,30 @@ class _SendScreenState extends State<SendScreen> {
     return expectedChainIds[network.toLowerCase()];
   }
 
+  bool _isValidAddress(String address, String network) {
+    final n = network.toLowerCase();
+    if (_isEvm(n)) {
+      return RegExp(r'^0x[a-fA-F0-9]{40}$').hasMatch(address);
+    }
+    // Fallback for non-EVM: generic check if not empty
+    return address.isNotEmpty;
+  }
+
+  bool _isEvm(String network) {
+    final n = network.toLowerCase();
+    return n == 'ethereum' ||
+        n == 'eth' ||
+        n == 'base' ||
+        n == 'polygon' ||
+        n == 'matic' ||
+        n == 'arbitrum' ||
+        n == 'optimism' ||
+        n == 'bsc' ||
+        n == 'binance';
+  }
+
   void _pickToken() {
-    final tokens = context.read<WalletProvider>().tokens.where((t) => t.balance >= 0).toList();
+    final tokens = context.read<WalletProvider>().tokens.where((t) => (num.tryParse(t.balance) ?? 0) >= 0).toList();
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
@@ -254,12 +291,12 @@ class _SendScreenState extends State<SendScreen> {
             return ListTile(
               leading: CircleAvatar(
                 backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                child: const Icon(Icons.search, color: Colors.blue),
+                child: Icon(Icons.search, color: Theme.of(context).colorScheme.primary),
               ),
               title: const Text('Search for more tokens', style: TextStyle(fontWeight: FontWeight.bold)),
               onTap: () async {
                 Navigator.pop(context);
-                final selected = await context.push<TokenModel>('/wallet/search');
+                final selected = await context.push<TokenModel>('/wallet/search?mode=select');
                 if (selected != null && mounted) {
                   setState(() {
                     _token = selected;
@@ -291,279 +328,312 @@ class _SendScreenState extends State<SendScreen> {
     );
   }
 
+  String? _toBaseUnits(String value, int decimals) {
+    final normalized = value.trim();
+    if (normalized.isEmpty || decimals < 0) return null;
+
+    final parts = normalized.split('.');
+    if (parts.length > 2) return null;
+
+    final whole = parts[0].isEmpty ? '0' : parts[0];
+    final fraction = parts.length == 2 ? parts[1] : '';
+    if (!RegExp(r'^\d+$').hasMatch(whole) ||
+        (fraction.isNotEmpty && !RegExp(r'^\d+$').hasMatch(fraction))) {
+      return null;
+    }
+    if (fraction.length > decimals) return null;
+
+    final paddedFraction = fraction.padRight(decimals, '0');
+    final raw = '$whole$paddedFraction'
+        .replaceFirst(RegExp(r'^0+(?=\d)'), '');
+    return RegExp(r'^\d+$').hasMatch(raw) ? raw : null;
+  }
+
+  String _fromBaseUnits(String? baseAmount, int decimals) {
+    if (baseAmount == null || baseAmount.isEmpty || decimals < 0) {
+      return '0.00';
+    }
+
+    final cleanBase = baseAmount
+        .split('.')
+        .first
+        .replaceAll(RegExp(r'\D'), '');
+    if (cleanBase.isEmpty) return '0.00';
+    if (decimals == 0) return cleanBase;
+
+    String whole;
+    String fraction;
+    if (cleanBase.length <= decimals) {
+      final padded = cleanBase.padLeft(decimals + 1, '0');
+      final splitIndex = padded.length - decimals;
+      whole = padded.substring(0, splitIndex);
+      fraction = padded.substring(splitIndex);
+    } else {
+      final splitIndex = cleanBase.length - decimals;
+      whole = cleanBase.substring(0, splitIndex);
+      fraction = cleanBase.substring(splitIndex);
+    }
+
+    fraction = fraction.replaceAll(RegExp(r'0+$'), '');
+    if (fraction.isEmpty) return whole;
+    if (fraction.length > 8) fraction = fraction.substring(0, 8);
+    return '$whole.$fraction';
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Send form with premium pill action
     final colors = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
-    final token = _token;
 
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: GradientScaffold(
+        useSafeArea: true,
+        extendBodyBehindAppBar: true,
         appBar: AppBar(
-          title: Text('SEND', style: text.titleMedium?.copyWith(fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+          title: const Text('Send'),
           centerTitle: true,
           backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
           elevation: 0,
         ),
-        bottomNavigationBar: const SafeArea(child: GriotBannerAd()),
-        child: Stack(
+        child: Column(
           children: [
-            // Decorative Glow
-            Positioned(
-              top: -100,
-              left: -100,
-              child: Container(
-                width: 300,
-                height: 300,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      colors.primary.withValues(alpha: 0.12),
-                      colors.primary.withValues(alpha: 0.0),
-                    ],
-                  ),
-                ),
-              ).animate(onPlay: (c) => c.repeat(reverse: true))
-               .scale(begin: const Offset(0.8, 0.8), end: const Offset(1.3, 1.3), duration: 4.seconds),
-            ),
-
-            ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              physics: const BouncingScrollPhysics(),
-              children: [
-                const SizedBox(height: 12),
-                _buildSectionCard(
-                  context,
-                  label: 'Asset',
-                  child: InkWell(
-                    onTap: _pickToken,
-                    borderRadius: BorderRadius.circular(20),
-                    child: Row(
-                      children: [
-                        if (token != null) ...[
-                          TokenIcon(imageUrl: token.imageUrl, symbol: token.symbol, name: token.name, chainName: token.chain, isNative: token.isNative, radius: 20),
-                          const SizedBox(width: 14),
-                        ],
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(token?.symbol ?? 'Select asset', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
-                              if (token != null)
-                                Text('${WalletFormatters.formatBalance(token.balance)} available',
-                                  style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.4), fontSize: 13, fontWeight: FontWeight.w600)),
-                            ],
-                          ),
-                        ),
-                        Icon(Icons.keyboard_arrow_down_rounded, color: colors.onSurfaceVariant.withValues(alpha: 0.3), size: 24),
-                      ],
-                    ),
-                  ),
-                ).animate().fadeIn(duration: 400.ms).slideX(begin: 0.1, end: 0),
-                
-                const SizedBox(height: 12),
-                
-                _buildSectionCard(
-                  context,
-                  label: 'Recipient',
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _address,
-                          textInputAction: TextInputAction.next,
-                          cursorHeight: 20,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: -0.2),
-                          decoration: InputDecoration(
-                            hintText: '0x… or ENS',
-                            hintStyle: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.2)),
-                            border: InputBorder.none,
-                            isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton(
-                        onPressed: () async {
-                          final result = await GoRouter.of(context).push<String>('/wallet/scan');
-                          if (result != null && mounted) _address.text = result;
-                        },
-                        icon: Icon(Icons.qr_code_scanner_rounded, size: 22, color: colors.primary.withValues(alpha: 0.8)),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                    ],
-                  ),
-                ).animate().fadeIn(duration: 400.ms, delay: 100.ms).slideX(begin: 0.1, end: 0),
-                
-                const SizedBox(height: 12),
-                
-                _buildSectionCard(
-                  context,
-                  label: 'Amount',
-                  trailing: token != null
-                      ? InkWell(onTap: _useMax, child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: colors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)), child: const Text('MAX', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 0.5))))
-                      : null,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _amount,
-                              onChanged: (_) => setState(() {}),
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              textInputAction: TextInputAction.done,
-                              cursorHeight: 28,
-                              cursorWidth: 2,
-                              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -1.0),
-                              decoration: InputDecoration(
-                                border: InputBorder.none,
-                                hintText: '0',
-                                hintStyle: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.1)),
-                                isDense: true,
-                                contentPadding: const EdgeInsets.symmetric(vertical: 4),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          InkWell(
-                            onTap: token == null ? null : () { setState(() => _usdMode = !_usdMode); },
-                            borderRadius: BorderRadius.circular(14),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: colors.surfaceContainerHighest.withValues(alpha: 0.6),
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: Row(
-                                children: [
-                                  Text(_usdMode ? 'USD' : (token?.symbol ?? ''), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
-                                  const SizedBox(width: 6),
-                                  Icon(Icons.swap_horiz_rounded, size: 16, color: colors.onSurfaceVariant.withValues(alpha: 0.5)),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (token != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(
-                            _usdMode ? '≈ ${_entered.toStringAsFixed(8)} ${token.symbol}' : '≈ ${WalletFormatters.formatCurrency(_entered * token.priceUsd.toDouble())}',
-                            style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.3), fontSize: 13, fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                    ],
-                  ),
-                ).animate().fadeIn(duration: 400.ms, delay: 200.ms).slideX(begin: 0.1, end: 0),
-                
-                const SizedBox(height: 48),
-                
-                // Premium Action Pill
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: _loading ? null : _send,
-                    borderRadius: BorderRadius.circular(24),
+            Expanded(
+              child: Stack(
+                children: [
+                  // Decorative Glow
+                  Positioned(
+                    top: -100,
+                    left: -100,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      width: 300,
+                      height: 300,
                       decoration: BoxDecoration(
-                        color: colors.primary,
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: colors.primary.withValues(alpha: 0.35),
-                            blurRadius: 20,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            colors.primary.withValues(alpha: 0.12),
+                            colors.primary.withValues(alpha: 0.0),
+                          ],
+                        ),
                       ),
-                      child: _loading
-                          ? Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white60)),
-                                const SizedBox(width: 16),
-                                Text(_message, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Colors.white)),
-                              ],
-                            )
-                          : const Center(child: Text('CONTINUE', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 1.5, color: Colors.white))),
-                    ),
+                    ).animate(onPlay: (c) => c.repeat(reverse: true))
+                     .scale(begin: const Offset(0.8, 0.8), end: const Offset(1.3, 1.3), duration: 4.seconds),
                   ),
-                ).animate().fadeIn(duration: 600.ms, delay: 400.ms).scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1)),
-              ],
+
+                  ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    physics: const BouncingScrollPhysics(),
+                    children: [
+                      const SizedBox(height: 8),
+                      
+                      // Asset Selection
+                      _buildInputLabel(context, 'Select Asset'),
+                      const SizedBox(height: 8),
+                      _buildAssetSelector(context),
+                      
+                      const SizedBox(height: 24),
+                      
+                      // Recipient
+                      _buildInputLabel(context, 'Recipient Address'),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _address,
+                        textInputAction: TextInputAction.next,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                        decoration: InputDecoration(
+                          hintText: 'Enter 0x… address',
+                          prefixIcon: Icon(Icons.account_balance_wallet_rounded, color: colors.primary.withValues(alpha: 0.5)),
+                          suffixIcon: IconButton(
+                            onPressed: () async {
+                              final result = await GoRouter.of(context).push<String>('/wallet/scan');
+                              if (result != null && mounted) _address.text = result;
+                            },
+                            icon: Icon(Icons.qr_code_scanner_rounded, color: colors.primary),
+                          ),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.2))),
+                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.2))),
+                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: colors.primary, width: 2)),
+                          filled: true,
+                          fillColor: colors.surfaceContainerLow.withValues(alpha: 0.5),
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 24),
+                      
+                      // Amount
+                      _buildInputLabel(context, 'Amount'),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _amount,
+                        onChanged: (_) => setState(() {}),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+                        decoration: InputDecoration(
+                          hintText: '0.00',
+                          suffixIcon: Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (_token != null)
+                                  TextButton(
+                                    onPressed: _useMax,
+                                    style: TextButton.styleFrom(
+                                      backgroundColor: colors.primary.withValues(alpha: 0.1),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                                    ),
+                                    child: const Text('MAX', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
+                                  ),
+                                const SizedBox(width: 8),
+                                _buildCurrencyToggle(context),
+                              ],
+                            ),
+                          ),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.2))),
+                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.2))),
+                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: colors.primary, width: 2)),
+                          filled: true,
+                          fillColor: colors.surfaceContainerLow.withValues(alpha: 0.5),
+                        ),
+                      ),
+                      if (_token != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8, left: 4),
+                          child: Text(
+                            _usdMode ? '≈ ${_entered.toStringAsFixed(8)} ${_token!.symbol}' : '≈ ${WalletFormatters.formatCurrency(_entered * (_token!.priceUsd?.toDouble() ?? 0))}',
+                            style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.4), fontSize: 13, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      
+                      const SizedBox(height: 48),
+                      
+                      // Premium Action Pill
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: _loading ? null : _send,
+                          borderRadius: BorderRadius.circular(24),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 20),
+                            decoration: BoxDecoration(
+                              color: colors.primary,
+                              borderRadius: BorderRadius.circular(24),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: colors.primary.withValues(alpha: 0.35),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                            ),
+                            child: _loading
+                                ? Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white60)),
+                                      const SizedBox(width: 16),
+                                      Text(_message, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Colors.white)),
+                                    ],
+                                  )
+                                : const Center(child: Text('CONTINUE', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 1.5, color: Colors.white))),
+                          ),
+                        ),
+                      ).animate().fadeIn(duration: 600.ms, delay: 400.ms).scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1)),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+                ],
+              ),
             ),
+            const GriotBannerAd(isCompact: true),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSectionCard(BuildContext context, {required String label, required Widget child, Widget? trailing}) {
-    final colors = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
-
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: colors.surface.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: colors.primary.withValues(alpha: 0.15), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: colors.primary.withValues(alpha: 0.05),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
+  Widget _buildInputLabel(BuildContext context, String label) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Text(
+        label.toUpperCase(),
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.primary,
+          fontWeight: FontWeight.w900,
+          fontSize: 11,
+          letterSpacing: 1.5,
+        ),
       ),
-      child: Stack(
-        children: [
-          // Background Decorative Ring
-          Positioned(
-            right: -20,
-            bottom: -20,
-            child: Opacity(
-              opacity: 0.04,
-              child: Image.asset(
-                'assets/cowrie_images/cowrie_ring.png',
-                width: 100,
-                fit: BoxFit.contain,
+    );
+  }
+
+  Widget _buildAssetSelector(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final token = _token;
+
+    return InkWell(
+      onTap: _pickToken,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: colors.surfaceContainerLow.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          children: [
+            if (token != null) ...[
+              TokenIcon(imageUrl: token.imageUrl, symbol: token.symbol, name: token.name, chainName: token.chain, isNative: token.isNative, radius: 20),
+              const SizedBox(width: 14),
+            ] else ...[
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(color: colors.primary.withValues(alpha: 0.1), shape: BoxShape.circle),
+                child: Icon(Icons.add_circle_outline_rounded, color: colors.primary),
+              ),
+              const SizedBox(width: 14),
+            ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(token?.symbol ?? 'Select asset', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                  if (token != null)
+                    Text('${WalletFormatters.formatBalance(token.balance)} available',
+                      style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.4), fontSize: 12, fontWeight: FontWeight.w600)),
+                ],
               ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      label.toUpperCase(),
-                      style: text.labelSmall?.copyWith(
-                        color: colors.primary.withValues(alpha: 0.5),
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                    ?trailing,
-                  ],
-                ),
-                const SizedBox(height: 16),
-                child,
-              ],
-            ),
-          ),
-        ],
+            Icon(Icons.keyboard_arrow_down_rounded, color: colors.onSurfaceVariant.withValues(alpha: 0.3)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCurrencyToggle(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: _token == null ? null : () => setState(() => _usdMode = !_usdMode),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: colors.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Text(_usdMode ? 'USD' : (_token?.symbol ?? ''), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
+            const SizedBox(width: 4),
+            Icon(Icons.swap_horiz_rounded, size: 14, color: colors.onSurfaceVariant.withValues(alpha: 0.5)),
+          ],
+        ),
       ),
     );
   }

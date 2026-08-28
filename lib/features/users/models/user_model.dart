@@ -36,6 +36,7 @@ class UserModel {
   final String? avatarUrl;
   final String? bio;
   final UserReputationBadge? reputation;
+  final String? relationshipStatus;
 
   const UserModel({
     required this.id,
@@ -47,54 +48,44 @@ class UserModel {
     this.avatarUrl,
     this.bio,
     this.reputation,
+    this.relationshipStatus,
   });
 
   factory UserModel.fromJson(
       Map<String, dynamic> json,
       ) {
-    final reputationJson = json['reputation'];
-
     return UserModel(
       id: json['id']?.toString() ?? '',
-      walletAddress:
-      (json['wallet_address'] ?? json['walletAddress'])?.toString() ?? '',
-      createdAt: (json['created_at'] ?? json['createdAt']) != null
-          ? DateTime.tryParse(
-        (json['created_at'] ?? json['createdAt']).toString(),
-      )
+      walletAddress: (json['walletAddress'] ?? json['wallet_address'] ?? '').toString(),
+      createdAt: (json['createdAt'] ?? json['created_at']) != null
+          ? DateTime.tryParse((json['createdAt'] ?? json['created_at']).toString())
           : null,
-      updatedAt: (json['updated_at'] ?? json['updatedAt']) != null
-          ? DateTime.tryParse(
-        (json['updated_at'] ?? json['updatedAt']).toString(),
-      )
+      updatedAt: (json['updatedAt'] ?? json['updated_at']) != null
+          ? DateTime.tryParse((json['updatedAt'] ?? json['updated_at']).toString())
           : null,
       username: json['username']?.toString(),
-      displayName:
-      (json['display_name'] ?? json['displayName'])?.toString(),
-      avatarUrl:
-      (json['avatar_url'] ?? json['avatarUrl'])?.toString(),
+      displayName: json['displayName'] ?? json['display_name']?.toString(),
+      avatarUrl: json['avatarUrl'] ?? json['avatar_url']?.toString(),
       bio: json['bio']?.toString(),
-      reputation: reputationJson is Map
-          ? UserReputationBadge.fromJson(
-        Map<String, dynamic>.from(reputationJson),
-      )
+      reputation: json['reputation'] is Map
+          ? UserReputationBadge.fromJson(Map<String, dynamic>.from(json['reputation']))
           : null,
+      relationshipStatus: json['relationshipStatus'] ?? json['relationship_status'] as String?,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'wallet_address': walletAddress,
-      'created_at':
-      createdAt?.toIso8601String(),
-      'updated_at':
-      updatedAt?.toIso8601String(),
+      'walletAddress': walletAddress,
+      'createdAt': createdAt?.toIso8601String(),
+      'updatedAt': updatedAt?.toIso8601String(),
       'username': username,
-      'display_name': displayName,
-      'avatar_url': avatarUrl,
+      'displayName': displayName,
+      'avatarUrl': avatarUrl,
       'bio': bio,
       'reputation': reputation?.toJson(),
+      'relationshipStatus': relationshipStatus,
     };
   }
 

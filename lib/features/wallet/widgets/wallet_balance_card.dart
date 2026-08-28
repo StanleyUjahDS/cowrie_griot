@@ -39,7 +39,7 @@ class WalletBalanceCard extends StatelessWidget {
                 child: Opacity(
                   opacity: 0.05,
                   child: Image.asset(
-                    'assets/cowrie_images/cowrie_ring.png',
+                    'assets/cowrie_images/Cowrie3.png',
                     width: 140,
                     fit: BoxFit.contain,
                   ),
@@ -51,7 +51,7 @@ class WalletBalanceCard extends StatelessWidget {
                 child: Opacity(
                   opacity: 0.08,
                   child: Image.asset(
-                    'assets/cowrie_images/cowrie_stack.png',
+                    'assets/cowrie_images/Cowrie4.png',
                     width: 180,
                     fit: BoxFit.contain,
                   ),

@@ -48,6 +48,7 @@ post_install do |installer|
       config.build_settings['SWIFT_VERSION'] = '5.0'
       config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
       config.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
+      config.build_settings['USE_HEADERMAP'] = 'NO'
     end
   end
 
