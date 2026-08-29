@@ -34,9 +34,29 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
   Future<void> _sendRequest() async {
     setState(() => _isActionLoading = true);
     try {
-      await context.read<MessagingProvider>().sendRequest(widget.user.id);
+      final provider = context.read<MessagingProvider>();
+
+      // The conversation list may be stale or not loaded when this sheet
+      // opens. Re-check the server before choosing DM vs friendship request.
+      var conversationExists = false;
+      try {
+        await provider.startDirectChat(widget.user.id);
+      } catch (_) {
+        // No existing conversation; this is a first-contact DM request.
+      }
+
+      conversationExists = provider.conversations.any(
+        (conversation) => conversation.otherUser?.id == widget.user.id,
+      );
+
+      if (conversationExists) {
+        await provider.sendFriendRequest(widget.user.id);
+      } else {
+        await provider.sendRequest(widget.user.id);
+      }
+
       if (mounted) {
-        NotificationService.showSuccess(context, 'Request sent!');
+        NotificationService.showSuccess(context, 'Friend request sent!');
         Navigator.pop(context);
       }
     } catch (e) {
