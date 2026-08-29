@@ -1,20 +1,57 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+
 class ApiConfig {
   ApiConfig._();
 
-  static const String baseUrl = 'http://192.168.1.95:5001/api';
+  // ==========================================================
+  // BASE URL
+  // ==========================================================
+  //
+  // For local development:
+  // - Android uses 'localhost' (requires: adb reverse tcp:5001 tcp:5001)
+  // - iOS and others use the local IP address
+  //
+  // ==========================================================
 
-  static const String authNonce = '$baseUrl/auth/nonce';
-  static const String authVerify = '$baseUrl/auth/verify';
-  static const String authRefresh = '$baseUrl/auth/refresh';
-  static const String authLogout = '$baseUrl/auth/logout';
+  static String get baseUrl {
+    if (kIsWeb) {
+      return 'http://localhost:5001/api';
+    }
 
-  static const String notificationDevices = '$baseUrl/notifications/devices';
+    if (Platform.isAndroid) {
+      // For physical device, use your host IP (192.168.1.95)
+      // For emulator, use 10.0.2.2
+      return 'http://192.168.1.95:5001/api';
+    }
 
-  static const String notificationDevicesAll =
+    return 'http://192.168.1.95:5001/api';
+  }
+
+  // ==========================================================
+  // AUTHENTICATION
+  // ==========================================================
+
+  static String get authNonce => '$baseUrl/auth/nonce';
+  static String get authVerify => '$baseUrl/auth/verify';
+  static String get authRefresh => '$baseUrl/auth/refresh';
+  static String get authLogout => '$baseUrl/auth/logout';
+
+  // ==========================================================
+  // NOTIFICATIONS
+  // ==========================================================
+
+  static String get notificationDevices => '$baseUrl/notifications/devices';
+
+  static String get notificationDevicesAll =>
       '$baseUrl/notifications/devices/all';
 
-  static const String usersMe = '$baseUrl/users/me';
-  static const String usersUpdate = '$baseUrl/users/me';
+  // ==========================================================
+  // USERS
+  // ==========================================================
+
+  static String get usersMe => '$baseUrl/users/me';
+  static String get usersUpdate => '$baseUrl/users/me';
 
   static String usersSearch(String query) => Uri.parse(
     '$baseUrl/users/search',
@@ -24,12 +61,16 @@ class ApiConfig {
     '$baseUrl/users/username/availability',
   ).replace(queryParameters: {'username': username}).toString();
 
-  static const String walletBase = '$baseUrl/crypto/wallets';
-  static const String walletNetworks = '$walletBase/networks';
-  static const String walletAssets = '$walletBase/assets';
-  static const String walletNfts = '$walletBase/nfts';
+  // ==========================================================
+  // WALLET & ASSETS
+  // ==========================================================
 
-  static const String cryptoAssetsBase = '$baseUrl/crypto/assets';
+  static String get walletBase => '$baseUrl/crypto/wallets';
+  static String get walletNetworks => '$walletBase/networks';
+  static String get walletAssets => '$walletBase/assets';
+  static String get walletNfts => '$walletBase/nfts';
+
+  static String get cryptoAssetsBase => '$baseUrl/crypto/assets';
 
   static String walletAssetsSearch(String query, {String? network}) {
     final params = {'q': query};
@@ -58,21 +99,25 @@ class ApiConfig {
   static String walletNativeBalance(String network) =>
       '$walletBase/balance/$network';
 
-  static const String walletNativeBalances = '$walletBase/balances';
+  static String get walletNativeBalances => '$walletBase/balances';
 
-  static const String walletTokens = '$walletBase/tokens';
+  static String get walletTokens => '$walletBase/tokens';
 
-  static const String transactionBase = '$baseUrl/crypto/transactions';
+  // ==========================================================
+  // TRANSACTIONS
+  // ==========================================================
 
-  static const String prepareNativeTransaction =
+  static String get transactionBase => '$baseUrl/crypto/transactions';
+
+  static String get prepareNativeTransaction =>
       '$transactionBase/prepare-native';
 
-  static const String prepareTokenTransaction =
+  static String get prepareTokenTransaction =>
       '$transactionBase/prepare-token';
 
-  static const String estimateTransaction = '$transactionBase/estimate';
+  static String get estimateTransaction => '$transactionBase/estimate';
 
-  static const String broadcastTransaction = '$transactionBase/broadcast';
+  static String get broadcastTransaction => '$transactionBase/broadcast';
 
   static String transactionStatus(String transactionId, String network) =>
       Uri.parse(
@@ -103,11 +148,15 @@ class ApiConfig {
     ).replace(queryParameters: query).toString();
   }
 
-  static const String swapBase = '$baseUrl/crypto/swap';
+  // ==========================================================
+  // SWAP
+  // ==========================================================
 
-  static const String swapQuote = '$swapBase/quote';
+  static String get swapBase => '$baseUrl/crypto/swap';
 
-  static const String swapBroadcast = '$swapBase/broadcast';
+  static String get swapQuote => '$swapBase/quote';
+
+  static String get swapBroadcast => '$swapBase/broadcast';
 
   static String swapStatus({
     required String transactionId,
@@ -159,20 +208,28 @@ class ApiConfig {
         '$swapBase/receipt',
       ).replace(queryParameters: {'network': network, 'hash': hash}).toString();
 
-  static const String swapHealth = '$swapBase/health';
+  static String get swapHealth => '$swapBase/health';
 
-  static const String miningBase = '$baseUrl/crypto/mining';
+  // ==========================================================
+  // MINING
+  // ==========================================================
 
-  static const String miningStatus = '$miningBase/status';
+  static String get miningBase => '$baseUrl/crypto/mining';
 
-  static const String miningStart = '$miningBase/start';
+  static String get miningStatus => '$miningBase/status';
+
+  static String get miningStart => '$miningBase/start';
 
   static String miningHistory({int limit = 20, int offset = 0}) =>
       Uri.parse('$miningBase/history')
           .replace(queryParameters: {'limit': '$limit', 'offset': '$offset'})
           .toString();
 
-  static const String blockchainBase = '$baseUrl/crypto/blockchain';
+  // ==========================================================
+  // BLOCKCHAIN
+  // ==========================================================
+
+  static String get blockchainBase => '$baseUrl/crypto/blockchain';
 
   static String blockchainNonce(String network, String address) =>
       '$blockchainBase/nonce/$network/$address';
@@ -183,23 +240,27 @@ class ApiConfig {
   static String blockchainReceipt(String network, String hash) =>
       '$blockchainBase/receipt/$network/$hash';
 
-  static const String referralBase = '$baseUrl/referrals';
+  // ==========================================================
+  // REFERRALS & REPUTATION
+  // ==========================================================
 
-  static const String referralMe = '$referralBase/me';
-  static const String referralClaim = '$referralBase/claim';
+  static String get referralBase => '$baseUrl/referrals';
 
-  static const String reputationBase = '$baseUrl/reputation';
-  static const String reputationMe = '$reputationBase/me';
+  static String get referralMe => '$referralBase/me';
+  static String get referralClaim => '$referralBase/claim';
+
+  static String get reputationBase => '$baseUrl/reputation';
+  static String get reputationMe => '$reputationBase/me';
 
   // ==========================================================
   // MESSAGING
   // ==========================================================
 
-  static const String messagingBase = '$baseUrl/messaging';
+  static String get messagingBase => '$baseUrl/messaging';
 
-  static const String messagingDirect = '$messagingBase/direct';
+  static String get messagingDirect => '$messagingBase/direct';
 
-  static const String messagingConversations = '$messagingBase/conversations';
+  static String get messagingConversations => '$messagingBase/conversations';
 
   static String messagingDirectList() => messagingConversations;
 
@@ -215,7 +276,7 @@ class ApiConfig {
   static String messagingDirectMembership(String conversationId) =>
       '$messagingDirect/$conversationId/membership';
 
-  static const String messagingMessages = '$messagingBase/messages';
+  static String get messagingMessages => '$messagingBase/messages';
 
   static String messagingMessagesByConversation(
     String conversationId, {
@@ -234,20 +295,35 @@ class ApiConfig {
   static String messagingMessageById(String messageId) =>
       '$messagingMessages/$messageId';
 
-  static const String messagingRequests = '$messagingBase/requests';
+  static String get messagingRequests => '$messagingBase/requests';
 
-  static const String messagingRequestsReceived = '$messagingRequests/received';
+  static String get messagingRequestsReceived => '$messagingRequests/received';
 
-  static const String messagingRequestsSent = '$messagingRequests/sent';
+  static String get messagingRequestsSent => '$messagingRequests/sent';
 
-  static String messagingFriends = '$messagingBase/friends';
-  static String messagingFriendsSearch(String query) => Uri.parse(
+  static String get messagingFriends => '$messagingBase/friends';
+  static String get messagingFriendsPage => '$messagingFriends/page';
+  static String get messagingFriendsCount => '$messagingFriends/count';
+
+  static String messagingFriendsSearch(String query, {int limit = 20, int offset = 0}) => Uri.parse(
     '$messagingFriends/search',
-  ).replace(queryParameters: {'q': query}).toString();
+  ).replace(queryParameters: {
+    'q': query,
+    'limit': '$limit',
+    'offset': '$offset',
+  }).toString();
+
+  static String messagingFriendsPaged({int limit = 20, int offset = 0}) => Uri.parse(
+    messagingFriendsPage,
+  ).replace(queryParameters: {
+    'limit': '$limit',
+    'offset': '$offset',
+  }).toString();
+
   static String messagingFriendById(String friendId) =>
       '$messagingFriends/$friendId';
 
-  static const String messagingBlocks = '$messagingBase/blocks';
+  static String get messagingBlocks => '$messagingBase/blocks';
   static String messagingBlockUser(String userId) => '$messagingBlocks/$userId';
 
   static String messagingRequestById(String requestId) =>
@@ -272,7 +348,7 @@ class ApiConfig {
   // GROUPS & CHANNELS
   // ==========================================================
 
-  static const String messagingGroups = '$messagingBase/groups';
+  static String get messagingGroups => '$messagingBase/groups';
 
   static String messagingGroupById(String conversationId) =>
       '$messagingGroups/$conversationId';
@@ -280,8 +356,8 @@ class ApiConfig {
   static String messagingGroupMembers(String conversationId) =>
       '$messagingGroups/$conversationId/members';
 
-  static const String messagingChannels = '$messagingBase/channels';
-  static const String messagingChannelsMe = '$messagingChannels/me';
+  static String get messagingChannels => '$messagingBase/channels';
+  static String get messagingChannelsMe => '$messagingChannels/me';
 
   static String messagingChannelById(String conversationId) =>
       '$messagingChannels/$conversationId';

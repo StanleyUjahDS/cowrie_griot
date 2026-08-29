@@ -224,44 +224,64 @@ class _ReferralScreenState extends State<ReferralScreen> {
 
         return GradientScaffold(
           appBar: AppBar(
-            title: const Text('Refer & Earn'),
+            title: const Text(
+              'Refer & Earn',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+            ),
             backgroundColor: Colors.transparent,
             elevation: 0,
+            scrolledUnderElevation: 0,
+            surfaceTintColor: Colors.transparent,
           ),
-          child: RefreshIndicator(
-            onRefresh: provider.loadReferralStatus,
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
-              children: [
-                if (provider.isLoading && data == null)
-                  const SizedBox(height: 400, child: Center(child: GriotLoader()))
-                else if (data != null) ...[
-                  // Hero Section
-                  _buildHero(context, data, displayCode),
-                  const SizedBox(height: 32),
-
-                  // Claim Section
-                  if (data.referredBy == null)
-                    _buildClaimSection(context, provider)
-                  else
-                    _buildReferredByCard(context, data.referredBy!),
-
-                  const SizedBox(height: 32),
-
-                  // Prominent Total Count
-                  _buildTotalCounter(context, data),
-                  
-                  const SizedBox(height: 32),
-
-                  // How it works
-                  _buildGrowthGuide(context),
-                ] else if (provider.error != null)
-                  _buildError(context, provider),
-              ],
-            ),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 600),
+            switchInCurve: Curves.easeOutQuart,
+            child: _buildBody(context, provider, data, displayCode),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildBody(BuildContext context, ReferralProvider provider, ReferralData? data, String displayCode) {
+    if (data == null && (provider.isLoading || provider.error == null)) {
+      return const Center(
+        key: ValueKey('loading'),
+        child: GriotLoader(),
+      );
+    }
+
+    if (data == null && provider.error != null) {
+      return _buildError(context, provider);
+    }
+
+    return RefreshIndicator(
+      key: const ValueKey('content'),
+      onRefresh: provider.loadReferralStatus,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+        children: [
+          // Hero Section
+          _buildHero(context, data!, displayCode),
+          const SizedBox(height: 32),
+
+          // Claim Section
+          if (data.referredBy == null)
+            _buildClaimSection(context, provider)
+          else
+            _buildReferredByCard(context, data.referredBy!),
+
+          const SizedBox(height: 32),
+
+          // Prominent Total Count
+          _buildTotalCounter(context, data),
+          
+          const SizedBox(height: 32),
+
+          // How it works
+          _buildGrowthGuide(context),
+        ].animate(interval: 50.ms).fade(duration: 400.ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
+      ),
     );
   }
 
@@ -386,7 +406,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
           ),
         ],
       ),
-    ).animate().fadeIn().scale(duration: 400.ms, curve: Curves.easeOutBack);
+    );
   }
 
   Widget _buildClaimSection(BuildContext context, ReferralProvider provider) {
@@ -445,7 +465,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
           ),
         ),
       ],
-    ).animate().fadeIn(delay: 200.ms);
+    );
   }
 
   Widget _buildReferredByCard(BuildContext context, String referrer) {
@@ -485,7 +505,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
           ),
         ],
       ),
-    ).animate().fadeIn(delay: 200.ms);
+    );
   }
 
   Widget _buildTotalCounter(BuildContext context, ReferralData data) {
@@ -546,7 +566,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
           ),
         ],
       ),
-    ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.1, end: 0);
+    );
   }
 
   Widget _buildGrowthGuide(BuildContext context) {
@@ -604,7 +624,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
           ),
         ],
       ),
-    ).animate().fadeIn(delay: 600.ms);
+    );
   }
 
   Widget _buildError(BuildContext context, ReferralProvider provider) {

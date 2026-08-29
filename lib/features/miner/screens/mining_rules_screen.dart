@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 
@@ -12,13 +13,18 @@ class MiningRulesScreen extends StatelessWidget {
 
     return GradientScaffold(
       appBar: AppBar(
-        title: const Text('Mining Rules'),
+        title: const Text(
+          'Mining Rules',
+          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+        ),
+        centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
       ),
       child: Stack(
         children: [
-          // Background Decorative Elements
           Positioned(
             right: -80,
             bottom: 40,
@@ -49,7 +55,6 @@ class MiningRulesScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Hero Intro
                 Container(
                   padding: const EdgeInsets.all(28),
                   decoration: BoxDecoration(
@@ -153,7 +158,7 @@ class MiningRulesScreen extends StatelessWidget {
                 ),
                 
                 const SizedBox(height: 80),
-              ],
+              ].animate(interval: 50.ms).fade(duration: 400.ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
             ),
           ),
         ],

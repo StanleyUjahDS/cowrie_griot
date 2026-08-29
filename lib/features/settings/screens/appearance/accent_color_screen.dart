@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 import '/core/router/app_router.dart';
 import '/core/theme/theme_controller.dart';
@@ -411,21 +411,13 @@ class AccentColorScreen extends StatelessWidget {
           appBar: AppBar(
             title: const Text(
               'Accent Color',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
             ),
             centerTitle: true,
             backgroundColor: Colors.transparent,
-            foregroundColor: colorScheme.onSurface,
             elevation: 0,
             scrolledUnderElevation: 0,
             surfaceTintColor: Colors.transparent,
-            leading: IconButton(
-              onPressed: () {
-                context.pop();
-              },
-              icon: const Icon(
-                Icons.arrow_back_rounded,
-              ),
-            ),
           ),
           child: SafeArea(
             child: ListView(
@@ -588,16 +580,18 @@ class AccentColorScreen extends StatelessWidget {
                   height: 12,
                 ),
 
-                Text(
-                  'Your accent color changes the primary color '
-                      'used throughout the Griot interface.',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                    height: 1.4,
+                Center(
+                  child: Text(
+                    'Your accent color changes the primary color '
+                        'used throughout the Griot interface.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                      height: 1.4,
+                    ),
                   ),
                 ),
-              ],
+              ].animate(interval: 50.ms).fade(duration: 400.ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
             ),
           ),
         );

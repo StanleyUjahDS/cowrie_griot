@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:griot_cowrie/core/services/navigation_scroll_service.dart';
 import 'package:griot_cowrie/features/chat/providers/messaging_provider.dart';
 import 'package:griot_cowrie/core/ui/scaffolds/gradient_scaffold.dart';
@@ -53,7 +54,6 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final messaging = context.read<MessagingProvider>();
-      // CONTRACT: Initial load if list is empty
       if (messaging.conversations.isEmpty) {
         messaging.loadConversations();
       }
@@ -82,16 +82,11 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
     }
   }
 
-  // ==============================================================
-  // FILTERS
-  // ==============================================================
-
   List<Conversation> get filteredConversations {
     final provider = context.read<MessagingProvider>();
     final conversations = provider.conversations;
     final query = searchQuery.trim().toLowerCase();
     
-    // 0. Hide blocked users
     final visibleConversations = conversations.where((conv) {
       if (conv.type == ConversationType.dm && conv.otherUser != null) {
         return !provider.blockedUserIds.contains(conv.otherUser!.id);
@@ -99,7 +94,6 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
       return true;
     }).toList();
     
-    // 1. Filter by Section
     final sectionFiltered = visibleConversations.where((conv) {
       if (selectedHub == HubSection.direct) return conv.type == ConversationType.dm;
       if (selectedHub == HubSection.groups) return conv.type == ConversationType.group;
@@ -107,7 +101,6 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
       return true;
     }).toList();
 
-    // 2. Filter by Query
     if (query.isEmpty) return sectionFiltered;
     
     return sectionFiltered.where((conv) {
@@ -118,10 +111,6 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
       return title.contains(query) || user.contains(query) || lastMsg.contains(query);
     }).toList();
   }
-
-  // ==============================================================
-  // ACTIONS
-  // ==============================================================
 
   void _openNewChat() => context.push('/chat/discover');
 
@@ -151,13 +140,11 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
                   width: 1,
                 ),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(4.0),
-                child: SvgPicture.asset(
-                  'assets/cowrie_images/cowriesvg.svg',
-                  width: 32,
-                  height: 32,
-                  fit: BoxFit.contain,
+              child: Center(
+                child: Icon(
+                  Icons.menu_rounded,
+                  color: colors.primary,
+                  size: 28,
                 ),
               ),
             ),
@@ -180,15 +167,18 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
       ),
       child: Stack(
         children: [
-          Positioned.fill(child: _buildContent()),
+          Positioned.fill(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 600),
+              switchInCurve: Curves.easeOutQuart,
+              child: _buildContent(),
+            ),
+          ),
           Positioned(top: 8, left: 16, right: 16, child: _buildFloatingControls()),
         ],
       ),
     );
   }
-
-  // _buildDrawer was here, but we've removed it as it's now in the shell.
-  // We've also removed _drawerTile.
 
   Widget _buildFloatingControls() {
     final colors = Theme.of(context).colorScheme;
@@ -209,7 +199,6 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 1. Search Row
                   SizedBox(
                     height: 48,
                     child: TextField(
@@ -232,7 +221,6 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  // 2. Switcher Row
                   _ChatSectionSwitcher(
                     selected: selectedHub,
                     onChanged: (section) => setState(() => selectedHub = section),
@@ -287,7 +275,9 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
   Widget _buildUnifiedConversations() {
     return Consumer<MessagingProvider>(
       builder: (context, provider, child) {
-        if (provider.isLoadingConversations && provider.conversations.isEmpty) return const ChatLoading();
+        if (provider.isLoadingConversations && provider.conversations.isEmpty) {
+          return const ChatLoading(key: ValueKey('loading'));
+        }
         
         final list = filteredConversations;
         
@@ -315,6 +305,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
           }
           
           return _EmptyState(
+            key: const ValueKey('empty'),
             icon: icon, 
             title: emptyTitle, 
             message: emptyMsg,
@@ -322,6 +313,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
         }
 
         return RefreshIndicator(
+          key: const ValueKey('content'),
           onRefresh: provider.loadConversations,
           child: ListView.separated(
             controller: _scrollController,
@@ -332,10 +324,11 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
               final conv = list[index];
               final type = conv.type;
               
+              Widget item;
               if (type == ConversationType.dm) {
                 final other = conv.otherUser;
                 if (other == null) return const SizedBox.shrink();
-                return ChatListItem(
+                item = ChatListItem(
                   user: other.copyWith(
                     lastMessage: conv.lastMessage?.text ?? '', 
                     timestamp: conv.updatedAt, 
@@ -346,7 +339,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
                   onAvatarTap: () => context.push('/user/profile', extra: other),
                 );
               } else if (type == ConversationType.group) {
-                return group_widgets.GroupListItem(
+                item = group_widgets.GroupListItem(
                   group: ChatGroup(
                     id: conv.id,
                     name: conv.title ?? 'Unknown Group',
@@ -361,7 +354,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
                   onTap: () => context.push('/conversation/${conv.id}'),
                 );
               } else if (type == ConversationType.channel) {
-                return ChannelListItem(
+                item = ChannelListItem(
                   channel: ChatChannel(
                     id: conv.id,
                     name: conv.title ?? 'Unknown Channel',
@@ -373,9 +366,11 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
                     timestamp: conv.updatedAt,
                   ),
                 );
+              } else {
+                return const SizedBox.shrink();
               }
               
-              return const SizedBox.shrink();
+              return item.animate().fadeIn(duration: 400.ms, delay: (index * 40).ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad);
             },
           ),
         );
@@ -475,7 +470,7 @@ class _EmptyState extends StatelessWidget {
   final IconData icon;
   final String title;
   final String message;
-  const _EmptyState({required this.icon, required this.title, required this.message});
+  const _EmptyState({super.key, required this.icon, required this.title, required this.message});
 
   @override
   Widget build(BuildContext context) {

@@ -33,6 +33,7 @@ import '../../features/settings/screens/appearance/accent_color_screen.dart';
 import '../../features/settings/screens/account/account_details_screen.dart';
 import '../../features/settings/screens/account/griot_plus_screen.dart';
 import '../../features/settings/screens/security/app_security_screen.dart';
+import '../../features/settings/screens/wallet_security/backup_wallet_screen.dart';
 
 import '../../features/wallet/screens/wallet_screen.dart';
 import '../../features/wallet/screens/asset_search_screen.dart';
@@ -241,7 +242,7 @@ class AppRouter {
         builder: (context, state) {
           final extra = state.extra;
           return SetPassword(
-            onSuccess: extra is Future<void> Function() ? extra : null,
+            onSuccess: extra is Future<void> Function(BuildContext) ? extra : null,
           );
         },
       ),
@@ -260,7 +261,7 @@ class AppRouter {
           if (extra is Map<String, dynamic>) {
             return VerifyPassword(
               input: extra['pin'] as String,
-              onSuccess: extra['onSuccess'] as Future<void> Function()?,
+              onSuccess: extra['onSuccess'] as Future<void> Function(BuildContext)?,
             );
           }
 
@@ -323,7 +324,7 @@ class AppRouter {
         builder: (context, state) {
           final extra = state.extra;
           return PinVerificationScreen(
-            onSuccess: extra is Future<void> Function() ? extra : null,
+            onSuccess: extra is Future<void> Function(BuildContext) ? extra : null,
           );
         },
       ),
@@ -475,6 +476,13 @@ class AppRouter {
         path: '/settings/app-security',
         builder: (context, state) {
           return const AppSecurityScreen();
+        },
+      ),
+
+      GoRoute(
+        path: '/settings/backup-wallet',
+        builder: (context, state) {
+          return const BackupWalletScreen();
         },
       ),
 

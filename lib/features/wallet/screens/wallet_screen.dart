@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -29,6 +30,40 @@ class WalletScreen extends StatefulWidget {
 }
 
 class _WalletScreenState extends State<WalletScreen> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    NavigationScrollService.instance.addListener(_onNavTap);
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provider = context.read<WalletProvider>();
+      if (provider.tokens.isEmpty) {
+        provider.loadWallet();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    NavigationScrollService.instance.removeListener(_onNavTap);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onNavTap() {
+    if (NavigationScrollService.instance.tappedIndex == 3) { // Index 3 is Wallet
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    }
+  }
+
   Future<void> _showAssetActions(BuildContext context, WalletProvider provider, TokenModel token) async {
     final colors = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
@@ -46,7 +81,6 @@ class _WalletScreenState extends State<WalletScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Header with Token Info
             Row(
               children: [
                 TokenIcon(
@@ -79,7 +113,6 @@ class _WalletScreenState extends State<WalletScreen> {
             Divider(color: colors.outlineVariant.withValues(alpha: 0.1)),
             const SizedBox(height: 12),
 
-            // Actions
             _actionTile(
               context,
               icon: Icons.visibility_off_rounded,
@@ -146,40 +179,6 @@ class _WalletScreenState extends State<WalletScreen> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     );
   }
-  final ScrollController _scrollController = ScrollController();
-
-  @override
-  void initState() {
-    super.initState();
-    NavigationScrollService.instance.addListener(_onNavTap);
-    
-    // CONTRACT: Initial load if list is empty
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final provider = context.read<WalletProvider>();
-      if (provider.tokens.isEmpty) {
-        provider.loadWallet();
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    NavigationScrollService.instance.removeListener(_onNavTap);
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _onNavTap() {
-    if (NavigationScrollService.instance.tappedIndex == 3) { // Index 3 is Wallet
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          0,
-          duration: const Duration(milliseconds: 500),
-          curve: Curves.easeOutCubic,
-        );
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -188,184 +187,182 @@ class _WalletScreenState extends State<WalletScreen> {
 
     return Consumer<WalletProvider>(
       builder: (context, provider, child) {
-        if (provider.isLoading && provider.wallet == null) {
-          return const WalletLoading();
-        }
-
-        return GradientScaffold(
-          useSafeArea: false,
-          appBar: AppBar(
-            title: const Text('Wallet'),
-            centerTitle: true,
-            actions: [
-              IconButton(
-                onPressed: () => context.push('/wallet/search'),
-                icon: const Icon(Icons.search),
-                tooltip: 'Search tokens',
-              ),
-              const SizedBox(width: 8),
-            ],
-            backgroundColor: theme.scaffoldBackgroundColor,
-            foregroundColor: colors.onSurface,
-            elevation: 0,
-            scrolledUnderElevation: 0,
-            surfaceTintColor: Colors.transparent,
-          ),
-          floatingActionButton: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              FloatingActionButton(
-                heroTag: 'dapp_browser_fab',
-                backgroundColor: colors.secondaryContainer,
-                foregroundColor: colors.onSecondaryContainer,
-                elevation: 6,
-                tooltip: 'DApp Browser',
-                onPressed: () => context.push('/wallet/browser'),
-                child: const Icon(Icons.public_rounded, size: 24),
-              ),
-              const SizedBox(height: 12),
-              FloatingActionButton(
-                heroTag: 'easy_buy_fab',
-                backgroundColor: colors.primary,
-                foregroundColor: colors.onPrimary,
-                elevation: 6,
-                tooltip: 'Flash exchange',
-                onPressed: () => context.push('/wallet/flash'),
-                child: const Icon(Icons.currency_exchange_rounded, size: 24),
-              ),
-            ],
-          ),
-          floatingActionButtonLocation: const RaisedEndFloatLocation(
-            bottomDistance: 125,
-            rightDistance: 16,
-          ),
-          child: RefreshIndicator(
-            onRefresh: () => provider.loadWallet(force: true),
-            displacement: 30,
-            edgeOffset: 0,
-            color: colors.primary,
-            backgroundColor: colors.surface,
-            child: CustomScrollView(
-              controller: _scrollController,
-              physics: const AlwaysScrollableScrollPhysics(
-                parent: BouncingScrollPhysics(),
-              ),
-              slivers: [
-                // Header
-                SliverToBoxAdapter(
-                  child: WalletHeader(
-                    displayName: provider.wallet?.displayName ?? 'Your Account',
-                    avatarUrl: provider.wallet?.avatarUrl,
-                    onNotificationsTap: () {},
-                    onScanTap: () async {
-                      final result = await context.push<String>('/wallet/scan');
-                      if (result != null && context.mounted) {
-                        // Navigate to send screen with the scanned address
-                        // We might need to adjust the router to accept an initial address
-                        context.push('/wallet/send', extra: result); 
-                      }
-                    },
-                    addressCard: WalletAddressCard(
-                      address: provider.wallet?.address,
-                      isLoading: provider.isLoading,
-                      onTap: () => _copyAddress(context, provider.wallet?.address),
-                    ),
-                  ),
-                ),
-
-                // Balance
-                SliverToBoxAdapter(
-                  child: WalletBalanceCard(
-                    balance: WalletFormatters.formatCurrency(provider.wallet?.totalBalance ?? 0),
-                    change: '${(provider.wallet?.changePercent ?? 0) >= 0 ? '+' : ''}${provider.wallet?.changePercent.toStringAsFixed(2)}%',
-                    isProfit: (provider.wallet?.changePercent ?? 0) >= 0,
-                  ),
-                ),
-
-                // Actions
-                SliverToBoxAdapter(
-                  child: WalletActions(
-                    onSendTap: () => context.push('/wallet/send'),
-                    onReceiveTap: () => context.push('/wallet/receive'),
-                    onSwapTap: () => context.push('/wallet/swap'),
-                    onBuyTap: () => context.push('/wallet/flash'),
-                  ),
-                ),
-
-                // Tabs
-                SliverToBoxAdapter(
-                  child: _buildTabs(context, provider),
-                ),
-
-                // CONTENT BASED ON SELECTED TAB
-                if (provider.selectedTab == 0) ...[
-                  // Unified Assets List
-                  if (provider.visibleAssets.isNotEmpty) ...[
-                    SliverToBoxAdapter(
-                      child: _buildSectionHeader(context, 'Assets', provider.visibleAssets.length),
-                    ),
-                    TokenList(
-                      tokens: provider.visibleAssets,
-                      onTokenTap: (token) => context.push('/wallet/asset', extra: token),
-                      onTokenLongPress: (token) => _showAssetActions(context, provider, token),
-                      emptyState: const SliverToBoxAdapter(child: SizedBox.shrink()),
-                    ),
-                  ],
-
-                  if (provider.tokens.isEmpty)
-                    _buildEmptyTokenState(context),
-                ] else if (provider.selectedTab == 1) ...[
-                  // NFTs Tab
-                  if (provider.isLoadingNfts && provider.nfts.isEmpty)
-                    const SliverToBoxAdapter(
-                      child: SizedBox(
-                        height: 300,
-                        child: Center(child: CircularProgressIndicator()),
-                      ),
-                    )
-                  else if (provider.nftError != null && provider.nfts.isEmpty)
-                    _buildNftErrorState(context, provider.nftError!)
-                  else if (provider.nfts.isNotEmpty)
-                    SliverPadding(
-                      padding: const EdgeInsets.all(8),
-                      sliver: SliverGrid(
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          childAspectRatio: 0.75,
-                        ),
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            final nft = provider.nfts[index];
-                            return NftItem(
-                              nft: nft,
-                              onTap: () => context.push('/wallet/nft', extra: nft),
-                            );
-                          },
-                          childCount: provider.nfts.length,
-                        ),
-                      ),
-                    )
-                  else
-                    _buildEmptyNFTState(context),
-                ] else if (provider.selectedTab == 2) ...[
-                  // Activity Tab
-                  _buildEmptyActivityState(context),
-                ],
-
-                // Ad Placeholder
-                const SliverToBoxAdapter(
-                  child: _AdSpace(),
-                ),
-
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: 170),
-                ),
-              ],
-            ),
-          ),
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: 600),
+          switchInCurve: Curves.easeOutQuart,
+          child: _buildBody(context, provider, theme, colors),
         );
       },
+    );
+  }
+
+  Widget _buildBody(BuildContext context, WalletProvider provider, ThemeData theme, ColorScheme colors) {
+    if (provider.isLoading && provider.wallet == null) {
+      return const WalletLoading(key: ValueKey('loading'));
+    }
+
+    return GradientScaffold(
+      key: const ValueKey('content'),
+      useSafeArea: false,
+      appBar: AppBar(
+        title: const Text('Wallet'),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            onPressed: () => context.push('/wallet/search'),
+            icon: const Icon(Icons.search),
+            tooltip: 'Search tokens',
+          ),
+          const SizedBox(width: 8),
+        ],
+        backgroundColor: theme.scaffoldBackgroundColor,
+        foregroundColor: colors.onSurface,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+      ),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            heroTag: 'dapp_browser_fab',
+            backgroundColor: colors.secondaryContainer,
+            foregroundColor: colors.onSecondaryContainer,
+            elevation: 6,
+            tooltip: 'DApp Browser',
+            onPressed: () => context.push('/wallet/browser'),
+            child: const Icon(Icons.public_rounded, size: 24),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton(
+            heroTag: 'easy_buy_fab',
+            backgroundColor: colors.primary,
+            foregroundColor: colors.onPrimary,
+            elevation: 6,
+            tooltip: 'Flash exchange',
+            onPressed: () => context.push('/wallet/flash'),
+            child: const Icon(Icons.currency_exchange_rounded, size: 24),
+          ),
+        ],
+      ),
+      floatingActionButtonLocation: const RaisedEndFloatLocation(
+        bottomDistance: 125,
+        rightDistance: 16,
+      ),
+      child: RefreshIndicator(
+        onRefresh: () => provider.loadWallet(force: true),
+        displacement: 30,
+        edgeOffset: 0,
+        color: colors.primary,
+        backgroundColor: colors.surface,
+        child: CustomScrollView(
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          ),
+          slivers: [
+            SliverToBoxAdapter(
+              child: WalletHeader(
+                displayName: provider.wallet?.displayName ?? 'Your Account',
+                avatarUrl: provider.wallet?.avatarUrl,
+                onNotificationsTap: () {},
+                onScanTap: () async {
+                  final result = await context.push<String>('/wallet/scan');
+                  if (result != null && context.mounted) {
+                    context.push('/wallet/send', extra: result); 
+                  }
+                },
+                addressCard: WalletAddressCard(
+                  address: provider.wallet?.address,
+                  isLoading: provider.isLoading,
+                  onTap: () => _copyAddress(context, provider.wallet?.address),
+                ),
+              ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.05, end: 0),
+            ),
+
+            SliverToBoxAdapter(
+              child: WalletBalanceCard(
+                balance: WalletFormatters.formatCurrency(provider.wallet?.totalBalance ?? 0),
+                change: '${(provider.wallet?.changePercent ?? 0) >= 0 ? '+' : ''}${provider.wallet?.changePercent.toStringAsFixed(2)}%',
+                isProfit: (provider.wallet?.changePercent ?? 0) >= 0,
+              ).animate().fadeIn(duration: 400.ms, delay: 50.ms).slideY(begin: 0.05, end: 0),
+            ),
+
+            SliverToBoxAdapter(
+              child: WalletActions(
+                onSendTap: () => context.push('/wallet/send'),
+                onReceiveTap: () => context.push('/wallet/receive'),
+                onSwapTap: () => context.push('/wallet/swap'),
+                onBuyTap: () => context.push('/wallet/flash'),
+              ).animate().fadeIn(duration: 400.ms, delay: 100.ms).slideY(begin: 0.05, end: 0),
+            ),
+
+            SliverToBoxAdapter(
+              child: _buildTabs(context, provider).animate().fadeIn(duration: 400.ms, delay: 150.ms),
+            ),
+
+            if (provider.selectedTab == 0) ...[
+              if (provider.visibleAssets.isNotEmpty) ...[
+                SliverToBoxAdapter(
+                  child: _buildSectionHeader(context, 'Assets', provider.visibleAssets.length),
+                ),
+                TokenList(
+                  tokens: provider.visibleAssets,
+                  onTokenTap: (token) => context.push('/wallet/asset', extra: token),
+                  onTokenLongPress: (token) => _showAssetActions(context, provider, token),
+                  emptyState: const SliverToBoxAdapter(child: SizedBox.shrink()),
+                ),
+              ],
+
+              if (provider.tokens.isEmpty)
+                _buildEmptyTokenState(context),
+            ] else if (provider.selectedTab == 1) ...[
+              if (provider.isLoadingNfts && provider.nfts.isEmpty)
+                const SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 300,
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                )
+              else if (provider.nftError != null && provider.nfts.isEmpty)
+                _buildNftErrorState(context, provider.nftError!)
+              else if (provider.nfts.isNotEmpty)
+                SliverPadding(
+                  padding: const EdgeInsets.all(8),
+                  sliver: SliverGrid(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      childAspectRatio: 0.75,
+                    ),
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final nft = provider.nfts[index];
+                        return NftItem(
+                          nft: nft,
+                          onTap: () => context.push('/wallet/nft', extra: nft),
+                        ).animate().fadeIn(duration: 400.ms, delay: (index * 40).ms).slideY(begin: 0.05, end: 0);
+                      },
+                      childCount: provider.nfts.length,
+                    ),
+                  ),
+                )
+              else
+                _buildEmptyNFTState(context),
+            ] else if (provider.selectedTab == 2) ...[
+              _buildEmptyActivityState(context),
+            ],
+
+            const SliverToBoxAdapter(
+              child: _AdSpace(),
+            ),
+
+            const SliverToBoxAdapter(
+              child: SizedBox(height: 170),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

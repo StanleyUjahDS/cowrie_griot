@@ -221,10 +221,21 @@ class ChatDrawer extends StatelessWidget {
                         }, badge: count > 0 ? count.toString() : null);
                       },
                     ),
-                    _tile(context, Icons.toll_rounded, 'Tip', () {
-                      Navigator.pop(context);
-                      NotificationService.showInfo(context, 'Tipping coming soon');
-                    }),
+                    _tile(
+                      context, 
+                      null, 
+                      'Tip', 
+                      () {
+                        Navigator.pop(context);
+                        NotificationService.showInfo(context, 'Tipping coming soon');
+                      },
+                      customLeading: SvgPicture.asset(
+                        'assets/cowrie_images/cowriesvg.svg',
+                        width: 22,
+                        height: 22,
+                        colorFilter: ColorFilter.mode(colors.onSurface.withValues(alpha: 0.6), BlendMode.srcIn),
+                      ),
+                    ),
                     
                     const Padding(
                       padding: EdgeInsets.fromLTRB(16, 32, 16, 8),
@@ -262,11 +273,11 @@ class ChatDrawer extends StatelessWidget {
     );
   }
 
-  Widget _tile(BuildContext context, IconData icon, String label, VoidCallback onTap, {String? badge}) {
+  Widget _tile(BuildContext context, IconData? icon, String label, VoidCallback onTap, {String? badge, Widget? customLeading}) {
     final colors = Theme.of(context).colorScheme;
     return ListTile(
       onTap: onTap,
-      leading: Icon(icon, color: colors.onSurface.withValues(alpha: 0.6), size: 22),
+      leading: customLeading ?? (icon != null ? Icon(icon, color: colors.onSurface.withValues(alpha: 0.6), size: 22) : null),
       title: Text(
         label,
         style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),

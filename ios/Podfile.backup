@@ -49,22 +49,14 @@ post_install do |installer|
       config.build_settings['SWIFT_VERSION'] = '5.0'
       config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
       config.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
+      config.build_settings['USE_HEADERMAP'] = 'NO'
 
       if target.name == 'image_picker_ios'
         config.build_settings['HEADER_SEARCH_PATHS'] = [
           '$(inherited)',
-          '$(PODS_TARGET_SRCROOT)/image_picker_ios/Sources/image_picker_ios/include',
-          '$(PODS_TARGET_SRCROOT)/image_picker_ios/Sources/image_picker_ios/include/image_picker_ios'
+          '$(PODS_TARGET_SRCROOT)/Sources/image_picker_ios/include',
+          '$(PODS_TARGET_SRCROOT)/Sources/image_picker_ios/include/image_picker_ios'
         ]
-      end
-    end
-  end
-
-  installer.aggregate_targets.each do |target|
-    target.user_project.targets.each do |user_target|
-      user_target.build_configurations.each do |config|
-        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.5'
-        config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
       end
     end
   end

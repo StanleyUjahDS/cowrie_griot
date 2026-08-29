@@ -1,5 +1,5 @@
 // Note: Flutter's build tool sometimes looks for this in the root project
-project.extensions.extraProperties.set("kotlin_version", "2.0.20")
+project.extensions.extraProperties.set("kotlin_version", "2.3.20")
 
 allprojects {
     repositories {
@@ -21,24 +21,6 @@ subprojects {
 
 subprojects {
     project.evaluationDependsOn(":app")
-}
-
-subprojects {
-    afterEvaluate {
-        if (project.extensions.findByName("android") != null) {
-            configure<com.android.build.gradle.BaseExtension> {
-                compileOptions {
-                    sourceCompatibility = JavaVersion.VERSION_17
-                    targetCompatibility = JavaVersion.VERSION_17
-                }
-            }
-        }
-        tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-            kotlinOptions {
-                jvmTarget = "17"
-            }
-        }
-    }
 }
 
 tasks.register<Delete>("clean") {

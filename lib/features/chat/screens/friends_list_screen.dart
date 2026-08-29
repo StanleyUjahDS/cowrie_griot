@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +10,7 @@ import 'package:griot_cowrie/core/theme/app_colors.dart';
 import 'package:griot_cowrie/core/services/notification_service.dart';
 import 'package:griot_cowrie/features/chat/widgets/chat_loading.dart';
 import 'package:griot_cowrie/core/ui/scaffolds/gradient_scaffold.dart';
+import 'package:griot_cowrie/core/ui/widgets/griot_loader.dart';
 
 class FriendsListScreen extends StatefulWidget {
   const FriendsListScreen({super.key});
@@ -19,27 +21,38 @@ class FriendsListScreen extends StatefulWidget {
 
 class _FriendsListScreenState extends State<FriendsListScreen> {
   final TextEditingController _searchController = TextEditingController();
-  String _localQuery = '';
+  final ScrollController _scrollController = ScrollController();
+  Timer? _searchDebounce;
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final provider = context.read<MessagingProvider>();
-      // CONTRACT: Friends list is a one-time call; we filter locally.
-      provider.loadFriends();
+      context.read<MessagingProvider>().loadFriends();
     });
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
+    _searchDebounce?.cancel();
     super.dispose();
   }
 
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      context.read<MessagingProvider>().loadMoreFriends();
+    }
+  }
+
   void _onSearchChanged(String value) {
-    setState(() {
-      _localQuery = value.trim().toLowerCase();
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        context.read<MessagingProvider>().searchFriends(value.trim());
+      }
     });
   }
 
@@ -55,6 +68,31 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
         NotificationService.showError(context, 'Failed to open chat: $e');
       }
     }
+  }
+
+  void _showUnfriendDialog(UserModel friend) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Unfriend?'),
+        content: Text('Are you sure you want to remove ${friend.displayName ?? friend.username} from your friends?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                await context.read<MessagingProvider>().removeFriend(friend.id);
+                if (context.mounted) NotificationService.showSuccess(context, 'User removed from friends');
+              } catch (e) {
+                if (context.mounted) NotificationService.showError(context, 'Failed to unfriend: $e');
+              }
+            },
+            child: const Text('Unfriend', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showBlockUserDialog(UserModel friend) {
@@ -97,7 +135,7 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
               children: [
                 const Text('Friends'),
                 Text(
-                  '${provider.friends.length} active',
+                  '${provider.friendsTotal} active',
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: colors.onSurfaceVariant.withValues(alpha: 0.5),
                     fontWeight: FontWeight.w700,
@@ -133,7 +171,7 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
                           icon: const Icon(Icons.close_rounded, size: 18),
                           onPressed: () {
                             _searchController.clear();
-                            context.read<MessagingProvider>().clearSearchResults();
+                            context.read<MessagingProvider>().loadFriends();
                           },
                         )
                       : null,
@@ -146,63 +184,77 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
           Expanded(
             child: Consumer<MessagingProvider>(
               builder: (context, provider, child) {
-                if (provider.isLoadingFriends && provider.friends.isEmpty) {
-                  return const ChatLoading();
-                }
-
-                final friends = provider.friends.where((f) {
-                  if (_localQuery.isEmpty) return true;
-                  final name = (f.displayName ?? '').toLowerCase();
-                  final username = (f.username ?? '').toLowerCase();
-                  final wallet = f.walletAddress.toLowerCase();
-                  return name.contains(_localQuery) || username.contains(_localQuery) || wallet.contains(_localQuery);
-                }).toList();
-
-                if (friends.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          _localQuery.isNotEmpty ? Icons.search_off_rounded : Icons.people_outline_rounded,
-                          size: 64,
-                          color: colors.onSurfaceVariant.withValues(alpha: 0.2),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          _localQuery.isNotEmpty ? 'No matching friends found' : 'No friends found',
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                return RefreshIndicator(
-                  onRefresh: provider.loadFriends,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.only(bottom: 40),
-                    itemCount: friends.length,
-                    separatorBuilder: (context, index) => Divider(
-                      height: 1,
-                      indent: 80,
-                      color: colors.outline.withValues(alpha: 0.1),
-                    ),
-                    itemBuilder: (context, index) {
-                      final f = friends[index];
-                      return _FriendTile(
-                        user: f,
-                        onTap: () => _startChat(f),
-                        onProfileTap: () => context.push('/user/profile', extra: f),
-                        onBlock: () => _showBlockUserDialog(f),
-                      );
-                    },
-                  ),
+                return AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 600),
+                  switchInCurve: Curves.easeOutQuart,
+                  child: _buildBody(context, provider),
                 );
               },
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context, MessagingProvider provider) {
+    final colors = Theme.of(context).colorScheme;
+
+    if (provider.isLoadingFriends && provider.friends.isEmpty) {
+      return const ChatLoading(key: ValueKey('loading'));
+    }
+
+    final friends = provider.friends;
+
+    if (friends.isEmpty) {
+      return Center(
+        key: const ValueKey('empty'),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _searchController.text.isNotEmpty ? Icons.search_off_rounded : Icons.people_outline_rounded,
+              size: 64,
+              color: colors.onSurfaceVariant.withValues(alpha: 0.2),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _searchController.text.isNotEmpty ? 'No matching friends found' : 'No friends found',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      key: const ValueKey('content'),
+      onRefresh: () => provider.loadFriends(),
+      child: ListView.separated(
+        controller: _scrollController,
+        padding: const EdgeInsets.only(bottom: 40),
+        itemCount: friends.length + (provider.hasMoreFriends ? 1 : 0),
+        separatorBuilder: (context, index) => Divider(
+          height: 1,
+          indent: 80,
+          color: colors.outline.withValues(alpha: 0.1),
+        ),
+        itemBuilder: (context, index) {
+          if (index == friends.length) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 32),
+              child: Center(child: GriotLoader(size: 24.0)),
+            );
+          }
+          final f = friends[index];
+          return _FriendTile(
+            user: f,
+            onTap: () => _startChat(f),
+            onProfileTap: () => context.push('/user/profile', extra: f),
+            onUnfriend: () => _showUnfriendDialog(f),
+            onBlock: () => _showBlockUserDialog(f),
+          ).animate().fadeIn(duration: 400.ms, delay: (index * 40).ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad);
+        },
       ),
     );
   }
@@ -212,12 +264,14 @@ class _FriendTile extends StatelessWidget {
   final UserModel user;
   final VoidCallback onTap;
   final VoidCallback onProfileTap;
+  final VoidCallback onUnfriend;
   final VoidCallback onBlock;
 
   const _FriendTile({
     required this.user,
     required this.onTap,
     required this.onProfileTap,
+    required this.onUnfriend,
     required this.onBlock,
   });
 
@@ -225,7 +279,6 @@ class _FriendTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     
-    // Normalize display
     final String displayName = user.displayName ?? user.username ?? 'Unknown';
     final String? username = user.username != null ? '@${user.username}' : null;
     final String shortAddress = user.walletAddress.length > 8
@@ -266,21 +319,63 @@ class _FriendTile extends StatelessWidget {
         style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
       ),
       trailing: PopupMenuButton<String>(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(color: colors.primary.withValues(alpha: 0.1), width: 1.5),
+        ),
+        elevation: 12,
+        offset: const Offset(0, 40),
         onSelected: (val) {
           if (val == 'chat') {
             onTap();
           } else if (val == 'profile') {
             onProfileTap();
+          } else if (val == 'unfriend') {
+            onUnfriend();
           } else if (val == 'block') {
             onBlock();
           }
         },
         itemBuilder: (context) => [
-          const PopupMenuItem(value: 'chat', child: Text('Message')),
-          const PopupMenuItem(value: 'profile', child: Text('View Profile')),
-          const PopupMenuItem(
+          PopupMenuItem(
+            value: 'chat', 
+            child: Row(
+              children: [
+                Icon(Icons.chat_bubble_outline_rounded, size: 20, color: colors.primary),
+                const SizedBox(width: 12),
+                const Text('Message', style: TextStyle(fontWeight: FontWeight.w700)),
+              ],
+            ),
+          ),
+          PopupMenuItem(
+            value: 'profile', 
+            child: Row(
+              children: [
+                Icon(Icons.person_outline_rounded, size: 20, color: colors.primary),
+                const SizedBox(width: 12),
+                const Text('View Profile', style: TextStyle(fontWeight: FontWeight.w700)),
+              ],
+            ),
+          ),
+          PopupMenuItem(
+            value: 'unfriend',
+            child: Row(
+              children: [
+                const Icon(Icons.person_remove_rounded, color: Colors.red, size: 20),
+                const SizedBox(width: 12),
+                const Text('Unfriend', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w700)),
+              ],
+            ),
+          ),
+          PopupMenuItem(
             value: 'block',
-            child: Text('Block', style: TextStyle(color: Colors.red)),
+            child: Row(
+              children: [
+                const Icon(Icons.block_rounded, color: Colors.red, size: 20),
+                const SizedBox(width: 12),
+                const Text('Block', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w700)),
+              ],
+            ),
           ),
         ],
       ),

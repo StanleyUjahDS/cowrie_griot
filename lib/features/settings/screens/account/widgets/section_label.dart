@@ -17,8 +17,8 @@ class SectionLabel extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(
         left: 4,
-        top: 24,
-        bottom: 9,
+        top: 16,
+        bottom: 8,
       ),
       child: Text(
         title.toUpperCase(),

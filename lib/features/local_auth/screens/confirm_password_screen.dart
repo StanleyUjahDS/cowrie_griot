@@ -8,7 +8,7 @@ import '../providers/app_lock_provider.dart';
 
 class VerifyPassword extends StatefulWidget {
   final String input;
-  final Future<void> Function()? onSuccess;
+  final Future<void> Function(BuildContext)? onSuccess;
   const VerifyPassword({super.key, required this.input, this.onSuccess});
 
   @override
@@ -70,11 +70,11 @@ class _VerifyPasswordState extends State<VerifyPassword> {
         NotificationService.showSuccess(context, "Password confirmed");
 
         if (widget.onSuccess != null) {
-          await widget.onSuccess!();
-        } else {
-          if (mounted) {
-            context.pushReplacement('/enable_biometrics');
-          }
+          await widget.onSuccess!(context);
+        }
+
+        if (mounted) {
+          context.pushReplacement('/enable_biometrics');
         }
       } catch (e) {
         if (mounted) {

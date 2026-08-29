@@ -120,27 +120,6 @@ class _MinerScreenState extends State<MinerScreen> {
     final colors = theme.colorScheme;
     final provider = context.watch<MiningProvider>();
 
-    if (provider.isLoading && provider.status == null) {
-      return const Center(child: GriotLoader(size: 44));
-    }
-
-    final status = provider.status;
-    if (status == null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Failed to load mining status'),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => provider.loadStatus(),
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
-      );
-    }
-
     return GradientScaffold(
       useSafeArea: true,
       extendBodyBehindAppBar: true,
@@ -165,257 +144,295 @@ class _MinerScreenState extends State<MinerScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      child: RefreshIndicator(
-        onRefresh: provider.loadStatus,
-        child: SingleChildScrollView(
-          controller: _scrollController,
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 120),
-          child: Column(
-            children: [
-              const SizedBox(height: 10),
-              
-              // 1. Header (Personal Balance)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: colors.surface.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(32),
-                  border: Border.all(color: colors.primary.withValues(alpha: 0.08)),
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      'AVAILABLE BALANCE',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: colors.primary.withValues(alpha: 0.6),
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.5,
-                      ),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 600),
+        switchInCurve: Curves.easeOutQuart,
+        child: _buildBody(context, provider, theme, colors),
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context, MiningProvider provider, ThemeData theme, ColorScheme colors) {
+    final status = provider.status;
+
+    // Priority 1: If we have no data and it's either loading OR it's the very first frame
+    if (status == null && (provider.isLoading || provider.error == null)) {
+      return const Center(
+        key: ValueKey('loading'),
+        child: GriotLoader(size: 44),
+      );
+    }
+
+    // Priority 2: If we have no data and an error occurred
+    if (status == null) {
+      return Center(
+        key: const ValueKey('error'),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Failed to load mining status'),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => provider.loadStatus(),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      key: const ValueKey('content'),
+      onRefresh: provider.loadStatus,
+      child: SingleChildScrollView(
+        controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(24, 8, 24, 120),
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
+            
+            // 1. Header (Personal Balance)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: colors.surface.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(32),
+                border: Border.all(color: colors.primary.withValues(alpha: 0.08)),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    'AVAILABLE BALANCE',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: colors.primary.withValues(alpha: 0.6),
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.5,
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SvgPicture.asset('assets/cowrie_images/cowriesvg.svg', width: 44, height: 44),
-                        const SizedBox(width: 12),
-                        Flexible(
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              '${status.availableBalance.toStringAsFixed(2)} CWR',
-                              style: theme.textTheme.headlineMedium?.copyWith(
-                                fontWeight: FontWeight.w900,
-                              ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SvgPicture.asset('assets/cowrie_images/cowriesvg.svg', width: 44, height: 44),
+                      const SizedBox(width: 12),
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            '${status.availableBalance.toStringAsFixed(2)} CWR',
+                            style: theme.textTheme.headlineMedium?.copyWith(
+                              fontWeight: FontWeight.w900,
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // 1.5 Sub-header (Daily Pool)
-              Align(
-                alignment: Alignment.center,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: colors.primary.withValues(alpha: 0.05),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: colors.primary.withValues(alpha: 0.1)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.account_balance_wallet_rounded, size: 14, color: colors.primary),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Daily Pool: ${NumberFormat.decimalPattern().format(status.rewardPool)} CWR',
-                        style: TextStyle(
-                          color: colors.primary,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
                         ),
                       ),
                     ],
                   ),
-                ),
+                ],
               ),
+            ),
 
-              const SizedBox(height: 32),
+            const SizedBox(height: 24),
 
-              // 2. Main Mining Area
-              Center(
-                child: Stack(
-                  alignment: Alignment.center,
+            // 1.5 Sub-header (Daily Pool)
+            Align(
+              alignment: Alignment.center,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: colors.primary.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: colors.primary.withValues(alpha: 0.1)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      width: 260,
-                      height: 260,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: colors.primary.withValues(alpha: 0.03),
-                      ),
-                    ).animate(onPlay: (c) => c.repeat(reverse: true))
-                     .scale(begin: const Offset(1, 1), end: const Offset(1.1, 1.1), duration: 2.seconds),
-                    
-                    GestureDetector(
-                      onTap: (status.canMine && !_isWatchingAd) ? () => _startMining(context) : null,
-                      child: Container(
-                        width: 200,
-                        height: 200,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: status.canMine ? colors.primary : colors.surfaceContainerHighest,
-                          boxShadow: [
-                            if (status.canMine && !_isWatchingAd)
-                              BoxShadow(
-                                color: colors.primary.withValues(alpha: 0.3),
-                                blurRadius: 30,
-                                offset: const Offset(0, 10),
-                              ),
-                          ],
-                        ),
-                        child: _isWatchingAd 
-                          ? const Center(child: CircularProgressIndicator(color: Colors.white))
-                          : Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  status.canMine ? Icons.bolt_rounded : Icons.timer_outlined,
-                                  size: 48,
-                                  color: status.canMine ? Colors.white : colors.onSurfaceVariant,
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  status.canMine ? 'ACTIVATE' : _timeRemaining,
-                                  style: TextStyle(
-                                    color: status.canMine ? Colors.white : colors.onSurfaceVariant,
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: status.canMine ? 18 : 22,
-                                    letterSpacing: status.canMine ? 2 : 1,
-                                    fontFamily: 'Monospace',
-                                  ),
-                                ),
-                              ],
-                            ),
+                    Icon(Icons.account_balance_wallet_rounded, size: 14, color: colors.primary),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Daily Pool: ${NumberFormat.decimalPattern().format(status.rewardPool)} CWR',
+                      style: TextStyle(
+                        color: colors.primary,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
                       ),
                     ),
                   ],
                 ),
               ),
+            ),
 
-              const SizedBox(height: 48),
+            const SizedBox(height: 32),
 
-              // 3. Stats Row
-              Row(
+            // 2. Main Mining Area
+            Center(
+              child: Stack(
+                alignment: Alignment.center,
                 children: [
-                  Expanded(
-                    child: _StatCard(
-                      label: 'Your Points',
-                      value: status.pointsToday.toStringAsFixed(0),
-                      icon: Icons.auto_awesome_rounded,
+                  Container(
+                    width: 260,
+                    height: 260,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: colors.primary.withValues(alpha: 0.03),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _StatCard(
-                      label: 'Pool Share',
-                      value: '${status.currentSharePercent.toStringAsFixed(2)}%',
-                      icon: Icons.pie_chart_rounded,
+                  ).animate(onPlay: (c) => c.repeat(reverse: true))
+                   .scale(begin: const Offset(1, 1), end: const Offset(1.1, 1.1), duration: 2.seconds),
+                  
+                  GestureDetector(
+                    onTap: (status.canMine && !_isWatchingAd) ? () => _startMining(context) : null,
+                    child: Container(
+                      width: 200,
+                      height: 200,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: status.canMine ? colors.primary : colors.surfaceContainerHighest,
+                        boxShadow: [
+                          if (status.canMine && !_isWatchingAd)
+                            BoxShadow(
+                              color: colors.primary.withValues(alpha: 0.3),
+                              blurRadius: 30,
+                              offset: const Offset(0, 10),
+                            ),
+                        ],
+                      ),
+                      child: _isWatchingAd 
+                        ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                        : Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                status.canMine ? Icons.bolt_rounded : Icons.timer_outlined,
+                                size: 48,
+                                color: status.canMine ? Colors.white : colors.onSurfaceVariant,
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                status.canMine ? 'ACTIVATE' : _timeRemaining,
+                                style: TextStyle(
+                                  color: status.canMine ? Colors.white : colors.onSurfaceVariant,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: status.canMine ? 18 : 22,
+                                  letterSpacing: status.canMine ? 2 : 1,
+                                  fontFamily: 'Monospace',
+                                ),
+                              ),
+                            ],
+                          ),
                     ),
                   ),
                 ],
               ),
+            ),
 
-              const SizedBox(height: 24),
+            const SizedBox(height: 48),
 
-              // 4. Estimated Reward
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: colors.primary.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(28),
-                  border: Border.all(color: colors.primary.withValues(alpha: 0.1)),
+            // 3. Stats Row
+            Row(
+              children: [
+                Expanded(
+                  child: _StatCard(
+                    label: 'Your Points',
+                    value: status.pointsToday.toStringAsFixed(0),
+                    icon: Icons.auto_awesome_rounded,
+                  ),
                 ),
-                child: Column(
-                  children: [
-                    Text(
-                      status.settled ? 'FINAL REWARD' : 'ESTIMATED REWARD',
-                      style: TextStyle(
-                        color: colors.primary,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 12,
-                        letterSpacing: 1.5,
-                      ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _StatCard(
+                    label: 'Pool Share',
+                    value: '${status.currentSharePercent.toStringAsFixed(2)}%',
+                    icon: Icons.pie_chart_rounded,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 24),
+
+            // 4. Estimated Reward
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: colors.primary.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(color: colors.primary.withValues(alpha: 0.1)),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    status.settled ? 'FINAL REWARD' : 'ESTIMATED REWARD',
+                    style: TextStyle(
+                      color: colors.primary,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 12,
+                      letterSpacing: 1.5,
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SvgPicture.asset('assets/cowrie_images/cowriesvg.svg', width: 64, height: 64),
-                        const SizedBox(width: 16),
-                        Flexible(
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              '${status.estimatedReward.toStringAsFixed(2)} CWR',
-                              style: theme.textTheme.displaySmall?.copyWith(
-                                fontWeight: FontWeight.w900,
-                                color: colors.onSurface,
-                              ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SvgPicture.asset('assets/cowrie_images/cowriesvg.svg', width: 64, height: 64),
+                      const SizedBox(width: 16),
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            '${status.estimatedReward.toStringAsFixed(2)} CWR',
+                            style: theme.textTheme.displaySmall?.copyWith(
+                              fontWeight: FontWeight.w900,
+                              color: colors.onSurface,
                             ),
                           ),
                         ),
-                      ],
-                    ),
-                    if (!status.settled)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 12),
-                        child: Text(
-                          'Updating in real-time as others mine.',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colors.onSurfaceVariant.withValues(alpha: 0.6),
-                          ),
+                      ),
+                    ],
+                  ),
+                  if (!status.settled)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Text(
+                        'Updating in real-time as others mine.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant.withValues(alpha: 0.6),
                         ),
                       ),
-                  ],
-                ),
+                    ),
+                ],
               ),
+            ),
 
-              const SizedBox(height: 32),
+            const SizedBox(height: 32),
 
-              // 4.5 Balance Overview
-              _BalanceOverview(status: status),
+            // 4.5 Balance Overview
+            _BalanceOverview(status: status),
 
-              const SizedBox(height: 32),
+            const SizedBox(height: 32),
 
-              // 5. Reputation Section
-              if (status.reputation != null) _ReputationSection(reputation: status.reputation!),
+            // 5. Reputation Section
+            if (status.reputation != null) _ReputationSection(reputation: status.reputation!),
 
-              const SizedBox(height: 24),
+            const SizedBox(height: 24),
 
-              // 5.5 Referral Section
-              _ReferralSection(multiplier: status.multiplier),
+            // 5.5 Referral Section
+            _ReferralSection(multiplier: status.multiplier),
 
-              const SizedBox(height: 32),
+            const SizedBox(height: 32),
 
-              // 6. Multiplier Breakdown
-              _MultiplierBreakdown(multiplier: status.multiplier),
+            // 6. Multiplier Breakdown
+            _MultiplierBreakdown(multiplier: status.multiplier),
 
-              const SizedBox(height: 40),
-            ],
-          ),
+            const SizedBox(height: 40),
+          ].animate(interval: 40.ms).fade(duration: 400.ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
         ),
       ),
     );
   }
+
 }
 
 class _StatCard extends StatelessWidget {

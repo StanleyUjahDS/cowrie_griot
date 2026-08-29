@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'services/auth_api_service.dart';
+import 'services/auth_session_service.dart';
+import 'services/auth_storage_service.dart';
+import 'services/wallet_auth_service.dart';
 import '../wallet/services/wallet_service.dart';
 import '../chat/providers/messaging_provider.dart';
-import '../../core/services/push_notification_service.dart';
 
 class AuthController extends ChangeNotifier {
   final AuthApiService _authService;
@@ -287,26 +289,32 @@ class AuthController extends ChangeNotifier {
 
       _errorMessage = null;
 
-      await PushNotificationService.instance.unregisterCurrentDevice();
-
       // ----------------------------------------------------------
-      // Revoke backend session
+      // PERFORMS FULL WIPE (Session + Wallet + Security)
       // ----------------------------------------------------------
 
-      if (_refreshToken != null && _refreshToken!.isNotEmpty) {
-        await _authService.logout(refreshToken: _refreshToken!);
-      }
+      final sessionService = AuthSessionService(
+        walletService: _walletService,
+        authApiService: _authService,
+        authStorageService: AuthStorageService(),
+        walletAuthService: WalletAuthService(
+          walletService: _walletService,
+          authApiService: _authService,
+        ),
+      );
+
+      await sessionService.signOut();
 
       // ----------------------------------------------------------
-      // Clear authentication state
+      // Clear in-memory state
       // ----------------------------------------------------------
+
+      _messagingProvider?.disconnectSocket();
 
       _accessToken = null;
-
       _refreshToken = null;
-
+      _walletAddress = null;
       _isAuthenticated = false;
-
       _isNewUser = false;
 
       notifyListeners();
@@ -314,11 +322,10 @@ class AuthController extends ChangeNotifier {
       return true;
     } catch (error) {
       _errorMessage = error.toString().replaceFirst('Exception: ', '');
-
       notifyListeners();
-
       return false;
     } finally {
+      _isAuthenticating = false;
       _setLoading(false);
     }
   }
@@ -339,34 +346,20 @@ class AuthController extends ChangeNotifier {
       _setLoading(true);
       _errorMessage = null;
 
-      final storedRefreshToken = await _authService.getStoredRefreshToken();
-      if (storedRefreshToken == null || storedRefreshToken.isEmpty) {
+      final accessToken = await _authService.getStoredAccessToken();
+      final refreshToken = await _authService.getStoredRefreshToken();
+
+      if (refreshToken == null || refreshToken.isEmpty) {
         _isAuthenticated = false;
         return false;
       }
 
-      _refreshToken = storedRefreshToken;
-
-      try {
-        final success = await refreshSession();
-        return success;
-      } catch (e) {
-        final errorString = e.toString().toLowerCase();
-        if (errorString.contains('unable to connect') || 
-            errorString.contains('500') || 
-            errorString.contains('502') || 
-            errorString.contains('503')) {
-          debugPrint('Auth: Server unreachable, maintaining offline state.');
-          // We don't have a fresh access token, but we don't clear the refresh token.
-          _isAuthenticated = false; 
-          return true; // Return true to allow app entry
-        }
-        
-        debugPrint('Auth: Refresh token expired or invalid, clearing.');
-        await _authService.clearSession();
-        _isAuthenticated = false;
-        return false;
-      }
+      _accessToken = accessToken;
+      _refreshToken = refreshToken;
+      _isAuthenticated = true; // We have keys, assume authenticated until an API fails
+      
+      notifyListeners();
+      return true;
     } finally {
       _setLoading(false);
     }

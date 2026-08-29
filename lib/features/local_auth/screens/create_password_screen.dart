@@ -4,7 +4,7 @@ import '/core/ui/scaffolds/gradient_scaffold.dart';
 import '/core/services/notification_service.dart';
 
 class SetPassword extends StatefulWidget {
-  final Future<void> Function()? onSuccess;
+  final Future<void> Function(BuildContext)? onSuccess;
   const SetPassword({super.key, this.onSuccess});
 
   @override

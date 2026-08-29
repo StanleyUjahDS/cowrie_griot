@@ -20,7 +20,7 @@ android {
     defaultConfig {
         applicationId = "com.griotcowrie.griot_cowrie"
         minSdk = 24
-        targetSdk = 37
+        targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
@@ -31,8 +31,11 @@ android {
         }
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
+   
+}
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 

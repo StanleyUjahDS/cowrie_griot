@@ -26,11 +26,14 @@ import 'features/miner/services/mining_api_service.dart';
 import 'features/miner/services/referral_api_service.dart';
 import 'features/miner/services/reputation_api_service.dart';
 import 'features/chat/services/messaging_api_service.dart';
+import 'features/chat/services/message_cache_service.dart';
+import 'features/chat/services/message_sync_service.dart';
 import 'features/miner/providers/reputation_provider.dart';
 import 'features/chat/providers/messaging_provider.dart';
 import 'features/miner/providers/mining_provider.dart';
 import 'features/miner/providers/referral_provider.dart';
 import 'features/wallet/providers/wallet_provider.dart';
+import 'features/iap/providers/iap_provider.dart';
 import 'features/local_auth/services/app_lock_service.dart';
 import 'features/local_auth/services/local_auth_service.dart';
 import 'features/local_auth/providers/app_lock_provider.dart';
@@ -62,6 +65,8 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
   late final ReferralApiService _referralApiService;
   late final ReputationApiService _reputationApiService;
   late final MessagingApiService _messagingApiService;
+  late final MessageCacheService _messageCacheService;
+  late final MessageSyncService _messageSyncService;
   late final AuthController _authController;
   late final AppLockService _appLockService;
   late final LocalAuthService _localAuthService;
@@ -122,6 +127,12 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
 
     _messagingApiService = MessagingApiService(apiClient: _apiClient);
 
+    _messageCacheService = MessageCacheService();
+    _messageSyncService = MessageSyncService(
+      cache: _messageCacheService,
+      api: _messagingApiService,
+    );
+
     _authApiService = AuthApiService(
       apiClient: _apiClient,
       authStorageService: authStorage,
@@ -143,6 +154,9 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
       authService: _authApiService,
       walletService: _walletService,
     );
+
+    _messageCacheService.initialize();
+    _messageSyncService.initialize();
 
     ConnectivityService.instance.initialize();
 
@@ -179,6 +193,8 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
         Provider<ReferralApiService>.value(value: _referralApiService),
         Provider<ReputationApiService>.value(value: _reputationApiService),
         Provider<MessagingApiService>.value(value: _messagingApiService),
+        Provider<MessageCacheService>.value(value: _messageCacheService),
+        Provider<MessageSyncService>.value(value: _messageSyncService),
         Provider<AppLockService>.value(value: _appLockService),
         Provider<LocalAuthService>.value(value: _localAuthService),
         ChangeNotifierProvider<AuthController>.value(value: _authController),
@@ -228,12 +244,16 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
           create: (context) => MessagingProvider(
             apiService: _messagingApiService,
             userProvider: context.read<UserProvider>(),
+            messageCache: _messageCacheService,
+            messageSync: _messageSyncService,
           ),
           update: (_, userProvider, messaging) {
             final provider = messaging ??
                 MessagingProvider(
                   apiService: _messagingApiService,
                   userProvider: userProvider,
+                  messageCache: _messageCacheService,
+                  messageSync: _messageSyncService,
                 );
             _authController.setMessagingProvider(provider);
             return provider;
@@ -255,16 +275,25 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
         ),
 
         // ======================================================
+        // IAP PROVIDER
+        // ======================================================
+        ChangeNotifierProvider<IapProvider>(
+          create: (_) => IapProvider(),
+        ),
+
+        // ======================================================
         // STARTUP SERVICE
         // ======================================================
-        ProxyProvider3<
+        ProxyProvider4<
           AuthSessionService,
+          AuthController,
           UserProvider,
           MessagingProvider,
           AppStartupService
         >(
-          update: (_, auth, user, messaging, previous) => AppStartupService(
+          update: (_, auth, controller, user, messaging, previous) => AppStartupService(
             authSessionService: auth,
+            authController: controller,
             userProvider: user,
             messagingProvider: messaging,
           ),
@@ -328,27 +357,12 @@ class _AppLockOverlay extends StatefulWidget {
 }
 
 class _AppLockOverlayState extends State<_AppLockOverlay> {
-  bool _biometricPrompted = false;
-
   @override
   Widget build(BuildContext context) {
     return Consumer<AppLockProvider>(
       builder: (context, lockProvider, _) {
         if (!lockProvider.isLocked) {
-          _biometricPrompted = false;
           return widget.child ?? const SizedBox.shrink();
-        }
-
-        // Automatic Biometric Prompt
-        if (lockProvider.biometricEnabled && !_biometricPrompted) {
-          _biometricPrompted = true;
-          WidgetsBinding.instance.addPostFrameCallback((_) async {
-            final authService = context.read<LocalAuthService>();
-            final success = await authService.authenticateWithBiometrics();
-            if (success) {
-              lockProvider.unlock();
-            }
-          });
         }
 
         return Stack(
@@ -357,9 +371,14 @@ class _AppLockOverlayState extends State<_AppLockOverlay> {
             Positioned.fill(
               child: PinVerificationScreen(
                 showAppBar: false,
+                autoBiometrics: true,
                 title: 'App Locked',
                 description: 'Please enter your PIN to continue.',
-                onSuccess: () async {
+                onSuccess: (BuildContext ctx) async {
+                  final authController = ctx.read<AuthController>();
+                  if (!authController.hasValidSession) {
+                    await authController.authenticateWallet();
+                  }
                   lockProvider.unlock();
                 },
               ),

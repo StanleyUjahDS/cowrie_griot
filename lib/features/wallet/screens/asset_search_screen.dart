@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -127,115 +128,132 @@ class _AssetSearchContentState extends State<_AssetSearchContent> {
               ),
             ),
           ),
-          if (provider.isLoading)
-            Expanded(child: Center(child: CircularProgressIndicator()))
-          else if (provider.error != null)
-            Expanded(
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.error_outline, size: 48, color: colors.error),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Unable to complete search',
-                        style: theme.textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        provider.error!,
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodySmall?.copyWith(color: colors.error),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            )
-          else if (provider.query.isEmpty && provider.results.isNotEmpty)
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-                    child: Text(
-                      widget.isSelectMode ? 'Popular assets' : 'Your holdings',
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: colors.primary,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: ListView.builder(
-                      padding: const EdgeInsets.only(bottom: 24),
-                      itemCount: provider.results.length,
-                      itemBuilder: (context, index) {
-                        final token = provider.results[index];
-                        return _TokenSearchResultItem(
-                          token: token,
-                          isSelectMode: widget.isSelectMode,
-                          onLongPress: () => _toggleVisibility(context, token),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            )
-          else if (provider.query.isEmpty)
-            Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.search, size: 64, color: colors.onSurfaceVariant.withValues(alpha: 0.2)),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Search for tokens or paste an address',
-                      style: theme.textTheme.bodyLarge?.copyWith(color: colors.onSurfaceVariant),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else if (provider.results.isEmpty)
-            Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.search_off, size: 64, color: colors.onSurfaceVariant.withValues(alpha: 0.2)),
-                    const SizedBox(height: 16),
-                    Text(
-                      'No results found for "${provider.query}"',
-                      style: theme.textTheme.bodyLarge?.copyWith(color: colors.onSurfaceVariant),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.only(bottom: 24),
-                itemCount: provider.results.length,
-                itemBuilder: (context, index) {
-                  final token = provider.results[index];
-                  return _TokenSearchResultItem(
-                    token: token,
-                    isSelectMode: widget.isSelectMode,
-                    onLongPress: () => _toggleVisibility(context, token),
-                  );
-                },
-              ),
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 600),
+              switchInCurve: Curves.easeOutQuart,
+              child: _buildBody(theme, colors, provider),
             ),
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildBody(ThemeData theme, ColorScheme colors, TokenSearchProvider provider) {
+    if (provider.isLoading) {
+      return const Center(
+        key: ValueKey('loading'),
+        child: CircularProgressIndicator(),
+      );
+    }
+    
+    if (provider.error != null) {
+      return Center(
+        key: const ValueKey('error'),
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline, size: 48, color: colors.error),
+              const SizedBox(height: 16),
+              Text(
+                'Unable to complete search',
+                style: theme.textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                provider.error!,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall?.copyWith(color: colors.error),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (provider.query.isEmpty && provider.results.isNotEmpty) {
+      return Column(
+        key: const ValueKey('holdings'),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+            child: Text(
+              widget.isSelectMode ? 'Popular assets' : 'Your holdings',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: colors.primary,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.only(bottom: 24),
+              itemCount: provider.results.length,
+              itemBuilder: (context, index) {
+                final token = provider.results[index];
+                return _TokenSearchResultItem(
+                  token: token,
+                  isSelectMode: widget.isSelectMode,
+                  onLongPress: () => _toggleVisibility(context, token),
+                ).animate().fadeIn(duration: 400.ms, delay: (index * 40).ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad);
+              },
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (provider.query.isEmpty) {
+      return Center(
+        key: const ValueKey('initial'),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.search, size: 64, color: colors.onSurfaceVariant.withValues(alpha: 0.2)),
+            const SizedBox(height: 16),
+            Text(
+              'Search for tokens or paste an address',
+              style: theme.textTheme.bodyLarge?.copyWith(color: colors.onSurfaceVariant),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (provider.results.isEmpty) {
+      return Center(
+        key: const ValueKey('empty'),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.search_off, size: 64, color: colors.onSurfaceVariant.withValues(alpha: 0.2)),
+            const SizedBox(height: 16),
+            Text(
+              'No results found for "${provider.query}"',
+              style: theme.textTheme.bodyLarge?.copyWith(color: colors.onSurfaceVariant),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      key: const ValueKey('results'),
+      padding: const EdgeInsets.only(bottom: 24),
+      itemCount: provider.results.length,
+      itemBuilder: (context, index) {
+        final token = provider.results[index];
+        return _TokenSearchResultItem(
+          token: token,
+          isSelectMode: widget.isSelectMode,
+          onLongPress: () => _toggleVisibility(context, token),
+        ).animate().fadeIn(duration: 400.ms, delay: (index * 40).ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad);
+      },
     );
   }
 }
@@ -378,7 +396,7 @@ class _TokenSearchResultItem extends StatelessWidget {
                           if ((num.tryParse(token.balance) ?? 0) > 0) ...[
                             const SizedBox(height: 6),
                             Text(
-                              'Holding: ${WalletFormatters.formatBalance(token.balance)}',
+                              'Holding: \${WalletFormatters.formatBalance(token.balance)}',
                               style: text.labelSmall?.copyWith(
                                 color: isHidden ? colors.onSurfaceVariant : colors.primary,
                                 fontWeight: FontWeight.w800,

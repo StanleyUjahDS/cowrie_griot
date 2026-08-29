@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
@@ -60,8 +61,16 @@ class _MessageRequestsScreenState extends State<MessageRequestsScreen> with Sing
       child: TabBarView(
         controller: _tabController,
         children: [
-          _ReceivedRequestsList(),
-          _SentRequestsList(),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 600),
+            switchInCurve: Curves.easeOutQuart,
+            child: _ReceivedRequestsList(),
+          ),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 600),
+            switchInCurve: Curves.easeOutQuart,
+            child: _SentRequestsList(),
+          ),
         ],
       ),
     );
@@ -74,13 +83,17 @@ class _ReceivedRequestsList extends StatelessWidget {
     return Consumer<MessagingProvider>(
       builder: (context, provider, child) {
         if (provider.isLoadingRequests && provider.receivedRequests.isEmpty) {
-          return const Center(child: GriotLoader(size: 44));
+          return const Center(
+            key: ValueKey('loading'),
+            child: GriotLoader(size: 44),
+          );
         }
 
         final requests = provider.receivedRequests.where((r) => r.status == RequestStatus.pending).toList();
 
         if (requests.isEmpty) {
           return const _EmptyRequests(
+            key: ValueKey('empty'),
             title: 'No pending requests',
             message: 'Incoming requests will appear here.',
             icon: Icons.mark_email_read_outlined,
@@ -88,6 +101,7 @@ class _ReceivedRequestsList extends StatelessWidget {
         }
 
         return RefreshIndicator(
+          key: const ValueKey('content'),
           onRefresh: provider.loadRequests,
           child: ListView.builder(
             padding: const EdgeInsets.all(16),
@@ -95,7 +109,7 @@ class _ReceivedRequestsList extends StatelessWidget {
             itemBuilder: (context, index) => _RequestCard(
               request: requests[index],
               isReceived: true,
-            ),
+            ).animate().fadeIn(duration: 400.ms, delay: (index * 40).ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
           ),
         );
       },
@@ -109,13 +123,17 @@ class _SentRequestsList extends StatelessWidget {
     return Consumer<MessagingProvider>(
       builder: (context, provider, child) {
         if (provider.isLoadingRequests && provider.sentRequests.isEmpty) {
-          return const Center(child: GriotLoader(size: 44));
+          return const Center(
+            key: ValueKey('loading'),
+            child: GriotLoader(size: 44),
+          );
         }
 
         final requests = provider.sentRequests.where((r) => r.status == RequestStatus.pending).toList();
 
         if (requests.isEmpty) {
           return const _EmptyRequests(
+            key: ValueKey('empty'),
             title: 'No sent requests',
             message: 'Pending sent requests will appear here.',
             icon: Icons.send_rounded,
@@ -123,6 +141,7 @@ class _SentRequestsList extends StatelessWidget {
         }
 
         return RefreshIndicator(
+          key: const ValueKey('content'),
           onRefresh: provider.loadRequests,
           child: ListView.builder(
             padding: const EdgeInsets.all(16),
@@ -130,7 +149,7 @@ class _SentRequestsList extends StatelessWidget {
             itemBuilder: (context, index) => _RequestCard(
               request: requests[index],
               isReceived: false,
-            ),
+            ).animate().fadeIn(duration: 400.ms, delay: (index * 40).ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
           ),
         );
       },
@@ -336,7 +355,7 @@ class _EmptyRequests extends StatelessWidget {
   final String message;
   final IconData icon;
 
-  const _EmptyRequests({required this.title, required this.message, required this.icon});
+  const _EmptyRequests({super.key, required this.title, required this.message, required this.icon});
 
   @override
   Widget build(BuildContext context) {

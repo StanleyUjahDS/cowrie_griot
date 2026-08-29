@@ -158,17 +158,24 @@ class ApiClient {
     // ATTACH AUTHORIZATION HEADER
     // ==========================================================
 
-    if (accessToken != null &&
-        accessToken.isNotEmpty) {
-      requestHeaders['Authorization'] =
-      'Bearer $accessToken';
+    final bool isAuthRoute = url.contains('/auth/nonce') || 
+                            url.contains('/auth/verify') || 
+                            url.contains('/auth/refresh') ||
+                            url.contains('/auth/login');
+
+    if (accessToken != null && accessToken.isNotEmpty && !isAuthRoute) {
+      requestHeaders['Authorization'] = 'Bearer $accessToken';
 
       if (kDebugMode) {
         debugPrint('API AUTHORIZATION: Bearer token attached');
       }
     } else {
       if (kDebugMode) {
-        debugPrint('API AUTHORIZATION: No access token');
+        if (isAuthRoute) {
+          debugPrint('API AUTHORIZATION: Not required for public auth endpoint');
+        } else {
+          debugPrint('API AUTHORIZATION: No access token (Protected route might fail)');
+        }
       }
     }
 

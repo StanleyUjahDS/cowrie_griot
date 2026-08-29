@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -16,8 +17,6 @@ class ActivityScreen extends StatefulWidget {
 class _ActivityScreenState extends State<ActivityScreen> {
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
     return GradientScaffold(
       appBar: AppBar(
         title: const Text('Activity'),
@@ -27,62 +26,82 @@ class _ActivityScreenState extends State<ActivityScreen> {
       ),
       child: Consumer<MessagingProvider>(
         builder: (context, provider, child) {
-          // For now, we combine some activities.
-          // This will later include tips received, etc.
-          final unreadMessages = provider.conversations.where((c) => c.unreadCount > 0).toList();
-          final pendingRequests = provider.receivedRequests.where((r) => r.isPending).toList();
-
-          if (unreadMessages.isEmpty && pendingRequests.isEmpty) {
-            return _buildEmptyState(context);
-          }
-
-          return ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              if (pendingRequests.isNotEmpty) ...[
-                _buildSectionHeader(context, 'CONNECTION REQUESTS'),
-                ...pendingRequests.map((req) => _buildActivityTile(
-                  context,
-                  icon: Icons.person_add_rounded,
-                  color: colors.primary,
-                  title: 'New Connection Request',
-                  subtitle: '${req.displayName} wants to connect with you.',
-                  time: req.createdAt,
-                  onTap: () => context.push('/chat/requests'),
-                )),
-                const SizedBox(height: 32),
-              ],
-
-              if (unreadMessages.isNotEmpty) ...[
-                _buildSectionHeader(context, 'MESSAGES'),
-                ...unreadMessages.map((conv) => _buildActivityTile(
-                  context,
-                  icon: Icons.chat_bubble_rounded,
-                  color: Colors.blueAccent,
-                  title: conv.title ?? 'New Message',
-                  subtitle: conv.lastMessage?.text ?? 'You have a new message.',
-                  time: conv.updatedAt,
-                  onTap: () => context.push('/conversation/${conv.id}'),
-                )),
-              ],
-
-              // Placeholder for Tips
-              const SizedBox(height: 32),
-              _buildSectionHeader(context, 'TIPS & REWARDS'),
-              _buildActivityTile(
-                context,
-                icon: Icons.toll_rounded,
-                color: Colors.amber,
-                title: 'Tipping Coming Soon',
-                subtitle: 'Your rewards and tips will appear here.',
-                time: DateTime.now(),
-                onTap: null,
-                isPlaceholder: true,
-              ),
-            ],
+          return AnimatedSwitcher(
+            duration: const Duration(milliseconds: 600),
+            switchInCurve: Curves.easeOutQuart,
+            child: _buildBody(context, provider),
           );
         },
       ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context, MessagingProvider provider) {
+    final colors = Theme.of(context).colorScheme;
+    
+    final unreadMessages = provider.conversations.where((c) => c.unreadCount > 0).toList();
+    final pendingRequests = provider.receivedRequests.where((r) => r.isPending).toList();
+
+    if (unreadMessages.isEmpty && pendingRequests.isEmpty) {
+      return _buildEmptyState(context, key: const ValueKey('empty'));
+    }
+
+    return ListView(
+      key: const ValueKey('content'),
+      padding: const EdgeInsets.all(20),
+      children: [
+        if (pendingRequests.isNotEmpty) ...[
+          _buildSectionHeader(context, 'CONNECTION REQUESTS'),
+          ...pendingRequests.asMap().entries.map((entry) {
+            final index = entry.key;
+            final req = entry.value;
+            return _buildActivityTile(
+              context,
+              icon: Icons.person_add_rounded,
+              color: colors.primary,
+              title: 'New Connection Request',
+              subtitle: '${req.displayName} wants to connect with you.',
+              time: req.createdAt,
+              onTap: () => context.push('/chat/requests'),
+            ).animate().fadeIn(duration: 400.ms, delay: (index * 40).ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad);
+          }),
+          const SizedBox(height: 32),
+        ],
+
+        if (unreadMessages.isNotEmpty) ...[
+          _buildSectionHeader(context, 'MESSAGES'),
+          ...unreadMessages.asMap().entries.map((entry) {
+            final index = entry.key;
+            final conv = entry.value;
+            return _buildActivityTile(
+              context,
+              icon: Icons.chat_bubble_rounded,
+              color: Colors.blueAccent,
+              title: conv.title ?? 'New Message',
+              subtitle: conv.lastMessage?.text ?? 'You have a new message.',
+              time: conv.updatedAt,
+              onTap: () => context.push('/conversation/${conv.id}'),
+            ).animate().fadeIn(duration: 400.ms, delay: (index * 40).ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad);
+          }),
+        ],
+
+        const SizedBox(height: 32),
+        _buildSectionHeader(context, 'TIPS & REWARDS'),
+        _buildActivityTile(
+          context,
+          customIcon: SvgPicture.asset(
+            'assets/cowrie_images/cowriesvg.svg',
+            width: 20, height: 20,
+            colorFilter: ColorFilter.mode(Colors.amber, BlendMode.srcIn),
+          ),
+          color: Colors.amber,
+          title: 'Tipping Coming Soon',
+          subtitle: 'Your rewards and tips will appear here.',
+          time: DateTime.now(),
+          onTap: null,
+          isPlaceholder: true,
+        ).animate().fadeIn(duration: 400.ms, delay: 400.ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
+      ],
     );
   }
 
@@ -103,7 +122,8 @@ class _ActivityScreenState extends State<ActivityScreen> {
 
   Widget _buildActivityTile(
     BuildContext context, {
-    required IconData icon,
+    IconData? icon,
+    Widget? customIcon,
     required Color color,
     required String title,
     required String subtitle,
@@ -135,7 +155,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
                     color: color.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(icon, color: color, size: 20),
+                  child: customIcon ?? Icon(icon, color: color, size: 20),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -173,12 +193,13 @@ class _ActivityScreenState extends State<ActivityScreen> {
           ),
         ),
       ),
-    ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.05, end: 0);
+    );
   }
 
-  Widget _buildEmptyState(BuildContext context) {
+  Widget _buildEmptyState(BuildContext context, {Key? key}) {
     final colors = Theme.of(context).colorScheme;
     return Center(
+      key: key,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

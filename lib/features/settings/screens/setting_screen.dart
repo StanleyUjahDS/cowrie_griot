@@ -431,7 +431,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     return GradientScaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
+        title: const Text(
+          'Settings',
+          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+        ),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -484,18 +487,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _divider(context),
                   _settingTile(
                     context: context,
-                    icon: Icons.backup_outlined,
-                    title: 'Backup Wallet',
+                    icon: Icons.key_rounded,
+                    title: 'Backup Seed Phrase',
                     subtitle: 'Securely back up your recovery phrase',
-                    onTap: () => context.push('/settings/backup-wallet'),
-                  ),
-                  _divider(context),
-                  _settingTile(
-                    context: context,
-                    icon: Icons.verified_user_outlined,
-                    title: 'Transaction Security',
-                    subtitle: 'Protect sensitive wallet transactions',
-                    onTap: () => context.push('/settings/transaction-security'),
+                    onTap: () {
+                      context.push('/verify_pin', extra: (BuildContext ctx) async {
+                        if (ctx.mounted) {
+                          ctx.pushReplacement('/settings/backup-wallet');
+                        }
+                      });
+                    },
                   ),
                 ],
               ),
@@ -509,14 +510,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: 'Reputation',
                     subtitle: 'View your network tier and points',
                     onTap: () => context.push('/settings/reputation'),
-                  ),
-                  _divider(context),
-                  _settingTile(
-                    context: context,
-                    icon: Icons.bolt_rounded,
-                    title: 'Mining',
-                    subtitle: 'Manage your mining activity',
-                    onTap: () => context.push('/settings/mining'),
                   ),
                   _divider(context),
                   _settingTile(

@@ -8,6 +8,7 @@ class ProfileField extends StatelessWidget {
   final String value;
   final VoidCallback onTap;
   final Color? iconColor;
+  final IconData? trailingIcon;
 
   const ProfileField({
     super.key,
@@ -16,6 +17,7 @@ class ProfileField extends StatelessWidget {
     required this.value,
     required this.onTap,
     this.iconColor,
+    this.trailingIcon,
   });
 
   @override
@@ -33,7 +35,7 @@ class ProfileField extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: 14,
-            vertical: 13,
+            vertical: 10,
           ),
           child: Row(
             children: [
@@ -76,8 +78,8 @@ class ProfileField extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Icon(
-                Icons.chevron_right_rounded,
-                size: 21,
+                trailingIcon ?? Icons.chevron_right_rounded,
+                size: trailingIcon == Icons.edit_outlined || trailingIcon == Icons.edit_rounded ? 18 : 21,
                 color: colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
               ),
             ],

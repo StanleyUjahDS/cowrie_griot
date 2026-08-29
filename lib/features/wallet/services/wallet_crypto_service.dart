@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:wallet/wallet.dart' as wallet;
+import 'package:wallet/wallet.dart' as legacy_wallet;
 import 'package:web3dart/web3dart.dart' as web3;
 
 class WalletCryptoService {
@@ -25,7 +25,7 @@ class WalletCryptoService {
   }
 
   static WalletData _createWalletIsolate(dynamic _) {
-    final mnemonicWords = wallet.generateMnemonic(strength: 128);
+    final mnemonicWords = legacy_wallet.generateMnemonic(strength: 128);
     final mnemonic = mnemonicWords.join(' ');
     return _fromMnemonic(mnemonic);
   }
@@ -33,7 +33,7 @@ class WalletCryptoService {
   static WalletData _restoreWalletIsolate(String mnemonic) {
     final words = mnemonic.split(' ');
 
-    if (!wallet.validateMnemonic(words)) {
+    if (!legacy_wallet.validateMnemonic(words)) {
       throw Exception('Invalid mnemonic phrase.');
     }
 
@@ -42,28 +42,29 @@ class WalletCryptoService {
 
   static WalletData _fromMnemonic(String mnemonic) {
     final words = mnemonic.split(' ');
-    final seed = wallet.mnemonicToSeed(words);
+    final seed = legacy_wallet.mnemonicToSeed(words);
 
-    final master = wallet.ExtendedPrivateKey.master(
+    final master = legacy_wallet.ExtendedPrivateKey.master(
       seed,
-      wallet.xprv,
+      legacy_wallet.xprv,
     );
 
     final derived = master.forPath(derivationPath);
 
-    if (derived is! wallet.ExtendedPrivateKey) {
+    if (derived is! legacy_wallet.ExtendedPrivateKey) {
       throw Exception('Failed to derive Ethereum private key.');
     }
 
-    final privateKey = wallet.PrivateKey(derived.key);
-    final publicKey = wallet.ethereum.createPublicKey(privateKey);
-    final address = wallet.ethereum.createAddress(publicKey);
+    final privateKey = legacy_wallet.PrivateKey(derived.key);
+    final privateKeyHex = _bigIntToHex(privateKey.value);
 
+    final credentials = web3.EthPrivateKey.fromHex(privateKeyHex);
+    
     return WalletData(
       mnemonic: mnemonic,
-      privateKey: _bigIntToHex(privateKey.value),
-      publicKey: _bytesToHex(publicKey.value),
-      address: address,
+      privateKey: privateKeyHex,
+      publicKey: _bytesToHex(credentials.encodedPublicKey),
+      address: credentials.address.toString(),
     );
   }
 
@@ -120,7 +121,7 @@ class WalletCryptoService {
 
     _validatePrivateKey(normalizedPrivateKey);
 
-    if (!RegExp(r'^0x[a-fA-F0-9]{40}$').hasMatch(to.trim())) {
+    if (!isValidAddress(to)) {
       throw Exception('Invalid transaction recipient address.');
     }
 
@@ -131,19 +132,19 @@ class WalletCryptoService {
     final transactionData = _hexToBytes(dataHex);
 
     final transaction = web3.Transaction(
-      to: wallet.EthereumAddress.fromHex(to),
-      value: wallet.EtherAmount.inWei(
+      to: legacy_wallet.EthereumAddress.fromHex(to),
+      value: legacy_wallet.EtherAmount.inWei(
         BigInt.parse(valueRaw),
       ),
       nonce: nonce,
       gasPrice: gasPrice != null
-          ? wallet.EtherAmount.inWei(BigInt.parse(gasPrice))
+          ? legacy_wallet.EtherAmount.inWei(BigInt.parse(gasPrice))
           : null,
       maxFeePerGas: maxFeePerGas != null
-          ? wallet.EtherAmount.inWei(BigInt.parse(maxFeePerGas))
+          ? legacy_wallet.EtherAmount.inWei(BigInt.parse(maxFeePerGas))
           : null,
       maxPriorityFeePerGas: maxPriorityFeePerGas != null
-          ? wallet.EtherAmount.inWei(BigInt.parse(maxPriorityFeePerGas))
+          ? legacy_wallet.EtherAmount.inWei(BigInt.parse(maxPriorityFeePerGas))
           : null,
       maxGas: int.parse(gasLimit),
       data: transactionData,

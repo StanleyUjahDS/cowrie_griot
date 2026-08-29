@@ -89,84 +89,115 @@ class _ReputationScreenState extends State<ReputationScreen> {
         // Use preferred referral code (Username or Wallet)
         final referralCode = referralData?.referralCode ?? user?.username?.replaceFirst('@', '') ?? user?.walletAddress ?? 'join';
 
-        return Stack(
-          children: [
-            GradientScaffold(
-              appBar: AppBar(
-                title: const Text('Account Reputation'),
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-                actions: [
-                  if (reputation != null)
-                    IconButton(
-                      onPressed: _isGenerating ? null : () => _shareShowcase(reputation, user?.displayName, referralCode),
-                      icon: _isGenerating 
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Icon(Icons.share_rounded),
-                      tooltip: 'Showcase your rank',
-                    ),
-                  IconButton(
-                    onPressed: () {
-                      provider.loadReputation();
-                      referralProvider.loadReferralStatus();
-                    },
-                    icon: const Icon(Icons.refresh_rounded),
-                  ),
-                ],
-              ),
-              child: RefreshIndicator(
-                onRefresh: () async {
-                  await Future.wait([
-                    provider.loadReputation(),
-                    referralProvider.loadReferralStatus(),
-                  ]);
-                },
-                child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(
-                    parent: BouncingScrollPhysics(),
-                  ),
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
-                  children: [
-                    if (provider.isLoading && reputation == null)
-                      const SizedBox(
-                        height: 400,
-                        child: Center(child: GriotLoader()),
-                      )
-                    else if (provider.error != null && reputation == null)
-                      _buildErrorState(colors, text, provider)
-                    else if (reputation != null) ...[
-                      _buildPrestigeHero(reputation, colors, text),
-                      const SizedBox(height: 40),
-                      _buildProgressionCard(reputation, colors, text),
-                      const SizedBox(height: 32),
-                      _buildJourneyGuide(context, reputation.tier.name),
-                      const SizedBox(height: 24),
-                      _buildFooter(colors, text),
-                    ] else if (!provider.isLoading)
-                      _buildEmptyState(colors, text, provider),
-                  ],
-                ),
-              ),
+        return GradientScaffold(
+          appBar: AppBar(
+            title: const Text(
+              'Reputation',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
             ),
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            surfaceTintColor: Colors.transparent,
+            actions: [
+              if (reputation != null)
+                IconButton(
+                  onPressed: _isGenerating ? null : () => _shareShowcase(reputation, user?.displayName, referralCode),
+                  icon: _isGenerating 
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.share_rounded),
+                  tooltip: 'Showcase your rank',
+                ),
+              IconButton(
+                onPressed: () {
+                  provider.loadReputation();
+                  referralProvider.loadReferralStatus();
+                },
+                icon: const Icon(Icons.refresh_rounded),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 600),
+                switchInCurve: Curves.easeOutQuart,
+                child: _buildMainView(context, provider, referralProvider, reputation, user, referralCode, colors, text),
+              ),
 
-            // HIDDEN CERTIFICATE DESIGN (Rendered for capture only)
-            if (reputation != null)
-              Positioned(
-                left: -2000, 
-                child: RepaintBoundary(
-                  key: _certificateKey,
-                  child: _PrestigePassport(
-                    reputation: reputation,
-                    displayName: user?.displayName ?? 'Griot User',
-                    username: user?.username,
-                    avatarUrl: user?.avatarUrl,
-                    referralCode: referralCode,
+              // HIDDEN CERTIFICATE DESIGN (Rendered for capture only)
+              if (reputation != null)
+                Positioned(
+                  left: -2000, 
+                  child: RepaintBoundary(
+                    key: _certificateKey,
+                    child: _PrestigePassport(
+                      reputation: reputation,
+                      displayName: user?.displayName ?? 'Griot User',
+                      username: user?.username,
+                      avatarUrl: user?.avatarUrl,
+                      referralCode: referralCode,
+                    ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         );
       },
+    );
+  }
+
+  Widget _buildMainView(
+    BuildContext context, 
+    ReputationProvider provider, 
+    ReferralProvider referralProvider,
+    ReputationData? reputation,
+    dynamic user,
+    String referralCode,
+    ColorScheme colors,
+    TextTheme text,
+  ) {
+    // Priority 1: If we have no data and it's either loading OR it's the very first frame
+    if (reputation == null && (provider.isLoading || provider.error == null)) {
+      return const Center(
+        key: ValueKey('loading'),
+        child: GriotLoader(),
+      );
+    }
+
+    // Priority 2: If we have no data and an error occurred
+    if (reputation == null && provider.error != null) {
+      return _buildErrorState(colors, text, provider);
+    }
+
+    // Priority 3: If we have no data and no error (shouldn't really happen with Priority 1, but for safety)
+    if (reputation == null) {
+      return _buildEmptyState(colors, text, provider);
+    }
+
+    return RefreshIndicator(
+      key: const ValueKey('content'),
+      onRefresh: () async {
+        await Future.wait([
+          provider.loadReputation(),
+          referralProvider.loadReferralStatus(),
+        ]);
+      },
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+        children: [
+          _buildPrestigeHero(reputation, colors, text),
+          const SizedBox(height: 40),
+          _buildProgressionCard(reputation, colors, text),
+          const SizedBox(height: 32),
+          _buildJourneyGuide(context, reputation.tier.name),
+          const SizedBox(height: 24),
+          _buildFooter(colors, text),
+        ].animate(interval: 50.ms).fade(duration: 400.ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
+      ),
     );
   }
 

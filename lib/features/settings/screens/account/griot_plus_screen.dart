@@ -27,47 +27,66 @@ class _GriotPlusScreenState extends State<GriotPlusScreen> {
 
     return GradientScaffold(
       appBar: AppBar(
-        title: const Text('Griot Plus'),
+        title: const Text(
+          'Griot Plus',
+          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+        ),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
       ),
-      child: iapProvider.isLoading 
-        ? const Center(child: GriotLoader())
-        : SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-            physics: const BouncingScrollPhysics(),
-            child: Column(
-              children: [
-                _buildHeroCard(context, isPlus),
-                const SizedBox(height: 32),
-                _buildSectionLabel(context, 'PLUS BENEFITS'),
-                const SizedBox(height: 16),
-                _buildBenefitTile(
-                  context,
-                  icon: Icons.bolt_rounded,
-                  title: 'Mining Multiplier',
-                  description: 'Gain a +0.4× boost to your daily decentralized rewards.',
-                  color: Colors.amber,
-                ),
-                _buildBenefitTile(
-                  context,
-                  icon: Icons.verified_user_rounded,
-                  title: 'Premium Badge',
-                  description: 'Stand out in the community with a unique Griot Plus identity.',
-                  color: colors.primary,
-                ),
-                const SizedBox(height: 40),
-                if (!isPlus) ...[
-                  _buildComingSoonInfo(context, iapProvider),
-                  const SizedBox(height: 32),
-                  _buildSubscribeButton(context, iapProvider),
-                ] else 
-                  _buildActiveStatusCard(context),
-                const SizedBox(height: 60),
-              ],
-            ),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 600),
+        switchInCurve: Curves.easeOutQuart,
+        child: _buildBody(context, iapProvider, isPlus, colors),
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context, IapProvider iapProvider, bool isPlus, ColorScheme colors) {
+    if (iapProvider.isLoading) {
+      return const Center(
+        key: ValueKey('loading'),
+        child: GriotLoader(),
+      );
+    }
+
+    return SingleChildScrollView(
+      key: const ValueKey('content'),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      physics: const BouncingScrollPhysics(),
+      child: Column(
+        children: [
+          _buildHeroCard(context, isPlus),
+          const SizedBox(height: 32),
+          _buildSectionLabel(context, 'PLUS BENEFITS'),
+          const SizedBox(height: 16),
+          _buildBenefitTile(
+            context,
+            icon: Icons.bolt_rounded,
+            title: 'Mining Multiplier',
+            description: 'Gain a +0.4× boost to your daily decentralized rewards.',
+            color: Colors.amber,
           ),
+          _buildBenefitTile(
+            context,
+            icon: Icons.verified_user_rounded,
+            title: 'Premium Badge',
+            description: 'Stand out in the community with a unique Griot Plus identity.',
+            color: colors.primary,
+          ),
+          const SizedBox(height: 40),
+          if (!isPlus) ...[
+            _buildComingSoonInfo(context, iapProvider),
+            const SizedBox(height: 32),
+            _buildSubscribeButton(context, iapProvider),
+          ] else 
+            _buildActiveStatusCard(context),
+          const SizedBox(height: 60),
+        ].animate(interval: 50.ms).fade(duration: 400.ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
+      ),
     );
   }
 

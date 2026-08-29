@@ -1,12 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
-
 import '/core/ui/scaffolds/gradient_scaffold.dart';
-import '/core/ui/widgets/griot_loader.dart';
-import '../auth_controller.dart';
-import '../services/auth_session_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({
@@ -18,39 +13,11 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  bool _hasWallet = false;
-  bool _isCheckingWallet = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkWallet();
-  }
-
-  Future<void> _checkWallet() async {
-    final sessionService = context.read<AuthSessionService>();
-    final hasWallet = await sessionService.hasWallet();
-    if (mounted) {
-      setState(() {
-        _hasWallet = hasWallet;
-        _isCheckingWallet = false;
-      });
-    }
-  }
-
-  Future<void> _handleLogin(AuthController controller) async {
-    final success = await controller.authenticateWallet();
-    if (success && mounted) {
-      context.go('/chat');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
-    final authController = context.watch<AuthController>();
 
     final bool isDark = theme.brightness == Brightness.dark;
 
@@ -66,12 +33,6 @@ class _LoginScreenState extends State<LoginScreen> {
     final Color subtleSurface = isDark
         ? Colors.white.withValues(alpha: 0.045)
         : Colors.black.withValues(alpha: 0.025);
-
-    if (_isCheckingWallet) {
-      return const GradientScaffold(
-        child: Center(child: GriotLoader()),
-      );
-    }
 
     return GradientScaffold(
       child: Scaffold(
@@ -154,12 +115,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
                       const SizedBox(height: 28),
 
-                      // ==================================================
-                      // TITLE
-                      // ==================================================
-
                       Text(
-                        _hasWallet ? 'Welcome back to Griot' : 'Your wallet. Your identity.',
+                        'Your wallet. Your identity.',
                         textAlign: TextAlign.center,
                         style: textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w700,
@@ -178,9 +135,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           maxWidth: 390,
                         ),
                         child: Text(
-                          _hasWallet 
-                            ? 'Sign in with your secure wallet to continue your decentralized journey.'
-                            : 'Create a new wallet or import an existing one to continue to Griot.',
+                          'Create a new wallet or import an existing one to continue to Griot.',
                           textAlign: TextAlign.center,
                           style: textTheme.bodyMedium?.copyWith(
                             color: secondaryText,
@@ -192,85 +147,30 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: 30),
 
                       // ==================================================
-                      // LOGIN WITH WALLET (Only if wallet exists)
-                      // ==================================================
-                      if (_hasWallet)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: SizedBox(
-                            width: double.infinity,
-                            height: 56,
-                            child: ElevatedButton(
-                              onPressed: authController.isAuthenticating 
-                                ? null 
-                                : () => _handleLogin(authController),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: primaryColor,
-                                foregroundColor: primaryTextColor,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                              ),
-                              child: authController.isAuthenticating
-                                ? const SizedBox(
-                                    height: 24,
-                                    width: 24,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : Text(
-                                    'Login with Wallet',
-                                    style: textTheme.labelLarge?.copyWith(
-                                      color: primaryTextColor,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                            ),
-                          ),
-                        ),
-
-                      // ==================================================
                       // CREATE ACCOUNT
                       // ==================================================
 
                       SizedBox(
                         width: double.infinity,
                         height: 56,
-                        child: _hasWallet 
-                          ? OutlinedButton(
-                              onPressed: authController.isAuthenticating 
-                                ? null 
-                                : () => context.push('/create_account'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: colorScheme.onSurface,
-                                side: BorderSide(color: borderColor),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                              ),
-                              child: const Text('Create New Account'),
-                            )
-                          : ElevatedButton(
-                              onPressed: () => context.push('/create_account'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: primaryColor,
-                                foregroundColor: primaryTextColor,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                              ),
-                              child: Text(
-                                'Create Account',
-                                style: textTheme.labelLarge?.copyWith(
-                                  color: primaryTextColor,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
+                        child: ElevatedButton(
+                          onPressed: () => context.push('/create_account'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryColor,
+                            foregroundColor: primaryTextColor,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
                             ),
+                          ),
+                          child: Text(
+                            'Create New Wallet',
+                            style: textTheme.labelLarge?.copyWith(
+                              color: primaryTextColor,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
                       ),
 
                       const SizedBox(height: 12),
@@ -283,9 +183,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         width: double.infinity,
                         height: 56,
                         child: OutlinedButton(
-                          onPressed: authController.isAuthenticating 
-                            ? null 
-                            : () => context.push('/recover_account'),
+                          onPressed: () => context.push('/recover_account'),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: colorScheme.onSurface,
                             side: BorderSide(
@@ -297,7 +195,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                           child: Text(
-                            _hasWallet ? 'Import Different Account' : 'Import or Login Account',
+                            'Import Existing Wallet',
                             style: textTheme.labelLarge?.copyWith(
                               color: colorScheme.onSurface,
                               fontWeight: FontWeight.w600,

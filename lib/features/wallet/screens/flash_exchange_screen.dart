@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 
 class FlashExchangeScreen extends StatefulWidget {
@@ -98,12 +99,12 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
                   _buildBotMessage(
                     context,
                     "Welcome to Flash Exchange! Send me a contract address or wallet address to get started.",
-                  ),
+                  ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
                   if (_hasUserMessage) ...[
                     const SizedBox(height: 20),
-                    _buildUserMessage(context, _messageController.text),
+                    _buildUserMessage(context, _messageController.text).animate().fadeIn(duration: 300.ms).slideX(begin: 0.05, end: 0),
                     const SizedBox(height: 20),
-                    _isDetected ? _buildDetectedTokenCard(context) : _buildUnsupportedCard(context),
+                    (_isDetected ? _buildDetectedTokenCard(context) : _buildUnsupportedCard(context)).animate().fadeIn(duration: 400.ms).slideY(begin: 0.05, end: 0),
                   ],
                 ],
               ),

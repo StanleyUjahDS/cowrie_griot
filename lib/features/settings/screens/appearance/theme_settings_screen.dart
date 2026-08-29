@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 import '/core/router/app_router.dart';
 import '/core/theme/theme_controller.dart';
@@ -214,21 +214,13 @@ class ThemeSettingsPage extends StatelessWidget {
           appBar: AppBar(
             title: const Text(
               'Theme',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
             ),
             centerTitle: true,
             backgroundColor: Colors.transparent,
-            foregroundColor: colorScheme.onSurface,
             elevation: 0,
             scrolledUnderElevation: 0,
             surfaceTintColor: Colors.transparent,
-            leading: IconButton(
-              onPressed: () {
-                context.pop();
-              },
-              icon: const Icon(
-                Icons.arrow_back_rounded,
-              ),
-            ),
           ),
           child: SafeArea(
             child: ListView(
@@ -321,7 +313,7 @@ class ThemeSettingsPage extends StatelessWidget {
                     ],
                   ),
                 ),
-              ],
+              ].animate(interval: 50.ms).fade(duration: 400.ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
             ),
           ),
         );

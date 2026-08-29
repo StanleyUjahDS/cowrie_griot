@@ -1,6 +1,8 @@
 // auth_session_service.dart
 
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as p;
+import 'package:sqflite/sqflite.dart';
 
 import 'auth_api_service.dart';
 import 'auth_storage_service.dart';
@@ -96,24 +98,30 @@ class AuthSessionService {
       return AuthSessionStatus.needsRegistration;
     }
 
-    // 2. Try refresh token
+    // 2. Check if we have an access token already
+    final accessToken = await _authStorageService.getAccessToken();
+    if (accessToken != null && accessToken.isNotEmpty) {
+      debugPrint('AuthSession: Access token found, assuming authenticated.');
+      return AuthSessionStatus.authenticated;
+    }
+
+    // 3. Try refresh token if no access token
     final refreshToken = await _authStorageService.getRefreshToken();
     if (refreshToken != null && refreshToken.isNotEmpty) {
       try {
-        debugPrint('AuthSession: Attempting refresh...');
+        debugPrint('AuthSession: No access token, attempting refresh...');
         await _authApiService.refreshSession(refreshToken: refreshToken);
-        debugPrint('AuthSession: Authenticated.');
+        debugPrint('AuthSession: Authenticated via refresh.');
         return AuthSessionStatus.authenticated;
       } catch (e) {
         debugPrint('AuthSession: Refresh failed: $e');
 
-        // Check if it's a 401/403 (Invalid Token) or Network Error
         final errorString = e.toString().toLowerCase();
         if (errorString.contains('unable to connect') || 
             errorString.contains('500') || 
             errorString.contains('502') || 
             errorString.contains('503')) {
-          debugPrint('AuthSession: Server unreachable, keeping existing tokens.');
+          debugPrint('AuthSession: Server unreachable, maintaining state.');
           return AuthSessionStatus.offline;
         }
 
@@ -163,14 +171,16 @@ class AuthSessionService {
   }
 
   // ============================================================
-  // SIGN OUT (SESSION ONLY)
+  // SIGN OUT & WIPE DATA
   // ============================================================
   //
-  // ONLY clears the backend session and local tokens.
+  // PERFORMS A FULL WIPE:
   //
-  // DOES NOT delete:
-  // - Wallet / Mnemonic
-  // - Security Settings (PIN, Biometrics)
+  // 1. Unregisters push notifications
+  // 2. Revokes backend session
+  // 3. Deletes local session (JWTs)
+  // 4. Deletes local wallet (Mnemonic/Keys)
+  // 5. Deletes security settings (PIN, Biometrics, App Lock)
   //
   // ============================================================
 
@@ -190,34 +200,32 @@ class AuthSessionService {
 
     // 3. Local session wipe
     await _authStorageService.clearSession();
-  }
 
-  // ============================================================
-  // WIPE DATA (FULL RESET)
-  // ============================================================
-  //
-  // PERFORMS A FULL WIPE:
-  //
-  // 1. Revokes backend session
-  // 2. Deletes local session (JWTs)
-  // 3. Deletes local wallet (Mnemonic/Keys)
-  // 4. Deletes security settings (PIN, Biometrics, App Lock)
-  //
-  // ============================================================
-
-  Future<void> wipeData() async {
-    // 1. Sign out first
-    await signOut();
-
-    // 2. Clear wallet
+    // 4. Clear wallet
     await _walletService.clearWallet();
 
-    // 3. Clear security
+    // 5. Clear security
     await Future.wait([
       _appLockService.reset(),
       _biometricService.disable(),
       _pinStorageService.deletePin(),
     ]);
+
+    // 6. Wipe Local Databases
+    try {
+      final databasesPath = await getDatabasesPath();
+      final path = p.join(databasesPath, 'griot.db');
+      await deleteDatabase(path);
+      debugPrint('AuthSession: Local database wiped.');
+    } catch (e) {
+      debugPrint('AuthSession: Error wiping database: $e');
+    }
+    
+    debugPrint('AuthSession: Full data wipe completed during sign out.');
+  }
+
+  Future<void> wipeData() async {
+    await signOut();
   }
 
   // ============================================================

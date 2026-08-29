@@ -3,14 +3,17 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../../../core/ui/widgets/griot_loader.dart';
 import '../../../core/services/notification_service.dart';
 import '../services/local_auth_service.dart';
+import '../providers/app_lock_provider.dart';
 
 class PinVerificationScreen extends StatefulWidget {
-  final Future<void> Function()? onSuccess;
+  final Future<void> Function(BuildContext)? onSuccess;
   final bool showAppBar;
+  final bool autoBiometrics;
   final String? title;
   final String? description;
 
@@ -18,6 +21,7 @@ class PinVerificationScreen extends StatefulWidget {
     super.key,
     this.onSuccess,
     this.showAppBar = true,
+    this.autoBiometrics = true,
     this.title,
     this.description,
   });
@@ -49,6 +53,26 @@ class _PinVerificationScreenState
   void initState() {
     super.initState();
     _authService = LocalAuthService();
+
+    if (widget.autoBiometrics) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _checkBiometrics();
+      });
+    }
+  }
+
+  Future<void> _checkBiometrics() async {
+    final lockProvider = context.read<AppLockProvider>();
+    if (lockProvider.biometricEnabled) {
+      final success = await _authService.authenticateWithBiometrics();
+      if (success && mounted) {
+        if (widget.onSuccess != null) {
+          await widget.onSuccess!(context);
+        } else {
+          context.pop();
+        }
+      }
+    }
   }
 
   @override
@@ -168,7 +192,7 @@ class _PinVerificationScreenState
       });
 
       if (widget.onSuccess != null) {
-        await widget.onSuccess!();
+        await widget.onSuccess!(context);
       } else if (mounted) {
         context.pop();
       }

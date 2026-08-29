@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/ui/scaffolds/gradient_scaffold.dart';
@@ -19,9 +20,15 @@ class AppSecurityScreen extends StatelessWidget {
 
     return GradientScaffold(
       appBar: AppBar(
-        title: const Text('App Security'),
+        title: const Text(
+          'App Security',
+          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+        ),
         centerTitle: true,
         backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
       ),
       child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -107,12 +114,12 @@ class AppSecurityScreen extends StatelessWidget {
                   if (!context.mounted) return;
 
                   if (hasPin) {
-                    context.push('/verify_pin', extra: () async {
-                      if (context.mounted) {
-                        context.pushReplacement('/set_password', extra: () async {
+                    context.push('/verify_pin', extra: (BuildContext ctx) async {
+                      if (ctx.mounted) {
+                        ctx.pushReplacement('/set_password', extra: (BuildContext ctx2) async {
                           // After new PIN is confirmed, pop all the way back to security settings
-                          if (context.mounted) {
-                            context.pop(); 
+                          if (ctx2.mounted) {
+                            ctx2.pop(); 
                           }
                         });
                       }
@@ -147,7 +154,7 @@ class AppSecurityScreen extends StatelessWidget {
               ],
             ),
           ),
-        ],
+        ].animate(interval: 50.ms).fade(duration: 400.ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
       ),
     );
   }

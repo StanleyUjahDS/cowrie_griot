@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../../../core/services/notification_service.dart';
 import '../services/mnemonic_validation_service.dart';
+import '../auth_controller.dart';
 
 import '../../wallet/services/wallet_crypto_service.dart';
 import '../../wallet/services/wallet_storage_service.dart';
@@ -388,7 +390,10 @@ class _RecoverAccountScreenState
 
           context.pushReplacement(
             '/set_password',
-            extra: mnemonic,
+            extra: (BuildContext ctx) async {
+              final authController = ctx.read<AuthController>();
+              await authController.authenticateWallet();
+            },
           );
         },
       ),
