@@ -163,8 +163,14 @@ class _ChatScreenState extends State<ChatScreen>
     // Clear first for better UX
     controller.clear();
     
-    await provider.sendMessage(conversationId, text);
-    _scrollToBottom();
+    try {
+      await provider.sendMessage(conversationId, text);
+      _scrollToBottom();
+    } catch (e) {
+      if (mounted) {
+        NotificationService.showError(context, 'Message failed to send: $e');
+      }
+    }
   }
 
   Widget _buildAvatar() {
@@ -557,12 +563,12 @@ class _ChatScreenState extends State<ChatScreen>
                       child: Padding(
                         padding:
                         const EdgeInsets.all(
-                          13,
+                          16,
                         ),
-                        child: Image.asset(
-                          'assets/coins_logo/'
-                              'ic_launcher.png',
+                        child: SvgPicture.asset(
+                          'assets/cowrie_images/cowriesvg.svg',
                           fit: BoxFit.contain,
+                          colorFilter: ColorFilter.mode(colorScheme.primary, BlendMode.srcIn),
                         ),
                       ),
                     ),
@@ -1197,12 +1203,12 @@ class _ChatScreenState extends State<ChatScreen>
                     child: Padding(
                       padding:
                       const EdgeInsets.all(
-                        8,
+                        10,
                       ),
-                      child: Image.asset(
-                        'assets/coins_logo/'
-                            'ic_launcher.png',
+                      child: SvgPicture.asset(
+                        'assets/cowrie_images/cowriesvg.svg',
                         fit: BoxFit.contain,
+                        colorFilter: ColorFilter.mode(colorScheme.primary, BlendMode.srcIn),
                       ),
                     ),
                   ),
@@ -1213,14 +1219,10 @@ class _ChatScreenState extends State<ChatScreen>
             PopupMenuButton<String>(
               tooltip: 'More',
               padding: EdgeInsets.zero,
-              offset:
-              const Offset(0, 48),
-              shape:
-              RoundedRectangleBorder(
-                borderRadius:
-                BorderRadius.circular(
-                  17,
-                ),
+              offset: const Offset(0, 48),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+                side: BorderSide(color: colorScheme.primary.withValues(alpha: 0.1), width: 1.5),
               ),
               onSelected: (value) {
                 switch (value) {

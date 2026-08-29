@@ -6,6 +6,8 @@ import 'package:griot_cowrie/features/chat/models/chat_message.dart';
 import 'package:griot_cowrie/features/chat/models/conversation_model.dart';
 import 'package:griot_cowrie/features/chat/models/message_request.dart';
 import 'package:griot_cowrie/features/chat/services/messaging_api_service.dart';
+import 'package:griot_cowrie/features/chat/services/message_cache_service.dart';
+import 'package:griot_cowrie/features/chat/services/message_sync_service.dart';
 import 'package:griot_cowrie/features/users/models/user_model.dart';
 import 'package:griot_cowrie/features/users/providers/user_provider.dart';
 
@@ -20,12 +22,18 @@ enum RelationshipState {
 class MessagingProvider extends ChangeNotifier {
   final MessagingApiService _apiService;
   final UserProvider _userProvider;
+  final MessageCacheService _messageCache;
+  final MessageSyncService _messageSync;
 
   MessagingProvider({
     required MessagingApiService apiService,
     required UserProvider userProvider,
+    required MessageCacheService messageCache,
+    required MessageSyncService messageSync,
   })  : _apiService = apiService,
-        _userProvider = userProvider;
+        _userProvider = userProvider,
+        _messageCache = messageCache,
+        _messageSync = messageSync;
 
   // ==========================================================
   // STATE
@@ -43,6 +51,11 @@ class MessagingProvider extends ChangeNotifier {
 
   List<UserModel> _friends = [];
   bool _isLoadingFriends = false;
+  int _friendsTotal = 0;
+  bool _hasMoreFriends = false;
+  int _friendsOffset = 0;
+  String? _currentFriendsSearchQuery;
+  bool _isLoadingMoreFriends = false;
 
   List<String> _blockedUserIds = [];
   bool _isLoadingBlocks = false;
@@ -64,6 +77,9 @@ class MessagingProvider extends ChangeNotifier {
 
   List<UserModel> get friends => _friends;
   bool get isLoadingFriends => _isLoadingFriends;
+  int get friendsTotal => _friendsTotal;
+  bool get hasMoreFriends => _hasMoreFriends;
+  bool get isLoadingMoreFriends => _isLoadingMoreFriends;
 
   List<String> get blockedUserIds => _blockedUserIds;
   bool get isLoadingBlocks => _isLoadingBlocks;
@@ -228,16 +244,108 @@ class MessagingProvider extends ChangeNotifier {
   // ACTIONS - FRIENDS & BLOCKS
   // ==========================================================
 
-  Future<void> loadFriends() async {
+  Future<void> loadFriends({bool refresh = true}) async {
+    if (_isLoadingFriends) return;
+
+    if (refresh) {
+      _friendsOffset = 0;
+      _currentFriendsSearchQuery = null;
+    }
+
     _isLoadingFriends = true;
     notifyListeners();
 
     try {
-      _friends = await _apiService.getFriends();
+      final result = await _apiService.getFriendsPage(
+        limit: 20,
+        offset: _friendsOffset,
+      );
+
+      final List<dynamic> friendsJson = result['friends'] ?? [];
+      final newFriends = friendsJson.map((f) => UserModel.fromJson(Map<String, dynamic>.from(f))).toList();
+
+      if (refresh) {
+        _friends = newFriends;
+      } else {
+        _friends.addAll(newFriends);
+      }
+
+      _friendsTotal = result['total'] ?? 0;
+      _hasMoreFriends = result['hasMore'] ?? false;
+      _friendsOffset = result['offset'] + newFriends.length;
     } catch (e) {
       debugPrint('Error loading friends: $e');
+      if (refresh) _friends = [];
     } finally {
       _isLoadingFriends = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> searchFriends(String query, {bool refresh = true}) async {
+    if (query.isEmpty) {
+      loadFriends(refresh: true);
+      return;
+    }
+
+    if (refresh) {
+      _friendsOffset = 0;
+      _currentFriendsSearchQuery = query;
+      _friends = []; // Clear for new search
+    } else if (_currentFriendsSearchQuery != query) {
+      // Discard if query changed mid-load
+      return;
+    }
+
+    _isLoadingFriends = true;
+    notifyListeners();
+
+    try {
+      final result = await _apiService.searchFriends(
+        query: query,
+        limit: 20,
+        offset: _friendsOffset,
+      );
+
+      // Check if query is still relevant
+      if (_currentFriendsSearchQuery != query) return;
+
+      final List<dynamic> friendsJson = result['friends'] ?? [];
+      final newFriends = friendsJson.map((f) => UserModel.fromJson(Map<String, dynamic>.from(f))).toList();
+
+      if (refresh) {
+        _friends = newFriends;
+      } else {
+        _friends.addAll(newFriends);
+      }
+
+      _friendsTotal = result['total'] ?? 0;
+      _hasMoreFriends = result['hasMore'] ?? false;
+      _friendsOffset = result['offset'] + newFriends.length;
+    } catch (e) {
+      debugPrint('Error searching friends: $e');
+    } finally {
+      if (_currentFriendsSearchQuery == query) {
+        _isLoadingFriends = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> loadMoreFriends() async {
+    if (_isLoadingFriends || _isLoadingMoreFriends || !_hasMoreFriends) return;
+
+    _isLoadingMoreFriends = true;
+    notifyListeners();
+
+    try {
+      if (_currentFriendsSearchQuery != null) {
+        await searchFriends(_currentFriendsSearchQuery!, refresh: false);
+      } else {
+        await loadFriends(refresh: false);
+      }
+    } finally {
+      _isLoadingMoreFriends = false;
       notifyListeners();
     }
   }
@@ -265,11 +373,6 @@ class MessagingProvider extends ChangeNotifier {
         _blockedUserIds.add(userId);
       }
       _friends.removeWhere((f) => f.id == userId);
-      
-      // Find and disable conversation
-      final conversation = _conversations.where(
-        (c) => c.otherUser?.id == userId
-      ).firstOrNull;
       
       // Stop retrying failed sends for this user/conversation
       // (This would be handled in a more complex queue system, 
@@ -310,7 +413,8 @@ class MessagingProvider extends ChangeNotifier {
   Future<void> loadMessages(String conversationId, {bool refresh = false}) async {
     if (_isLoadingMessages[conversationId] == true) return;
     
-    final currentMessages = _messagesByConversation[conversationId] ?? [];
+    final cachedMessages = await _messageCache.getMessages(conversationId);
+    final currentMessages = _messagesByConversation[conversationId] ?? cachedMessages;
     String? before;
     
     if (!refresh && currentMessages.isNotEmpty) {
@@ -328,14 +432,12 @@ class MessagingProvider extends ChangeNotifier {
         before: before,
       );
 
-      if (refresh) {
-        _messagesByConversation[conversationId] = newMessages;
-      } else {
-        // Prevent duplicates
-        final existingIds = currentMessages.map((m) => m.id).toSet();
-        final distinctNew = newMessages.where((m) => !existingIds.contains(m.id)).toList();
-        _messagesByConversation[conversationId] = [...currentMessages, ...distinctNew];
-      }
+      await _messageCache.saveMessages(newMessages);
+      final merged = <String, ChatMessage>{
+        for (final message in currentMessages) message.id: message,
+        for (final message in newMessages) message.id: message,
+      };
+      _messagesByConversation[conversationId] = merged.values.toList();
       
       _messagesByConversation[conversationId]?.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       
@@ -408,6 +510,8 @@ class MessagingProvider extends ChangeNotifier {
       createdAt: DateTime.now(),
     );
 
+    await _messageCache.saveMessage(optimisticMessage);
+
     final currentMessages = _messagesByConversation[conversationId] ?? [];
     _messagesByConversation[conversationId] = [optimisticMessage, ...currentMessages];
     notifyListeners();
@@ -417,6 +521,8 @@ class MessagingProvider extends ChangeNotifier {
         conversationId: conversationId,
         content: content,
       );
+      await _messageCache.saveMessage(realMessage);
+      await _messageCache.markSynced(realMessage.id);
 
       final list = _messagesByConversation[conversationId] ?? [];
       final index = list.indexWhere((m) => m.id == tempId);
@@ -432,6 +538,7 @@ class MessagingProvider extends ChangeNotifier {
         list[index] = optimisticMessage.copyWith(status: MessageStatus.failed);
         notifyListeners();
       }
+      rethrow;
     }
   }
 
@@ -440,24 +547,111 @@ class MessagingProvider extends ChangeNotifier {
   // ==========================================================
 
   void initSocket(String accessToken) {
-    if (_socket != null) return;
+    if (_socket != null) {
+      if (!_socket!.connected) _socket!.connect();
+      return;
+    }
 
     final baseUrl = ApiConfig.baseUrl.replaceFirst('/api', '');
     _socket = io.io('$baseUrl/messages', io.OptionBuilder()
       .setTransports(['websocket'])
       .setAuth({'token': accessToken})
+      .enableAutoConnect()
       .build());
 
-    _socket?.onConnect((_) => debugPrint('Socket: Connected to /messages'));
+    _socket?.onConnect((_) {
+      debugPrint('Socket: Connected to /messages');
+      // On reconnect, re-fetch lists in case we missed events
+      _refreshAllData();
+    });
+
     _socket?.onDisconnect((_) => debugPrint('Socket: Disconnected'));
 
     _socket?.on('message_received', (data) {
       final message = ChatMessage.fromJson(Map<String, dynamic>.from(data));
       _handleIncomingMessage(message);
     });
+
+    // ==========================================================
+    // MESSAGE REQUEST EVENTS
+    // ==========================================================
+
+    _socket?.on('message_request_received', (data) {
+      debugPrint('Socket: message_request_received');
+      final request = MessageRequest.fromJson(Map<String, dynamic>.from(data));
+      _handleRequestReceived(request);
+    });
+
+    _socket?.on('message_request_accepted', (data) {
+      debugPrint('Socket: message_request_accepted');
+      final request = MessageRequest.fromJson(Map<String, dynamic>.from(data));
+      _handleRequestAccepted(request);
+    });
+
+    _socket?.on('message_request_declined', (data) {
+      debugPrint('Socket: message_request_declined');
+      final request = MessageRequest.fromJson(Map<String, dynamic>.from(data));
+      _handleRequestDeclined(request);
+    });
+
+    _socket?.on('message_request_withdrawn', (data) {
+      debugPrint('Socket: message_request_withdrawn');
+      final request = MessageRequest.fromJson(Map<String, dynamic>.from(data));
+      _handleRequestWithdrawn(request);
+    });
+  }
+
+  void disconnectSocket() {
+    _socket?.disconnect();
+    _socket?.dispose();
+    _socket = null;
+  }
+
+  Future<void> _refreshAllData() async {
+    await Future.wait([
+      loadRequests(),
+      loadFriends(),
+      loadConversations(),
+    ]);
+  }
+
+  void _handleRequestReceived(MessageRequest request) {
+    // Add to received requests if not already there
+    final index = _receivedRequests.indexWhere((r) => r.id == request.id);
+    if (index == -1) {
+      _receivedRequests.insert(0, request);
+    } else {
+      _receivedRequests[index] = request;
+    }
+    notifyListeners();
+  }
+
+  void _handleRequestAccepted(MessageRequest request) {
+    // Remove from pending lists
+    _receivedRequests.removeWhere((r) => r.id == request.id);
+    _sentRequests.removeWhere((r) => r.id == request.id);
+    
+    // Refresh friends and conversations since a new friendship/DM is created
+    loadFriends();
+    loadConversations();
+    
+    notifyListeners();
+  }
+
+  void _handleRequestDeclined(MessageRequest request) {
+    _receivedRequests.removeWhere((r) => r.id == request.id);
+    _sentRequests.removeWhere((r) => r.id == request.id);
+    notifyListeners();
+  }
+
+  void _handleRequestWithdrawn(MessageRequest request) {
+    _receivedRequests.removeWhere((r) => r.id == request.id);
+    _sentRequests.removeWhere((r) => r.id == request.id);
+    notifyListeners();
   }
 
   void _handleIncomingMessage(ChatMessage message) {
+    _messageSync.saveIncomingMessage(message);
     final conversationId = message.conversationId;
     
     // Requirement 12: Add it only to the matching conversation.
@@ -524,7 +718,17 @@ class MessagingProvider extends ChangeNotifier {
   }
 
   Future<void> removeFriend(String userId) async {
-    await blockUser(userId);
+    try {
+      await _apiService.removeFriend(userId);
+      _friends.removeWhere((f) => f.id == userId);
+      notifyListeners();
+      
+      // Refresh state to ensure lists are in sync
+      await loadConversations();
+    } catch (e) {
+      debugPrint('Error removing friend: $e');
+      rethrow;
+    }
   }
 
   @override

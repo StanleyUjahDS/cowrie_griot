@@ -141,7 +141,23 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           TextButton.icon(
-                            onPressed: () => NotificationService.showInfo(context, 'User blocked'),
+                            onPressed: () async {
+                              if (_isActionLoading) return;
+                              setState(() => _isActionLoading = true);
+                              try {
+                                await provider.blockUser(user.id);
+                                if (context.mounted) {
+                                  Navigator.pop(context);
+                                  NotificationService.showSuccess(context, 'User blocked');
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  NotificationService.showError(context, 'Failed to block user: $e');
+                                }
+                              } finally {
+                                if (mounted) setState(() => _isActionLoading = false);
+                              }
+                            },
                             icon: Icon(Icons.block_rounded, size: 14, color: colors.error),
                             label: Text('Block User', style: TextStyle(color: colors.error, fontSize: 12, fontWeight: FontWeight.bold)),
                           ),
