@@ -1540,7 +1540,7 @@ class _ChatScreenState extends State<ChatScreen>
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                onPressed: () => provider.sendRequest(otherUser.id),
+                onPressed: () => provider.sendConnectionRequest(otherUser.id),
                 icon: const Icon(Icons.person_add_alt_1_rounded),
                 label: const Text('Connect to Chat'),
               ),

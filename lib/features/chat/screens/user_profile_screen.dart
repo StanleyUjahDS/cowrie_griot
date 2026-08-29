@@ -9,7 +9,6 @@ import '../providers/messaging_provider.dart';
 import '../models/message_request.dart';
 import '../../users/models/user_model.dart';
 import '../../users/providers/user_provider.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
@@ -60,9 +59,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   Future<void> _handleConnect() async {
     if (_isActionLoading) return;
+    final provider = context.read<MessagingProvider>();
     setState(() => _isActionLoading = true);
     try {
-      await context.read<MessagingProvider>().sendRequest(widget.user.id);
+      await provider.sendConnectionRequest(widget.user.id);
       if (mounted) NotificationService.showSuccess(context, 'Request sent!');
     } catch (e) {
       if (mounted) {
@@ -75,9 +75,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   Future<void> _handleAccept(String requestId) async {
     if (_isActionLoading) return;
+    final provider = context.read<MessagingProvider>();
     setState(() => _isActionLoading = true);
     try {
-      await context.read<MessagingProvider>().acceptRequest(requestId);
+      await provider.acceptRequest(requestId);
       if (mounted) NotificationService.showSuccess(context, 'Connected!');
     } catch (e) {
       if (mounted) NotificationService.showError(context, 'Failed to accept');
@@ -88,9 +89,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   Future<void> _handleWithdraw(String requestId) async {
     if (_isActionLoading) return;
+    final provider = context.read<MessagingProvider>();
     setState(() => _isActionLoading = true);
     try {
-      await context.read<MessagingProvider>().withdrawRequest(requestId);
+      await provider.withdrawRequest(requestId);
       if (mounted) NotificationService.showSuccess(context, 'Request withdrawn');
     } catch (e) {
       if (mounted) NotificationService.showError(context, 'Failed to withdraw');
@@ -101,11 +103,46 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   Future<void> _handleDecline(String requestId) async {
     if (_isActionLoading) return;
+    final provider = context.read<MessagingProvider>();
     setState(() => _isActionLoading = true);
     try {
-      await context.read<MessagingProvider>().declineRequest(requestId);
+      await provider.declineRequest(requestId);
     } catch (_) {
       // Silence errors for decline as per spec
+    } finally {
+      if (mounted) setState(() => _isActionLoading = false);
+    }
+  }
+
+  Future<void> _handleUnfriend() async {
+    final messenger = context.read<MessagingProvider>();
+    
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Unfriend?'),
+        content: const Text('Are you sure you want to remove this user from your friends?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Unfriend', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    if (_isActionLoading) return;
+    setState(() => _isActionLoading = true);
+    try {
+      await messenger.removeFriend(widget.user.id);
+      if (!mounted) return;
+      NotificationService.showSuccess(context, 'User removed from friends');
+    } catch (e) {
+      if (!mounted) return;
+      NotificationService.showError(context, 'Failed to unfriend');
     } finally {
       if (mounted) setState(() => _isActionLoading = false);
     }
@@ -114,8 +151,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   void _handleBlockToggle(bool isBlocked) async {
     if (_isActionLoading) return;
     setState(() => _isActionLoading = true);
+    final provider = context.read<MessagingProvider>();
     try {
-      final provider = context.read<MessagingProvider>();
       if (isBlocked) {
         await provider.unblockUser(widget.user.id);
         if (mounted) NotificationService.showSuccess(context, 'User unblocked');
@@ -151,195 +188,210 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
         return GradientScaffold(
           useSafeArea: false,
-          appBar: AppBar(
-            backgroundColor: colors.surface.withValues(alpha: _scrollOpacity),
-            elevation: 0,
-            surfaceTintColor: Colors.transparent,
-            leading: Center(
-              child: GestureDetector(
-                onTap: () => context.pop(),
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: colors.surface.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: colors.outline.withValues(alpha: 0.1)),
-                  ),
-                  child: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-                ),
-              ),
-            ),
-            title: Opacity(
-              opacity: _scrollOpacity,
-              child: Text(
-                user.displayName ?? 'Profile',
-                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
-              ),
-            ),
-            actions: [
-              if (!isSelf)
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert_rounded),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  onSelected: (val) {
-                    if (val == 'block') {
-                      _handleBlockToggle(isBlocked);
-                    } else if (val == 'tip') {
-                      NotificationService.showInfo(context, 'Tipping coming soon');
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    PopupMenuItem(
-                      value: 'tip',
-                      child: Row(
-                        children: [
-                          Icon(Icons.volunteer_activism_rounded, size: 18, color: Colors.amber),
-                          const SizedBox(width: 12),
-                          const Text('Tip User'),
-                        ],
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'block',
-                      child: Row(
-                        children: [
-                          Icon(isBlocked ? Icons.check_circle_outline_rounded : Icons.block_rounded, 
-                               color: isBlocked ? Colors.green : Colors.red, size: 18),
-                          const SizedBox(width: 12),
-                          Text(isBlocked ? 'Unblock' : 'Block User', 
-                               style: TextStyle(color: isBlocked ? Colors.green : Colors.red)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              const SizedBox(width: 8),
-            ],
-          ),
           child: CustomScrollView(
             controller: _scrollController,
             physics: const BouncingScrollPhysics(),
             slivers: [
-              // 1. Immersive Header
-              SliverToBoxAdapter(
-                child: Stack(
-                  alignment: Alignment.bottomCenter,
-                  clipBehavior: Clip.none,
-                  children: [
-                    Container(
-                      height: 240,
-                      width: double.infinity,
+              // 1. Immersive Modern SliverAppBar
+              SliverAppBar(
+                expandedHeight: 340,
+                pinned: true,
+                stretch: true,
+                backgroundColor: colors.surface.withValues(alpha: _scrollOpacity),
+                elevation: 0,
+                surfaceTintColor: Colors.transparent,
+                leading: Center(
+                  child: GestureDetector(
+                    onTap: () => context.pop(),
+                    child: Container(
+                      width: 40,
+                      height: 40,
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            colors.primary.withValues(alpha: 0.2),
-                            colors.surface.withValues(alpha: 0.05),
-                            Colors.transparent,
-                          ],
-                        ),
+                        color: colors.surface.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: colors.outline.withValues(alpha: 0.1)),
                       ),
-                      child: Stack(
-                        children: [
-                          if (user.avatarUrl != null)
-                            Positioned.fill(
-                              child: ImageFiltered(
-                                imageFilter: ui.ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-                                child: Opacity(
-                                  opacity: 0.15,
-                                  child: Image.network(user.avatarUrl!, fit: BoxFit.cover),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
+                      child: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
                     ),
-                    Positioned(
-                      bottom: -50,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Container(
-                            width: 124,
-                            height: 124,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(color: colors.surface, width: 4),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.15),
-                                  blurRadius: 25,
-                                  offset: const Offset(0, 12),
-                                ),
+                  ),
+                ),
+                actions: [
+                  if (!isSelf)
+                    PopupMenuButton<String>(
+                      icon: const Icon(Icons.more_vert_rounded),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        side: BorderSide(color: colors.primary.withValues(alpha: 0.1), width: 1.5),
+                      ),
+                      elevation: 12,
+                      offset: const Offset(0, 50),
+                      onSelected: (val) {
+                        if (val == 'block') {
+                          _handleBlockToggle(isBlocked);
+                        } else if (val == 'unfriend') {
+                          _handleUnfriend();
+                        } else if (val == 'tip') {
+                          NotificationService.showInfo(context, 'Tipping coming soon');
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        PopupMenuItem(
+                          value: 'tip',
+                          child: Row(
+                            children: [
+                              SvgPicture.asset('assets/cowrie_images/cowriesvg.svg', width: 20, height: 20),
+                              const SizedBox(width: 12),
+                              const Text('Tip User', style: TextStyle(fontWeight: FontWeight.w700)),
+                            ],
+                          ),
+                        ),
+                        if (isFriend)
+                          PopupMenuItem(
+                            value: 'unfriend',
+                            child: Row(
+                              children: [
+                                const Icon(Icons.person_remove_rounded, color: Colors.red, size: 20),
+                                const SizedBox(width: 12),
+                                const Text('Unfriend', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w700)),
                               ],
                             ),
-                            child: CircleAvatar(
-                              radius: 60,
-                              backgroundColor: colors.surfaceContainerHighest,
-                              backgroundImage: user.avatarUrl != null ? NetworkImage(user.avatarUrl!) : null,
-                              child: user.avatarUrl == null 
-                                ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg', width: 64, height: 64)
-                                : null,
+                          ),
+                        PopupMenuItem(
+                          value: 'block',
+                          child: Row(
+                            children: [
+                              Icon(isBlocked ? Icons.check_circle_outline_rounded : Icons.block_rounded, 
+                                   color: isBlocked ? Colors.green : Colors.red, size: 20),
+                              const SizedBox(width: 12),
+                              Text(
+                                isBlocked ? 'Unblock' : 'Block User', 
+                                style: TextStyle(
+                                  color: isBlocked ? Colors.green : Colors.red,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  const SizedBox(width: 8),
+                ],
+                flexibleSpace: FlexibleSpaceBar(
+                  stretchModes: const [
+                    StretchMode.zoomBackground,
+                    StretchMode.blurBackground,
+                  ],
+                  centerTitle: true,
+                  titlePadding: const EdgeInsets.only(bottom: 16),
+                  title: Opacity(
+                    opacity: _scrollOpacity,
+                    child: Text(
+                      user.displayName ?? 'Profile',
+                      style: TextStyle(
+                        color: colors.onSurface,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ),
+                  background: Stack(
+                    alignment: Alignment.bottomCenter,
+                    children: [
+                      // Gradient & Blur Background
+                      Positioned.fill(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                colors.primary.withValues(alpha: 0.15),
+                                colors.surface.withValues(alpha: 0.05),
+                                Colors.transparent,
+                              ],
                             ),
                           ),
-                          if (isFriend)
-                            Positioned(
-                              bottom: 4,
-                              right: 4,
-                              child: Container(
-                                padding: const EdgeInsets.all(6),
+                          child: user.avatarUrl != null
+                              ? ImageFiltered(
+                                  imageFilter: ui.ImageFilter.blur(sigmaX: 50, sigmaY: 50),
+                                  child: Opacity(
+                                    opacity: 0.1,
+                                    child: Image.network(user.avatarUrl!, fit: BoxFit.cover),
+                                  ),
+                                )
+                              : null,
+                        ),
+                      ),
+                      
+                      // Identity Block (Avatar + Name + Username)
+                      // Positioned higher up to avoid "ground"
+                      Positioned(
+                        bottom: 40,
+                        child: Opacity(
+                          opacity: (1.0 - (_scrollOpacity * 1.5)).clamp(0.0, 1.0),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Avatar
+                              Container(
+                                width: 110,
+                                height: 110,
                                 decoration: BoxDecoration(
-                                  color: Colors.green,
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: colors.surface, width: 3),
+                                  border: Border.all(color: colors.surface, width: 4),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.15),
+                                      blurRadius: 20,
+                                      offset: const Offset(0, 10),
+                                    ),
+                                  ],
                                 ),
-                                child: const Icon(Icons.check_rounded, color: Colors.white, size: 14),
+                                child: CircleAvatar(
+                                  radius: 53,
+                                  backgroundColor: colors.surfaceContainerHighest,
+                                  backgroundImage: user.avatarUrl != null ? NetworkImage(user.avatarUrl!) : null,
+                                  child: user.avatarUrl == null 
+                                    ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg', width: 54, height: 53)
+                                    : null,
+                                ),
                               ),
-                            ),
-                        ],
-                      ).animate().scale(duration: 500.ms, curve: Curves.easeOutBack),
-                    ),
-                  ],
+                              const SizedBox(height: 16),
+                              // Name
+                              Text(
+                                user.displayName ?? 'Griot User',
+                                style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+                              ),
+                              // Username
+                              if (user.username != null)
+                                Text(
+                                  '@${user.username}',
+                                  style: TextStyle(color: colors.primary, fontWeight: FontWeight.w800, fontSize: 16),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
 
-              const SliverToBoxAdapter(child: SizedBox(height: 64)),
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-              // 2. Identity Info
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    children: [
-                      Text(
-                        user.displayName ?? 'Griot User',
-                        style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
-                      ),
-                      if (user.username != null) ...[
-                        const SizedBox(height: 4),
-                        Text('@${user.username}', style: TextStyle(color: colors.primary, fontWeight: FontWeight.w800, fontSize: 16)),
-                      ],
-                    ],
-                  ),
-                ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1),
-              ),
-
-              const SliverToBoxAdapter(child: SizedBox(height: 32)),
-
-              // 3. Interaction Hub
+              // 2. Interaction Hub
               if (!isSelf && !isBlockedByThem)
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: _buildInteractionRow(context, relationship, pendingReq, colors),
-                  ).animate().fadeIn(delay: 300.ms),
+                  ).animate().fadeIn(delay: 100.ms),
                 )
               else if (isBlockedByThem)
                 const SliverToBoxAdapter(child: Padding(padding: EdgeInsets.symmetric(horizontal: 24), child: _LockIndicatorCard())),
 
-              const SliverToBoxAdapter(child: SizedBox(height: 32)),
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
               // 4. Bio & Network Info
               SliverToBoxAdapter(

@@ -34,29 +34,10 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
   Future<void> _sendRequest() async {
     setState(() => _isActionLoading = true);
     try {
-      final provider = context.read<MessagingProvider>();
-
-      // The conversation list may be stale or not loaded when this sheet
-      // opens. Re-check the server before choosing DM vs friendship request.
-      var conversationExists = false;
-      try {
-        await provider.startDirectChat(widget.user.id);
-      } catch (_) {
-        // No existing conversation; this is a first-contact DM request.
-      }
-
-      conversationExists = provider.conversations.any(
-        (conversation) => conversation.otherUser?.id == widget.user.id,
-      );
-
-      if (conversationExists) {
-        await provider.sendFriendRequest(widget.user.id);
-      } else {
-        await provider.sendRequest(widget.user.id);
-      }
+      await context.read<MessagingProvider>().sendConnectionRequest(widget.user.id);
 
       if (mounted) {
-        NotificationService.showSuccess(context, 'Friend request sent!');
+        NotificationService.showSuccess(context, 'Request sent!');
         Navigator.pop(context);
       }
     } catch (e) {
@@ -115,33 +96,71 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
                 Positioned(left: -50, bottom: -30, child: Opacity(opacity: 0.05, child: Image.asset('assets/cowrie_images/Cowrie2.png', width: 180))),
 
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(width: 40, height: 4, decoration: BoxDecoration(color: colors.onSurfaceVariant.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(2))),
-                      const SizedBox(height: 32),
+                      Container(
+                        width: 40, 
+                        height: 4, 
+                        decoration: BoxDecoration(
+                          color: colors.onSurfaceVariant.withValues(alpha: 0.2), 
+                          borderRadius: BorderRadius.circular(2)
+                        ),
+                      ),
+                      const SizedBox(height: 24),
                       
                       // Avatar & Reputation
-                      CircleAvatar(
-                        radius: 50,
-                        backgroundColor: colors.primary.withValues(alpha: 0.1),
-                        backgroundImage: user.avatarUrl != null ? NetworkImage(user.avatarUrl!) : null,
-                        child: user.avatarUrl == null 
-                          ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg')
-                          : null,
+                      Stack(
+                        alignment: Alignment.bottomRight,
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: colors.primary.withValues(alpha: 0.1), width: 2),
+                            ),
+                            child: CircleAvatar(
+                              radius: 46,
+                              backgroundColor: colors.surfaceContainerHighest,
+                              backgroundImage: user.avatarUrl != null ? NetworkImage(user.avatarUrl!) : null,
+                              child: user.avatarUrl == null 
+                                ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg', width: 48, height: 48)
+                                : null,
+                            ),
+                          ),
+                          if (user.reputation != null)
+                            Transform.translate(
+                              offset: const Offset(4, 4),
+                              child: _ReputationBadge(reputation: user.reputation!),
+                            ),
+                        ],
                       ),
+                      const SizedBox(height: 12),
+                      Text(
+                        user.displayName ?? 'Griot User', 
+                        style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900, letterSpacing: -0.5)
+                      ),
+                      if (user.username != null) 
+                        Text(
+                          '@${user.username}', 
+                          style: TextStyle(color: colors.primary, fontWeight: FontWeight.w800, fontSize: 14)
+                        ),
+                      
                       const SizedBox(height: 16),
-                      Text(user.displayName ?? 'Griot User', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
-                      if (user.username != null) Text('@${user.username}', style: TextStyle(color: colors.primary, fontWeight: FontWeight.bold, fontSize: 16)),
-                      const SizedBox(height: 8),
-                      if (user.reputation != null) _ReputationBadge(reputation: user.reputation!),
+                      if (user.bio != null && user.bio!.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Text(
+                            user.bio!, 
+                            textAlign: TextAlign.center, 
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: colors.onSurfaceVariant.withValues(alpha: 0.7),
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
                       
                       const SizedBox(height: 24),
-                      if (user.bio != null && user.bio!.isNotEmpty)
-                        Text(user.bio!, textAlign: TextAlign.center, style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant)),
-                      
-                      const SizedBox(height: 32),
                       
                       // SYNCED ACTIONS
                       Row(

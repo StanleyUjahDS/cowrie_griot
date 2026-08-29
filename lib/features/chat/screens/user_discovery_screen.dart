@@ -104,7 +104,7 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> {
           _showUserProfile(user);
           break;
         case 'not_connected':
-          await provider.sendRequest(user.id);
+          await provider.sendConnectionRequest(user.id);
           if (mounted) NotificationService.showSuccess(context, 'Request sent!');
           _performSearch(_searchController.text);
           break;
@@ -135,18 +135,19 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> {
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
+        toolbarHeight: 50, // Slightly more compact
         leading: Center(
           child: GestureDetector(
             onTap: () => context.pop(),
             child: Container(
-              width: 40,
-              height: 40,
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(
                 color: colors.surface.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: colors.outline.withValues(alpha: 0.1)),
               ),
-              child: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+              child: const Icon(Icons.arrow_back_ios_new_rounded, size: 16),
             ),
           ),
         ),
@@ -155,20 +156,20 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> {
         children: [
           // Premium Floating Search Bar
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
             child: Container(
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: colors.primary.withValues(alpha: 0.08),
-                    blurRadius: 20,
+                    color: colors.primary.withValues(alpha: 0.05),
+                    blurRadius: 15,
                     offset: const Offset(0, 8),
                   ),
                 ],
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(20),
                 child: BackdropFilter(
                   filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                   child: TextField(
@@ -181,11 +182,12 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> {
                       hintStyle: TextStyle(
                         color: colors.onSurfaceVariant.withValues(alpha: 0.4),
                         fontWeight: FontWeight.w600,
+                        fontSize: 14,
                       ),
-                      prefixIcon: Icon(Icons.search_rounded, color: colors.primary),
+                      prefixIcon: Icon(Icons.search_rounded, color: colors.primary, size: 22),
                       suffixIcon: _searchController.text.isNotEmpty 
                         ? IconButton(
-                            icon: const Icon(Icons.close_rounded, size: 20),
+                            icon: const Icon(Icons.close_rounded, size: 18),
                             onPressed: () {
                               _searchController.clear();
                               _onSearchChanged('');
@@ -193,20 +195,20 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> {
                           )
                         : null,
                       filled: true,
-                      fillColor: colors.surface.withValues(alpha: 0.8),
+                      fillColor: colors.surface.withValues(alpha: 0.7),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
+                        borderRadius: BorderRadius.circular(20),
                         borderSide: BorderSide(color: colors.primary.withValues(alpha: 0.1)),
                       ),
                       enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
+                        borderRadius: BorderRadius.circular(20),
                         borderSide: BorderSide(color: colors.primary.withValues(alpha: 0.05)),
                       ),
                       focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
+                        borderRadius: BorderRadius.circular(20),
                         borderSide: BorderSide(color: colors.primary.withValues(alpha: 0.2), width: 1.5),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     ),
                   ),
                 ),
@@ -215,7 +217,11 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> {
           ),
 
           Expanded(
-            child: _buildContent(),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 600),
+              switchInCurve: Curves.easeOutQuart,
+              child: _buildContent(),
+            ),
           ),
         ],
       ),
@@ -224,25 +230,30 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> {
 
   Widget _buildContent() {
     if (_isSearching) {
-      return const Center(child: GriotLoader(size: 44));
+      return const Center(
+        key: ValueKey('loading'),
+        child: GriotLoader(size: 44),
+      );
     }
 
     if (_error != null) {
-      return _ErrorState(message: _error!);
+      return _ErrorState(key: const ValueKey('error'), message: _error!);
     }
 
     if (_searchController.text.isEmpty) {
-      return const _InitialState();
+      return const _InitialState(key: ValueKey('initial'));
     }
 
     if (_results.isEmpty) {
       return const _EmptySearch(
+        key: ValueKey('empty'),
         title: 'No results found',
         message: 'Try a different username, name, or wallet address.',
       );
     }
 
     return ListView.builder(
+      key: const ValueKey('results'),
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
       physics: const BouncingScrollPhysics(),
       itemCount: _results.length,
@@ -259,7 +270,7 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> {
 }
 
 class _InitialState extends StatelessWidget {
-  const _InitialState();
+  const _InitialState({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -294,7 +305,7 @@ class _InitialState extends StatelessWidget {
 
 class _ErrorState extends StatelessWidget {
   final String message;
-  const _ErrorState({required this.message});
+  const _ErrorState({super.key, required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -327,7 +338,7 @@ class _EmptySearch extends StatelessWidget {
   final String title;
   final String message;
 
-  const _EmptySearch({required this.title, required this.message});
+  const _EmptySearch({super.key, required this.title, required this.message});
 
   @override
   Widget build(BuildContext context) {
