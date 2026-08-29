@@ -50,6 +50,21 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
     }
   }
 
+  Future<void> _sendFriendRequest() async {
+    setState(() => _isActionLoading = true);
+    try {
+      await context.read<MessagingProvider>().sendFriendRequest(widget.user.id);
+      if (mounted) {
+        NotificationService.showSuccess(context, 'Friend request sent!');
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) NotificationService.showError(context, 'Failed to send friend request: $e');
+    } finally {
+      if (mounted) setState(() => _isActionLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -226,8 +241,8 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
 
     return _ProfileActionButton(
       icon: Icons.person_add_alt_1_rounded,
-      label: 'Send Request',
-      onTap: _isActionLoading ? null : _sendRequest,
+      label: conversationId != null ? 'Add Friend' : 'Send Request',
+      onTap: _isActionLoading ? null : (conversationId != null ? _sendFriendRequest : _sendRequest),
       isLoading: _isActionLoading,
     );
   }

@@ -194,16 +194,26 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> sendFriendRequest(String recipientId) async {
+    final request = await _apiService.sendFriendRequest(recipientId);
+    _sentRequests.add(request);
+    notifyListeners();
+  }
+
   Future<void> acceptRequest(String requestId) async {
     try {
-      final conversation = await _apiService.acceptRequest(requestId);
+      final result = await _apiService.acceptRequest(requestId);
       _receivedRequests.removeWhere((r) => r.id == requestId);
       
       // Update UI state to friends immediately
       await loadFriends();
       
-      if (!_conversations.any((c) => c.id == conversation.id)) {
-        _conversations.insert(0, conversation);
+      final conversationJson = result['conversation'];
+      if (conversationJson is Map) {
+        final conversation = Conversation.fromJson(Map<String, dynamic>.from(conversationJson));
+        if (!_conversations.any((c) => c.id == conversation.id)) {
+          _conversations.insert(0, conversation);
+        }
       }
       notifyListeners();
     } catch (e) {

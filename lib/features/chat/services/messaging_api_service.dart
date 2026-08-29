@@ -118,11 +118,19 @@ class MessagingApiService {
     return MessageRequest.fromJson(Map<String, dynamic>.from(data));
   }
 
-  Future<Conversation> acceptRequest(String requestId) async {
+  Future<MessageRequest> sendFriendRequest(String recipientId) async {
+    final response = await _apiClient.post(
+      ApiConfig.messagingRequests,
+      body: {'recipientId': recipientId, 'requestType': 'friend'},
+    );
+    final data = _getData(response);
+    return MessageRequest.fromJson(Map<String, dynamic>.from(data));
+  }
+
+  Future<Map<String, dynamic>> acceptRequest(String requestId) async {
     final response = await _apiClient.post(ApiConfig.messagingRequestAccept(requestId));
     final data = _getData(response);
-    // Backend should return the conversation object on success
-    return Conversation.fromJson(Map<String, dynamic>.from(data));
+    return Map<String, dynamic>.from(data);
   }
 
   Future<void> declineRequest(String requestId) async {
@@ -169,6 +177,29 @@ class MessagingApiService {
       return data.map((u) => UserModel.fromJson(Map<String, dynamic>.from(u))).toList();
     }
     return [];
+  }
+
+  Future<Map<String, dynamic>> getFriendsPage({int limit = 20, int offset = 0}) async {
+    final response = await _apiClient.get(ApiConfig.messagingFriendsPaged(limit: limit, offset: offset));
+    final data = _getData(response);
+    return Map<String, dynamic>.from(data);
+  }
+
+  Future<Map<String, dynamic>> searchFriends({required String query, int limit = 20, int offset = 0}) async {
+    final response = await _apiClient.get(ApiConfig.messagingFriendsSearch(query, limit: limit, offset: offset));
+    final data = _getData(response);
+    return Map<String, dynamic>.from(data);
+  }
+
+  Future<int> getFriendsCount() async {
+    final response = await _apiClient.get(ApiConfig.messagingFriendsCount);
+    final data = _getData(response);
+    return (data['total'] ?? 0) as int;
+  }
+
+  Future<void> removeFriend(String friendId) async {
+    final response = await _apiClient.delete(ApiConfig.messagingFriendById(friendId));
+    _checkSuccess(response);
   }
 
   // ==========================================================
