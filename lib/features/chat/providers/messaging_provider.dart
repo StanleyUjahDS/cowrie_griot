@@ -203,16 +203,13 @@ class MessagingProvider extends ChangeNotifier {
   /// Sends a friendship request when a DM already exists; otherwise sends the
   /// initial DM/connection request.
   Future<void> sendConnectionRequest(String recipientId) async {
-    var conversationExists = false;
+    Conversation? existingConversation;
     try {
-      await startDirectChat(recipientId);
+      existingConversation = await startDirectChat(recipientId);
     } catch (_) {
       // The direct-conversation lookup failed, so this is first contact.
     }
-    conversationExists = _conversations.any(
-      (conversation) => conversation.otherUser?.id == recipientId,
-    );
-    if (conversationExists) {
+    if (existingConversation != null) {
       await sendFriendRequest(recipientId);
     } else {
       await sendRequest(recipientId);
