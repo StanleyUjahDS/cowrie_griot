@@ -1,11 +1,11 @@
 class WalletFormatters {
   static String shortenAddress(String address) {
     final String cleanAddress = address.trim();
-    if (cleanAddress.length <= 12) {
+    if (cleanAddress.length <= 8) {
       return cleanAddress;
     }
-    return '${cleanAddress.substring(0, 6)}...'
-        '${cleanAddress.substring(cleanAddress.length - 4)}';
+    return '${cleanAddress.substring(0, 3)}...'
+        '${cleanAddress.substring(cleanAddress.length - 3)}';
   }
 
   static String formatBalance(dynamic balance, {String? symbol = '', int? decimals}) {

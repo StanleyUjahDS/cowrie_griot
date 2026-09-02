@@ -12,19 +12,36 @@ class ReferralProvider extends ChangeNotifier {
   bool _isLoading = false;
   bool _isClaiming = false;
   String? _error;
+  DateTime? _lastLoadedAt;
+  Future<void>? _loadFuture;
 
   ReferralData? get data => _data;
   bool get isLoading => _isLoading;
   bool get isClaiming => _isClaiming;
   String? get error => _error;
 
-  Future<void> loadReferralStatus() async {
+  Future<void> loadReferralStatus({bool force = false}) async {
+    if (!force && _data != null && _lastLoadedAt != null &&
+        DateTime.now().difference(_lastLoadedAt!) < const Duration(minutes: 2)) {
+      return;
+    }
+    if (_loadFuture != null) return _loadFuture!;
+    _loadFuture = _loadReferralStatus();
+    try {
+      await _loadFuture;
+    } finally {
+      _loadFuture = null;
+    }
+  }
+
+  Future<void> _loadReferralStatus() async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
       _data = await _apiService.getReferralStatus();
+      _lastLoadedAt = DateTime.now();
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -41,7 +58,7 @@ class ReferralProvider extends ChangeNotifier {
     try {
       await _apiService.claimReferral(referralCode);
       // Reload status after successful claim
-      await loadReferralStatus();
+      await loadReferralStatus(force: true);
     } catch (e) {
       _error = e.toString();
       rethrow;

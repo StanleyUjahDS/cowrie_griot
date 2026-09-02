@@ -198,13 +198,10 @@ class _RequestCardState extends State<_RequestCard> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
+      child: Material(
         color: colors.surface,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: colors.primary.withValues(alpha: 0.08)),
-      ),
-      child: Material(
-        color: Colors.transparent,
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () {
             final user = UserModel(
@@ -216,9 +213,12 @@ class _RequestCardState extends State<_RequestCard> {
             );
             context.push('/user/profile', extra: user);
           },
-          borderRadius: BorderRadius.circular(24),
-          child: Padding(
+          child: Container(
             padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: colors.primary.withValues(alpha: 0.08)),
+            ),
             child: Column(
               children: [
                 Row(
@@ -226,8 +226,10 @@ class _RequestCardState extends State<_RequestCard> {
                     CircleAvatar(
                       radius: 26,
                       backgroundColor: colors.surfaceContainerHighest,
-                      backgroundImage: targetProfileUrl != null ? NetworkImage(targetProfileUrl) : null,
-                      child: targetProfileUrl == null 
+                      backgroundImage: targetProfileUrl != null && targetProfileUrl.trim().isNotEmpty 
+                        ? NetworkImage(targetProfileUrl) 
+                        : null,
+                      child: targetProfileUrl == null || targetProfileUrl.trim().isEmpty
                         ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg', width: 32, height: 32)
                         : null,
                     ),
@@ -242,6 +244,12 @@ class _RequestCardState extends State<_RequestCard> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
+                          if (targetUsername != null && targetUsername.isNotEmpty)
+                            Text(
+                              targetUsername.startsWith('@') ? targetUsername : '@$targetUsername',
+                              style: TextStyle(color: colors.primary, fontSize: 13, fontWeight: FontWeight.w700),
+                            ),
+                          const SizedBox(height: 2),
                           Text(
                             _formatAddress(targetWallet),
                             style: TextStyle(

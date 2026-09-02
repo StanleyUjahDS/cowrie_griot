@@ -1,9 +1,11 @@
 import 'package:griot_cowrie/core/network/api_client.dart';
 import 'package:griot_cowrie/core/network/api_config.dart';
-import 'package:griot_cowrie/features/chat/models/chat_message.dart';
-import 'package:griot_cowrie/features/chat/models/conversation_model.dart';
-import 'package:griot_cowrie/features/chat/models/message_request.dart';
-import 'package:griot_cowrie/features/users/models/user_model.dart';
+import 'package:griot_cowrie/core/network/api_exception.dart';
+import '../models/chat_message.dart';
+import '../models/chat_user.dart';
+import '../models/conversation_model.dart';
+import '../models/message_request.dart';
+import '../../users/models/user_model.dart';
 
 class MessagingApiService {
   final ApiClient _apiClient;
@@ -35,7 +37,173 @@ class MessagingApiService {
     return Conversation.fromJson(Map<String, dynamic>.from(data));
   }
 
-  Future<Conversation> getConversation(String conversationId) => getConversationDetails(conversationId);
+  Future<Conversation> getConversation(String conversationId) async {
+    final response = await _apiClient.get('${ApiConfig.messagingBase}/conversations/$conversationId');
+    return Conversation.fromJson(Map<String, dynamic>.from(_getData(response)));
+  }
+
+  Future<List<Conversation>> getGroups() async {
+    final response = await _apiClient.get(ApiConfig.messagingGroups);
+    return _conversationList(_getData(response), fallbackType: 'group');
+  }
+
+  Future<Conversation> getGroup(String conversationId) async {
+    final response = await _apiClient.get(ApiConfig.messagingGroupById(conversationId));
+    return Conversation.fromJson(Map<String, dynamic>.from(_getData(response)));
+  }
+
+  Future<Conversation> getGroupByUsername(String username) async {
+    final response = await _apiClient.get(ApiConfig.messagingGroupByUsername(username));
+    return Conversation.fromJson(Map<String, dynamic>.from(_getData(response)));
+  }
+
+  Future<Conversation> createGroup({
+    required String name,
+    List<String> memberIds = const [],
+    String visibility = 'public',
+    String? username,
+  }) async {
+    final response = await _apiClient.post(ApiConfig.messagingGroups, body: {
+      'name': name,
+      'memberIds': memberIds,
+      'visibility': visibility,
+      if (username != null && username.trim().isNotEmpty) 'username': username.trim().toLowerCase(),
+    });
+    return Conversation.fromJson(Map<String, dynamic>.from(_getData(response)));
+  }
+
+  Future<List<Conversation>> getChannels() async {
+    final response = await _apiClient.get(ApiConfig.messagingChannelsMe);
+    return _conversationList(_getData(response), fallbackType: 'channel');
+  }
+
+  Future<Conversation> getChannel(String conversationId) async {
+    final response = await _apiClient.get(ApiConfig.messagingChannelById(conversationId));
+    return Conversation.fromJson(Map<String, dynamic>.from(_getData(response)));
+  }
+
+  Future<Conversation> getChannelByUsername(String username) async {
+    final response = await _apiClient.get(ApiConfig.messagingChannelByUsername(username));
+    return Conversation.fromJson(Map<String, dynamic>.from(_getData(response)));
+  }
+
+  Future<Conversation> createChannel({
+    required String name,
+    required String username,
+    String? description,
+    String visibility = 'public',
+  }) async {
+    final response = await _apiClient.post(ApiConfig.messagingChannels, body: {
+      'name': name,
+      'username': username,
+      if (description != null) 'description': description,
+      'visibility': visibility,
+    });
+    return Conversation.fromJson(Map<String, dynamic>.from(_getData(response)));
+  }
+
+  Future<void> subscribeToChannel(String conversationId) async {
+    final response = await _apiClient.post(ApiConfig.messagingChannelSubscribe(conversationId));
+    _checkSuccess(response);
+  }
+
+  Future<void> unsubscribeFromChannel(String conversationId) async {
+    final response = await _apiClient.delete(ApiConfig.messagingChannelSubscribe(conversationId));
+    _checkSuccess(response);
+  }
+
+  Future<void> addGroupMember(String conversationId, String userId) async {
+    final response = await _apiClient.post(
+      ApiConfig.messagingGroupMembers(conversationId),
+      body: {'memberId': userId},
+    );
+    _checkSuccess(response);
+  }
+
+  Future<void> removeGroupMember(String conversationId, String userId) async {
+    final response = await _apiClient.delete(
+      ApiConfig.messagingGroupMemberById(conversationId, userId),
+    );
+    _checkSuccess(response);
+  }
+
+  Future<void> leaveGroup(String conversationId) async {
+    final response = await _apiClient.post(ApiConfig.messagingGroupLeave(conversationId));
+    _checkSuccess(response);
+  }
+
+  Future<Conversation> updateGroup(
+    String conversationId, {
+    String? name,
+    String? description,
+    String? imageUrl,
+    String? visibility,
+  }) async {
+    final response = await _apiClient.patch(
+      ApiConfig.messagingGroupById(conversationId),
+      body: {
+        if (name != null) 'name': name,
+        if (description != null) 'description': description,
+        if (imageUrl != null) 'imageUrl': imageUrl,
+        if (visibility != null) 'visibility': visibility,
+      },
+    );
+    return Conversation.fromJson(Map<String, dynamic>.from(_getData(response)));
+  }
+
+  Future<Conversation> updateChannel(
+    String conversationId, {
+    String? name,
+    String? description,
+    String? imageUrl,
+    String? visibility,
+  }) async {
+    final response = await _apiClient.patch(
+      ApiConfig.messagingChannelById(conversationId),
+      body: {
+        if (name != null) 'name': name,
+        if (description != null) 'description': description,
+        if (imageUrl != null) 'imageUrl': imageUrl,
+        if (visibility != null) 'visibility': visibility,
+      },
+    );
+    return Conversation.fromJson(Map<String, dynamic>.from(_getData(response)));
+  }
+
+  Future<void> deleteChannel(String conversationId) async {
+    final response = await _apiClient.delete(ApiConfig.messagingChannelById(conversationId));
+    _checkSuccess(response);
+  }
+
+  Future<List<ChatUser>> getConversationMembers(String conversationId, {bool isGroup = false}) async {
+    final url = isGroup 
+        ? ApiConfig.messagingGroupMembers(conversationId) 
+        : ApiConfig.messagingDirectMembers(conversationId);
+    final response = await _apiClient.get(url);
+    final data = _getData(response);
+    if (data is List) {
+      return data.map((c) => ChatUser.fromJson(Map<String, dynamic>.from(c))).toList();
+    }
+    return [];
+  }
+
+  Future<List<Map<String, dynamic>>> getGroupMembers(String conversationId) async {
+    final response = await _apiClient.get(ApiConfig.messagingGroupMembers(conversationId));
+    final data = _getData(response);
+    if (data is List) {
+      return data.map((c) => Map<String, dynamic>.from(c)).toList();
+    }
+    return [];
+  }
+
+  Future<List<Map<String, dynamic>>> getChannelMembers(String conversationId) async {
+    final response = await _apiClient.get(ApiConfig.messagingChannelById(conversationId) + '/members');
+    final data = _getData(response);
+    if (data is List) {
+      return data.map((c) => Map<String, dynamic>.from(c)).toList();
+    }
+    return [];
+  }
 
   // ==========================================================
   // MESSAGES
@@ -44,17 +212,27 @@ class MessagingApiService {
   Future<ChatMessage> sendMessage({
     required String conversationId,
     required String content,
+    String messageType = 'text',
+    String? replyToMessageId,
+    String? mediaId,
   }) async {
     final response = await _apiClient.post(
       ApiConfig.messagingMessages,
       body: {
         'conversationId': conversationId,
         'content': content,
-        'messageType': 'text',
+        'messageType': messageType,
+        if (replyToMessageId != null) 'replyToMessageId': replyToMessageId,
+        if (mediaId != null) 'mediaId': mediaId,
       },
     );
     final data = _getData(response);
     return ChatMessage.fromJson(Map<String, dynamic>.from(data));
+  }
+
+  Future<void> deleteMessage(String messageId) async {
+    final response = await _apiClient.delete(ApiConfig.messagingMessageById(messageId));
+    _checkSuccess(response);
   }
 
   Future<List<ChatMessage>> getMessages(
@@ -62,8 +240,11 @@ class MessagingApiService {
     int limit = 50,
     String? before,
   }) async {
+    // Cap limit at 100 as per spec
+    final effectiveLimit = limit.clamp(1, 100);
+    
     final response = await _apiClient.get(
-      ApiConfig.messagingMessagesByConversation(conversationId, limit: limit, before: before),
+      ApiConfig.messagingMessagesByConversation(conversationId, limit: effectiveLimit, before: before),
     );
     final data = _getData(response);
     if (data is List) {
@@ -80,6 +261,24 @@ class MessagingApiService {
     final response = await _apiClient.post(
       ApiConfig.messagingReceipts(messageId),
       body: {'status': status},
+    );
+    _checkSuccess(response);
+  }
+
+  Future<void> toggleReaction(String messageId, String emoji) async {
+    // Reference: POST /api/messaging/messages/:messageId/reactions { "reaction": "❤️" }
+    final response = await _apiClient.post(
+      ApiConfig.messagingReactions(messageId),
+      body: {'reaction': emoji},
+    );
+    _checkSuccess(response);
+  }
+
+  Future<void> removeReaction(String messageId, String emoji) async {
+    // Reference: DELETE /api/messaging/messages/:messageId/reactions { "reaction": "❤️" }
+    final response = await _apiClient.delete(
+      ApiConfig.messagingReactions(messageId),
+      body: {'reaction': emoji},
     );
     _checkSuccess(response);
   }
@@ -106,11 +305,15 @@ class MessagingApiService {
     return [];
   }
 
-  Future<MessageRequest> sendDirectMessageRequest(String recipientId) async {
+  Future<MessageRequest> sendDirectMessageRequest(
+    String recipientId, {
+    String? message,
+  }) async {
     final response = await _apiClient.post(
       ApiConfig.messagingRequests,
       body: {
         'recipientId': recipientId,
+        'message': ?message,
         'requestType': 'dm',
       },
     );
@@ -118,10 +321,17 @@ class MessagingApiService {
     return MessageRequest.fromJson(Map<String, dynamic>.from(data));
   }
 
-  Future<MessageRequest> sendFriendRequest(String recipientId) async {
+  Future<MessageRequest> sendFriendRequest(
+    String recipientId, {
+    String? message,
+  }) async {
     final response = await _apiClient.post(
       ApiConfig.messagingRequests,
-      body: {'recipientId': recipientId, 'requestType': 'friend'},
+      body: {
+        'recipientId': recipientId,
+        'message': ?message,
+        'requestType': 'dm',
+      },
     );
     final data = _getData(response);
     return MessageRequest.fromJson(Map<String, dynamic>.from(data));
@@ -203,6 +413,68 @@ class MessagingApiService {
   }
 
   // ==========================================================
+  // CHANNELS - POSTS & COMMENTS
+  // ==========================================================
+
+  Future<List<ChatMessage>> getChannelPosts(String conversationId) async {
+    final response = await _apiClient.get(ApiConfig.messagingChannelPosts(conversationId));
+    final data = _getData(response);
+    if (data is List) {
+      return data.map((p) => ChatMessage.fromJson(Map<String, dynamic>.from(p))).toList();
+    }
+    return [];
+  }
+
+  Future<ChatMessage> createChannelPost(
+    String conversationId,
+    String content, {
+    String? mediaId,
+  }) async {
+    final response = await _apiClient.post(
+      ApiConfig.messagingChannelPosts(conversationId),
+      body: {
+        'content': content,
+        'mediaId': ?mediaId,
+      },
+    );
+    final data = _getData(response);
+    return ChatMessage.fromJson(Map<String, dynamic>.from(data));
+  }
+
+  Future<List<Map<String, dynamic>>> getChannelComments(String conversationId, String postId) async {
+    final response = await _apiClient.get(ApiConfig.messagingChannelComments(conversationId, postId));
+    final data = _getData(response);
+    if (data is List) {
+      return data.map((c) => Map<String, dynamic>.from(c)).toList();
+    }
+    return [];
+  }
+
+  Future<Map<String, dynamic>> createChannelComment({
+    required String conversationId,
+    required String postId,
+    required String content,
+    String? replyToCommentId,
+  }) async {
+    final response = await _apiClient.post(
+      ApiConfig.messagingChannelComments(conversationId, postId),
+      body: {
+        'content': content,
+        'replyToCommentId': replyToCommentId,
+      },
+    );
+    final data = _getData(response);
+    return Map<String, dynamic>.from(data);
+  }
+
+  Future<void> deleteChannelComment(String conversationId, String postId, String commentId) async {
+    final response = await _apiClient.delete(
+      '${ApiConfig.messagingChannelComments(conversationId, postId)}/$commentId',
+    );
+    _checkSuccess(response);
+  }
+
+  // ==========================================================
   // HELPERS
   // ==========================================================
 
@@ -211,14 +483,32 @@ class MessagingApiService {
       if (response['success'] == true) {
         return response['data'];
       }
-      throw Exception(response['message'] ?? 'Request failed');
+      throw ApiException(
+        message: response['message'] ?? 'Request failed',
+        data: response['data'],
+      );
     }
     return response;
   }
 
   void _checkSuccess(dynamic response) {
     if (response is Map<String, dynamic> && response['success'] != true) {
-      throw Exception(response['message'] ?? 'Request failed');
+      throw ApiException(
+        message: response['message'] ?? 'Request failed',
+        data: response['data'],
+      );
     }
+  }
+
+  List<Conversation> _conversationList(dynamic data, {required String fallbackType}) {
+    if (data is! List) return [];
+    return data.map((item) {
+      final json = Map<String, dynamic>.from(item);
+      json['type'] ??= fallbackType;
+      json['title'] ??= json['name'];
+      json['avatarUrl'] ??= json['image_url'] ?? json['imageUrl'];
+      json['memberIds'] ??= <String>[];
+      return Conversation.fromJson(json);
+    }).toList();
   }
 }

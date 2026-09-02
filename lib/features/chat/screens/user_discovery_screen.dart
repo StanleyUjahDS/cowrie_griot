@@ -9,6 +9,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../users/models/user_model.dart';
 import '../../users/services/user_api_service.dart';
 import '../providers/messaging_provider.dart';
+import '../models/conversation_model.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
@@ -21,21 +22,31 @@ class UserDiscoveryScreen extends StatefulWidget {
   State<UserDiscoveryScreen> createState() => _UserDiscoveryScreenState();
 }
 
-class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> {
+class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> with SingleTickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
+  late TabController _tabController;
   Timer? _searchTimer;
-  List<UserModel> _results = [];
+  
+  List<UserModel> _userResults = [];
+  
   bool _isSearching = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(() {
+      if (_tabController.indexIsChanging) {
+        _performSearch(_searchController.text.trim());
+      }
+    });
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _tabController.dispose();
     _searchTimer?.cancel();
     super.dispose();
   }
@@ -46,7 +57,7 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> {
 
     if (query.length < 2) {
       setState(() {
-        _results = [];
+        _userResults = [];
         _isSearching = false;
         _error = null;
       });
@@ -59,21 +70,31 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> {
   }
 
   Future<void> _performSearch(String query) async {
-    if (!mounted) return;
+    if (!mounted || query.length < 2) return;
+    
     setState(() {
       _isSearching = true;
       _error = null;
     });
 
     try {
-      final apiService = context.read<UserApiService>();
-      final results = await apiService.searchUsers(query);
-      if (!mounted) return;
-      
-      setState(() {
-        _results = results;
-        _isSearching = false;
-      });
+      if (_tabController.index == 0) {
+        final apiService = context.read<UserApiService>();
+        final results = await apiService.searchUsers(query);
+        if (!mounted) return;
+        setState(() {
+          _userResults = results;
+          _isSearching = false;
+        });
+      } else {
+        // TODO: Implement group/channel discovery once backend endpoints are available
+        // GET /api/messaging/groups/discover?q=...
+        // GET /api/messaging/channels/discover?q=...
+        if (!mounted) return;
+        setState(() {
+          _isSearching = false;
+        });
+      }
     } catch (e, stack) {
       debugPrint('DISCOVERY SEARCH ERROR: $e');
       debugPrint('$stack');
@@ -92,8 +113,8 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> {
   }
 
   Future<void> _handleAction(UserModel user) async {
-    final status = user.relationshipStatus;
     final provider = context.read<MessagingProvider>();
+    final status = _getEffectiveStatus(provider.getRelationship(user.id), user.relationshipStatus);
 
     try {
       switch (status) {
@@ -106,12 +127,10 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> {
         case 'not_connected':
           await provider.sendConnectionRequest(user.id);
           if (mounted) NotificationService.showSuccess(context, 'Request sent!');
-          _performSearch(_searchController.text);
           break;
         case 'blocked':
           await provider.unblockUser(user.id);
           if (mounted) NotificationService.showSuccess(context, 'User unblocked');
-          _performSearch(_searchController.text);
           break;
         default:
           _showUserProfile(user);
@@ -119,6 +138,21 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> {
       }
     } catch (e) {
       if (mounted) NotificationService.showError(context, 'Action failed');
+    }
+  }
+
+  String _getEffectiveStatus(RelationshipState state, String? initialStatus) {
+    switch (state) {
+      case RelationshipState.friends:
+        return 'friend';
+      case RelationshipState.pendingSent:
+        return 'request_sent';
+      case RelationshipState.pendingReceived:
+        return 'request_received';
+      case RelationshipState.blocked:
+        return 'blocked';
+      case RelationshipState.none:
+        return initialStatus ?? 'not_connected';
     }
   }
 
@@ -135,7 +169,7 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> {
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        toolbarHeight: 50, // Slightly more compact
+        toolbarHeight: 50,
         leading: Center(
           child: GestureDetector(
             onTap: () => context.pop(),
@@ -151,12 +185,25 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> {
             ),
           ),
         ),
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: colors.primary,
+          labelColor: colors.onSurface,
+          unselectedLabelColor: colors.onSurfaceVariant,
+          indicatorSize: TabBarIndicatorSize.label,
+          labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+          tabs: const [
+            Tab(text: 'Users'),
+            Tab(text: 'Groups'),
+            Tab(text: 'Channels'),
+          ],
+        ),
       ),
       child: Column(
         children: [
           // Premium Floating Search Bar
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
@@ -217,10 +264,13 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> {
           ),
 
           Expanded(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 600),
-              switchInCurve: Curves.easeOutQuart,
-              child: _buildContent(),
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildUserResults(),
+                _buildGroupResults(),
+                _buildChannelResults(),
+              ],
             ),
           ),
         ],
@@ -228,37 +278,18 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> {
     );
   }
 
-  Widget _buildContent() {
-    if (_isSearching) {
-      return const Center(
-        key: ValueKey('loading'),
-        child: GriotLoader(size: 44),
-      );
-    }
-
-    if (_error != null) {
-      return _ErrorState(key: const ValueKey('error'), message: _error!);
-    }
-
-    if (_searchController.text.isEmpty) {
-      return const _InitialState(key: ValueKey('initial'));
-    }
-
-    if (_results.isEmpty) {
-      return const _EmptySearch(
-        key: ValueKey('empty'),
-        title: 'No results found',
-        message: 'Try a different username, name, or wallet address.',
-      );
-    }
+  Widget _buildUserResults() {
+    if (_isSearching) return const Center(child: GriotLoader(size: 44));
+    if (_error != null) return _ErrorState(message: _error!);
+    if (_searchController.text.isEmpty) return const _InitialState(type: 'Users');
+    if (_userResults.isEmpty) return const _EmptySearch(title: 'No users found', message: 'Try a different username or wallet.');
 
     return ListView.builder(
-      key: const ValueKey('results'),
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
       physics: const BouncingScrollPhysics(),
-      itemCount: _results.length,
+      itemCount: _userResults.length,
       itemBuilder: (context, index) {
-        final user = _results[index];
+        final user = _userResults[index];
         return _UserResultTile(
           user: user,
           onTap: () => _showUserProfile(user),
@@ -267,10 +298,29 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> {
       },
     );
   }
+
+  Widget _buildGroupResults() {
+    if (_isSearching) return const Center(child: GriotLoader(size: 44));
+    return const _EmptySearch(
+      title: 'Group Discovery Coming Soon', 
+      message: 'Dedicated endpoints for public groups are being prepared.',
+      icon: Icons.groups_rounded,
+    );
+  }
+
+  Widget _buildChannelResults() {
+    if (_isSearching) return const Center(child: GriotLoader(size: 44));
+    return const _EmptySearch(
+      title: 'Channel Discovery Coming Soon', 
+      message: 'Dedicated endpoints for public channels are being prepared.',
+      icon: Icons.campaign_rounded,
+    );
+  }
 }
 
 class _InitialState extends StatelessWidget {
-  const _InitialState({super.key});
+  final String type;
+  const _InitialState({required this.type});
 
   @override
   Widget build(BuildContext context) {
@@ -289,12 +339,12 @@ class _InitialState extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           Text(
-            'Find your Circle',
+            'Discover $type',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: colors.onSurface),
           ),
           const SizedBox(height: 8),
           Text(
-            'Search for friends across the network',
+            'Search for others across the network',
             style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.6), fontWeight: FontWeight.w600),
           ),
         ],
@@ -305,7 +355,7 @@ class _InitialState extends StatelessWidget {
 
 class _ErrorState extends StatelessWidget {
   final String message;
-  const _ErrorState({super.key, required this.message});
+  const _ErrorState({required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -317,15 +367,15 @@ class _ErrorState extends StatelessWidget {
           children: [
             Icon(Icons.cloud_off_rounded, size: 64, color: Colors.red.withValues(alpha: 0.3)),
             const SizedBox(height: 24),
-            Text(
-              'Connection Lost',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+            const Text(
+              'Search Failed',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 8),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey, height: 1.5),
+              style: const TextStyle(color: Colors.grey, height: 1.5),
             ),
           ],
         ),
@@ -337,8 +387,13 @@ class _ErrorState extends StatelessWidget {
 class _EmptySearch extends StatelessWidget {
   final String title;
   final String message;
+  final IconData icon;
 
-  const _EmptySearch({super.key, required this.title, required this.message});
+  const _EmptySearch({
+    required this.title, 
+    required this.message, 
+    this.icon = Icons.manage_search_rounded,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -349,7 +404,7 @@ class _EmptySearch extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.manage_search_rounded, size: 64, color: colors.onSurfaceVariant.withValues(alpha: 0.2)),
+            Icon(icon, size: 64, color: colors.onSurfaceVariant.withValues(alpha: 0.2)),
             const SizedBox(height: 24),
             Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
             const SizedBox(height: 12),
@@ -388,79 +443,101 @@ class _UserResultTileState extends State<_UserResultTile> {
     final colors = Theme.of(context).colorScheme;
     final reputation = widget.user.reputation;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: colors.primary.withValues(alpha: 0.08)),
-        boxShadow: [
-          BoxShadow(
-            color: colors.primary.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+    return Consumer<MessagingProvider>(
+      builder: (context, messaging, _) {
+        final relationship = messaging.getRelationship(widget.user.id);
+        final String effectiveStatus = _getEffectiveStatus(relationship, widget.user.relationshipStatus);
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: colors.primary.withValues(alpha: 0.08)),
+            boxShadow: [
+              BoxShadow(
+                color: colors.primary.withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: widget.onTap,
-          borderRadius: BorderRadius.circular(24),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                _Avatar(user: widget.user, reputation: reputation),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.user.displayName ?? 'Griot User',
-                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: widget.onTap,
+              borderRadius: BorderRadius.circular(24),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    _Avatar(user: widget.user, reputation: reputation),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.user.effectiveName,
+                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (widget.user.username != null && widget.user.username!.isNotEmpty)
+                            Text(
+                              widget.user.formattedUsername, 
+                              style: TextStyle(color: colors.primary, fontSize: 13, fontWeight: FontWeight.w700)
+                            ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _shortenAddress(widget.user.walletAddress),
+                            style: TextStyle(
+                              color: colors.onSurfaceVariant.withValues(alpha: 0.4), 
+                              fontSize: 10, 
+                              fontFamily: 'monospace', 
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
-                      if (widget.user.username != null)
-                        Text(
-                          '@${widget.user.username}', 
-                          style: TextStyle(color: colors.primary, fontSize: 13, fontWeight: FontWeight.w700)
-                        ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _shortenAddress(widget.user.walletAddress),
-                        style: TextStyle(
-                          color: colors.onSurfaceVariant.withValues(alpha: 0.4), 
-                          fontSize: 10, 
-                          fontFamily: 'monospace', 
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 8),
+                    _Action(
+                      status: effectiveStatus, 
+                      isLoading: _isLoading,
+                      onAction: () async {
+                        if (_isLoading) return;
+                        setState(() => _isLoading = true);
+                        try {
+                          await widget.onActionPressed();
+                        } finally {
+                          if (mounted) setState(() => _isLoading = false);
+                        }
+                      }
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                _Action(
-                  status: widget.user.relationshipStatus, 
-                  isLoading: _isLoading,
-                  onAction: () async {
-                    if (_isLoading) return;
-                    setState(() => _isLoading = true);
-                    try {
-                      await widget.onActionPressed();
-                    } finally {
-                      if (mounted) setState(() => _isLoading = false);
-                    }
-                  }
-                ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
+  }
+
+  String _getEffectiveStatus(RelationshipState state, String? initialStatus) {
+    switch (state) {
+      case RelationshipState.friends:
+        return 'friend';
+      case RelationshipState.pendingSent:
+        return 'request_sent';
+      case RelationshipState.pendingReceived:
+        return 'request_received';
+      case RelationshipState.blocked:
+        return 'blocked';
+      case RelationshipState.none:
+        return initialStatus ?? 'not_connected';
+    }
   }
 
   String _shortenAddress(String addr) {
@@ -477,6 +554,8 @@ class _Avatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final bool isOnline = context.watch<MessagingProvider>().presenceMap[user.id] == true || user.isOnline;
+
     return Stack(
       alignment: Alignment.bottomRight,
       children: [
@@ -488,20 +567,38 @@ class _Avatar extends StatelessWidget {
             ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg', width: 32, height: 32)
             : null,
         ),
-        if (reputation != null)
-          Container(
-            padding: const EdgeInsets.all(3),
-            decoration: BoxDecoration(
-              color: AppColors.parseHexColor(reputation!.badgeColor),
-              shape: BoxShape.circle,
-              border: Border.all(color: colors.surface, width: 2),
+        if (isOnline)
+          Positioned(
+            right: 2,
+            bottom: 2,
+            child: Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                color: Colors.green,
+                shape: BoxShape.circle,
+                border: Border.all(color: colors.surface, width: 2),
+              ),
             ),
-            child: Icon(
-              reputation!.tierName.toLowerCase().contains('ultimate') 
-                  ? Icons.stars_rounded 
-                  : Icons.workspace_premium_rounded,
-              size: 10,
-              color: Colors.white,
+          ),
+        if (reputation != null)
+          Positioned(
+            left: 0,
+            bottom: 0,
+            child: Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: AppColors.parseHexColor(reputation!.badgeColor),
+                shape: BoxShape.circle,
+                border: Border.all(color: colors.surface, width: 2),
+              ),
+              child: Icon(
+                reputation!.tierName.toLowerCase().contains('ultimate') 
+                    ? Icons.stars_rounded 
+                    : Icons.workspace_premium_rounded,
+                size: 10,
+                color: Colors.white,
+              ),
             ),
           ),
       ],
@@ -539,8 +636,14 @@ class _Action extends StatelessWidget {
         color = colors.onSurfaceVariant.withValues(alpha: 0.5);
         break;
       case 'blocked':
+      case 'blocked_by_user':
         icon = Icons.block_rounded;
         color = colors.error;
+        break;
+      case 'not_connected':
+        icon = Icons.person_add_alt_1_rounded;
+        color = colors.primary;
+        filled = true;
         break;
       default:
         icon = Icons.person_add_alt_1_rounded;

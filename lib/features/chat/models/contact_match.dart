@@ -16,9 +16,9 @@ class ContactMatch {
       return username!.trim();
     }
 
-    if (walletAddress.length > 10) {
-      return '${walletAddress.substring(0, 6)}...'
-          '${walletAddress.substring(walletAddress.length - 4)}';
+    if (walletAddress.length > 8) {
+      return '${walletAddress.substring(0, 3)}...'
+          '${walletAddress.substring(walletAddress.length - 3)}';
     }
 
     return walletAddress;

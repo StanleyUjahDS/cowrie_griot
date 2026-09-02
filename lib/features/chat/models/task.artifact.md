@@ -1,0 +1,17 @@
+- [x] Core Models & Serialization
+    - [x] `conversation_model.dart`: Support snake_case/camelCase variants.
+    - [x] `chat_message.dart`: Support snake_case/camelCase variants.
+    - [x] `chat_user.dart`: Support snake_case/camelCase variants.
+- [x] Services Implementation
+    - [x] `MessagingApiService`: Cursor pagination (limit 50, max 100) for `getMessages`.
+    - [x] `MessagingApiService`: Correct parameters for `sendMessage`.
+- [x] Provider Implementation
+    - [x] `MessagingProvider`: Trim whitespace and enforce 4000 character limit in `sendMessage`.
+    - [x] `MessagingProvider`: Update Socket.IO to `http://192.168.1.95:5001/messages`.
+    - [x] `MessagingProvider`: Implement reconnect refresh logic for conversations, requests, and current chat.
+    - [x] `MessagingProvider`: Handle all real-time events (`message_received`, `message_request_*`).
+- [x] UI Components
+    - [x] `ChatHomeScreen`: Update list display with name, avatar, preview, time, badge, and empty state.
+    - [x] `ChattingScreen`: Implement composer visual limits (5 lines) and character count warnings.
+    - [x] `ChattingScreen`: Handle unfriend/block states (disable composer, show appropriate messaging).
+    - [x] `ChattingScreen`: Add "Send Friend Request" flow for unfriend state.

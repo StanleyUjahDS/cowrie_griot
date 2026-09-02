@@ -3,8 +3,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../../config/app_config.dart';
 
 class GriotBannerAd extends StatefulWidget {
-  final bool isCompact;
-  const GriotBannerAd({super.key, this.isCompact = false});
+  const GriotBannerAd({super.key});
 
   @override
   State<GriotBannerAd> createState() => _GriotBannerAdState();
@@ -55,55 +54,32 @@ class _GriotBannerAdState extends State<GriotBannerAd> {
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
 
-    // Compact mode: Remove decoration and reduce margins
-    if (widget.isCompact) {
-      return Container(
-        margin: const EdgeInsets.symmetric(vertical: 2),
-        alignment: Alignment.center,
-        child: _isLoaded && _bannerAd != null
-            ? SizedBox(
-                width: _bannerAd!.size.width.toDouble(),
-                height: _bannerAd!.size.height.toDouble(),
-                child: AdWidget(ad: _bannerAd!),
-              )
-            : const SizedBox(height: 50),
-      );
-    }
-
-    // Standard mode: Show a themed frame even if the ad isn't loaded
-    // to prevent the UI from jumping when it pops in.
+    // Dedicated Region for Ad Consistency
+    // This prevents UI jumping and ensures ads look the same everywhere.
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      padding: const EdgeInsets.all(2),
+      width: double.infinity,
+      height: 60, // Fixed dedicated height for standard banners
+      margin: const EdgeInsets.symmetric(vertical: 16),
+      alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: colorScheme.outline.withValues(alpha: isDark ? 0.20 : 0.12)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+        color: colorScheme.surfaceContainerLow.withValues(alpha: isDark ? 0.3 : 0.5),
+        border: Border.symmetric(
+          horizontal: BorderSide(
+            color: colorScheme.outline.withValues(alpha: 0.08),
+            width: 1,
           ),
-        ],
+        ),
       ),
       child: _isLoaded && _bannerAd != null
-          ? Container(
-              alignment: Alignment.center,
+          ? SizedBox(
               width: _bannerAd!.size.width.toDouble(),
               height: _bannerAd!.size.height.toDouble(),
               child: AdWidget(ad: _bannerAd!),
             )
-          : SizedBox(
-              height: 50, // Standard Banner height
-              width: double.infinity,
-              child: Center(
-                child: Icon(
-                  Icons.ads_click_rounded,
-                  color: colorScheme.onSurface.withValues(alpha: 0.05),
-                  size: 24,
-                ),
-              ),
+          : Icon(
+              Icons.ads_click_rounded,
+              color: colorScheme.onSurface.withValues(alpha: 0.05),
+              size: 20,
             ),
     );
   }

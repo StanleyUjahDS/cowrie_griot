@@ -9,10 +9,7 @@ import '../../features/chat/providers/messaging_provider.dart';
 class MainNavigationShell extends StatefulWidget {
   final StatefulNavigationShell navigationShell;
 
-  const MainNavigationShell({
-    super.key,
-    required this.navigationShell,
-  });
+  const MainNavigationShell({super.key, required this.navigationShell});
 
   @override
   State<MainNavigationShell> createState() => _MainNavigationShellState();
@@ -31,11 +28,8 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
       NavigationScrollService.instance.scrollToTop(index);
       return;
     }
-    
-    widget.navigationShell.goBranch(
-      index,
-      initialLocation: true,
-    );
+
+    widget.navigationShell.goBranch(index, initialLocation: true);
   }
 
   // ============================================================
@@ -55,14 +49,19 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     final Color primary = colorScheme.primary;
     final Color navigationSurface = colorScheme.surface;
     final Color inactiveColor = colorScheme.onSurface.withValues(alpha: 0.55);
-    final Color activeBackground = colorScheme.onSurface.withValues(alpha: isDark ? 0.08 : 0.055);
-    final Color borderColor = colorScheme.outline.withValues(alpha: isDark ? 0.12 : 0.10);
-    final Color shadowColor = colorScheme.shadow.withValues(alpha: isDark ? 0.30 : 0.10);
+    final Color activeBackground = colorScheme.onSurface.withValues(
+      alpha: isDark ? 0.08 : 0.055,
+    );
+    final Color shadowColor = colorScheme.shadow.withValues(
+      alpha: isDark ? 0.30 : 0.10,
+    );
 
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: theme.scaffoldBackgroundColor,
-      drawer: widget.navigationShell.currentIndex == 0 ? _buildChatDrawer(context) : null,
+      drawer: widget.navigationShell.currentIndex == 0
+          ? _buildChatDrawer(context)
+          : null,
       body: Stack(
         fit: StackFit.expand,
         children: [
@@ -75,11 +74,10 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           // ========================================================
           // FLOATING NAVIGATION
           // ========================================================
-
           Align(
             alignment: Alignment.bottomCenter,
             child: Padding(
-              padding: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.only(bottom: 2),
               child: SafeArea(
                 top: false,
                 child: ConstrainedBox(
@@ -87,19 +85,14 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(32),
                     child: BackdropFilter(
-                      filter: ui.ImageFilter.blur(
-                        sigmaX: 20,
-                        sigmaY: 20,
-                      ),
+                      filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                       child: Container(
                         height: 64,
                         decoration: BoxDecoration(
-                          color: navigationSurface.withValues(alpha: isDark ? 0.82 : 0.88),
-                          borderRadius: BorderRadius.circular(33),
-                          border: Border.all(
-                            color: borderColor,
-                            width: 1.0,
+                          color: navigationSurface.withValues(
+                            alpha: isDark ? 0.82 : 0.88,
                           ),
+                          borderRadius: BorderRadius.circular(33),
                           boxShadow: [
                             BoxShadow(
                               color: shadowColor,
@@ -109,75 +102,112 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                             ),
                           ],
                         ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            border: Border(
+                              top: BorderSide(
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.12)
+                                    : colorScheme.primary.withValues(
+                                        alpha: 0.15,
+                                      ),
+                                width: 1.0,
+                              ),
+                              bottom: BorderSide(
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.12)
+                                    : colorScheme.primary.withValues(
+                                        alpha: 0.15,
+                                      ),
+                                width: 1.0,
+                              ),
+                            ),
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              _NavigationItem(
-                                icon: Icons.chat_bubble_outline_rounded,
-                                activeIcon: Icons.chat_bubble_rounded,
-                                label: 'Chat',
-                                index: 0,
-                                currentIndex: widget.navigationShell.currentIndex,
-                                primary: primary,
-                                activeBackground: activeBackground,
-                                inactiveColor: inactiveColor,
-                                onTap: _goBranch,
-                              ),
-                              Consumer<MessagingProvider>(
-                                builder: (context, provider, _) {
-                                  return _NavigationItem(
-                                    icon: Icons.notifications_none_rounded,
-                                    activeIcon: Icons.notifications_rounded,
-                                    label: 'Activity',
-                                    index: 1,
-                                    currentIndex: widget.navigationShell.currentIndex,
-                                    primary: primary,
-                                    activeBackground: activeBackground,
-                                    inactiveColor: inactiveColor,
-                                    onTap: _goBranch,
-                                    badgeCount: provider.totalUnreadCount,
-                                  );
-                                },
-                              ),
-                              _NavigationItem(
-                                icon: Icons.bolt_outlined,
-                                activeIcon: Icons.bolt_rounded,
-                                label: 'Miner',
-                                index: 2,
-                                currentIndex: widget.navigationShell.currentIndex,
-                                primary: primary,
-                                activeBackground: activeBackground,
-                                inactiveColor: inactiveColor,
-                                onTap: _goBranch,
-                              ),
-                              _NavigationItem(
-                                icon: Icons.account_balance_wallet_outlined,
-                                activeIcon: Icons.account_balance_wallet_rounded,
-                                label: 'Wallet',
-                                index: 3,
-                                currentIndex: widget.navigationShell.currentIndex,
-                                primary: primary,
-                                activeBackground: activeBackground,
-                                inactiveColor: inactiveColor,
-                                onTap: _goBranch,
-                              ),
-                              _NavigationItem(
-                                icon: Icons.settings_outlined,
-                                activeIcon: Icons.settings_rounded,
-                                label: 'Settings',
-                                index: 4,
-                                currentIndex: widget.navigationShell.currentIndex,
-                                primary: primary,
-                                activeBackground: activeBackground,
-                                inactiveColor: inactiveColor,
-                                onTap: _goBranch,
-                              ),
-                            ],
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                Consumer<MessagingProvider>(
+                                  builder: (context, provider, _) {
+                                    int chatUnread = 0;
+                                    for (final c in provider.conversations) {
+                                      chatUnread += c.unreadCount;
+                                    }
+                                    return _NavigationItem(
+                                      icon: Icons.chat_bubble_outline_rounded,
+                                      activeIcon: Icons.chat_bubble_rounded,
+                                      label: 'Chat',
+                                      index: 0,
+                                      currentIndex:
+                                          widget.navigationShell.currentIndex,
+                                      primary: primary,
+                                      activeBackground: activeBackground,
+                                      inactiveColor: inactiveColor,
+                                      onTap: _goBranch,
+                                      badgeCount: chatUnread,
+                                    );
+                                  },
+                                ),
+                                Consumer<MessagingProvider>(
+                                  builder: (context, provider, _) {
+                                    return _NavigationItem(
+                                      icon: Icons.notifications_none_rounded,
+                                      activeIcon: Icons.notifications_rounded,
+                                      label: 'Activity',
+                                      index: 1,
+                                      currentIndex:
+                                          widget.navigationShell.currentIndex,
+                                      primary: primary,
+                                      activeBackground: activeBackground,
+                                      inactiveColor: inactiveColor,
+                                      onTap: _goBranch,
+                                      badgeCount: provider.unreadActivityCount,
+                                    );
+                                  },
+                                ),
+                                _NavigationItem(
+                                  icon: Icons.bolt_outlined,
+                                  activeIcon: Icons.bolt_rounded,
+                                  label: 'Miner',
+                                  index: 2,
+                                  currentIndex:
+                                      widget.navigationShell.currentIndex,
+                                  primary: primary,
+                                  activeBackground: activeBackground,
+                                  inactiveColor: inactiveColor,
+                                  onTap: _goBranch,
+                                ),
+                                _NavigationItem(
+                                  icon: Icons.account_balance_wallet_outlined,
+                                  activeIcon:
+                                      Icons.account_balance_wallet_rounded,
+                                  label: 'Wallet',
+                                  index: 3,
+                                  currentIndex:
+                                      widget.navigationShell.currentIndex,
+                                  primary: primary,
+                                  activeBackground: activeBackground,
+                                  inactiveColor: inactiveColor,
+                                  onTap: _goBranch,
+                                ),
+                                _NavigationItem(
+                                  icon: Icons.settings_outlined,
+                                  activeIcon: Icons.settings_rounded,
+                                  label: 'Settings',
+                                  index: 4,
+                                  currentIndex:
+                                      widget.navigationShell.currentIndex,
+                                  primary: primary,
+                                  activeBackground: activeBackground,
+                                  inactiveColor: inactiveColor,
+                                  onTap: _goBranch,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -242,16 +272,12 @@ class _NavigationItem extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: () => onTap(index),
       child: AnimatedContainer(
-        duration: const Duration(
-          milliseconds: 200,
-        ),
+        duration: const Duration(milliseconds: 200),
         curve: Curves.easeOutCubic,
         width: 68,
         height: 54,
         decoration: BoxDecoration(
-          color: isActive
-              ? activeBackground
-              : Colors.transparent,
+          color: isActive ? activeBackground : Colors.transparent,
           borderRadius: BorderRadius.circular(22),
         ),
         child: Column(
@@ -262,14 +288,9 @@ class _NavigationItem extends StatelessWidget {
             // ==================================================
 
             AnimatedSwitcher(
-              duration: const Duration(
-                milliseconds: 150,
-              ),
+              duration: const Duration(milliseconds: 150),
               transitionBuilder: (child, animation) {
-                return ScaleTransition(
-                  scale: animation,
-                  child: child,
-                );
+                return ScaleTransition(scale: animation, child: child);
               },
               child: Stack(
                 clipBehavior: Clip.none,
@@ -278,9 +299,7 @@ class _NavigationItem extends StatelessWidget {
                     isActive ? activeIcon : icon,
                     key: ValueKey(isActive),
                     size: isActive ? 26 : 25,
-                    color: isActive
-                        ? primary
-                        : inactiveColor,
+                    color: isActive ? primary : inactiveColor,
                   ),
                   if (badgeCount > 0)
                     Positioned(
@@ -312,28 +331,19 @@ class _NavigationItem extends StatelessWidget {
               ),
             ),
 
-            const SizedBox(
-              height: 1,
-            ),
+            const SizedBox(height: 1),
 
             // ==================================================
             // LABEL
             // ==================================================
-
             AnimatedDefaultTextStyle(
-              duration: const Duration(
-                milliseconds: 150,
-              ),
+              duration: const Duration(milliseconds: 150),
               style: TextStyle(
                 fontSize: 10.5,
                 height: 1,
-                fontWeight: isActive
-                    ? FontWeight.w900
-                    : FontWeight.w600,
+                fontWeight: isActive ? FontWeight.w900 : FontWeight.w600,
                 letterSpacing: isActive ? 0.4 : 0,
-                color: isActive
-                    ? primary
-                    : inactiveColor,
+                color: isActive ? primary : inactiveColor,
               ),
               child: Text(label),
             ),

@@ -5,6 +5,8 @@ enum MessageType {
   audio,
   file,
   voice,
+  location,
+  contact,
   system,
 }
 
@@ -51,6 +53,12 @@ class ChatMessage {
   /// Whether this message has been deleted.
   final bool isDeleted;
 
+  /// Map of emojis to list of user IDs who reacted.
+  final Map<String, List<String>> reactions;
+
+  /// Optional media ID from the media service.
+  final String? mediaId;
+
   const ChatMessage({
     required this.id,
     required this.conversationId,
@@ -64,6 +72,8 @@ class ChatMessage {
     this.replyToMessageId,
     this.isEdited = false,
     this.isDeleted = false,
+    this.reactions = const {},
+    this.mediaId,
   });
 
   // ==========================================================
@@ -97,6 +107,8 @@ class ChatMessage {
     String? replyToMessageId,
     bool? isEdited,
     bool? isDeleted,
+    Map<String, List<String>>? reactions,
+    String? mediaId,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -111,6 +123,8 @@ class ChatMessage {
       replyToMessageId: replyToMessageId ?? this.replyToMessageId,
       isEdited: isEdited ?? this.isEdited,
       isDeleted: isDeleted ?? this.isDeleted,
+      reactions: reactions ?? this.reactions,
+      mediaId: mediaId ?? this.mediaId,
     );
   }
 
@@ -119,21 +133,47 @@ class ChatMessage {
   // ==========================================================
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
+    final reactionsRaw = json['reactions'];
+    Map<String, List<String>> reactions = {};
+    if (reactionsRaw is Map) {
+      reactions = reactionsRaw.map((key, value) => MapEntry(
+            key.toString(),
+            (value as List).map((e) => e.toString()).toList(),
+          ));
+    } else if (reactionsRaw is List) {
+      for (final r in reactionsRaw) {
+        if (r is Map) {
+          final emoji = (r['reaction'] ?? r['emoji'])?.toString();
+          final userId = (r['user_id'] ?? r['userId'])?.toString();
+          if (emoji != null && userId != null) {
+            reactions.putIfAbsent(emoji, () => []).add(userId);
+          }
+        }
+      }
+    }
+
     return ChatMessage(
       id: json['id']?.toString() ?? '',
-      conversationId: json['conversationId']?.toString() ?? '',
-      senderId: json['senderId']?.toString() ?? '',
-      text: json['content']?.toString() ?? json['text']?.toString() ?? '',
-      type: _messageTypeFromString(json['messageType']?.toString() ?? json['type']?.toString()),
+      conversationId:
+          (json['conversation_id'] ?? json['conversationId'])?.toString() ?? '',
+      senderId: (json['sender_id'] ?? json['senderId'])?.toString() ?? '',
+      text: (json['content'] ?? json['text'])?.toString() ?? '',
+      type: _messageTypeFromString(
+        (json['message_type'] ?? json['messageType'] ?? json['type'])?.toString(),
+      ),
       status: _messageStatusFromString(json['status']?.toString()),
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'].toString())
+      createdAt: (json['created_at'] ?? json['createdAt']) != null
+          ? DateTime.parse((json['created_at'] ?? json['createdAt']).toString())
           : DateTime.now(),
-      mediaUrl: json['mediaUrl']?.toString(),
-      thumbnailUrl: json['thumbnailUrl']?.toString(),
-      replyToMessageId: json['replyToMessageId']?.toString(),
-      isEdited: json['isEdited'] == true,
-      isDeleted: json['isDeleted'] == true,
+      mediaUrl: json['mediaUrl']?.toString() ?? json['media_url']?.toString(),
+      thumbnailUrl:
+          json['thumbnailUrl']?.toString() ?? json['thumbnail_url']?.toString(),
+      replyToMessageId:
+          (json['reply_to_message_id'] ?? json['replyToMessageId'])?.toString(),
+      isEdited: json['isEdited'] == true || json['is_edited'] == true,
+      isDeleted: json['isDeleted'] == true || json['is_deleted'] == true,
+      reactions: reactions,
+      mediaId: (json['mediaId'] ?? json['media_id'])?.toString(),
     );
   }
 
@@ -155,6 +195,7 @@ class ChatMessage {
       'replyToMessageId': replyToMessageId,
       'isEdited': isEdited,
       'isDeleted': isDeleted,
+      'mediaId': mediaId,
     };
   }
 
@@ -172,6 +213,10 @@ class ChatMessage {
         return MessageType.audio;
       case 'voice':
         return MessageType.voice;
+      case 'location':
+        return MessageType.location;
+      case 'contact':
+        return MessageType.contact;
       case 'file':
         return MessageType.file;
       case 'system':

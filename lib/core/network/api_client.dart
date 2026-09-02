@@ -110,6 +110,67 @@ class ApiClient {
   }
 
   // ============================================================
+  // UPLOAD (MULTIPART)
+  // ============================================================
+
+  Future<dynamic> upload(
+    String url, {
+    required String fileKey,
+    required String filePath,
+    Map<String, String>? fields,
+    Map<String, String>? headers,
+  }) async {
+    final uri = Uri.parse(url);
+    final accessToken = await _authStorageService.getAccessToken();
+
+    final request = http.MultipartRequest('POST', uri);
+
+    // Headers
+    request.headers['Accept'] = 'application/json';
+    if (accessToken != null && accessToken.isNotEmpty) {
+      request.headers['Authorization'] = 'Bearer $accessToken';
+    }
+    if (headers != null) {
+      request.headers.addAll(headers);
+    }
+
+    // Fields
+    if (fields != null) {
+      request.fields.addAll(fields);
+    }
+
+    // File
+    final file = await http.MultipartFile.fromPath(fileKey, filePath);
+    request.files.add(file);
+
+    try {
+      final streamedResponse = await _client.send(request);
+      final response = await http.Response.fromStream(streamedResponse);
+      
+      dynamic data;
+      if (response.body.isNotEmpty) {
+        data = jsonDecode(response.body);
+      }
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return data;
+      }
+
+      throw ApiException(
+        message: data is Map ? (data['message'] ?? 'Upload failed') : 'Upload failed',
+        statusCode: response.statusCode,
+        data: data,
+      );
+    } catch (error) {
+      if (error is ApiException) rethrow;
+      throw ApiException(
+        message: 'Unable to connect to the server.',
+        originalError: error,
+      );
+    }
+  }
+
+  // ============================================================
   // REQUEST
   // ============================================================
 

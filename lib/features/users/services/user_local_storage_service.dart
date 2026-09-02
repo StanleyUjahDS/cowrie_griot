@@ -43,4 +43,22 @@ class UserLocalStorageService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_userKey);
   }
+
+  // ============================================================
+  // ACTIVITY TRACKING
+  // ============================================================
+
+  static const String _activitySeenKey = 'last_seen_activity_time';
+
+  Future<void> saveLastSeenActivity(DateTime time) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_activitySeenKey, time.toIso8601String());
+  }
+
+  Future<DateTime?> getLastSeenActivity() async {
+    final prefs = await SharedPreferences.getInstance();
+    final string = prefs.getString(_activitySeenKey);
+    if (string == null) return null;
+    return DateTime.tryParse(string);
+  }
 }

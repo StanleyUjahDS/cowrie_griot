@@ -278,32 +278,47 @@ class _FriendTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    
-    final String displayName = user.displayName ?? user.username ?? 'Unknown';
-    final String? username = user.username != null ? '@${user.username}' : null;
-    final String shortAddress = user.walletAddress.length > 8
-        ? '${user.walletAddress.substring(0, 3)}...${user.walletAddress.substring(user.walletAddress.length - 3)}'
-        : user.walletAddress;
+
+    final bool isOnline = context.watch<MessagingProvider>().presenceMap[user.id] == true || user.isOnline;
 
     return ListTile(
       onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       leading: GestureDetector(
         onTap: onProfileTap,
-        child: CircleAvatar(
-          radius: 24,
-          backgroundColor: colors.primary.withValues(alpha: 0.1),
-          backgroundImage: user.avatarUrl != null ? NetworkImage(user.avatarUrl!) : null,
-          child: user.avatarUrl == null 
-            ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg')
-            : null,
+        child: Stack(
+          children: [
+            CircleAvatar(
+              radius: 24,
+              backgroundColor: colors.primary.withValues(alpha: 0.1),
+              backgroundImage:
+                  user.avatarUrl != null ? NetworkImage(user.avatarUrl!) : null,
+              child: user.avatarUrl == null
+                  ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg')
+                  : null,
+            ),
+            if (isOnline)
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: Colors.green,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: colors.surface, width: 2),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
       title: Row(
         children: [
           Expanded(
             child: Text(
-              displayName,
+              user.effectiveName,
               style: const TextStyle(fontWeight: FontWeight.bold),
               overflow: TextOverflow.ellipsis,
             ),
@@ -315,7 +330,9 @@ class _FriendTile extends StatelessWidget {
         ],
       ),
       subtitle: Text(
-        username ?? shortAddress,
+        user.formattedUsername.isNotEmpty
+            ? user.formattedUsername
+            : user.shortWalletAddress,
         style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
       ),
       trailing: PopupMenuButton<String>(

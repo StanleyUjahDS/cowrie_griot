@@ -7,8 +7,11 @@ import 'package:intl/intl.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/messaging_provider.dart';
 import '../models/message_request.dart';
+import '../models/chat_user.dart';
+import '../widgets/chatting/tip_sheet.dart';
 import '../../users/models/user_model.dart';
 import '../../users/providers/user_provider.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
@@ -167,6 +170,30 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     }
   }
 
+  void _showTipSheet() {
+    TipSheet.show(
+      context,
+      recipients: [ChatUser.fromUserModel(widget.user)],
+    );
+  }
+
+  RelationshipState _getEffectiveRelationship(RelationshipState local, String? initialStatus) {
+    if (local != RelationshipState.none) return local;
+    
+    switch (initialStatus) {
+      case 'friend':
+        return RelationshipState.friends;
+      case 'request_sent':
+        return RelationshipState.pendingSent;
+      case 'request_received':
+        return RelationshipState.pendingReceived;
+      case 'blocked':
+        return RelationshipState.blocked;
+      default:
+        return RelationshipState.none;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -179,10 +206,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         
         final UserModel user = isSelf && userProvider.user != null ? userProvider.user! : widget.user;
         final relationship = messaging.getRelationship(user.id);
+        final effectiveRelationship = _getEffectiveRelationship(relationship, user.relationshipStatus);
         final pendingReq = messaging.getPendingRequest(user.id);
         
-        final isBlocked = relationship == RelationshipState.blocked;
-        final isFriend = relationship == RelationshipState.friends;
+        final isBlocked = effectiveRelationship == RelationshipState.blocked;
+        final isFriend = effectiveRelationship == RelationshipState.friends;
         
         final bool isBlockedByThem = user.relationshipStatus == 'blocked_by_user';
 
@@ -231,7 +259,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         } else if (val == 'unfriend') {
                           _handleUnfriend();
                         } else if (val == 'tip') {
-                          NotificationService.showInfo(context, 'Tipping coming soon');
+                          _showTipSheet();
                         }
                       },
                       itemBuilder: (context) => [
@@ -239,7 +267,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                           value: 'tip',
                           child: Row(
                             children: [
-                              SvgPicture.asset('assets/cowrie_images/cowriesvg.svg', width: 20, height: 20),
+                              SvgPicture.asset(
+                                'assets/cowrie_images/cowriesvg.svg',
+                                width: 20,
+                                height: 20,
+                                colorFilter: ColorFilter.mode(colors.primary, BlendMode.srcIn),
+                              ),
                               const SizedBox(width: 12),
                               const Text('Tip User', style: TextStyle(fontWeight: FontWeight.w700)),
                             ],
@@ -325,7 +358,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       ),
                       
                       // Identity Block (Avatar + Name + Username)
-                      // Positioned higher up to avoid "ground"
                       Positioned(
                         bottom: 40,
                         child: Opacity(
@@ -348,13 +380,31 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                     ),
                                   ],
                                 ),
-                                child: CircleAvatar(
-                                  radius: 53,
-                                  backgroundColor: colors.surfaceContainerHighest,
-                                  backgroundImage: user.avatarUrl != null ? NetworkImage(user.avatarUrl!) : null,
-                                  child: user.avatarUrl == null 
-                                    ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg', width: 54, height: 53)
-                                    : null,
+                                child: Stack(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 53,
+                                      backgroundColor: colors.surfaceContainerHighest,
+                                      backgroundImage: user.avatarUrl != null ? NetworkImage(user.avatarUrl!) : null,
+                                      child: user.avatarUrl == null 
+                                        ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg', width: 54, height: 53)
+                                        : null,
+                                    ),
+                                    if (messaging.presenceMap[user.id] == true || user.isOnline)
+                                      Positioned(
+                                        right: 4,
+                                        bottom: 4,
+                                        child: Container(
+                                          width: 20,
+                                          height: 20,
+                                          decoration: BoxDecoration(
+                                            color: Colors.green,
+                                            shape: BoxShape.circle,
+                                            border: Border.all(color: colors.surface, width: 3),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               ),
                               const SizedBox(height: 16),
@@ -369,6 +419,37 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                   '@${user.username}',
                                   style: TextStyle(color: colors.primary, fontWeight: FontWeight.w800, fontSize: 16),
                                 ),
+                              const SizedBox(height: 8),
+                              // Reputation Badge
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: AppColors.parseHexColor(user.reputation?.badgeColor).withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: AppColors.parseHexColor(user.reputation?.badgeColor).withValues(alpha: 0.2),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.workspace_premium_rounded,
+                                      size: 14,
+                                      color: AppColors.parseHexColor(user.reputation?.badgeColor),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      user.reputation?.tierName ?? 'Initiate Badger',
+                                      style: TextStyle(
+                                        color: AppColors.parseHexColor(user.reputation?.badgeColor),
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -385,7 +466,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: _buildInteractionRow(context, relationship, pendingReq, colors),
+                    child: _buildInteractionRow(context, effectiveRelationship, pendingReq, colors),
                   ).animate().fadeIn(delay: 100.ms),
                 )
               else if (isBlockedByThem)
@@ -612,7 +693,7 @@ class _IdentityDetailsCard extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
-          _row(context, Icons.fingerprint_rounded, 'Griot Digital ID', _shorten(user.walletAddress)),
+          _row(context, Icons.fingerprint_rounded, 'Griot Digital ID', user.shortWalletAddress),
           _divider(context),
           _row(context, Icons.calendar_today_rounded, 'Member Since', 
             user.createdAt != null ? DateFormat('MMMM yyyy').format(user.createdAt!) : 'NEW USER'),
@@ -639,11 +720,6 @@ class _IdentityDetailsCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 16),
       child: Divider(height: 1, color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.05)),
     );
-  }
-
-  String _shorten(String addr) {
-    if (addr.length < 8) return addr;
-    return '${addr.substring(0, 3)}...${addr.substring(addr.length - 3)}';
   }
 }
 

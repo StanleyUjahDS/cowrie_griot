@@ -4,6 +4,15 @@ import 'package:flutter/foundation.dart';
 class ApiConfig {
   ApiConfig._();
 
+  /// Set this for release builds, for example:
+  /// flutter build apk --dart-define=API_BASE_URL=https://api.example.com/api
+  ///
+  /// The local fallback is intentionally retained for development only.
+  static const String _configuredBaseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: '',
+  );
+
   // ==========================================================
   // BASE URL
   // ==========================================================
@@ -15,6 +24,10 @@ class ApiConfig {
   // ==========================================================
 
   static String get baseUrl {
+    if (_configuredBaseUrl.isNotEmpty) {
+      return _configuredBaseUrl.replaceFirst(RegExp(r'/+$'), '');
+    }
+
     if (kIsWeb) {
       return 'http://localhost:5001/api';
     }
@@ -52,6 +65,14 @@ class ApiConfig {
 
   static String get usersMe => '$baseUrl/users/me';
   static String get usersUpdate => '$baseUrl/users/me';
+
+  // ==========================================================
+  // MEDIA (PRESIGNED FLOW)
+  // ==========================================================
+
+  static String get mediaPresign => '$baseUrl/media/presign';
+  static String mediaComplete(String mediaId) =>
+      '$baseUrl/media/$mediaId/complete';
 
   static String usersSearch(String query) => Uri.parse(
     '$baseUrl/users/search',
@@ -112,8 +133,7 @@ class ApiConfig {
   static String get prepareNativeTransaction =>
       '$transactionBase/prepare-native';
 
-  static String get prepareTokenTransaction =>
-      '$transactionBase/prepare-token';
+  static String get prepareTokenTransaction => '$transactionBase/prepare-token';
 
   static String get estimateTransaction => '$transactionBase/estimate';
 
@@ -305,20 +325,20 @@ class ApiConfig {
   static String get messagingFriendsPage => '$messagingFriends/page';
   static String get messagingFriendsCount => '$messagingFriends/count';
 
-  static String messagingFriendsSearch(String query, {int limit = 20, int offset = 0}) => Uri.parse(
-    '$messagingFriends/search',
-  ).replace(queryParameters: {
-    'q': query,
-    'limit': '$limit',
-    'offset': '$offset',
-  }).toString();
+  static String messagingFriendsSearch(
+    String query, {
+    int limit = 20,
+    int offset = 0,
+  }) => Uri.parse('$messagingFriends/search')
+      .replace(
+        queryParameters: {'q': query, 'limit': '$limit', 'offset': '$offset'},
+      )
+      .toString();
 
-  static String messagingFriendsPaged({int limit = 20, int offset = 0}) => Uri.parse(
-    messagingFriendsPage,
-  ).replace(queryParameters: {
-    'limit': '$limit',
-    'offset': '$offset',
-  }).toString();
+  static String messagingFriendsPaged({int limit = 20, int offset = 0}) =>
+      Uri.parse(messagingFriendsPage)
+          .replace(queryParameters: {'limit': '$limit', 'offset': '$offset'})
+          .toString();
 
   static String messagingFriendById(String friendId) =>
       '$messagingFriends/$friendId';
@@ -345,6 +365,14 @@ class ApiConfig {
       '$messagingMessages/$messageId/reactions';
 
   // ==========================================================
+  // PLUS SUBSCRIPTION
+  // ==========================================================
+
+  static String get plusBase => '$baseUrl/plus';
+  static String get plusStatus => '$plusBase/status';
+  static String get plusVerify => '$plusBase/purchases/verify';
+
+  // ==========================================================
   // GROUPS & CHANNELS
   // ==========================================================
 
@@ -353,8 +381,19 @@ class ApiConfig {
   static String messagingGroupById(String conversationId) =>
       '$messagingGroups/$conversationId';
 
+  static String messagingGroupByUsername(String username) =>
+      '$messagingGroups/username/${Uri.encodeComponent(username)}';
+
   static String messagingGroupMembers(String conversationId) =>
       '$messagingGroups/$conversationId/members';
+
+  static String messagingGroupMemberById(
+    String conversationId,
+    String userId,
+  ) => '$messagingGroups/$conversationId/members/$userId';
+
+  static String messagingGroupLeave(String conversationId) =>
+      '$messagingGroups/$conversationId/leave';
 
   static String get messagingChannels => '$messagingBase/channels';
   static String get messagingChannelsMe => '$messagingChannels/me';
@@ -362,6 +401,25 @@ class ApiConfig {
   static String messagingChannelById(String conversationId) =>
       '$messagingChannels/$conversationId';
 
+  static String messagingChannelByUsername(String username) =>
+      '$messagingChannels/username/${Uri.encodeComponent(username)}';
+
   static String messagingChannelSubscribe(String conversationId) =>
       '$messagingChannels/$conversationId/subscribe';
+
+  static String messagingChannelPosts(String conversationId) =>
+      '$messagingChannels/$conversationId/posts';
+
+  static String messagingChannelComments(
+    String conversationId,
+    String postId,
+  ) => '$messagingChannels/$conversationId/posts/$postId/comments';
+
+  // ==========================================================
+  // TIPS
+  // ==========================================================
+
+  static String get tipBase => '$baseUrl/crypto/tips';
+  static String get tipConfig => '$tipBase/config';
+  static String get tipPrepare => '$tipBase/prepare';
 }

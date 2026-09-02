@@ -2,77 +2,39 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:cryptography/cryptography.dart';
 
 import '../models/chat_message.dart';
+import '../models/conversation_model.dart';
+import '../models/chat_user.dart';
+import '../data/local/chat_database.dart';
+import '../data/local/tables/local_conversations_table.dart';
+import '../data/local/tables/local_profiles_table.dart';
+import '../../users/models/user_model.dart';
 
 class MessageCacheService {
-  static const String _dbName = 'griot_messages.db';
-  static const int _dbVersion = 1;
   static const String _tableName = 'cached_messages';
-  
   static const String _storageKey = 'message_cache_encryption_key';
 
-  Database? _db;
+  final ChatDatabase _chatDb;
   final FlutterSecureStorage _secureStorage;
   final AesGcm _algorithm = AesGcm.with256bits();
   SecretKey? _encryptionKey;
 
   MessageCacheService({
+    ChatDatabase? chatDb,
     FlutterSecureStorage? secureStorage,
-  }) : _secureStorage = secureStorage ?? const FlutterSecureStorage();
+  })  : _chatDb = chatDb ?? ChatDatabase(),
+        _secureStorage = secureStorage ?? const FlutterSecureStorage();
 
   // ==========================================================
   // INITIALIZATION
   // ==========================================================
 
   Future<void> initialize() async {
-    if (_db != null) return;
-
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, _dbName);
-
-    _db = await openDatabase(
-      path,
-      version: _dbVersion,
-      onCreate: _onCreate,
-    );
-
+    await _chatDb.database; // Ensure DB is open
     await _initEncryptionKey();
-  }
-
-  Future<void> _onCreate(Database db, int version) async {
-    await db.execute('''
-      CREATE TABLE $_tableName (
-        id TEXT PRIMARY KEY,
-        conversation_id TEXT NOT NULL,
-        sender_id TEXT NOT NULL,
-        content TEXT,
-        encrypted_content TEXT,
-        nonce TEXT,
-        message_type TEXT NOT NULL DEFAULT 'text',
-        created_at TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'sent',
-        is_deleted INTEGER NOT NULL DEFAULT 0,
-        server_synced INTEGER NOT NULL DEFAULT 0,
-        last_synced_at TEXT,
-        media_url TEXT,
-        thumbnail_url TEXT,
-        reply_to_message_id TEXT
-      )
-    ''');
-
-    await db.execute('''
-      CREATE INDEX idx_cached_messages_conversation_created
-      ON $_tableName(conversation_id, created_at DESC)
-    ''');
-
-    await db.execute('''
-      CREATE INDEX idx_cached_messages_sync
-      ON $_tableName(server_synced, created_at)
-    ''');
   }
 
   Future<void> _initEncryptionKey() async {
@@ -140,7 +102,7 @@ class MessageCacheService {
   }
 
   // ==========================================================
-  // CRUD OPERATIONS
+  // CRUD OPERATIONS - MESSAGES
   // ==========================================================
 
   Future<void> saveMessage(ChatMessage message) async {
@@ -148,8 +110,7 @@ class MessageCacheService {
   }
 
   Future<void> saveMessages(List<ChatMessage> messages) async {
-    final db = _db;
-    if (db == null) return;
+    final db = await _chatDb.database;
 
     final batch = db.batch();
     for (final message in messages) {
@@ -185,8 +146,7 @@ class MessageCacheService {
     int limit = 50,
     DateTime? before,
   }) async {
-    final db = _db;
-    if (db == null) return [];
+    final db = await _chatDb.database;
 
     String where = 'conversation_id = ?';
     List<dynamic> whereArgs = [conversationId];
@@ -230,8 +190,7 @@ class MessageCacheService {
   }
 
   Future<ChatMessage?> getMessage(String messageId) async {
-    final db = _db;
-    if (db == null) return null;
+    final db = await _chatDb.database;
 
     final results = await db.query(
       _tableName,
@@ -268,8 +227,7 @@ class MessageCacheService {
   }
 
   Future<void> updateMessageStatus(String messageId, MessageStatus status) async {
-    final db = _db;
-    if (db == null) return;
+    final db = await _chatDb.database;
 
     await db.update(
       _tableName,
@@ -280,8 +238,7 @@ class MessageCacheService {
   }
 
   Future<void> markSynced(String messageId) async {
-    final db = _db;
-    if (db == null) return;
+    final db = await _chatDb.database;
 
     await db.update(
       _tableName,
@@ -295,8 +252,7 @@ class MessageCacheService {
   }
 
   Future<void> markDeleted(String messageId) async {
-    final db = _db;
-    if (db == null) return;
+    final db = await _chatDb.database;
 
     await db.update(
       _tableName,
@@ -311,8 +267,7 @@ class MessageCacheService {
   }
 
   Future<List<ChatMessage>> getPendingMessages() async {
-    final db = _db;
-    if (db == null) return [];
+    final db = await _chatDb.database;
 
     final results = await db.query(
       _tableName,
@@ -346,8 +301,7 @@ class MessageCacheService {
   }
 
   Future<void> deleteLocalMessage(String messageId) async {
-    final db = _db;
-    if (db == null) return;
+    final db = await _chatDb.database;
 
     await db.delete(
       _tableName,
@@ -357,10 +311,133 @@ class MessageCacheService {
   }
 
   Future<void> clearAllMessages() async {
-    final db = _db;
-    if (db == null) return;
+    final db = await _chatDb.database;
 
     await db.delete(_tableName);
+  }
+
+  // ==========================================================
+  // CRUD OPERATIONS - CONVERSATIONS
+  // ==========================================================
+
+  Future<void> saveConversations(List<Conversation> conversations) async {
+    final db = await _chatDb.database;
+    final batch = db.batch();
+
+    for (final conv in conversations) {
+      batch.insert(
+        LocalConversationsTable.tableName,
+        {
+          LocalConversationsTable.columnId: conv.id,
+          LocalConversationsTable.columnType: conv.type.name,
+          LocalConversationsTable.columnTitle: conv.title,
+          LocalConversationsTable.columnAvatarUrl: conv.avatarUrl,
+          LocalConversationsTable.columnOtherUserId: conv.otherUser?.id,
+          LocalConversationsTable.columnUnreadCount: conv.unreadCount,
+          LocalConversationsTable.columnLastMessageId: conv.lastMessage?.id,
+          LocalConversationsTable.columnUpdatedAt: conv.updatedAt.toIso8601String(),
+          LocalConversationsTable.columnCreatedAt: conv.createdAt.toIso8601String(),
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+
+      if (conv.otherUser != null) {
+        await saveChatUser(conv.otherUser!);
+      }
+    }
+    await batch.commit(noResult: true);
+  }
+
+  Future<List<Conversation>> getConversations() async {
+    final db = await _chatDb.database;
+    final results = await db.query(
+      LocalConversationsTable.tableName,
+      orderBy: '${LocalConversationsTable.columnUpdatedAt} DESC',
+    );
+
+    final List<Conversation> conversations = [];
+    for (final row in results) {
+      final otherUserId = row[LocalConversationsTable.columnOtherUserId] as String?;
+      ChatUser? otherUser;
+      if (otherUserId != null) {
+        otherUser = await getChatUser(otherUserId);
+      }
+
+      final lastMessageId = row[LocalConversationsTable.columnLastMessageId] as String?;
+      ChatMessage? lastMessage;
+      if (lastMessageId != null) {
+        lastMessage = await getMessage(lastMessageId);
+      }
+
+      conversations.add(Conversation(
+        id: row[LocalConversationsTable.columnId] as String,
+        type: _conversationTypeFromString(row[LocalConversationsTable.columnType] as String?),
+        title: row[LocalConversationsTable.columnTitle] as String?,
+        avatarUrl: row[LocalConversationsTable.columnAvatarUrl] as String?,
+        memberIds: [], // We don't store members locally yet
+        otherUser: otherUser,
+        lastMessage: lastMessage,
+        unreadCount: row[LocalConversationsTable.columnUnreadCount] as int,
+        updatedAt: DateTime.parse(row[LocalConversationsTable.columnUpdatedAt] as String),
+        createdAt: DateTime.parse(row[LocalConversationsTable.columnCreatedAt] as String),
+      ));
+    }
+    return conversations;
+  }
+
+  // ==========================================================
+  // CRUD OPERATIONS - PROFILES
+  // ==========================================================
+
+  Future<void> saveChatUser(ChatUser user) async {
+    final db = await _chatDb.database;
+    await db.insert(
+      LocalProfilesTable.tableName,
+      {
+        LocalProfilesTable.columnId: user.id,
+        LocalProfilesTable.columnWalletAddress: user.walletAddress,
+        LocalProfilesTable.columnUsername: user.username,
+        LocalProfilesTable.columnDisplayName: user.displayName,
+        LocalProfilesTable.columnAvatarUrl: user.profileUrl,
+        LocalProfilesTable.columnBio: null, // We don't have bio in ChatUser model
+        LocalProfilesTable.columnReputationTier: user.reputation?.tierName,
+        LocalProfilesTable.columnReputationColor: user.reputation?.badgeColor,
+        LocalProfilesTable.columnRelationshipStatus: user.relationshipStatus,
+        LocalProfilesTable.columnLastSeenAt: user.timestamp.toIso8601String(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<ChatUser?> getChatUser(String userId) async {
+    final db = await _chatDb.database;
+    final results = await db.query(
+      LocalProfilesTable.tableName,
+      where: '${LocalProfilesTable.columnId} = ?',
+      whereArgs: [userId],
+      limit: 1,
+    );
+
+    if (results.isEmpty) return null;
+    final row = results.first;
+
+    UserReputationBadge? reputation;
+    final tier = row[LocalProfilesTable.columnReputationTier] as String?;
+    final color = row[LocalProfilesTable.columnReputationColor] as String?;
+    if (tier != null && color != null) {
+      reputation = UserReputationBadge(tierName: tier, badgeColor: color);
+    }
+
+    return ChatUser(
+      id: row[LocalProfilesTable.columnId] as String,
+      walletAddress: row[LocalProfilesTable.columnWalletAddress] as String,
+      username: row[LocalProfilesTable.columnUsername] as String?,
+      displayName: row[LocalProfilesTable.columnDisplayName] as String?,
+      profileUrl: row[LocalProfilesTable.columnAvatarUrl] as String?,
+      timestamp: DateTime.parse(row[LocalProfilesTable.columnLastSeenAt] as String),
+      reputation: reputation,
+      relationshipStatus: row[LocalProfilesTable.columnRelationshipStatus] as String?,
+    );
   }
 
   // ==========================================================
@@ -378,6 +455,13 @@ class MessageCacheService {
     return MessageStatus.values.firstWhere(
       (e) => e.name == value,
       orElse: () => MessageStatus.sent,
+    );
+  }
+
+  ConversationType _conversationTypeFromString(String? value) {
+    return ConversationType.values.firstWhere(
+      (e) => e.name == value,
+      orElse: () => ConversationType.dm,
     );
   }
 }

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/wallet_provider.dart';
+import '../../users/providers/user_provider.dart';
 import '../models/token_model.dart';
 import '../widgets/wallet_filter_sheet.dart';
 import '../widgets/wallet_header.dart';
@@ -185,21 +186,41 @@ class _WalletScreenState extends State<WalletScreen> {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
-    return Consumer<WalletProvider>(
-      builder: (context, provider, child) {
+    return Consumer2<WalletProvider, UserProvider>(
+      builder: (context, walletProvider, userProvider, child) {
+        final user = userProvider.user;
+        final wallet = walletProvider.wallet;
+
+        String displayName = 'Your Account';
+        if (user != null) {
+          displayName = user.displayName ?? (user.username != null ? '@${user.username}' : 'Griot User');
+        } else if (wallet != null) {
+          displayName = wallet.displayName ?? 'Your Account';
+        }
+
         return AnimatedSwitcher(
           duration: const Duration(milliseconds: 600),
           switchInCurve: Curves.easeOutQuart,
-          child: _buildBody(context, provider, theme, colors),
+          child: _buildBody(context, walletProvider, userProvider, theme, colors, displayName),
         );
       },
     );
   }
 
-  Widget _buildBody(BuildContext context, WalletProvider provider, ThemeData theme, ColorScheme colors) {
+  Widget _buildBody(
+    BuildContext context, 
+    WalletProvider provider, 
+    UserProvider userProvider,
+    ThemeData theme, 
+    ColorScheme colors,
+    String displayName,
+  ) {
     if (provider.isLoading && provider.wallet == null) {
       return const WalletLoading(key: ValueKey('loading'));
     }
+
+    final user = userProvider.user;
+    final avatarUrl = user?.avatarUrl ?? provider.wallet?.avatarUrl;
 
     return GradientScaffold(
       key: const ValueKey('content'),
@@ -251,7 +272,12 @@ class _WalletScreenState extends State<WalletScreen> {
         rightDistance: 16,
       ),
       child: RefreshIndicator(
-        onRefresh: () => provider.loadWallet(force: true),
+        onRefresh: () async {
+          await Future.wait<dynamic>([
+            provider.loadWallet(force: true),
+            userProvider.refreshUser(),
+          ]);
+        },
         displacement: 30,
         edgeOffset: 0,
         color: colors.primary,
@@ -264,8 +290,8 @@ class _WalletScreenState extends State<WalletScreen> {
           slivers: [
             SliverToBoxAdapter(
               child: WalletHeader(
-                displayName: provider.wallet?.displayName ?? 'Your Account',
-                avatarUrl: provider.wallet?.avatarUrl,
+                displayName: displayName,
+                avatarUrl: avatarUrl,
                 onNotificationsTap: () {},
                 onScanTap: () async {
                   final result = await context.push<String>('/wallet/scan');
@@ -273,6 +299,7 @@ class _WalletScreenState extends State<WalletScreen> {
                     context.push('/wallet/send', extra: result); 
                   }
                 },
+                onProfileTap: () => context.push('/settings/user-details'),
                 addressCard: WalletAddressCard(
                   address: provider.wallet?.address,
                   isLoading: provider.isLoading,

@@ -1,104 +1,197 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:in_app_purchase_android/in_app_purchase_android.dart';
+import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart';
+import '../models/plus_status_model.dart';
+import '../services/plus_api_service.dart';
 
 class IapProvider extends ChangeNotifier {
+  final PlusApiService _apiService;
   final InAppPurchase _iap = InAppPurchase.instance;
   late StreamSubscription<List<PurchaseDetails>> _subscription;
 
-  final List<ProductDetails> _products = [];
-  final List<PurchaseDetails> _purchases = [];
-  bool _isAvailable = false;
+  static const String monthlyId = 'griot_plus_monthly';
+  static const String yearlyId = 'griot_plus_yearly';
+  static const Set<String> _productIds = {monthlyId, yearlyId};
+
+  PlusStatus _status = PlusStatus.none();
+  List<ProductDetails> _products = [];
+  bool _isStoreAvailable = false;
   bool _isLoading = true;
+  bool _isVerifying = false;
   String? _error;
 
+  PlusStatus get status => _status;
   List<ProductDetails> get products => _products;
-  List<PurchaseDetails> get purchases => _purchases;
-  bool get isAvailable => _isAvailable;
+  bool get isStoreAvailable => _isStoreAvailable;
   bool get isLoading => _isLoading;
+  bool get isVerifying => _isVerifying;
   String? get error => _error;
 
-  IapProvider() {
+  IapProvider({required PlusApiService apiService}) : _apiService = apiService {
     final purchaseUpdated = _iap.purchaseStream;
     _subscription = purchaseUpdated.listen(
       _onPurchaseUpdate,
-      onDone: _onSubscriptionDone,
-      onError: _onSubscriptionError,
+      onDone: () => _subscription.cancel(),
+      onError: (error) {
+        _error = error.toString();
+        notifyListeners();
+      },
     );
-    initialize();
+    refresh();
   }
 
-  Future<void> initialize() async {
+  Future<void> refresh() async {
     _isLoading = true;
+    _error = null;
     notifyListeners();
 
-    _isAvailable = await _iap.isAvailable();
-    if (_isAvailable) {
-      await _loadProducts();
-    } else {
-      _error = "Store not available";
+    try {
+      // 1. Fetch backend status (source of truth)
+      try {
+        _status = await _apiService.getStatus();
+      } catch (e) {
+        debugPrint('IAP: Backend status check failed: $e');
+      }
+      
+      // 2. Initialize store
+      _isStoreAvailable = await _iap.isAvailable();
+      if (_isStoreAvailable) {
+        final ProductDetailsResponse response = await _iap.queryProductDetails(_productIds);
+        
+        if (response.error != null) {
+          debugPrint('IAP: StoreKit error: ${response.error?.message}');
+          _useMockProducts(); 
+        } else if (response.productDetails.isEmpty) {
+          debugPrint('IAP: No products found. Using mock data for dev.');
+          _useMockProducts();
+        } else {
+          _products = response.productDetails;
+          _products.sort((a, b) => a.id.contains('monthly') ? -1 : 1);
+        }
+      } else {
+        _useMockProducts();
+      }
+    } catch (e) {
+      debugPrint('IAP: initialization error: $e');
+      _useMockProducts();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
-
-    _isLoading = false;
-    notifyListeners();
   }
 
-  Future<void> _loadProducts() async {
-    const Set<String> kIds = {'griot_plus_lifetime'}; // Replace with actual IDs
-    final ProductDetailsResponse response = await _iap.queryProductDetails(kIds);
-
-    if (response.error != null) {
-      _error = response.error?.message;
-      return;
-    }
-
-    _products.clear();
-    _products.addAll(response.productDetails);
+  void _useMockProducts() {
+    _products = [
+      _MockProductDetails(
+        id: monthlyId,
+        title: 'Griot Plus Monthly',
+        description: 'Premium decentralized features monthly',
+        price: '\$9.99',
+        rawPrice: 9.99,
+        currencyCode: 'USD',
+      ),
+      _MockProductDetails(
+        id: yearlyId,
+        title: 'Griot Plus Yearly',
+        description: 'Premium decentralized features yearly',
+        price: '\$99.99',
+        rawPrice: 99.99,
+        currencyCode: 'USD',
+      ),
+    ];
+    _isStoreAvailable = true;
   }
 
   Future<void> buyProduct(ProductDetails product) async {
     final PurchaseParam purchaseParam = PurchaseParam(productDetails: product);
-    
     try {
-      if (product.id == 'griot_plus_lifetime') {
-         await _iap.buyNonConsumable(purchaseParam: purchaseParam);
-      } else {
-         await _iap.buyConsumable(purchaseParam: purchaseParam);
-      }
+      await _iap.buyNonConsumable(purchaseParam: purchaseParam);
     } catch (e) {
       _error = e.toString();
       notifyListeners();
     }
   }
 
-  void _onPurchaseUpdate(List<PurchaseDetails> purchaseDetailsList) {
-    _purchases.addAll(purchaseDetailsList);
+  Future<void> restorePurchases() async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+    try {
+      await _iap.restorePurchases();
+    } catch (e) {
+      _error = e.toString();
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
 
+  void _onPurchaseUpdate(List<PurchaseDetails> purchaseDetailsList) async {
     for (var purchase in purchaseDetailsList) {
-      if (purchase.status == PurchaseStatus.purchased || purchase.status == PurchaseStatus.restored) {
-        _completePurchase(purchase);
-      } else if (purchase.status == PurchaseStatus.error) {
-        _error = purchase.error?.message;
+      if (purchase.status == PurchaseStatus.pending) {
+        _isLoading = true;
+        notifyListeners();
+        continue;
       }
-      
-      if (purchase.pendingCompletePurchase) {
-        _iap.completePurchase(purchase);
+
+      if (purchase.status == PurchaseStatus.error) {
+        _error = purchase.error?.message;
+        _isLoading = false;
+        notifyListeners();
+      } else if (purchase.status == PurchaseStatus.purchased || purchase.status == PurchaseStatus.restored) {
+        final success = await _verifyAndComplete(purchase);
+        if (success && purchase.pendingCompletePurchase) {
+          await _iap.completePurchase(purchase);
+        }
+      }
+
+      if (purchase.status == PurchaseStatus.canceled && purchase.pendingCompletePurchase) {
+        await _iap.completePurchase(purchase);
       }
     }
+  }
+
+  Future<bool> _verifyAndComplete(PurchaseDetails purchase) async {
+    _isVerifying = true;
     notifyListeners();
-  }
 
-  void _completePurchase(PurchaseDetails purchase) {
-    // Logic to update user status to "PLUS"
-  }
+    try {
+      String provider = Platform.isIOS ? 'apple' : 'google';
+      String? receipt;
+      String? purchaseToken;
+      String? originalTransactionId;
 
-  void _onSubscriptionDone() {
-    _subscription.cancel();
-  }
+      if (Platform.isIOS) {
+        final skDetails = purchase as AppStorePurchaseDetails;
+        receipt = skDetails.verificationData.serverVerificationData;
+        originalTransactionId = skDetails.skPaymentTransaction.transactionIdentifier;
+      } else if (Platform.isAndroid) {
+        final googleDetails = purchase as GooglePlayPurchaseDetails;
+        purchaseToken = googleDetails.verificationData.serverVerificationData;
+      }
 
-  void _onSubscriptionError(dynamic error) {
-    _error = error.toString();
-    notifyListeners();
+      final newStatus = await _apiService.verifyPurchase(
+        provider: provider,
+        productId: purchase.productID,
+        transactionId: purchase.purchaseID ?? '',
+        originalTransactionId: originalTransactionId,
+        receipt: receipt,
+        purchaseToken: purchaseToken,
+      );
+
+      _status = newStatus;
+      _error = null;
+      return true;
+    } catch (e) {
+      _error = "Verification failed: $e";
+      return false;
+    } finally {
+      _isVerifying = false;
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   @override
@@ -106,4 +199,23 @@ class IapProvider extends ChangeNotifier {
     _subscription.cancel();
     super.dispose();
   }
+}
+
+class _MockProductDetails implements ProductDetails {
+  @override final String id;
+  @override final String title;
+  @override final String description;
+  @override final String price;
+  @override final double rawPrice;
+  @override final String currencyCode;
+  @override final String currencySymbol = '\$';
+
+  _MockProductDetails({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.price,
+    required this.rawPrice,
+    required this.currencyCode,
+  });
 }

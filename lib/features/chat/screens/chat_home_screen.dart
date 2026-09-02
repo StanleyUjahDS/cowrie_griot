@@ -53,10 +53,12 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
     NavigationScrollService.instance.addListener(_onNavTap);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final messaging = context.read<MessagingProvider>();
-      if (messaging.conversations.isEmpty) {
-        messaging.loadConversations();
-      }
+      if (!mounted) return;
+      final messaging = Provider.of<MessagingProvider>(context, listen: false);
+      // Load the cache immediately, then always reconcile it with the server.
+      // Otherwise a non-empty stale cache prevents newly-created groups from
+      // appearing after returning to the chat screen.
+      messaging.loadConversations(force: true);
       if (messaging.receivedRequests.isEmpty && messaging.sentRequests.isEmpty) {
         messaging.loadRequests();
       }
@@ -82,19 +84,11 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
     }
   }
 
-  List<Conversation> get filteredConversations {
-    final provider = context.read<MessagingProvider>();
+  List<Conversation> getFilteredConversations(MessagingProvider provider) {
     final conversations = provider.conversations;
     final query = searchQuery.trim().toLowerCase();
     
-    final visibleConversations = conversations.where((conv) {
-      if (conv.type == ConversationType.dm && conv.otherUser != null) {
-        return !provider.blockedUserIds.contains(conv.otherUser!.id);
-      }
-      return true;
-    }).toList();
-    
-    final sectionFiltered = visibleConversations.where((conv) {
+    final sectionFiltered = conversations.where((conv) {
       if (selectedHub == HubSection.direct) return conv.type == ConversationType.dm;
       if (selectedHub == HubSection.groups) return conv.type == ConversationType.group;
       if (selectedHub == HubSection.channels) return conv.type == ConversationType.channel;
@@ -160,7 +154,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
         child: FloatingActionButton(
           onPressed: _openNewChat,
           backgroundColor: colors.primary,
-          foregroundColor: Colors.white,
+          foregroundColor: colors.onPrimary,
           elevation: 6,
           child: const Icon(Icons.add_rounded, size: 32),
         ),
@@ -251,9 +245,10 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
 
   Future<void> _performGlobalSearch(String query) async {
     if (!mounted) return;
+    final apiService = Provider.of<UserApiService>(context, listen: false);
     setState(() => _isGlobalSearching = true);
     try {
-      final results = await context.read<UserApiService>().searchUsers(query);
+      final results = await apiService.searchUsers(query);
       if (!mounted) return;
       setState(() {
         _globalUserResults = results;
@@ -279,7 +274,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
           return const ChatLoading(key: ValueKey('loading'));
         }
         
-        final list = filteredConversations;
+        final list = getFilteredConversations(provider);
         
         if (list.isEmpty) {
           String emptyTitle = '';
@@ -309,12 +304,21 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
             icon: icon, 
             title: emptyTitle, 
             message: emptyMsg,
+            action: selectedHub == HubSection.groups 
+              ? FilledButton.icon(
+                  onPressed: () => context.push('/chat/groups/create'),
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('Create Group'),
+                )
+              : null,
           );
         }
 
         return RefreshIndicator(
           key: const ValueKey('content'),
-          onRefresh: provider.loadConversations,
+          onRefresh: () async {
+            if (mounted) await provider.loadConversations(force: true);
+          },
           child: ListView.separated(
             controller: _scrollController,
             padding: const EdgeInsets.fromLTRB(0, 140, 0, 120),
@@ -328,14 +332,17 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
               if (type == ConversationType.dm) {
                 final other = conv.otherUser;
                 if (other == null) return const SizedBox.shrink();
+                
+                final lastMsgText = conv.lastMessage?.text ?? 'No messages yet';
+                
                 item = ChatListItem(
                   user: other.copyWith(
-                    lastMessage: conv.lastMessage?.text ?? '', 
+                    lastMessage: lastMsgText, 
                     timestamp: conv.updatedAt, 
                     unreadCount: conv.unreadCount
                   ),
                   time: _formatTime(conv.updatedAt),
-                  onTap: () => context.push('/conversation/${conv.id}'),
+                  onTap: () => context.push('/conversation/${conv.id}', extra: conv),
                   onAvatarTap: () => context.push('/user/profile', extra: other),
                 );
               } else if (type == ConversationType.group) {
@@ -351,7 +358,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
                     memberCount: 0,
                     unreadCount: conv.unreadCount,
                   ),
-                  onTap: () => context.push('/conversation/${conv.id}'),
+                  onTap: () => context.push('/conversation/${conv.id}', extra: conv),
                 );
               } else if (type == ConversationType.channel) {
                 item = ChannelListItem(
@@ -360,7 +367,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
                     name: conv.title ?? 'Unknown Channel',
                     imageUrl: conv.avatarUrl,
                     description: '',
-                    subscriberCount: 0,
+                    subscriberCount: conv.memberIds.length,
                     verified: false,
                     lastPost: conv.lastMessage?.text ?? '',
                     timestamp: conv.updatedAt,
@@ -379,7 +386,8 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
   }
 
   Widget _buildSearchResults() {
-    final list = filteredConversations;
+    final provider = context.read<MessagingProvider>();
+    final list = getFilteredConversations(provider);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(0, 120, 0, 100),
@@ -390,10 +398,17 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
             if (conv.type == ConversationType.dm) {
               final other = conv.otherUser;
               if (other == null) return const SizedBox.shrink();
+              
+              final lastMsgText = conv.lastMessage?.text ?? 'No messages yet';
+
               return ChatListItem(
-                user: other.copyWith(lastMessage: conv.lastMessage?.text ?? '', timestamp: conv.updatedAt, unreadCount: conv.unreadCount),
+                user: other.copyWith(
+                  lastMessage: lastMsgText, 
+                  timestamp: conv.updatedAt, 
+                  unreadCount: conv.unreadCount
+                ),
                 time: _formatTime(conv.updatedAt),
-                onTap: () => context.push('/conversation/${conv.id}'),
+                onTap: () => context.push('/conversation/${conv.id}', extra: conv),
                 onAvatarTap: () => context.push('/user/profile', extra: other),
               );
             } else if (conv.type == ConversationType.group) {
@@ -409,7 +424,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
                   memberCount: 0,
                   unreadCount: conv.unreadCount,
                 ),
-                onTap: () => context.push('/conversation/${conv.id}'),
+                onTap: () => context.push('/conversation/${conv.id}', extra: conv),
               );
             } else if (conv.type == ConversationType.channel) {
               return ChannelListItem(
@@ -418,7 +433,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
                   name: conv.title ?? 'Unknown Channel',
                   imageUrl: conv.avatarUrl,
                   description: '',
-                  subscriberCount: 0,
+                  subscriberCount: conv.memberIds.length,
                   verified: false,
                   lastPost: conv.lastMessage?.text ?? '',
                   timestamp: conv.updatedAt,
@@ -449,8 +464,8 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
                 ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg')
                 : null,
             ),
-            title: Text(user.displayName ?? user.username ?? 'Griot User', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-            subtitle: Text('@${user.username ?? (user.walletAddress.length > 8 ? "${user.walletAddress.substring(0, 3)}...${user.walletAddress.substring(user.walletAddress.length - 3)}" : user.walletAddress)}', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.primary)),
+            title: Text(user.effectiveName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+            subtitle: Text(user.formattedUsername.isNotEmpty ? user.formattedUsername : user.shortWalletAddress, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.primary)),
             trailing: const Icon(Icons.chevron_right_rounded, size: 20, color: Colors.grey),
           )),
       ],
@@ -470,7 +485,8 @@ class _EmptyState extends StatelessWidget {
   final IconData icon;
   final String title;
   final String message;
-  const _EmptyState({super.key, required this.icon, required this.title, required this.message});
+  final Widget? action;
+  const _EmptyState({super.key, required this.icon, required this.title, required this.message, this.action});
 
   @override
   Widget build(BuildContext context) {
@@ -485,6 +501,10 @@ class _EmptyState extends StatelessWidget {
             Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Text(message, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant), textAlign: TextAlign.center),
+            if (action != null) ...[
+              const SizedBox(height: 24),
+              action!,
+            ],
           ],
         ),
       ),

@@ -600,7 +600,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
               const SizedBox(height: 20),
-              const Padding(padding: EdgeInsets.symmetric(vertical: 20), child: GriotBannerAd(isCompact: true)),
+              const GriotBannerAd(),
               const SizedBox(height: 16),
               Center(
                 child: Text(

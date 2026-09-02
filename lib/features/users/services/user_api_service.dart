@@ -54,12 +54,12 @@ class UserApiService {
     String? avatarUrl,
     String? bio,
   }) async {
-    final Map<String, dynamic> body = {};
-
-    if (username != null) body['username'] = username;
-    if (displayName != null) body['displayName'] = displayName;
-    if (avatarUrl != null) body['avatarUrl'] = avatarUrl;
-    if (bio != null) body['bio'] = bio;
+    final Map<String, dynamic> body = {
+      'username': ?username,
+      'displayName': ?displayName,
+      'avatarUrl': ?avatarUrl,
+      'bio': ?bio,
+    };
 
     if (body.isEmpty) throw Exception('No profile changes provided.');
 
@@ -86,8 +86,7 @@ class UserApiService {
     }
 
     return data
-        .whereType<Map<String, dynamic>>()
-        .map((json) => UserModel.fromJson(json))
+        .map((e) => UserModel.fromJson(Map<String, dynamic>.from(e)))
         .toList();
   }
 

@@ -5,17 +5,21 @@ import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
 import '../services/user_api_service.dart';
 import '../services/user_local_storage_service.dart';
+import '../../chat/services/media_api_service.dart';
 
 class UserProvider extends ChangeNotifier {
   final UserApiService _userApiService;
   final UserLocalStorageService _userLocalStorageService;
+  final MediaApiService _mediaApiService;
 
   UserProvider({
     required UserApiService userApiService,
+    required MediaApiService mediaApiService,
     UserLocalStorageService? userLocalStorageService,
-  })  : _userApiService = userApiService,
-        _userLocalStorageService =
-            userLocalStorageService ?? UserLocalStorageService();
+  }) : _userApiService = userApiService,
+       _mediaApiService = mediaApiService,
+       _userLocalStorageService =
+           userLocalStorageService ?? UserLocalStorageService();
 
   // ============================================================
   // STATE
@@ -141,9 +145,7 @@ class UserProvider extends ChangeNotifier {
   //
   // ============================================================
 
-  Future<bool> checkUsernameAvailability(
-      String username,
-      ) async {
+  Future<bool> checkUsernameAvailability(String username) async {
     final value = username.trim().toLowerCase();
 
     // ----------------------------------------------------------
@@ -158,9 +160,7 @@ class UserProvider extends ChangeNotifier {
       return false;
     }
 
-    if (!RegExp(
-      r'^[a-zA-Z0-9_]+$',
-    ).hasMatch(value)) {
+    if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(value)) {
       return false;
     }
 
@@ -175,8 +175,7 @@ class UserProvider extends ChangeNotifier {
     // when performing the database availability check.
     // ----------------------------------------------------------
 
-    final currentUsername =
-    _user?.username?.trim().toLowerCase();
+    final currentUsername = _user?.username?.trim().toLowerCase();
 
     if (currentUsername != null &&
         currentUsername.isNotEmpty &&
@@ -189,9 +188,7 @@ class UserProvider extends ChangeNotifier {
     // ----------------------------------------------------------
 
     try {
-      return await _userApiService.checkUsernameAvailability(
-        value,
-      );
+      return await _userApiService.checkUsernameAvailability(value);
     } catch (error) {
       _errorMessage = _cleanError(error);
 
@@ -218,9 +215,7 @@ class UserProvider extends ChangeNotifier {
         displayName == null &&
         avatarUrl == null &&
         bio == null) {
-      throw Exception(
-        'No profile changes provided.',
-      );
+      throw Exception('No profile changes provided.');
     }
 
     _isUpdating = true;
@@ -255,94 +250,87 @@ class UserProvider extends ChangeNotifier {
   // UPDATE USERNAME
   // ============================================================
 
-  Future<void> updateUsername(
-      String username,
-      ) async {
+  Future<void> updateUsername(String username) async {
     final value = username.trim().toLowerCase();
 
     if (value.isEmpty) {
-      throw Exception(
-        'Username cannot be empty.',
-      );
+      throw Exception('Username cannot be empty.');
     }
 
     if (value.length < 3) {
-      throw Exception(
-        'Username must be at least 3 characters.',
-      );
+      throw Exception('Username must be at least 3 characters.');
     }
 
     if (value.length > 30) {
-      throw Exception(
-        'Username must be 30 characters or less.',
-      );
+      throw Exception('Username must be 30 characters or less.');
     }
 
-    if (!RegExp(
-      r'^[a-zA-Z0-9_]+$',
-    ).hasMatch(value)) {
+    if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(value)) {
       throw Exception(
         'Username can only contain letters, numbers and underscores.',
       );
     }
 
-    await updateUser(
-      username: value,
-    );
+    await updateUser(username: value);
   }
 
   // ============================================================
   // UPDATE DISPLAY NAME
   // ============================================================
 
-  Future<void> updateDisplayName(
-      String displayName,
-      ) async {
+  Future<void> updateDisplayName(String displayName) async {
     final value = displayName.trim();
 
     if (value.isEmpty) {
-      throw Exception(
-        'Display name cannot be empty.',
-      );
+      throw Exception('Display name cannot be empty.');
     }
 
-    await updateUser(
-      displayName: value,
-    );
+    await updateUser(displayName: value);
   }
 
   // ============================================================
   // UPDATE BIO
   // ============================================================
 
-  Future<void> updateBio(
-      String bio,
-      ) async {
+  Future<void> updateBio(String bio) async {
     final value = bio.trim();
 
-    await updateUser(
-      bio: value,
-    );
+    await updateUser(bio: value);
   }
 
   // ============================================================
   // UPDATE AVATAR URL
   // ============================================================
 
-  Future<void> updateAvatarUrl(
-      String avatarUrl,
-      ) async {
+  Future<void> updateAvatarUrl(String avatarUrl) async {
     final value = avatarUrl.trim();
 
     if (value.isEmpty) {
-      throw Exception(
-        'Avatar URL cannot be empty.',
-      );
+      throw Exception('Avatar URL cannot be empty.');
     }
 
-    await updateUser(
-      avatarUrl: value,
-    );
+    await updateUser(avatarUrl: value);
+  }
+
+  // ============================================================
+  // UPLOAD AVATAR
+  // ============================================================
+
+  Future<void> uploadAvatar(String filePath) async {
+    try {
+      _errorMessage = null;
+      // Step 1-4: Orchestrated by mediaApiService (presign -> PUT -> complete)
+      final Map<String, dynamic> uploadResult = await _mediaApiService.uploadMedia(filePath);
+      final String avatarUrl = uploadResult['mediaUrl']?.toString() ?? '';
+      
+      // Step 5-6: Mandatory update to PostgreSQL via PATCH /api/users/me
+      // This also updates local state and cache.
+      await updateUser(avatarUrl: avatarUrl);
+    } catch (error) {
+      _errorMessage = _cleanError(error);
+      notifyListeners();
+      rethrow;
+    }
   }
 
   // ============================================================
@@ -372,9 +360,7 @@ class UserProvider extends ChangeNotifier {
   // ERROR
   // ============================================================
 
-  String _cleanError(
-      Object error,
-      ) {
+  String _cleanError(Object error) {
     final message = error.toString();
 
     if (message.startsWith('Exception: ')) {

@@ -258,7 +258,7 @@ class ReceiveScreen extends StatelessWidget {
               ),
             ),
           ),
-          const GriotBannerAd(isCompact: true),
+          const GriotBannerAd(),
         ],
       ),
     );

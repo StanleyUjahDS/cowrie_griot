@@ -26,6 +26,8 @@ import 'features/miner/services/mining_api_service.dart';
 import 'features/miner/services/referral_api_service.dart';
 import 'features/miner/services/reputation_api_service.dart';
 import 'features/chat/services/messaging_api_service.dart';
+import 'features/chat/services/media_api_service.dart';
+import 'features/chat/services/tip_api_service.dart';
 import 'features/chat/services/message_cache_service.dart';
 import 'features/chat/services/message_sync_service.dart';
 import 'features/miner/providers/reputation_provider.dart';
@@ -34,6 +36,7 @@ import 'features/miner/providers/mining_provider.dart';
 import 'features/miner/providers/referral_provider.dart';
 import 'features/wallet/providers/wallet_provider.dart';
 import 'features/iap/providers/iap_provider.dart';
+import 'features/iap/services/plus_api_service.dart';
 import 'features/local_auth/services/app_lock_service.dart';
 import 'features/local_auth/services/local_auth_service.dart';
 import 'features/local_auth/providers/app_lock_provider.dart';
@@ -41,6 +44,7 @@ import 'features/local_auth/screens/pin_verification_screen.dart';
 import 'core/services/navigation_scroll_service.dart';
 import 'core/services/connectivity_service.dart';
 import 'core/services/push_notification_service.dart';
+import 'core/services/deep_link_service.dart';
 
 class GriotCowrieApp extends StatefulWidget {
   const GriotCowrieApp({super.key});
@@ -65,6 +69,9 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
   late final ReferralApiService _referralApiService;
   late final ReputationApiService _reputationApiService;
   late final MessagingApiService _messagingApiService;
+  late final MediaApiService _mediaApiService;
+  late final TipApiService _tipApiService;
+  late final PlusApiService _plusApiService;
   late final MessageCacheService _messageCacheService;
   late final MessageSyncService _messageSyncService;
   late final AuthController _authController;
@@ -127,6 +134,12 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
 
     _messagingApiService = MessagingApiService(apiClient: _apiClient);
 
+    _mediaApiService = MediaApiService(apiClient: _apiClient);
+
+    _tipApiService = TipApiService(apiClient: _apiClient);
+
+    _plusApiService = PlusApiService(apiClient: _apiClient);
+
     _messageCacheService = MessageCacheService();
     _messageSyncService = MessageSyncService(
       cache: _messageCacheService,
@@ -159,6 +172,7 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
     _messageSyncService.initialize();
 
     ConnectivityService.instance.initialize();
+    DeepLinkService.instance.initialize();
 
     // ==========================================================
     // THEME CONTROLLER
@@ -193,6 +207,8 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
         Provider<ReferralApiService>.value(value: _referralApiService),
         Provider<ReputationApiService>.value(value: _reputationApiService),
         Provider<MessagingApiService>.value(value: _messagingApiService),
+        Provider<MediaApiService>.value(value: _mediaApiService),
+        Provider<TipApiService>.value(value: _tipApiService),
         Provider<MessageCacheService>.value(value: _messageCacheService),
         Provider<MessageSyncService>.value(value: _messageSyncService),
         Provider<AppLockService>.value(value: _appLockService),
@@ -213,7 +229,10 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
         // USER PROVIDER
         // ======================================================
         ChangeNotifierProvider<UserProvider>(
-          create: (_) => UserProvider(userApiService: _userApiService),
+          create: (_) => UserProvider(
+            userApiService: _userApiService,
+            mediaApiService: _mediaApiService,
+          ),
         ),
 
         // ======================================================
@@ -241,19 +260,31 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
         // MESSAGING PROVIDER
         // ======================================================
         ChangeNotifierProxyProvider<UserProvider, MessagingProvider>(
-          create: (context) => MessagingProvider(
+          create: (pCtx) => MessagingProvider(
             apiService: _messagingApiService,
-            userProvider: context.read<UserProvider>(),
+            mediaApiService: _mediaApiService,
+            userProvider: pCtx.read<UserProvider>(),
             messageCache: _messageCacheService,
             messageSync: _messageSyncService,
+            miningApi: _miningApiService,
+            transactionApi: _transactionApiService,
+            tipApi: _tipApiService,
+            walletService: _walletService,
+            walletRpc: _walletRpcService,
           ),
           update: (_, userProvider, messaging) {
             final provider = messaging ??
                 MessagingProvider(
                   apiService: _messagingApiService,
+                  mediaApiService: _mediaApiService,
                   userProvider: userProvider,
                   messageCache: _messageCacheService,
                   messageSync: _messageSyncService,
+                  miningApi: _miningApiService,
+                  transactionApi: _transactionApiService,
+                  tipApi: _tipApiService,
+                  walletService: _walletService,
+                  walletRpc: _walletRpcService,
                 );
             _authController.setMessagingProvider(provider);
             return provider;
@@ -278,24 +309,22 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
         // IAP PROVIDER
         // ======================================================
         ChangeNotifierProvider<IapProvider>(
-          create: (_) => IapProvider(),
+          create: (_) => IapProvider(apiService: _plusApiService),
         ),
 
         // ======================================================
         // STARTUP SERVICE
         // ======================================================
-        ProxyProvider4<
-          AuthSessionService,
-          AuthController,
-          UserProvider,
-          MessagingProvider,
-          AppStartupService
-        >(
-          update: (_, auth, controller, user, messaging, previous) => AppStartupService(
-            authSessionService: auth,
-            authController: controller,
-            userProvider: user,
-            messagingProvider: messaging,
+        ProxyProvider<WalletProvider, AppStartupService>(
+          update: (ctx, wallet, previous) => AppStartupService(
+            authSessionService: ctx.read<AuthSessionService>(),
+            authController: ctx.read<AuthController>(),
+            userProvider: ctx.read<UserProvider>(),
+            messagingProvider: ctx.read<MessagingProvider>(),
+            walletProvider: wallet,
+            miningProvider: ctx.read<MiningProvider>(),
+            referralProvider: ctx.read<ReferralProvider>(),
+            reputationProvider: ctx.read<ReputationProvider>(),
           ),
         ),
       ],

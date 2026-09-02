@@ -19,8 +19,13 @@ import '../../../core/utils/transaction_logger.dart';
 
 class SwapScreen extends StatefulWidget {
   final TokenModel? initialFromToken;
+  final TokenModel? initialToToken;
 
-  const SwapScreen({super.key, this.initialFromToken});
+  const SwapScreen({
+    super.key,
+    this.initialFromToken,
+    this.initialToToken,
+  });
 
   @override
   State<SwapScreen> createState() => _SwapScreenState();
@@ -52,6 +57,7 @@ class _SwapScreenState extends State<SwapScreen> {
   void initState() {
     super.initState();
     _fromToken = widget.initialFromToken;
+    _toToken = widget.initialToToken;
   }
 
   @override
@@ -1052,7 +1058,7 @@ class _SwapScreenState extends State<SwapScreen> {
                 ],
               ),
             ),
-            const GriotBannerAd(isCompact: true),
+            const GriotBannerAd(),
           ],
         ),
       ),

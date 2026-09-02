@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/chat_channel.dart';
+import '../models/conversation_model.dart';
 
 class ChannelListItem extends StatelessWidget {
   final ChatChannel channel;
@@ -110,7 +111,16 @@ class ChannelListItem extends StatelessWidget {
 
       onTap: () {
         context.push(
-          '/channel/${channel.id}',
+          '/conversation/${channel.id}',
+          extra: Conversation(
+            id: channel.id,
+            type: ConversationType.channel,
+            title: channel.name,
+            avatarUrl: channel.imageUrl,
+            memberIds: [],
+            updatedAt: channel.timestamp,
+            createdAt: channel.timestamp,
+          ),
         );
       },
     );

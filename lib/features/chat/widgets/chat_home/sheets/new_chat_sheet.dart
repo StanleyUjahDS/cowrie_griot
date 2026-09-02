@@ -1,6 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
-import '../../../models/chat_user.dart';
+import '../../../../users/models/user_model.dart';
+import '../../../../users/services/user_api_service.dart';
+import '../../../../../core/ui/widgets/griot_loader.dart';
 
 class NewChatSheet extends StatefulWidget {
   final void Function(
@@ -20,81 +24,10 @@ class NewChatSheet extends StatefulWidget {
 class _NewChatSheetState extends State<NewChatSheet> {
   final TextEditingController searchController =
   TextEditingController();
-
-  // ==========================================================
-  // MOCK USERS
-  // ==========================================================
-
-  final List<ChatUser> mockChatUsers = [
-    ChatUser(
-      id: 'mock_1',
-      username: 'ambassadorjoe',
-      displayName: 'Ambassador Joe',
-      walletAddress: '0x82A491F2A821',
-      phoneNumber: '+2348012345678',
-      phoneDiscoveryEnabled: true,
-      profileUrl: 'https://i.pravatar.cc/150?img=1',
-      lastMessage: '',
-      timestamp: DateTime(2026, 8, 10),
-      unreadCount: 0,
-      isOnline: true,
-    ),
-
-    ChatUser(
-      id: 'mock_2',
-      username: null,
-      displayName: 'Sarah Williams',
-      walletAddress: '0x71C842AE9281',
-      phoneNumber: '+447700900123',
-      phoneDiscoveryEnabled: true,
-      profileUrl: 'https://i.pravatar.cc/150?img=2',
-      lastMessage: '',
-      timestamp: DateTime(2026, 8, 10),
-      unreadCount: 0,
-      isOnline: false,
-    ),
-
-    ChatUser(
-      id: 'mock_3',
-      username: 'xperxperience',
-      displayName: 'Xper Xperience',
-      walletAddress: '0x9B218CD4A921',
-      phoneNumber: null,
-      phoneDiscoveryEnabled: false,
-      profileUrl: 'https://i.pravatar.cc/150?img=3',
-      lastMessage: '',
-      timestamp: DateTime(2026, 8, 10),
-      unreadCount: 0,
-      isOnline: true,
-    ),
-  ];
-
-  // ==========================================================
-  // SEARCH RESULTS
-  // ==========================================================
-
-  List<ChatUser> get results {
-    final query = searchController.text.trim().toLowerCase();
-
-    if (query.isEmpty) {
-      return [];
-    }
-
-    return mockChatUsers.where((user) {
-      final username =
-          user.username?.toLowerCase() ?? '';
-
-      final displayName =
-          user.displayName?.toLowerCase() ?? '';
-
-      final wallet =
-      user.walletAddress.toLowerCase();
-
-      return username.contains(query) ||
-          displayName.contains(query) ||
-          wallet.contains(query);
-    }).toList();
-  }
+  
+  Timer? _searchTimer;
+  List<UserModel> _results = [];
+  bool _isSearching = false;
 
   // ==========================================================
   // DISPOSE
@@ -103,7 +36,48 @@ class _NewChatSheetState extends State<NewChatSheet> {
   @override
   void dispose() {
     searchController.dispose();
+    _searchTimer?.cancel();
     super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _searchTimer?.cancel();
+    final query = value.trim();
+
+    if (query.isEmpty) {
+      setState(() {
+        _results = [];
+        _isSearching = false;
+      });
+      return;
+    }
+
+    _searchTimer = Timer(const Duration(milliseconds: 500), () {
+      _performSearch(query);
+    });
+  }
+
+  Future<void> _performSearch(String query) async {
+    if (!mounted) return;
+    setState(() {
+      _isSearching = true;
+    });
+
+    try {
+      final apiService = context.read<UserApiService>();
+      final results = await apiService.searchUsers(query);
+      if (!mounted) return;
+      
+      setState(() {
+        _results = results;
+        _isSearching = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isSearching = false;
+      });
+    }
   }
 
   // ==========================================================
@@ -116,138 +90,141 @@ class _NewChatSheetState extends State<NewChatSheet> {
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
 
-    final searchResults = results;
-
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.72,
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(26),
-        ),
+    return Material(
+      color: colorScheme.surface,
+      borderRadius: const BorderRadius.vertical(
+        top: Radius.circular(26),
       ),
-      child: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 10),
-
-            // ==================================================
-            // HANDLE
-            // ==================================================
-
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: colorScheme.onSurfaceVariant
-                    .withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(20),
+      child: Container(
+        height: MediaQuery.of(context).size.height * 0.72,
+        decoration: BoxDecoration(
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(26),
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              const SizedBox(height: 10),
+  
+              // ==================================================
+              // HANDLE
+              // ==================================================
+  
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colorScheme.onSurfaceVariant
+                      .withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(20),
+                ),
               ),
-            ),
-
-            const SizedBox(height: 18),
-
-            // ==================================================
-            // HEADER
-            // ==================================================
-
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20,
+  
+              const SizedBox(height: 18),
+  
+              // ==================================================
+              // HEADER
+              // ==================================================
+  
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                ),
+                child: Row(
+                  children: [
+                    Text(
+                      'New Chat',
+                      style: textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                      icon: const Icon(
+                        Icons.close_rounded,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              child: Row(
-                children: [
-                  Text(
-                    'New Chat',
-                    style: textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
+  
+              // ==================================================
+              // SEARCH
+              // ==================================================
+  
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  16,
+                  4,
+                  16,
+                  12,
+                ),
+                child: SizedBox(
+                  height: 46,
+                  child: TextField(
+                    controller: searchController,
+                    autofocus: true,
+                    onChanged: _onSearchChanged,
+                    decoration: InputDecoration(
+                      hintText:
+                      'Search username, name or wallet',
+                      prefixIcon: const Icon(
+                        Icons.search_rounded,
+                      ),
+                      filled: true,
+                      fillColor: colorScheme
+                          .surfaceContainerHighest
+                          .withValues(alpha: 0.5),
+                      border: OutlineInputBorder(
+                        borderRadius:
+                        BorderRadius.circular(15),
+                        borderSide: BorderSide.none,
+                      ),
                     ),
                   ),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                    },
-                    icon: const Icon(
-                      Icons.close_rounded,
-                    ),
+                ),
+              ),
+  
+              // ==================================================
+              // RESULTS
+              // ==================================================
+  
+              Expanded(
+                child: _isSearching
+                    ? const Center(child: GriotLoader(size: 32))
+                    : _results.isEmpty
+                        ? const _NewChatEmptyState()
+                        : ListView.separated(
+                  padding:
+                  const EdgeInsets.symmetric(
+                    horizontal: 16,
                   ),
-                ],
-              ),
-            ),
-
-            // ==================================================
-            // SEARCH
-            // ==================================================
-
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                16,
-                4,
-                16,
-                12,
-              ),
-              child: SizedBox(
-                height: 46,
-                child: TextField(
-                  controller: searchController,
-                  autofocus: true,
-                  onChanged: (_) {
-                    setState(() {});
+                  itemCount: _results.length,
+                  separatorBuilder: (_, _) =>
+                  const Divider(height: 1),
+                  itemBuilder:
+                      (context, index) {
+                    final user = _results[index];
+  
+                    return _UserSearchItem(
+                      key: ValueKey(user.id),
+                      user: user,
+                      onRequest: () {
+                        widget.onSendRequest(
+                          user.username ?? '',
+                          user.walletAddress,
+                        );
+                      },
+                    );
                   },
-                  decoration: InputDecoration(
-                    hintText:
-                    'Search username, name or wallet',
-                    prefixIcon: const Icon(
-                      Icons.search_rounded,
-                    ),
-                    filled: true,
-                    fillColor: colorScheme
-                        .surfaceContainerHighest
-                        .withValues(alpha: 0.5),
-                    border: OutlineInputBorder(
-                      borderRadius:
-                      BorderRadius.circular(15),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
                 ),
               ),
-            ),
-
-            // ==================================================
-            // RESULTS
-            // ==================================================
-
-            Expanded(
-              child: searchResults.isEmpty
-                  ? const _NewChatEmptyState()
-                  : ListView.separated(
-                padding:
-                const EdgeInsets.symmetric(
-                  horizontal: 16,
-                ),
-                itemCount: searchResults.length,
-                separatorBuilder: (_, _) =>
-                const Divider(height: 1),
-                itemBuilder:
-                    (context, index) {
-                  final user = searchResults[index];
-
-                  return _UserSearchItem(
-                    key: ValueKey(user.id),
-                    user: user,
-                    onRequest: () {
-                      widget.onSendRequest(
-                        user.username ?? '',
-                        user.walletAddress,
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -259,7 +236,7 @@ class _NewChatSheetState extends State<NewChatSheet> {
 // ==========================================================
 
 class _UserSearchItem extends StatelessWidget {
-  final ChatUser user;
+  final UserModel user;
   final VoidCallback onRequest;
 
   const _UserSearchItem({
@@ -274,8 +251,7 @@ class _UserSearchItem extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
 
-    final profileUrl =
-        user.profileUrl?.trim() ?? '';
+    final avatarUrl = user.avatarUrl;
 
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(
@@ -286,38 +262,16 @@ class _UserSearchItem extends StatelessWidget {
       // AVATAR
       // ======================================================
 
-      leading: Stack(
-        children: [
-          CircleAvatar(
-            radius: 25,
-            backgroundImage: profileUrl.isNotEmpty
-                ? NetworkImage(profileUrl)
-                : null,
-            child: profileUrl.isEmpty
-                ? const Icon(
-              Icons.person_rounded,
-            )
-                : null,
-          ),
-
-          if (user.isOnline)
-            Positioned(
-              right: 0,
-              bottom: 1,
-              child: Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: Colors.green,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: colorScheme.surface,
-                    width: 2,
-                  ),
-                ),
-              ),
-            ),
-        ],
+      leading: CircleAvatar(
+        radius: 25,
+        backgroundImage: avatarUrl != null
+            ? NetworkImage(avatarUrl)
+            : null,
+        child: avatarUrl == null
+            ? const Icon(
+          Icons.person_rounded,
+        )
+            : null,
       ),
 
       // ======================================================
@@ -328,7 +282,7 @@ class _UserSearchItem extends StatelessWidget {
         children: [
           Flexible(
             child: Text(
-              user.effectiveDisplayName,
+              user.effectiveName,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: textTheme.bodyLarge?.copyWith(
@@ -349,9 +303,9 @@ class _UserSearchItem extends StatelessWidget {
           crossAxisAlignment:
           CrossAxisAlignment.start,
           children: [
-            if (user.formattedUsername != null)
+            if (user.username != null && user.username!.isNotEmpty)
               Text(
-                user.formattedUsername!,
+                user.formattedUsername,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: textTheme.bodySmall?.copyWith(

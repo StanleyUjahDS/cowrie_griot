@@ -7,6 +7,7 @@ class WalletHeader extends StatelessWidget {
   final Widget addressCard;
   final VoidCallback onNotificationsTap;
   final VoidCallback onScanTap;
+  final VoidCallback? onProfileTap;
 
   const WalletHeader({
     super.key,
@@ -15,6 +16,7 @@ class WalletHeader extends StatelessWidget {
     required this.addressCard,
     required this.onNotificationsTap,
     required this.onScanTap,
+    this.onProfileTap,
   });
 
   @override
@@ -26,22 +28,56 @@ class WalletHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 4, 10, 0),
       child: Row(
         children: [
-          GriotAvatar(
-            avatarUrl: avatarUrl,
-            radius: 23,
+          GestureDetector(
+            onTap: onProfileTap,
+            behavior: HitTestBehavior.opaque,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(1.5),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        colors.primary,
+                        colors.primary.withValues(alpha: 0.3),
+                      ],
+                    ),
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: colors.surface,
+                      shape: BoxShape.circle,
+                    ),
+                    child: GriotAvatar(
+                      avatarUrl: avatarUrl,
+                      radius: 20,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 11),
+              ],
+            ),
           ),
-          const SizedBox(width: 11),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: text.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.2,
+                GestureDetector(
+                  onTap: onProfileTap,
+                  behavior: HitTestBehavior.opaque,
+                  child: Text(
+                    displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: text.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.2,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 4),

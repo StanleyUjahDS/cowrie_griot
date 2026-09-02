@@ -46,23 +46,32 @@ class MiningStatus {
   factory MiningStatus.fromJson(Map<String, dynamic> json) {
     return MiningStatus(
       dayId: json['dayId'] ?? '',
-      dayStart: DateTime.parse(json['dayStart'] ?? DateTime.now().toIso8601String()),
-      dayEnd: DateTime.parse(json['dayEnd'] ?? DateTime.now().toIso8601String()),
+      dayStart: DateTime.parse(
+        json['dayStart'] ?? DateTime.now().toIso8601String(),
+      ),
+      dayEnd: DateTime.parse(
+        json['dayEnd'] ?? DateTime.now().toIso8601String(),
+      ),
       rewardPool: (json['rewardPool'] ?? 0).toDouble(),
       currency: json['currency'] ?? 'COWRIE',
       canMine: json['canMine'] ?? false,
-      nextAvailableAt: json['nextAvailableAt'] != null ? DateTime.parse(json['nextAvailableAt']) : null,
+      nextAvailableAt: json['nextAvailableAt'] != null
+          ? DateTime.parse(json['nextAvailableAt'])
+          : null,
       pointsToday: (json['pointsToday'] ?? 0).toDouble(),
       totalPointsToday: (json['totalPointsToday'] ?? 0).toDouble(),
       currentSharePercent: (json['currentSharePercent'] ?? 0).toDouble(),
       estimatedReward: (json['estimatedReward'] ?? 0).toDouble(),
       todayFinalReward: (json['todayFinalReward'] ?? 0).toDouble(),
-      lifetimeEarned: (json['lifetimeEarned'] ?? json['totalEarned'] ?? 0).toDouble(),
+      lifetimeEarned: (json['lifetimeEarned'] ?? json['totalEarned'] ?? 0)
+          .toDouble(),
       availableBalance: (json['availableBalance'] ?? 0).toDouble(),
       pendingBalance: (json['pendingBalance'] ?? 0).toDouble(),
       settled: json['settled'] ?? false,
       multiplier: MiningMultiplier.fromJson(json['multiplier'] ?? {}),
-      reputation: json['reputation'] != null ? MiningReputation.fromJson(json['reputation']) : null,
+      reputation: json['reputation'] != null
+          ? MiningReputation.fromJson(json['reputation'])
+          : null,
     );
   }
 }
@@ -128,18 +137,38 @@ class MiningReputation {
 class MiningProvider extends ChangeNotifier {
   final MiningApiService _apiService;
 
-  MiningProvider({required MiningApiService apiService}) : _apiService = apiService;
+  MiningProvider({required MiningApiService apiService})
+    : _apiService = apiService;
 
   MiningStatus? _status;
   bool _isLoading = false;
   String? _error;
   Timer? _refreshTimer;
+  DateTime? _lastLoadedAt;
+  Future<void>? _loadFuture;
 
   MiningStatus? get status => _status;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  Future<void> loadStatus() async {
+  Future<void> loadStatus({bool force = false}) async {
+    if (!force &&
+        _status != null &&
+        _lastLoadedAt != null &&
+        DateTime.now().difference(_lastLoadedAt!) <
+            const Duration(minutes: 1)) {
+      return;
+    }
+    if (_loadFuture != null) return _loadFuture!;
+    _loadFuture = _loadStatus();
+    try {
+      await _loadFuture;
+    } finally {
+      _loadFuture = null;
+    }
+  }
+
+  Future<void> _loadStatus() async {
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -147,6 +176,7 @@ class MiningProvider extends ChangeNotifier {
     try {
       final data = await _apiService.getMiningStatus();
       _status = MiningStatus.fromJson(data);
+      _lastLoadedAt = DateTime.now();
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -159,7 +189,7 @@ class MiningProvider extends ChangeNotifier {
   Future<bool> startMining() async {
     try {
       await _apiService.startMining();
-      await loadStatus();
+      await loadStatus(force: true);
       return true;
     } catch (e) {
       _error = e.toString();
@@ -170,7 +200,10 @@ class MiningProvider extends ChangeNotifier {
 
   void startAutoRefresh() {
     _refreshTimer?.cancel();
-    _refreshTimer = Timer.periodic(const Duration(minutes: 5), (_) => loadStatus());
+    _refreshTimer = Timer.periodic(
+      const Duration(minutes: 5),
+      (_) => loadStatus(),
+    );
   }
 
   @override

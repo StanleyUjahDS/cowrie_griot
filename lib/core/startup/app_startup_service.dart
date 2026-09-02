@@ -1,4 +1,5 @@
 // app_startup_service.dart
+import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
@@ -7,26 +8,45 @@ import '../../features/auth/auth_controller.dart';
 import '../../features/users/providers/user_provider.dart';
 import '../../features/chat/providers/messaging_provider.dart';
 import '../services/push_notification_service.dart';
+import '../../features/wallet/providers/wallet_provider.dart';
+import '../../features/miner/providers/mining_provider.dart';
+import '../../features/miner/providers/referral_provider.dart';
+import '../../features/miner/providers/reputation_provider.dart';
+import '../services/deep_link_service.dart';
 
 class AppStartupService {
   final AuthSessionService _authSessionService;
   final AuthController _authController;
   final UserProvider _userProvider;
   final MessagingProvider _messagingProvider;
+  final WalletProvider _walletProvider;
+  final MiningProvider _miningProvider;
+  final ReferralProvider _referralProvider;
+  final ReputationProvider _reputationProvider;
 
   AppStartupService({
     required AuthSessionService authSessionService,
     required AuthController authController,
     required UserProvider userProvider,
     required MessagingProvider messagingProvider,
+    required WalletProvider walletProvider,
+    required MiningProvider miningProvider,
+    required ReferralProvider referralProvider,
+    required ReputationProvider reputationProvider,
   }) : _authSessionService = authSessionService,
        _authController = authController,
        _userProvider = userProvider,
-       _messagingProvider = messagingProvider;
+       _messagingProvider = messagingProvider,
+       _walletProvider = walletProvider,
+       _miningProvider = miningProvider,
+       _referralProvider = referralProvider,
+       _reputationProvider = reputationProvider;
 
   Future<bool> initialize() async {
     try {
       debugPrint('AppStartup: Starting initialization...');
+      // Deep-link setup must never hold the splash screen hostage.
+      unawaited(DeepLinkService.instance.initialize());
 
       // 1. Restore Local Data (Immediate UI)
       await _userProvider.loadLocalUser();
@@ -53,8 +73,11 @@ class AppStartupService {
             _messagingProvider.initSocket(accessToken);
           }
 
-          await PushNotificationService.instance.syncTokenWithBackend();
-          _messagingProvider.loadBlocks();
+          // Warm data in the background. Navigation must not wait for APIs.
+          unawaited(_warmAppData());
+
+          unawaited(PushNotificationService.instance.syncTokenWithBackend());
+          unawaited(_messagingProvider.loadBlocks());
         } catch (e) {
           debugPrint('AppStartup: Profile sync failed (Backend unreachable).');
         }
@@ -72,5 +95,17 @@ class AppStartupService {
       debugPrint('AppStartup: Critical initialization error: $e');
       return false;
     }
+  }
+
+  Future<void> _warmAppData() async {
+    await Future.wait([
+      _walletProvider.loadWallet(force: true),
+      _messagingProvider.loadConversations(),
+      _messagingProvider.loadRequests(),
+      _messagingProvider.loadFriends(),
+      _miningProvider.loadStatus(),
+      _referralProvider.loadReferralStatus(),
+      _reputationProvider.loadReputation(),
+    ]);
   }
 }

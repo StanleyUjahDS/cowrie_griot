@@ -176,20 +176,20 @@ class MessageRequest {
     return MessageRequest(
       id: json['id'] as String,
       senderId: (json['senderId'] ?? json['sender_id'])?.toString(),
-      receiverId: (json['receiverId'] ?? json['receiver_id'])?.toString(),
+      receiverId: (json['receiverId'] ?? json['receiver_id'] ?? json['recipient_id'])?.toString(),
       conversationId: (json['conversationId'] ?? json['conversation_id'])?.toString(),
       requestType: (json['requestType'] ?? json['request_type'])?.toString(),
       
       senderWalletAddress: (json['senderWalletAddress'] ?? json['sender_wallet_address'] ?? '').toString(),
-      receiverWalletAddress: (json['receiverWalletAddress'] ?? json['receiver_wallet_address'] ?? '').toString(),
+      receiverWalletAddress: (json['receiverWalletAddress'] ?? json['receiver_wallet_address'] ?? json['recipient_wallet_address'] ?? '').toString(),
       
       senderUsername: (json['senderUsername'] ?? json['sender_username'])?.toString(),
       senderDisplayName: (json['senderDisplayName'] ?? json['sender_display_name'])?.toString(),
       senderProfileUrl: (json['senderProfileUrl'] ?? json['sender_avatar_url'])?.toString(),
       
-      receiverUsername: (json['receiverUsername'] ?? json['receiver_username'])?.toString(),
-      receiverDisplayName: (json['receiverDisplayName'] ?? json['receiver_display_name'])?.toString(),
-      receiverProfileUrl: (json['receiverProfileUrl'] ?? json['receiver_avatar_url'])?.toString(),
+      receiverUsername: (json['receiverUsername'] ?? json['receiver_username'] ?? json['recipient_username'])?.toString(),
+      receiverDisplayName: (json['receiverDisplayName'] ?? json['receiver_display_name'] ?? json['recipient_display_name'])?.toString(),
+      receiverProfileUrl: (json['receiverProfileUrl'] ?? json['receiver_avatar_url'] ?? json['recipient_avatar_url'])?.toString(),
 
       message: json['message']?.toString() ?? '',
       senderIsOnline: (json['senderIsOnline'] ?? json['sender_is_online']) as bool? ?? false,
@@ -223,5 +223,31 @@ class MessageRequest {
       'receiverDisplayName': receiverDisplayName,
       'receiverProfileUrl': receiverProfileUrl,
     };
+  }
+
+  MessageRequest copyWith({
+    RequestStatus? status,
+    DateTime? respondedAt,
+  }) {
+    return MessageRequest(
+      id: id,
+      senderId: senderId,
+      receiverId: receiverId,
+      conversationId: conversationId,
+      senderWalletAddress: senderWalletAddress,
+      receiverWalletAddress: receiverWalletAddress,
+      senderUsername: senderUsername,
+      senderDisplayName: senderDisplayName,
+      senderProfileUrl: senderProfileUrl,
+      receiverUsername: receiverUsername,
+      receiverDisplayName: receiverDisplayName,
+      receiverProfileUrl: receiverProfileUrl,
+      requestType: requestType,
+      message: message,
+      senderIsOnline: senderIsOnline,
+      createdAt: createdAt,
+      respondedAt: respondedAt ?? this.respondedAt,
+      status: status ?? this.status,
+    );
   }
 }

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../models/chat_user.dart';
+import '../providers/messaging_provider.dart';
 
 class ChatListItem extends StatelessWidget {
   final ChatUser user;
@@ -29,6 +31,8 @@ class ChatListItem extends StatelessWidget {
     final hasProfileImage =
         profileUrl != null && profileUrl.trim().isNotEmpty;
 
+    final bool isOnline = context.watch<MessagingProvider>().presenceMap[user.id] == true || user.isOnline;
+
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(
         horizontal: 14,
@@ -41,43 +45,46 @@ class ChatListItem extends StatelessWidget {
 
       leading: GestureDetector(
         onTap: onAvatarTap,
-        child: SizedBox(
-          width: 54,
-          height: 54,
-          child: Stack(
-            children: [
-              CircleAvatar(
-                radius: 26,
-                backgroundColor:
-                colorScheme.surfaceContainerHighest,
-                backgroundImage: hasProfileImage ? NetworkImage(profileUrl) : null,
-                child: !hasProfileImage 
-                  ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg')
-                  : null,
-              ),
-
-            // ======================================================
-            // ONLINE INDICATOR
-            // ======================================================
-
-            if (user.isOnline)
-              Positioned(
-                right: 0,
-                bottom: 1,
-                child: Container(
-                  width: 14,
-                  height: 14,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF22C55E),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: colorScheme.surface,
-                      width: 2,
+        child: Hero(
+          tag: 'user_avatar_${user.id}',
+          child: SizedBox(
+            width: 54,
+            height: 54,
+            child: Stack(
+              children: [
+                CircleAvatar(
+                  radius: 26,
+                  backgroundColor:
+                  colorScheme.surfaceContainerHighest,
+                  backgroundImage: hasProfileImage ? NetworkImage(profileUrl) : null,
+                  child: !hasProfileImage 
+                    ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg')
+                    : null,
+                ),
+  
+              // ======================================================
+              // ONLINE INDICATOR
+              // ======================================================
+  
+              if (isOnline)
+                Positioned(
+                  right: 0,
+                  bottom: 1,
+                  child: Container(
+                    width: 14,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF22C55E),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: colorScheme.surface,
+                        width: 2,
+                      ),
                     ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     ),

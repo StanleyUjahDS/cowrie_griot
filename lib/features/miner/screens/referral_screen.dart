@@ -17,7 +17,8 @@ import '../../users/providers/user_provider.dart';
 import '../models/referral_model.dart';
 
 class ReferralScreen extends StatefulWidget {
-  const ReferralScreen({super.key});
+  final String? initialCode;
+  const ReferralScreen({super.key, this.initialCode});
 
   @override
   State<ReferralScreen> createState() => _ReferralScreenState();
@@ -37,6 +38,9 @@ class _ReferralScreenState extends State<ReferralScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialCode != null && widget.initialCode!.isNotEmpty) {
+      _referralController.text = widget.initialCode!;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ReferralProvider>().loadReferralStatus();
     });

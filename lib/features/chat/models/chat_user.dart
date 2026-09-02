@@ -1,142 +1,51 @@
-import '../../users/models/user_model.dart';
+import 'package:griot_cowrie/features/users/models/user_model.dart';
 
 class ChatUser {
-  // ==========================================================
-  // IDENTITY
-  // ==========================================================
-
   final String id;
-
-  /// Wallet address is the primary identity.
   final String walletAddress;
-
-  /// Optional username.
   final String? username;
-
-  /// Optional display name.
   final String? displayName;
-
-  final UserReputationBadge? reputation;
-
-  // ==========================================================
-  // PHONE DISCOVERY
-  // ==========================================================
-
-  final String? phoneNumber;
-
-  final bool phoneDiscoveryEnabled;
-
-  // ==========================================================
-  // PROFILE
-  // ==========================================================
-
   final String? profileUrl;
-
-  // ==========================================================
-  // CHAT PREVIEW
-  // ==========================================================
-
-  final String lastMessage;
-
-  final DateTime timestamp;
-
-  final int unreadCount;
-
-  // ==========================================================
-  // PRESENCE
-  // ==========================================================
-
   final bool isOnline;
-
-  // ==========================================================
-  // CONSTRUCTOR
-  // ==========================================================
+  final String lastMessage;
+  final DateTime timestamp;
+  final int unreadCount;
+  final String? relationshipStatus;
+  final bool isDiscoverableByPhone;
+  final String? phoneNumber;
+  final bool phoneDiscoveryEnabled;
+  final UserReputationBadge? reputation;
 
   const ChatUser({
     required this.id,
     required this.walletAddress,
     this.username,
     this.displayName,
-    this.phoneNumber,
-    this.phoneDiscoveryEnabled = false,
     this.profileUrl,
+    this.isOnline = false,
     this.lastMessage = '',
     required this.timestamp,
     this.unreadCount = 0,
-    this.isOnline = false,
+    this.relationshipStatus,
+    this.isDiscoverableByPhone = false,
+    this.phoneNumber,
+    this.phoneDiscoveryEnabled = false,
     this.reputation,
   });
 
-  // ==========================================================
-  // EFFECTIVE DISPLAY NAME
-  // ==========================================================
-
   String get effectiveDisplayName {
-    final name = displayName?.trim();
-
-    if (name != null && name.isNotEmpty) {
-      return name;
-    }
-
-    final user = username?.trim();
-
-    if (user != null && user.isNotEmpty) {
-      return user.startsWith('@')
-          ? user
-          : '@$user';
-    }
-
-    return shortWalletAddress;
+    if (displayName != null && displayName!.isNotEmpty) return displayName!;
+    if (username != null && username!.isNotEmpty) return username!;
+    return 'Griot User';
   }
-
-  // ==========================================================
-  // FORMATTED USERNAME
-  // ==========================================================
-
-  String? get formattedUsername {
-    final value = username?.trim();
-
-    if (value == null || value.isEmpty) {
-      return null;
-    }
-
-    if (value.startsWith('@')) {
-      return value;
-    }
-
-    return '@$value';
-  }
-
-  // ==========================================================
-  // SHORT WALLET ADDRESS
-  // ==========================================================
+  
+  String? get formattedUsername => username != null ? '@$username' : null;
 
   String get shortWalletAddress {
-    if (walletAddress.length <= 8) {
-      return walletAddress;
-    }
-
+    if (walletAddress.length <= 8) return walletAddress;
     return '${walletAddress.substring(0, 3)}...'
-        '${walletAddress.substring(
-      walletAddress.length - 3,
-    )}';
+        '${walletAddress.substring(walletAddress.length - 3)}';
   }
-
-  // ==========================================================
-  // PHONE DISCOVERY
-  // ==========================================================
-
-  bool get isDiscoverableByPhone {
-    final phone = phoneNumber?.trim();
-
-    return phone != null &&
-        phone.isNotEmpty &&
-        phoneDiscoveryEnabled;
-  }
-
-  // ==========================================================
-  // CONVERSIONS
-  // ==========================================================
 
   UserModel toUserModel() {
     return UserModel(
@@ -146,59 +55,45 @@ class ChatUser {
       displayName: displayName,
       avatarUrl: profileUrl,
       reputation: reputation,
-      relationshipStatus: 'friend',
+      relationshipStatus: relationshipStatus,
     );
   }
 
-  // ==========================================================
-  // COPY WITH
-  // ==========================================================
-
-  ChatUser copyWith({
-    String? id,
-    String? walletAddress,
-    String? username,
-    String? displayName,
-    String? phoneNumber,
-    bool? phoneDiscoveryEnabled,
-    String? profileUrl,
-    String? lastMessage,
-    DateTime? timestamp,
-    int? unreadCount,
-    bool? isOnline,
-    UserReputationBadge? reputation,
-  }) {
+  factory ChatUser.fromUserModel(UserModel user) {
     return ChatUser(
-      id: id ?? this.id,
-      walletAddress:
-      walletAddress ?? this.walletAddress,
-      username:
-      username ?? this.username,
-      displayName:
-      displayName ?? this.displayName,
-      phoneNumber:
-      phoneNumber ?? this.phoneNumber,
-      phoneDiscoveryEnabled:
-      phoneDiscoveryEnabled ??
-          this.phoneDiscoveryEnabled,
-      profileUrl:
-      profileUrl ?? this.profileUrl,
-      lastMessage:
-      lastMessage ?? this.lastMessage,
-      timestamp:
-      timestamp ?? this.timestamp,
-      unreadCount:
-      unreadCount ?? this.unreadCount,
-      isOnline:
-      isOnline ?? this.isOnline,
-      reputation:
-      reputation ?? this.reputation,
+      id: user.id,
+      walletAddress: user.walletAddress,
+      username: user.username,
+      displayName: user.displayName,
+      profileUrl: user.avatarUrl,
+      reputation: user.reputation,
+      relationshipStatus: user.relationshipStatus,
+      timestamp: DateTime.now(),
     );
   }
 
-  // ==========================================================
-  // JSON
-  // ==========================================================
+  factory ChatUser.fromJson(Map<String, dynamic> json) {
+    return ChatUser(
+      id: (json['id'] ?? json['userId'])?.toString() ?? '',
+      walletAddress: (json['walletAddress'] ?? json['wallet_address'] ?? '').toString(),
+      username: (json['username'] ?? json['other_username'])?.toString(),
+      displayName: (json['displayName'] ?? json['display_name'] ?? json['other_display_name'])?.toString(),
+      profileUrl: (json['profileUrl'] ?? json['avatarUrl'] ?? json['profile_url'] ?? json['other_avatar_url'])?.toString(),
+      isOnline: json['isOnline'] == true || json['is_online'] == true,
+      lastMessage: (json['lastMessage'] ?? json['last_message'] ?? '')?.toString() ?? '',
+      timestamp: json['timestamp'] != null 
+          ? DateTime.parse(json['timestamp'].toString()) 
+          : (json['last_message_at'] != null ? DateTime.parse(json['last_message_at'].toString()) : DateTime.now()),
+      unreadCount: (json['unreadCount'] ?? json['unread_count'] ?? 0) as int,
+      relationshipStatus: (json['relationshipStatus'] ?? json['relationship_status'])?.toString(),
+      isDiscoverableByPhone: json['isDiscoverableByPhone'] == true || json['is_discoverable_by_phone'] == true,
+      phoneNumber: (json['phoneNumber'] ?? json['phone_number'])?.toString(),
+      phoneDiscoveryEnabled: json['phoneDiscoveryEnabled'] == true || json['phone_discovery_enabled'] == true,
+      reputation: json['reputation'] != null 
+          ? UserReputationBadge.fromJson(Map<String, dynamic>.from(json['reputation'])) 
+          : null,
+    );
+  }
 
   Map<String, dynamic> toJson() {
     return {
@@ -206,112 +101,50 @@ class ChatUser {
       'walletAddress': walletAddress,
       'username': username,
       'displayName': displayName,
-      'phoneNumber': phoneNumber,
-      'phoneDiscoveryEnabled':
-      phoneDiscoveryEnabled,
       'profileUrl': profileUrl,
-      'lastMessage': lastMessage,
-      'timestamp':
-      timestamp.toIso8601String(),
-      'unreadCount': unreadCount,
       'isOnline': isOnline,
+      'lastMessage': lastMessage,
+      'timestamp': timestamp.toIso8601String(),
+      'unreadCount': unreadCount,
+      'relationshipStatus': relationshipStatus,
+      'isDiscoverableByPhone': isDiscoverableByPhone,
+      'phoneNumber': phoneNumber,
+      'phoneDiscoveryEnabled': phoneDiscoveryEnabled,
       'reputation': reputation?.toJson(),
     };
   }
 
-  // ==========================================================
-  // FROM JSON
-  // ==========================================================
-
-  factory ChatUser.fromJson(
-      Map<String, dynamic> json,
-      ) {
+  ChatUser copyWith({
+    String? id,
+    String? walletAddress,
+    String? username,
+    String? displayName,
+    String? profileUrl,
+    bool? isOnline,
+    String? lastMessage,
+    DateTime? timestamp,
+    int? unreadCount,
+    String? relationshipStatus,
+    bool? isDiscoverableByPhone,
+    String? phoneNumber,
+    bool? phoneDiscoveryEnabled,
+    UserReputationBadge? reputation,
+  }) {
     return ChatUser(
-      id:
-      json['id'] as String,
-
-      walletAddress:
-      json['walletAddress'] as String,
-
-      username:
-      json['username'] as String?,
-
-      displayName:
-      json['displayName'] as String?,
-
-      phoneNumber:
-      json['phoneNumber'] as String?,
-
-      phoneDiscoveryEnabled:
-      json['phoneDiscoveryEnabled']
-      as bool? ??
-          false,
-
-      profileUrl:
-      json['profileUrl'] as String?,
-
-      lastMessage:
-      json['lastMessage'] as String? ??
-          '',
-
-      timestamp:
-      DateTime.parse(
-        json['timestamp'] as String,
-      ),
-
-      unreadCount:
-      json['unreadCount'] as int? ??
-          0,
-
-      isOnline:
-      json['isOnline'] as bool? ??
-          false,
-
-      reputation: json['reputation'] is Map
-          ? UserReputationBadge.fromJson(
-        Map<String, dynamic>.from(json['reputation']),
-      )
-          : null,
+      id: id ?? this.id,
+      walletAddress: walletAddress ?? this.walletAddress,
+      username: username ?? this.username,
+      displayName: displayName ?? this.displayName,
+      profileUrl: profileUrl ?? this.profileUrl,
+      isOnline: isOnline ?? this.isOnline,
+      lastMessage: lastMessage ?? this.lastMessage,
+      timestamp: timestamp ?? this.timestamp,
+      unreadCount: unreadCount ?? this.unreadCount,
+      relationshipStatus: relationshipStatus ?? this.relationshipStatus,
+      isDiscoverableByPhone: isDiscoverableByPhone ?? this.isDiscoverableByPhone,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
+      phoneDiscoveryEnabled: phoneDiscoveryEnabled ?? this.phoneDiscoveryEnabled,
+      reputation: reputation ?? this.reputation,
     );
-  }
-
-  // ==========================================================
-  // EQUALITY
-  // ==========================================================
-
-  @override
-  bool operator ==(
-      Object other,
-      ) {
-    if (identical(this, other)) {
-      return true;
-    }
-
-    return other is ChatUser &&
-        other.walletAddress
-            .toLowerCase() ==
-            walletAddress.toLowerCase();
-  }
-
-  @override
-  int get hashCode {
-    return walletAddress
-        .toLowerCase()
-        .hashCode;
-  }
-
-  // ==========================================================
-  // DEBUG
-  // ==========================================================
-
-  @override
-  String toString() {
-    return 'ChatUser('
-        'walletAddress: $walletAddress, '
-        'username: $username, '
-        'displayName: $displayName, '
-        'phoneDiscoveryEnabled: '
-        '$phoneDiscoveryEnabled'
-        ')';
   }
 }

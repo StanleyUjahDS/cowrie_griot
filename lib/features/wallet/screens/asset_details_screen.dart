@@ -269,7 +269,7 @@ class AssetDetailsScreen extends StatelessWidget {
                     const SizedBox(height: 48),
 
                     // Ad Space
-                    const GriotBannerAd(isCompact: true),
+                    const GriotBannerAd(),
 
                     const SizedBox(height: 80),
                   ],

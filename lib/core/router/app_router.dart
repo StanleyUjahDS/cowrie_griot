@@ -20,11 +20,18 @@ import '../../features/local_auth/screens/pin_verification_screen.dart';
 
 import '../../features/chat/screens/chat_home_screen.dart';
 import '../../features/chat/screens/chatting_screen.dart';
+import '../../features/chat/screens/channels/channel_feed_screen.dart';
 import '../../features/chat/screens/user_discovery_screen.dart';
+import '../../features/chat/screens/groups/create_group_screen.dart';
+import '../../features/chat/screens/groups/group_details_screen.dart';
+import '../../features/chat/screens/channels/create_channel_screen.dart';
+import '../../features/chat/screens/channels/channel_details_screen.dart';
 import '../../features/chat/screens/message_requests_screen.dart';
 import '../../features/chat/screens/activity_screen.dart';
 import '../../features/chat/screens/friends_list_screen.dart';
 import '../../features/chat/screens/user_profile_screen.dart';
+import '../../features/chat/models/conversation_model.dart';
+import '../../features/chat/models/chat_user.dart';
 import '../../features/users/models/user_model.dart' as users;
 
 import '../../features/settings/screens/setting_screen.dart';
@@ -107,7 +114,16 @@ class AppRouter {
           if (conversationId == null || conversationId.isEmpty) {
             return const _InvalidRoute(message: 'Invalid conversation.');
           }
-          return ChatScreen(conversationId: conversationId);
+          
+          final extra = state.extra;
+          if (extra is Conversation && extra.type == ConversationType.channel) {
+            return ChannelFeedScreen(conversation: extra);
+          }
+
+          return ChatScreen(
+            conversationId: conversationId,
+            initialConversation: extra is Conversation ? extra : null,
+          );
         },
       ),
       
@@ -120,7 +136,10 @@ class AppRouter {
           if (userId == null || userId.isEmpty) {
             return const _InvalidRoute(message: 'Invalid chat user.');
           }
-          return ChatScreen(userId: userId);
+          return ChatScreen(
+            userId: userId,
+            initialUser: state.extra is ChatUser ? state.extra as ChatUser : null,
+          );
         },
       ),
 
@@ -137,6 +156,38 @@ class AppRouter {
       GoRoute(
         path: '/chat/discover',
         builder: (context, state) => const UserDiscoveryScreen(),
+      ),
+
+      GoRoute(
+        path: '/chat/groups/create',
+        builder: (context, state) => const CreateGroupScreen(),
+      ),
+
+      GoRoute(
+        path: '/chat/groups/:conversationId/details',
+        builder: (context, state) {
+          final extra = state.extra;
+          if (extra is! Conversation) {
+            return const _InvalidRoute(message: 'Conversation data missing.');
+          }
+          return GroupDetailsScreen(conversation: extra);
+        },
+      ),
+
+      GoRoute(
+        path: '/chat/channels/create',
+        builder: (context, state) => const CreateChannelScreen(),
+      ),
+
+      GoRoute(
+        path: '/chat/channels/:conversationId/details',
+        builder: (context, state) {
+          final extra = state.extra;
+          if (extra is! Conversation) {
+            return const _InvalidRoute(message: 'Conversation data missing.');
+          }
+          return ChannelDetailsScreen(conversation: extra);
+        },
       ),
 
       GoRoute(
@@ -427,6 +478,14 @@ class AppRouter {
         path: '/wallet/swap',
         builder: (context, state) {
           final extra = state.extra;
+          
+          if (extra is Map<String, dynamic>) {
+            return SwapScreen(
+              initialFromToken: extra['from'] as TokenModel?,
+              initialToToken: extra['to'] as TokenModel?,
+            );
+          }
+
           return SwapScreen(
             initialFromToken: extra is TokenModel ? extra : null,
           );
@@ -514,7 +573,9 @@ class AppRouter {
       GoRoute(
         path: '/settings/referrals',
         builder: (context, state) {
-          return const ReferralScreen();
+          return ReferralScreen(
+            initialCode: state.uri.queryParameters['ref'],
+          );
         },
       ),
 

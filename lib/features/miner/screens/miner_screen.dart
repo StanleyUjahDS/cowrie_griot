@@ -6,6 +6,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/mining_provider.dart';
+import '../providers/reputation_provider.dart';
 import '../../../core/services/navigation_scroll_service.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
 import '../../../core/services/notification_service.dart';
@@ -45,12 +46,13 @@ class _MinerScreenState extends State<MinerScreen> {
   }
 
   void _onNavTap() {
-    if (NavigationScrollService.instance.tappedIndex == 2) { // Index 2 is Miner
+    if (NavigationScrollService.instance.tappedIndex == 2) {
+      // Index 2 is Miner
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
-          0, 
-          duration: const Duration(milliseconds: 600), 
-          curve: Curves.easeOutQuart
+          0,
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.easeOutQuart,
         );
       }
     }
@@ -83,10 +85,13 @@ class _MinerScreenState extends State<MinerScreen> {
 
   Future<void> _startMining(BuildContext context) async {
     final adService = AdService.instance;
-    
+
     if (!adService.isRewardedAdAvailable) {
       adService.loadRewardedAd();
-      NotificationService.showInfo(context, 'Preparing reward ad... Please try again in a few seconds.');
+      NotificationService.showInfo(
+        context,
+        'Preparing reward ad... Please try again in a few seconds.',
+      );
       return;
     }
 
@@ -96,13 +101,21 @@ class _MinerScreenState extends State<MinerScreen> {
       onRewardEarned: (reward) async {
         final provider = context.read<MiningProvider>();
         final success = await provider.startMining();
-        
+
         if (!context.mounted) return;
         setState(() => _isWatchingAd = false);
         if (success) {
-          NotificationService.showSuccess(context, 'Cloud-miner activated! Points added.');
+          await context.read<ReputationProvider>().loadReputation(force: true);
+          if (!context.mounted) return;
+          NotificationService.showSuccess(
+            context,
+            'Cloud-miner activated! Session started.',
+          );
         } else {
-          NotificationService.showError(context, 'Activation failed. Try again.');
+          NotificationService.showError(
+            context,
+            'Activation failed. Try again.',
+          );
         }
       },
     );
@@ -152,7 +165,12 @@ class _MinerScreenState extends State<MinerScreen> {
     );
   }
 
-  Widget _buildBody(BuildContext context, MiningProvider provider, ThemeData theme, ColorScheme colors) {
+  Widget _buildBody(
+    BuildContext context,
+    MiningProvider provider,
+    ThemeData theme,
+    ColorScheme colors,
+  ) {
     final status = provider.status;
 
     // Priority 1: If we have no data and it's either loading OR it's the very first frame
@@ -189,250 +207,306 @@ class _MinerScreenState extends State<MinerScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(24, 8, 24, 120),
         child: Column(
-          children: [
-            const SizedBox(height: 10),
-            
-            // 1. Header (Personal Balance)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: colors.surface.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(32),
-                border: Border.all(color: colors.primary.withValues(alpha: 0.08)),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    'AVAILABLE BALANCE',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: colors.primary.withValues(alpha: 0.6),
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SvgPicture.asset('assets/cowrie_images/cowriesvg.svg', width: 44, height: 44),
-                      const SizedBox(width: 12),
-                      Flexible(
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            '${status.availableBalance.toStringAsFixed(2)} CWR',
-                            style: theme.textTheme.headlineMedium?.copyWith(
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
+          children:
+              [
+                    const SizedBox(height: 10),
+
+                    // 1. Header (Personal Balance)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: colors.surface.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(32),
+                        border: Border.all(
+                          color: colors.primary.withValues(alpha: 0.08),
                         ),
                       ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // 1.5 Sub-header (Daily Pool)
-            Align(
-              alignment: Alignment.center,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: colors.primary.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: colors.primary.withValues(alpha: 0.1)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.account_balance_wallet_rounded, size: 14, color: colors.primary),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Daily Pool: ${NumberFormat.decimalPattern().format(status.rewardPool)} CWR',
-                      style: TextStyle(
-                        color: colors.primary,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 32),
-
-            // 2. Main Mining Area
-            Center(
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    width: 260,
-                    height: 260,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: colors.primary.withValues(alpha: 0.03),
-                    ),
-                  ).animate(onPlay: (c) => c.repeat(reverse: true))
-                   .scale(begin: const Offset(1, 1), end: const Offset(1.1, 1.1), duration: 2.seconds),
-                  
-                  GestureDetector(
-                    onTap: (status.canMine && !_isWatchingAd) ? () => _startMining(context) : null,
-                    child: Container(
-                      width: 200,
-                      height: 200,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: status.canMine ? colors.primary : colors.surfaceContainerHighest,
-                        boxShadow: [
-                          if (status.canMine && !_isWatchingAd)
-                            BoxShadow(
-                              color: colors.primary.withValues(alpha: 0.3),
-                              blurRadius: 30,
-                              offset: const Offset(0, 10),
+                      child: Column(
+                        children: [
+                          Text(
+                            'AVAILABLE BALANCE',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: colors.primary.withValues(alpha: 0.6),
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.5,
                             ),
-                        ],
-                      ),
-                      child: _isWatchingAd 
-                        ? const Center(child: CircularProgressIndicator(color: Colors.white))
-                        : Column(
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(
-                                status.canMine ? Icons.bolt_rounded : Icons.timer_outlined,
-                                size: 48,
-                                color: status.canMine ? Colors.white : colors.onSurfaceVariant,
+                              SvgPicture.asset(
+                                'assets/cowrie_images/cowriesvg.svg',
+                                width: 44,
+                                height: 44,
                               ),
-                              const SizedBox(height: 12),
-                              Text(
-                                status.canMine ? 'ACTIVATE' : _timeRemaining,
-                                style: TextStyle(
-                                  color: status.canMine ? Colors.white : colors.onSurfaceVariant,
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: status.canMine ? 18 : 22,
-                                  letterSpacing: status.canMine ? 2 : 1,
-                                  fontFamily: 'Monospace',
+                              const SizedBox(width: 12),
+                              Flexible(
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    '${status.availableBalance.toStringAsFixed(2)} CWR',
+                                    style: theme.textTheme.headlineMedium
+                                        ?.copyWith(fontWeight: FontWeight.w900),
+                                  ),
                                 ),
                               ),
                             ],
                           ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ),
 
-            const SizedBox(height: 48),
+                    const SizedBox(height: 24),
 
-            // 3. Stats Row
-            Row(
-              children: [
-                Expanded(
-                  child: _StatCard(
-                    label: 'Your Points',
-                    value: status.pointsToday.toStringAsFixed(0),
-                    icon: Icons.auto_awesome_rounded,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _StatCard(
-                    label: 'Pool Share',
-                    value: '${status.currentSharePercent.toStringAsFixed(2)}%',
-                    icon: Icons.pie_chart_rounded,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 24),
-
-            // 4. Estimated Reward
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: colors.primary.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: colors.primary.withValues(alpha: 0.1)),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    status.settled ? 'FINAL REWARD' : 'ESTIMATED REWARD',
-                    style: TextStyle(
-                      color: colors.primary,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 12,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SvgPicture.asset('assets/cowrie_images/cowriesvg.svg', width: 64, height: 64),
-                      const SizedBox(width: 16),
-                      Flexible(
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            '${status.estimatedReward.toStringAsFixed(2)} CWR',
-                            style: theme.textTheme.displaySmall?.copyWith(
-                              fontWeight: FontWeight.w900,
-                              color: colors.onSurface,
-                            ),
+                    // 1.5 Sub-header (Daily Pool)
+                    Align(
+                      alignment: Alignment.center,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: colors.primary.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: colors.primary.withValues(alpha: 0.1),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  if (!status.settled)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: Text(
-                        'Updating in real-time as others mine.',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant.withValues(alpha: 0.6),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.account_balance_wallet_rounded,
+                              size: 14,
+                              color: colors.primary,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Daily Pool: ${NumberFormat.decimalPattern().format(status.rewardPool)} CWR',
+                              style: TextStyle(
+                                color: colors.primary,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                ],
-              ),
-            ),
 
-            const SizedBox(height: 32),
+                    const SizedBox(height: 32),
 
-            // 4.5 Balance Overview
-            _BalanceOverview(status: status),
+                    // 2. Main Mining Area
+                    Center(
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Container(
+                                width: 260,
+                                height: 260,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: colors.primary.withValues(alpha: 0.03),
+                                ),
+                              )
+                              .animate(onPlay: (c) => c.repeat(reverse: true))
+                              .scale(
+                                begin: const Offset(1, 1),
+                                end: const Offset(1.1, 1.1),
+                                duration: 2.seconds,
+                              ),
 
-            const SizedBox(height: 32),
+                          GestureDetector(
+                            onTap: (status.canMine && !_isWatchingAd)
+                                ? () => _startMining(context)
+                                : null,
+                            child: Container(
+                              width: 200,
+                              height: 200,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: status.canMine
+                                    ? colors.primary
+                                    : colors.surfaceContainerHighest,
+                                boxShadow: [
+                                  if (status.canMine && !_isWatchingAd)
+                                    BoxShadow(
+                                      color: colors.primary.withValues(
+                                        alpha: 0.3,
+                                      ),
+                                      blurRadius: 30,
+                                      offset: const Offset(0, 10),
+                                    ),
+                                ],
+                              ),
+                              child: _isWatchingAd
+                                  ? const Center(
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          status.canMine
+                                              ? Icons.bolt_rounded
+                                              : Icons.timer_outlined,
+                                          size: 48,
+                                          color: status.canMine
+                                              ? Colors.white
+                                              : colors.onSurfaceVariant,
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          status.canMine
+                                              ? 'ACTIVATE'
+                                              : _timeRemaining,
+                                          style: TextStyle(
+                                            color: status.canMine
+                                                ? Colors.white
+                                                : colors.onSurfaceVariant,
+                                            fontWeight: FontWeight.w900,
+                                            fontSize: status.canMine ? 18 : 22,
+                                            letterSpacing: status.canMine
+                                                ? 2
+                                                : 1,
+                                            fontFamily: 'Monospace',
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
 
-            // 5. Reputation Section
-            if (status.reputation != null) _ReputationSection(reputation: status.reputation!),
+                    const SizedBox(height: 48),
 
-            const SizedBox(height: 24),
+                    // 3. Stats Row
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _StatCard(
+                            label: 'Your Points',
+                            value: status.pointsToday.toStringAsFixed(0),
+                            icon: Icons.auto_awesome_rounded,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _StatCard(
+                            label: 'Pool Share',
+                            value:
+                                '${status.currentSharePercent.toStringAsFixed(2)}%',
+                            icon: Icons.pie_chart_rounded,
+                          ),
+                        ),
+                      ],
+                    ),
 
-            // 5.5 Referral Section
-            _ReferralSection(multiplier: status.multiplier),
+                    const SizedBox(height: 24),
 
-            const SizedBox(height: 32),
+                    // 4. Estimated Reward
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: colors.primary.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(28),
+                        border: Border.all(
+                          color: colors.primary.withValues(alpha: 0.1),
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          Text(
+                            status.settled
+                                ? 'FINAL REWARD'
+                                : 'ESTIMATED REWARD',
+                            style: TextStyle(
+                              color: colors.primary,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 12,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              SvgPicture.asset(
+                                'assets/cowrie_images/cowriesvg.svg',
+                                width: 64,
+                                height: 64,
+                              ),
+                              const SizedBox(width: 16),
+                              Flexible(
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    '${status.estimatedReward.toStringAsFixed(2)} CWR',
+                                    style: theme.textTheme.displaySmall
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w900,
+                                          color: colors.onSurface,
+                                        ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (!status.settled)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 12),
+                              child: Text(
+                                'Updating in real-time as others mine.',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: colors.onSurfaceVariant.withValues(
+                                    alpha: 0.6,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
 
-            // 6. Multiplier Breakdown
-            _MultiplierBreakdown(multiplier: status.multiplier),
+                    const SizedBox(height: 32),
 
-            const SizedBox(height: 40),
-          ].animate(interval: 40.ms).fade(duration: 400.ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
+                    // 4.5 Balance Overview
+                    _BalanceOverview(status: status),
+
+                    const SizedBox(height: 32),
+
+                    // 5. Reputation Section
+                    if (status.reputation != null)
+                      _ReputationSection(reputation: status.reputation!),
+
+                    const SizedBox(height: 24),
+
+                    // 5.5 Referral Section
+                    _ReferralSection(multiplier: status.multiplier),
+
+                    const SizedBox(height: 32),
+
+                    // 6. Multiplier Breakdown
+                    _MultiplierBreakdown(multiplier: status.multiplier),
+
+                    const SizedBox(height: 40),
+                  ]
+                  .animate(interval: 40.ms)
+                  .fade(duration: 400.ms)
+                  .slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
         ),
       ),
     );
   }
-
 }
 
 class _StatCard extends StatelessWidget {
@@ -440,7 +514,11 @@ class _StatCard extends StatelessWidget {
   final String value;
   final IconData icon;
 
-  const _StatCard({required this.label, required this.value, required this.icon});
+  const _StatCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -513,11 +591,17 @@ class _ReputationSection extends StatelessWidget {
                   children: [
                     Text(
                       reputation.tier,
-                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, color: color),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: color,
+                      ),
                     ),
                     Text(
                       '${reputation.points} points',
-                      style: theme.textTheme.labelSmall?.copyWith(color: colors.onSurfaceVariant, fontWeight: FontWeight.bold),
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
@@ -527,9 +611,21 @@ class _ReputationSection extends StatelessWidget {
                 children: [
                   Text(
                     '+${reputation.bonus.toStringAsFixed(3)}×',
-                    style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 18, fontFamily: 'Monospace'),
+                    style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
+                      fontFamily: 'Monospace',
+                    ),
                   ),
-                  const Text('BONUS', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+                  const Text(
+                    'BONUS',
+                    style: TextStyle(
+                      fontSize: 8,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -580,7 +676,9 @@ class _ReferralSection extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       '${multiplier.validReferralCount} valid referrals',
-                      style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w800),
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ],
                 ),
@@ -590,24 +688,42 @@ class _ReferralSection extends StatelessWidget {
                 children: [
                   if (isUnlocked)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.green.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.green.withValues(alpha: 0.2)),
+                        border: Border.all(
+                          color: Colors.green.withValues(alpha: 0.2),
+                        ),
                       ),
                       child: const Text(
                         'UNLOCKED',
-                        style: TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.w900),
+                        style: TextStyle(
+                          color: Colors.green,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                     ),
                   const SizedBox(height: 8),
                   TextButton.icon(
                     onPressed: () => context.push('/settings/referrals'),
                     icon: const Icon(Icons.share_rounded, size: 14),
-                    label: const Text('REFER', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
+                    label: const Text(
+                      'REFER',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                     style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
                       minimumSize: Size.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       backgroundColor: colors.primary.withValues(alpha: 0.1),
@@ -630,7 +746,9 @@ class _ReferralSection extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               '$needed more valid referrals needed for +0.100× bonus',
-              style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
             ),
           ],
         ],
@@ -669,15 +787,31 @@ class _BalanceOverview extends StatelessWidget {
           const SizedBox(height: 24),
           _balanceRow(context, 'Lifetime Earned', status.lifetimeEarned),
           const Divider(height: 32),
-          _balanceRow(context, 'Available Balance', status.availableBalance, highlight: true),
+          _balanceRow(
+            context,
+            'Available Balance',
+            status.availableBalance,
+            highlight: true,
+          ),
           const SizedBox(height: 12),
-          _balanceRow(context, 'Pending Settlement', status.pendingBalance, isDim: true),
+          _balanceRow(
+            context,
+            'Pending Settlement',
+            status.pendingBalance,
+            isDim: true,
+          ),
         ],
       ),
     );
   }
 
-  Widget _balanceRow(BuildContext context, String label, double amount, {bool highlight = false, bool isDim = false}) {
+  Widget _balanceRow(
+    BuildContext context,
+    String label,
+    double amount, {
+    bool highlight = false,
+    bool isDim = false,
+  }) {
     final colors = Theme.of(context).colorScheme;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -685,7 +819,9 @@ class _BalanceOverview extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            color: isDim ? colors.onSurfaceVariant.withValues(alpha: 0.6) : colors.onSurfaceVariant,
+            color: isDim
+                ? colors.onSurfaceVariant.withValues(alpha: 0.6)
+                : colors.onSurfaceVariant,
             fontWeight: highlight ? FontWeight.w700 : FontWeight.w500,
           ),
         ),
@@ -693,7 +829,11 @@ class _BalanceOverview extends StatelessWidget {
           '${amount.toStringAsFixed(2)} CWR',
           style: TextStyle(
             fontWeight: highlight ? FontWeight.w900 : FontWeight.w700,
-            color: highlight ? colors.primary : (isDim ? colors.onSurface.withValues(alpha: 0.5) : colors.onSurface),
+            color: highlight
+                ? colors.primary
+                : (isDim
+                      ? colors.onSurface.withValues(alpha: 0.5)
+                      : colors.onSurface),
             fontFamily: 'Monospace',
           ),
         ),
@@ -747,15 +887,40 @@ class _MultiplierBreakdown extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           _row(context, 'Base', '${multiplier.base.toStringAsFixed(3)}×'),
-          _row(context, 'Plus Membership', '+${multiplier.plusBonus.toStringAsFixed(3)}×', isBonus: true),
-          _row(context, 'Referrals', '+${multiplier.referralBonus.toStringAsFixed(3)}×', isBonus: true),
-          _row(context, 'Reputation', '+${multiplier.reputationBonus.toStringAsFixed(3)}×', isBonus: true),
+          _row(
+            context,
+            'Plus Membership',
+            '+${multiplier.plusBonus.toStringAsFixed(3)}×',
+            isBonus: true,
+          ),
+          _row(
+            context,
+            'Referrals',
+            '+${multiplier.referralBonus.toStringAsFixed(3)}×',
+            isBonus: true,
+          ),
+          _row(
+            context,
+            'Reputation',
+            '+${multiplier.reputationBonus.toStringAsFixed(3)}×',
+            isBonus: true,
+          ),
           const Divider(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Maximum potential', style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600)),
-              Text('${multiplier.maximum.toStringAsFixed(1)}×', style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900)),
+              Text(
+                'Maximum potential',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                '${multiplier.maximum.toStringAsFixed(1)}×',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
             ],
           ),
         ],
@@ -763,7 +928,12 @@ class _MultiplierBreakdown extends StatelessWidget {
     );
   }
 
-  Widget _row(BuildContext context, String label, String value, {bool isBonus = false}) {
+  Widget _row(
+    BuildContext context,
+    String label,
+    String value, {
+    bool isBonus = false,
+  }) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     return Padding(
@@ -771,12 +941,19 @@ class _MultiplierBreakdown extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant)),
+          Text(
+            label,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colors.onSurfaceVariant,
+            ),
+          ),
           Text(
             value,
             style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.w700,
-              color: isBonus && value != '+0.0×' && value != '+0.000×' ? Colors.green : null,
+              color: isBonus && value != '+0.0×' && value != '+0.000×'
+                  ? Colors.green
+                  : null,
               fontFamily: 'Monospace',
             ),
           ),

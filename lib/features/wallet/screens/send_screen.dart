@@ -548,7 +548,7 @@ class _SendScreenState extends State<SendScreen> {
                 ],
               ),
             ),
-            const GriotBannerAd(isCompact: true),
+            const GriotBannerAd(),
           ],
         ),
       ),

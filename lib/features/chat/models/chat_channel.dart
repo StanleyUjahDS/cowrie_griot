@@ -107,8 +107,7 @@ class ChatChannel {
       name: name ?? this.name,
       imageUrl: imageUrl ?? this.imageUrl,
       description: description ?? this.description,
-      subscriberCount:
-      subscriberCount ?? this.subscriberCount,
+      subscriberCount: subscriberCount ?? this.subscriberCount,
       verified: verified ?? this.verified,
       lastPost: lastPost ?? this.lastPost,
       timestamp: timestamp ?? this.timestamp,
@@ -136,24 +135,29 @@ class ChatChannel {
   // FROM JSON
   // ==========================================================
 
-  factory ChatChannel.fromJson(
-      Map<String, dynamic> json,
-      ) {
+  factory ChatChannel.fromJson(Map<String, dynamic> json) {
     return ChatChannel(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      imageUrl: json['imageUrl'] as String?,
-      description:
-      json['description'] as String? ?? '',
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      imageUrl: (json['imageUrl'] ?? json['image_url'])?.toString(),
+      description: json['description'] as String? ?? '',
       subscriberCount:
-      json['subscriberCount'] as int? ?? 0,
-      verified:
-      json['verified'] as bool? ?? false,
-      lastPost:
-      json['lastPost'] as String? ?? '',
-      timestamp: DateTime.parse(
-        json['timestamp'] as String,
-      ),
+          int.tryParse(
+            (json['subscriberCount'] ?? json['subscriber_count'] ?? 0)
+                .toString(),
+          ) ??
+          0,
+      verified: json['verified'] as bool? ?? false,
+      lastPost: (json['lastPost'] ?? json['last_post'])?.toString() ?? '',
+      timestamp:
+          DateTime.tryParse(
+            (json['timestamp'] ??
+                    json['updated_at'] ??
+                    json['created_at'] ??
+                    DateTime.now().toIso8601String())
+                .toString(),
+          ) ??
+          DateTime.now(),
     );
   }
 
@@ -181,8 +185,7 @@ class ChatChannel {
       return true;
     }
 
-    return other is ChatChannel &&
-        other.id == id;
+    return other is ChatChannel && other.id == id;
   }
 
   @override
