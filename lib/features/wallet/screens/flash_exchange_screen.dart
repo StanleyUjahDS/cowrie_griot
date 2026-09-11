@@ -7,8 +7,10 @@ import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import 'package:provider/provider.dart';
 import '../services/wallet_api_service.dart';
 import '../models/token_model.dart';
+import '../models/flash_token_result.dart';
 import '../providers/wallet_provider.dart';
-import '../../../core/ui/widgets/banner_ad.dart';
+import '../utils/wallet_formatters.dart';
+import '../utils/chain_assets.dart';
 
 class FlashExchangeScreen extends StatefulWidget {
   const FlashExchangeScreen({super.key});
@@ -23,18 +25,19 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
 
   String _detectedAddress = "";
   bool _hasUserMessage = false;
+  String _lastSubmittedMessage = '';
   bool _isDetected = false;
   bool _isResolving = false;
-  Map<String, dynamic>? _resolvedToken;
-  TokenModel? _resolvedTokenModel;
+  String? _lookupError;
+  FlashTokenResult? _flashResult;
   String _addressKind = '';
 
   Future<void> _openResolvedLink(String key) async {
-    String? url = _resolvedTokenModel?.externalLinks[key];
+    String? url = _flashResult?.token?.externalLinks[key];
 
     // Fallback generation if no link provided by backend
     if ((url == null || url.isEmpty) && _detectedAddress.isNotEmpty) {
-      final chain = _resolvedTokenModel?.chain ?? 'ethereum';
+      final chain = _flashResult?.token?.chain ?? 'ethereum';
       final normalizedChain = _normalizeForExternalLinks(chain);
 
       if (key == 'explorer') {
@@ -72,10 +75,8 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
   }
 
   String _normalizeForExternalLinks(String chain) {
-    final c = chain.toLowerCase().trim();
-    if (c == 'bnb' || c == 'bsc') return 'bsc';
-    if (c == 'eth') return 'ethereum';
-    if (c == 'matic') return 'polygon';
+    final c = ChainAssets.normalize(chain);
+    if (c == 'bnb') return 'bsc';
     return c;
   }
 
@@ -117,6 +118,7 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
     final solanaMatch = solanaRegex.firstMatch(raw);
 
     setState(() {
+      _lastSubmittedMessage = raw;
       if (evmMatch != null) {
         _detectedAddress = evmMatch.group(0)!;
         _isDetected = true;
@@ -131,37 +133,25 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
       }
       _hasUserMessage = true;
       _isResolving = _isDetected;
-      _resolvedToken = null;
+      _flashResult = null;
+      _lookupError = null;
     });
+    _messageController.clear();
 
-    if (_isDetected && evmMatch != null) {
+    if (_isDetected) {
       try {
-        final matches = await context.read<WalletApiService>().searchAssets(
-          query: _detectedAddress,
-        );
+        final result = await context.read<WalletApiService>().lookupFlashToken(_detectedAddress);
         if (!mounted) return;
         setState(() {
-          _resolvedToken = matches.isNotEmpty
-              ? {
-                  'name': matches.first.name,
-                  'symbol': matches.first.symbol,
-                  'network': matches.first.rawNetwork.isNotEmpty
-                      ? matches.first.rawNetwork
-                      : matches.first.chain,
-                  'contractAddress': matches.first.contractAddress,
-                  'decimals': matches.first.decimals,
-                  'priceUsd': matches.first.priceUsd,
-                }
-              : null;
-          _resolvedTokenModel = matches.isNotEmpty ? matches.first : null;
-          _addressKind = matches.isNotEmpty ? 'contract' : 'wallet';
+          _flashResult = result;
+          _addressKind = result?.addressType ?? (evmMatch != null ? 'wallet' : 'unknown');
           _isResolving = false;
         });
       } catch (_) {
         if (mounted) {
           setState(() {
-            _addressKind = 'wallet';
             _isResolving = false;
+            _lookupError = 'Unable to resolve this address. Please try again.';
           });
         }
       }
@@ -197,10 +187,13 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
   }
 
   void _handleSwapAction({required bool isBuy}) {
-    if (_resolvedTokenModel == null) return;
+    final token = _flashResult?.token;
+    if (token == null) return;
 
     final provider = context.read<WalletProvider>();
-    final chain = _resolvedTokenModel!.chain.toLowerCase();
+    final chain = _normalizeForExternalLinks(
+      token.rawNetwork.isNotEmpty ? token.rawNetwork : token.chain,
+    );
 
     TokenModel? baseToken;
 
@@ -208,13 +201,20 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
       // Always choose the native/stable token from the detected token's chain.
       baseToken = provider.tokens.firstWhere(
         (t) =>
-            t.chain.toLowerCase() == chain &&
+            _normalizeForExternalLinks(
+                  t.rawNetwork.isNotEmpty ? t.rawNetwork : t.chain,
+                ) == chain &&
             (t.isNative ||
                 t.symbol.toUpperCase() == 'USDT' ||
                 t.symbol.toUpperCase() == 'USDC' ||
                 t.symbol.toUpperCase() == 'BUSD'),
         orElse: () => provider.tokens.firstWhere(
-          (t) => t.chain.toLowerCase() == chain && t.isNative,
+          (t) =>
+              _normalizeForExternalLinks(
+                    t.rawNetwork.isNotEmpty ? t.rawNetwork : t.chain,
+                  ) ==
+                  chain &&
+              t.isNative,
         ),
       );
     } catch (_) {
@@ -229,12 +229,12 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
     if (isBuy) {
       context.push(
         '/wallet/swap',
-        extra: {'from': baseToken, 'to': _resolvedTokenModel},
+        extra: {'from': baseToken, 'to': token},
       );
     } else {
       context.push(
         '/wallet/swap',
-        extra: {'from': _resolvedTokenModel, 'to': baseToken},
+        extra: {'from': token, 'to': baseToken},
       );
     }
   }
@@ -266,7 +266,7 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
                       .slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
                   if (_hasUserMessage) ...[
                     const SizedBox(height: 20),
-                    _buildUserMessage(context, _messageController.text)
+                    _buildUserMessage(context, _lastSubmittedMessage)
                         .animate()
                         .fadeIn(duration: 300.ms)
                         .slideX(begin: 0.05, end: 0),
@@ -281,7 +281,6 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
                 ],
               ),
             ),
-            const GriotBannerAd(),
             _buildInputArea(context),
           ],
         ),
@@ -348,6 +347,10 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
     final colors = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
 
+    final canBuy = _flashResult?.trading.canBuy ?? false;
+    final canSell = _flashResult?.trading.canSell ?? false;
+    final token = _flashResult?.token;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
@@ -367,7 +370,16 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
                 topRight: Radius.circular(18),
                 bottomRight: Radius.circular(18),
               ),
-              border: Border.all(color: colors.outline.withValues(alpha: 0.1)),
+              border: Border(
+                top: BorderSide(
+                  color: colors.primary.withValues(alpha: 0.6),
+                  width: 1.2,
+                ),
+                bottom: BorderSide(
+                  color: colors.primary.withValues(alpha: 0.6),
+                  width: 1.2,
+                ),
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -376,8 +388,8 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
                   _isResolving
                       ? "Looking up address..."
                       : (_addressKind == 'contract'
-                            ? "Token contract detected"
-                            : "Wallet address detected"),
+                          ? "Token contract detected"
+                          : "Wallet address detected"),
                   style: text.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -416,24 +428,91 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
                     ],
                   ),
                 ),
-                if (_resolvedToken != null) ...[
-                  const SizedBox(height: 12),
+                if (_lookupError != null) ...[
+                  const SizedBox(height: 10),
                   Text(
-                    '${_resolvedToken!['name'] ?? 'Unknown token'} (${_resolvedToken!['symbol'] ?? '—'})',
-                    style: text.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    _lookupError!,
+                    style: text.labelSmall?.copyWith(color: colors.error),
                   ),
-                  Text(
-                    'Network: ${_resolvedToken!['network'] ?? _resolvedToken!['chain'] ?? 'Unknown'}',
-                    style: text.bodySmall,
+                ],
+                if (token != null) ...[
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: colors.primary.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            (token.symbol).substring(0, 1),
+                            style: TextStyle(
+                              color: colors.primary,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              token.name,
+                              style: text.titleSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              '${token.chain.toUpperCase()} • ${token.symbol}',
+                              style: text.labelSmall?.copyWith(
+                                color: colors.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  if (_resolvedToken!['contractAddress'] != null)
-                    Text(
-                      'Contract: ${_resolvedToken!['contractAddress']}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: text.bodySmall?.copyWith(fontFamily: 'monospace'),
+                  const SizedBox(height: 16),
+                  _marketDataRow("Price",
+                      WalletFormatters.formatCurrency(token.priceUsd)),
+                  _marketDataRow("Market cap",
+                      _formatMarketValue(token.marketCapUsd)),
+                  _marketDataRow("Liquidity",
+                      _formatMarketValue(token.liquidityUsd)),
+                  _marketDataRow("24h volume",
+                      _formatMarketValue(token.volume24hUsd)),
+                  _marketDataRow(
+                    "24h change",
+                    _formatChange(token.changePercent),
+                    valueColor: (token.changePercent ?? 0) >= 0
+                        ? Colors.green
+                        : Colors.red,
+                  ),
+                  _marketDataRow(
+                    "Buy tax",
+                    _formatTax(_flashResult?.security?.buyTaxPercent),
+                  ),
+                  _marketDataRow(
+                    "Sell tax",
+                    _formatTax(_flashResult?.security?.sellTaxPercent),
+                  ),
+                  if (_flashResult?.security == null ||
+                      _flashResult?.security?.status == 'unknown')
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'Security scan unavailable; trade carefully.',
+                        style: text.labelSmall?.copyWith(
+                          color: Colors.orange.shade700,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
                     ),
                 ],
                 const SizedBox(height: 16),
@@ -445,17 +524,32 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
                         icon: Icons.shopping_cart_rounded,
                         label: "Buy",
                         primary: true,
-                        onTap: () => _handleSwapAction(isBuy: true),
+                        onTap: canBuy
+                            ? () => _handleSwapAction(isBuy: true)
+                            : null,
                       ),
                       const SizedBox(width: 8),
                       _actionButton(
                         context,
                         icon: Icons.sell_rounded,
                         label: "Sell",
-                        onTap: () => _handleSwapAction(isBuy: false),
+                        onTap: canSell
+                            ? () => _handleSwapAction(isBuy: false)
+                            : null,
                       ),
                     ],
                   ),
+                  if (!canBuy && !canSell && !_isResolving && _flashResult != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        _flashResult?.trading.reason ?? "Trading unavailable for this contract.",
+                        style: text.labelSmall?.copyWith(
+                          color: colors.error,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
@@ -463,6 +557,7 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
                         context,
                         icon: Icons.show_chart_rounded,
                         label: "Chart",
+                        compact: true,
                         onTap: () => _openResolvedLink('dexScreener'),
                       ),
                       const SizedBox(width: 8),
@@ -470,7 +565,19 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
                         context,
                         icon: Icons.open_in_new_rounded,
                         label: "View",
+                        compact: true,
                         onTap: () => _openResolvedLink('explorer'),
+                      ),
+                      const SizedBox(width: 8),
+                      _actionButton(
+                        context,
+                        icon: Icons.send_rounded,
+                        label: "Send",
+                        compact: true,
+                        onTap: () => context.push(
+                          '/wallet/send',
+                          extra: _detectedAddress,
+                        ),
                       ),
                     ],
                   ),
@@ -480,7 +587,7 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
                       _actionButton(
                         context,
                         icon: Icons.send_rounded,
-                        label: "Send to",
+                        label: "Send",
                         primary: true,
                         onTap: () => context.push(
                           '/wallet/send',
@@ -505,6 +612,52 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
     );
   }
 
+  Widget _marketDataRow(String label, String value, {Color? valueColor}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label,
+              style: TextStyle(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurfaceVariant
+                      .withValues(alpha: 0.7),
+                  fontSize: 13)),
+          Text(value,
+              style: TextStyle(
+                  fontWeight: FontWeight.bold, fontSize: 13, color: valueColor)),
+        ],
+      ),
+    );
+  }
+
+  String _formatMarketValue(dynamic value) {
+    if (value == null || value == 0) return "—";
+    final num val = value is num ? value : (num.tryParse(value.toString()) ?? 0);
+    if (val == 0) return "—";
+
+    if (val >= 1000000000) return "\$${(val / 1000000000).toStringAsFixed(2)}B";
+    if (val >= 1000000) return "\$${(val / 1000000).toStringAsFixed(2)}M";
+    if (val >= 1000) return "\$${(val / 1000).toStringAsFixed(2)}K";
+    return "\$${val.toStringAsFixed(2)}";
+  }
+
+  String _formatChange(dynamic value) {
+    if (value == null) return "—";
+    final num val = value is num ? value : (num.tryParse(value.toString()) ?? 0);
+    return "${val >= 0 ? '+' : ''}${val.toStringAsFixed(2)}%";
+  }
+
+  String _formatTax(dynamic value) {
+    if (value == null) return "—";
+    final num tax = value is num ? value : (num.tryParse(value.toString()) ?? 0);
+    return tax == 0
+        ? '0%'
+        : '${tax.toStringAsFixed(tax == tax.roundToDouble() ? 0 : 2)}%';
+  }
+
   Widget _buildUnsupportedCard(BuildContext context) {
     return _buildBotMessage(
       context,
@@ -516,40 +669,42 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
     BuildContext context, {
     required IconData icon,
     required String label,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
     bool primary = false,
+    bool compact = false,
   }) {
-    return Expanded(
-      child: SizedBox(
-        height: 44,
-        child: primary
+    final button = compact
+        ? OutlinedButton(
+            onPressed: onTap,
+            style: OutlinedButton.styleFrom(
+              padding: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: Icon(icon, size: 18),
+          )
+        : primary
             ? ElevatedButton.icon(
                 onPressed: onTap,
                 icon: Icon(icon, size: 18),
-                label: Text(
-                  label,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
+                label: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
                   elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               )
             : OutlinedButton.icon(
                 onPressed: onTap,
                 icon: Icon(icon, size: 18),
-                label: Text(
-                  label,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
+                label: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
                 style: OutlinedButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-              ),
+              );
+
+    return Expanded(
+      child: SizedBox(
+        height: 44,
+        child: Tooltip(message: label, child: button),
       ),
     );
   }

@@ -130,7 +130,16 @@ class MiningRulesScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: colors.surfaceContainerLow.withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(28),
-                    border: Border.all(color: colors.outline.withValues(alpha: 0.05)),
+                    border: Border(
+                      top: BorderSide(
+                        color: colors.primary.withValues(alpha: 0.6),
+                        width: 1.5,
+                      ),
+                      bottom: BorderSide(
+                        color: colors.primary.withValues(alpha: 0.6),
+                        width: 1.5,
+                      ),
+                    ),
                   ),
                   child: Column(
                     children: [
@@ -156,7 +165,7 @@ class MiningRulesScreen extends StatelessWidget {
                   icon: Icons.shield_rounded,
                   text: 'Mining activity awards share points only. Your Reputation points and Badge Tier are earned separately through social contribution and ecosystem engagement.',
                 ),
-                
+
                 const SizedBox(height: 80),
               ].animate(interval: 50.ms).fade(duration: 400.ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
             ),
@@ -254,7 +263,16 @@ class MiningRulesScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.onSurface.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: colors.outline.withValues(alpha: 0.05)),
+        border: Border(
+          top: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+          bottom: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

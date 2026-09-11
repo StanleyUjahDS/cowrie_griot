@@ -39,6 +39,8 @@ class _GriotNativeAdState extends State<GriotNativeAd> {
   }
 
   void _loadAd({bool force = false}) {
+    if (!AppConfig.adsEnabled) return;
+
     if (_nativeAd != null && !force) return;
     
     if (force) {
@@ -86,6 +88,8 @@ class _GriotNativeAdState extends State<GriotNativeAd> {
 
   @override
   Widget build(BuildContext context) {
+    if (!AppConfig.adsEnabled) return const SizedBox.shrink();
+
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;

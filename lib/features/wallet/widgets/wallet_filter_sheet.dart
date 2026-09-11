@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../providers/wallet_provider.dart';
 import '../utils/chain_assets.dart';
+import '../../../core/ui/widgets/griot_bottom_sheet.dart';
 
 void openWalletFilterSheet({
   required BuildContext context,
@@ -9,6 +10,7 @@ void openWalletFilterSheet({
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
+    useRootNavigator: true,
     backgroundColor: Colors.transparent,
     builder: (_) {
       return StatefulBuilder(
@@ -27,13 +29,7 @@ void openWalletFilterSheet({
             minChildSize: 0.50,
             expand: false,
             builder: (_, scrollController) {
-              return Container(
-                decoration: BoxDecoration(
-                  color: colors.surface,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(30),
-                  ),
-                ),
+              return GriotBottomSheet(
                 child: Column(
                   children: [
                     // Handle
@@ -61,7 +57,10 @@ void openWalletFilterSheet({
                               color: colors.primary.withValues(alpha: 0.10),
                               borderRadius: BorderRadius.circular(14),
                             ),
-                            child: Icon(Icons.tune_rounded, color: colors.primary),
+                            child: Icon(
+                              Icons.tune_rounded,
+                              color: colors.primary,
+                            ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
@@ -105,14 +104,27 @@ void openWalletFilterSheet({
                           24 + MediaQuery.of(context).padding.bottom,
                         ),
                         children: [
-                          _sectionTitle(context, "Wallet", Icons.account_balance_wallet_rounded),
+                          _sectionTitle(
+                            context,
+                            "Wallet",
+                            Icons.account_balance_wallet_rounded,
+                          ),
                           const SizedBox(height: 10),
                           Container(
                             decoration: BoxDecoration(
-                              color: colors.surfaceContainerHighest.withValues(alpha: 0.35),
+                              color: colors.surfaceContainerHighest.withValues(
+                                alpha: 0.35,
+                              ),
                               borderRadius: BorderRadius.circular(18),
-                              border: Border.all(
-                                color: colors.outline.withValues(alpha: 0.08),
+                              border: Border(
+                                top: BorderSide(
+                                  color: colors.primary.withValues(alpha: 0.6),
+                                  width: 1.2,
+                                ),
+                                bottom: BorderSide(
+                                  color: colors.primary.withValues(alpha: 0.6),
+                                  width: 1.2,
+                                ),
                               ),
                             ),
                             child: Column(
@@ -121,7 +133,8 @@ void openWalletFilterSheet({
                                   context: context,
                                   icon: Icons.money_off_rounded,
                                   title: "Hide Small Balances",
-                                  subtitle: "Hide tiny balances below the wallet threshold",
+                                  subtitle:
+                                      "Hide tiny balances below the wallet threshold",
                                   value: provider.hideLowBalance,
                                   onChanged: (value) {
                                     provider.setHideLowBalance(value);
@@ -171,13 +184,38 @@ void openWalletFilterSheet({
                             spacing: 10,
                             runSpacing: 10,
                             children: [
-                              _chainChip("Ethereum", "ethereum", provider, refresh),
+                              _chainChip(
+                                "Ethereum",
+                                "ethereum",
+                                provider,
+                                refresh,
+                              ),
                               _chainChip("BNB Chain", "bsc", provider, refresh),
-                              _chainChip("Polygon", "polygon", provider, refresh),
-                              _chainChip("Arbitrum", "arbitrum", provider, refresh),
-                              _chainChip("Optimism", "optimism", provider, refresh),
+                              _chainChip(
+                                "Polygon",
+                                "polygon",
+                                provider,
+                                refresh,
+                              ),
+                              _chainChip(
+                                "Arbitrum",
+                                "arbitrum",
+                                provider,
+                                refresh,
+                              ),
+                              _chainChip(
+                                "Optimism",
+                                "optimism",
+                                provider,
+                                refresh,
+                              ),
                               _chainChip("Base", "base", provider, refresh),
-                              _chainChip("Avalanche", "avalanche", provider, refresh),
+                              _chainChip(
+                                "Avalanche",
+                                "avalanche",
+                                provider,
+                                refresh,
+                              ),
                             ],
                           ),
 
@@ -193,9 +231,7 @@ void openWalletFilterSheet({
                               icon: const Icon(Icons.restart_alt_rounded),
                               label: const Text(
                                 "Clear All Filters",
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                ),
+                                style: TextStyle(fontWeight: FontWeight.w700),
                               ),
                             ),
                           ),
@@ -224,9 +260,7 @@ Widget _sectionTitle(BuildContext context, String title, IconData icon) {
       const SizedBox(width: 8),
       Text(
         title,
-        style: text.titleSmall?.copyWith(
-          fontWeight: FontWeight.w800,
-        ),
+        style: text.titleSmall?.copyWith(fontWeight: FontWeight.w800),
       ),
     ],
   );
@@ -251,7 +285,9 @@ Widget _filterSwitchTile({
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: value ? colors.primary.withValues(alpha: 0.12) : colors.surface,
+            color: value
+                ? colors.primary.withValues(alpha: 0.12)
+                : colors.surface,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Icon(
@@ -267,30 +303,28 @@ Widget _filterSwitchTile({
             children: [
               Text(
                 title,
-                style: text.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+                style: text.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 2),
               Text(
                 subtitle,
-                style: text.bodySmall?.copyWith(
-                  color: colors.onSurfaceVariant,
-                ),
+                style: text.bodySmall?.copyWith(color: colors.onSurfaceVariant),
               ),
             ],
           ),
         ),
-        Switch.adaptive(
-          value: value,
-          onChanged: onChanged,
-        ),
+        Switch.adaptive(value: value, onChanged: onChanged),
       ],
     ),
   );
 }
 
-Widget _chainChip(String label, String chainId, WalletProvider provider, VoidCallback refresh) {
+Widget _chainChip(
+  String label,
+  String chainId,
+  WalletProvider provider,
+  VoidCallback refresh,
+) {
   return Builder(
     builder: (context) {
       final colors = Theme.of(context).colorScheme;
@@ -325,13 +359,17 @@ Widget _chainChip(String label, String chainId, WalletProvider provider, VoidCal
               Text(
                 label,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: selected ? colors.primary : colors.onSurface,
-                    ),
+                  fontWeight: FontWeight.w700,
+                  color: selected ? colors.primary : colors.onSurface,
+                ),
               ),
               if (selected) ...[
                 const SizedBox(width: 7),
-                Icon(Icons.check_circle_rounded, size: 17, color: colors.primary),
+                Icon(
+                  Icons.check_circle_rounded,
+                  size: 17,
+                  color: colors.primary,
+                ),
               ],
             ],
           ),
@@ -351,12 +389,7 @@ Widget _chainIcon(BuildContext context, String chain, bool selected) {
       shape: BoxShape.circle,
       color: selected ? colors.primary.withValues(alpha: 0.14) : colors.surface,
     ),
-    child: Center(
-      child: ChainAssets.getIcon(
-        chain,
-        size: 18,
-      ),
-    ),
+    child: Center(child: ChainAssets.getIcon(chain, size: 18)),
   );
 }
 
@@ -389,9 +422,9 @@ Widget _activeFilterCount(BuildContext context, WalletProvider provider) {
     child: Text(
       "$count active",
       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: colors.primary,
-            fontWeight: FontWeight.w800,
-          ),
+        color: colors.primary,
+        fontWeight: FontWeight.w800,
+      ),
     ),
   );
 }

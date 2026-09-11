@@ -75,7 +75,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
   Future<void> _shareReferral(String code) async {
     final link = 'https://griot.network/join?ref=$code';
     final text = 'Join me on Griot! My code: $code\n\n$link';
-    
+
     await SharePlus.instance.share(
       ShareParams(
         text: text,
@@ -115,7 +115,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
             const SizedBox(height: 8),
             Text('Scan to join the Griot community', style: text.bodySmall?.copyWith(color: colors.onSurfaceVariant)),
             const SizedBox(height: 32),
-            
+
             RepaintBoundary(
               key: _qrKey,
               child: Container(
@@ -137,7 +137,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
                     color: colors.primary.withValues(alpha: 0.8),
                   ),
                   // embeddedImage: const AssetImage('assets/cowrie_images/cowriesvg.svg'), // QR library doesn't support SVG asset directly easily
-                  // We'll skip embedded image in QR for now or use a png version if available, 
+                  // We'll skip embedded image in QR for now or use a png version if available,
                   // but user asked to use htis new svg instead in "screens".
                   // Standard practice for QR with SVG is difficult in this lib.
                   // I'll check if I can convert SVG to Image provider or just leave it blank to avoid crash.
@@ -150,14 +150,14 @@ class _ReferralScreenState extends State<ReferralScreen> {
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 32),
             Text(
               code.startsWith('0x') ? _shortenAddress(code) : '@$code',
               style: text.titleLarge?.copyWith(fontWeight: FontWeight.w900, letterSpacing: 1),
             ),
             const SizedBox(height: 40),
-            
+
             SizedBox(
               width: double.infinity,
               height: 56,
@@ -279,7 +279,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
 
           // Prominent Total Count
           _buildTotalCounter(context, data),
-          
+
           const SizedBox(height: 32),
 
           // How it works
@@ -396,7 +396,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  isUsername 
+                  isUsername
                     ? 'Your friends can join using your handle. It’s personalized just for you.'
                     : 'Share your wallet ID or set a username in settings to get a personal code.',
                   textAlign: TextAlign.center,
@@ -434,7 +434,16 @@ class _ReferralScreenState extends State<ReferralScreen> {
           decoration: BoxDecoration(
             color: colors.surfaceContainerLow,
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.2)),
+            border: Border(
+              top: BorderSide(
+                color: colors.primary.withValues(alpha: 0.6),
+                width: 1.5,
+              ),
+              bottom: BorderSide(
+                color: colors.primary.withValues(alpha: 0.6),
+                width: 1.5,
+              ),
+            ),
           ),
           child: Column(
             children: [
@@ -481,7 +490,16 @@ class _ReferralScreenState extends State<ReferralScreen> {
       decoration: BoxDecoration(
         color: colors.surfaceContainerLow,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.2)),
+        border: Border(
+          top: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+          bottom: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+        ),
       ),
       child: Row(
         children: [
@@ -522,7 +540,16 @@ class _ReferralScreenState extends State<ReferralScreen> {
       decoration: BoxDecoration(
         color: colors.surfaceContainerLow,
         borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.15)),
+        border: Border(
+          top: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+          bottom: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+        ),
       ),
       child: Stack(
         children: [
@@ -583,7 +610,16 @@ class _ReferralScreenState extends State<ReferralScreen> {
       decoration: BoxDecoration(
         color: colors.primary.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: colors.primary.withValues(alpha: 0.08)),
+        border: Border(
+          top: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+          bottom: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+        ),
       ),
       child: Stack(
         children: [

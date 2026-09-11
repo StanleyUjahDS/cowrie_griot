@@ -1,6 +1,7 @@
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_config.dart';
 import '../models/token_model.dart';
+import '../models/flash_token_result.dart';
 import 'package:flutter/foundation.dart';
 
 class WalletApiService {
@@ -187,6 +188,35 @@ class WalletApiService {
           .toList();
     }
     return [];
+  }
+
+  Future<FlashTokenResult?> lookupFlashToken(String query) async {
+    try {
+      final response = await _apiClient.get(
+        ApiConfig.walletFlashLookup(query),
+      );
+
+      final data = _unwrap(response);
+      if (data is Map<String, dynamic>) {
+        return FlashTokenResult.fromJson(data);
+      }
+    } catch (e) {
+      debugPrint('Error looking up flash token: $e');
+      rethrow;
+    }
+    return null;
+  }
+
+  Future<Map<String, dynamic>> getActivity({
+    int limit = 20,
+    String? pageKey,
+  }) async {
+    final response = await _apiClient.get(
+      ApiConfig.walletActivity(limit: limit, pageKey: pageKey),
+    );
+
+    final data = _unwrap(response);
+    return data is Map<String, dynamic> ? data : {};
   }
 
   dynamic _unwrap(dynamic response) {

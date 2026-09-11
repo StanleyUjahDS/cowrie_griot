@@ -30,10 +30,11 @@ class AuthApiService {
       ApiConfig.authNonce,
       body: {
         'walletAddress': walletAddress,
+        'wallet_address': walletAddress,
       },
     );
 
-    final data = (response.containsKey('data') ? response['data'] : response);
+    final data = _getData(response);
 
     return NonceResponse.fromJson(
       data as Map<String, dynamic>,
@@ -53,12 +54,13 @@ class AuthApiService {
       ApiConfig.authVerify,
       body: {
         'walletAddress': walletAddress,
+        'wallet_address': walletAddress,
         'nonce': nonce,
         'signature': signature,
       },
     );
 
-    final data = (response.containsKey('data') ? response['data'] : response);
+    final data = _getData(response);
 
     final authenticationResponse =
     AuthenticationResponse.fromJson(
@@ -90,10 +92,11 @@ class AuthApiService {
       ApiConfig.authRefresh,
       body: {
         'refreshToken': refreshToken,
+        'refresh_token': refreshToken,
       },
     );
 
-    final data = (response.containsKey('data') ? response['data'] : response);
+    final data = _getData(response);
 
     final authenticationResponse =
     AuthenticationResponse.fromJson(
@@ -142,6 +145,7 @@ class AuthApiService {
         ApiConfig.authLogout,
         body: {
           'refreshToken': refreshToken,
+          'refresh_token': refreshToken,
         },
       );
     } finally {
@@ -157,5 +161,20 @@ class AuthApiService {
 
   Future<void> clearSession() {
     return _authStorageService.clearSession();
+  }
+
+  dynamic _getData(dynamic response) {
+    if (response is Map<String, dynamic>) {
+      if (response.containsKey('success')) {
+        if (response['success'] == true) {
+          return response['data'];
+        }
+        throw Exception(response['message'] ?? 'Request failed');
+      }
+      if (response.containsKey('data')) {
+        return response['data'];
+      }
+    }
+    return response;
   }
 }

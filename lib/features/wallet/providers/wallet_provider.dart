@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../core/network/api_exception.dart';
@@ -6,21 +8,46 @@ import '../models/token_model.dart';
 import '../models/wallet_model.dart';
 import '../services/wallet_service.dart';
 import '../services/wallet_api_service.dart';
+import '../services/wallet_local_cache_service.dart';
 
 class WalletProvider extends ChangeNotifier {
   final WalletService _walletService;
   final WalletApiService _walletApiService;
+  final WalletLocalCacheService _walletLocalCacheService;
 
   WalletProvider({
     required WalletService walletService,
     required WalletApiService walletApiService,
-  })  : _walletService = walletService,
-        _walletApiService = walletApiService;
+    WalletLocalCacheService? walletLocalCacheService,
+  }) : _walletService = walletService,
+       _walletApiService = walletApiService,
+       _walletLocalCacheService =
+           walletLocalCacheService ?? const WalletLocalCacheService() {
+    // Render the last known balances immediately while the normal API refresh
+    // reconciles them with current chain data.
+    unawaited(_restoreCachedWallet());
+  }
 
-  static const Set<String> _prioritySymbols = {
-    'HBADG',
-    'BNB',
-  };
+  Future<void> _restoreCachedWallet() async {
+    try {
+      final snapshot = await _walletLocalCacheService.load();
+      if (snapshot == null || snapshot.tokens.isEmpty || _wallet != null) return;
+      _tokens = snapshot.tokens;
+      _popularAssets = snapshot.popularAssets;
+      _wallet = WalletModel(
+        address: snapshot.address,
+        displayName: 'Your Griot Account',
+        totalBalance: 0,
+        changePercent: 0,
+      );
+      _recalculateWalletTotals();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('WalletProvider: unable to restore cached wallet: $e');
+    }
+  }
+
+  static const Set<String> _prioritySymbols = {'HBADG', 'BNB'};
 
   WalletModel? _wallet;
   List<TokenModel> _tokens = [];
@@ -38,6 +65,10 @@ class WalletProvider extends ChangeNotifier {
   bool _hideLowBalance = false;
   bool _onlyProfit = false;
   bool _onlyLoss = false;
+  List<Map<String, dynamic>> _activities = [];
+  String? _activityNextPageKey;
+  bool _isLoadingActivity = false;
+  bool _isLoadingMoreActivity = false;
   final Set<String> _selectedChains = {};
   final Set<String> _hiddenTokenKeys = {};
 
@@ -55,6 +86,10 @@ class WalletProvider extends ChangeNotifier {
   bool get onlyLoss => _onlyLoss;
   Set<String> get hiddenTokenKeys => Set.unmodifiable(_hiddenTokenKeys);
   Set<String> get selectedChains => Set.unmodifiable(_selectedChains);
+  List<Map<String, dynamic>> get activities => List.unmodifiable(_activities);
+  String? get activityNextPageKey => _activityNextPageKey;
+  bool get isLoadingActivity => _isLoadingActivity;
+  bool get isLoadingMoreActivity => _isLoadingMoreActivity;
 
   bool isPriorityToken(TokenModel token) {
     return _prioritySymbols.contains(token.symbol.trim().toUpperCase());
@@ -71,7 +106,7 @@ class WalletProvider extends ChangeNotifier {
   List<TokenModel> get visibleAssets {
     return _tokens.where((token) {
       if (_hiddenTokenKeys.contains(_getTokenKey(token))) return false;
-      
+
       // CONTRACT: always show HBADG; always show native assets with a positive balance.
       if (token.isEcosystem) return true;
       final balance = num.tryParse(token.balance) ?? 0;
@@ -84,8 +119,13 @@ class WalletProvider extends ChangeNotifier {
       final isMajor = token.isNative || token.isEcosystem;
       // FIX: Ensure wallet filters work when market data is unavailable.
       // If we don't have market data, we don't hide the token even if hideLowBalance is ON.
-      if (!isMajor && _hideLowBalance && token.hasMarketData && (token.valueUsd ?? 0) < 1) return false;
-      
+      if (!isMajor &&
+          _hideLowBalance &&
+          token.hasMarketData &&
+          (token.valueUsd ?? 0) < 1) {
+        return false;
+      }
+
       return true;
     }).toList()..sort((a, b) => (b.valueUsd ?? 0).compareTo(a.valueUsd ?? 0));
   }
@@ -99,10 +139,14 @@ class WalletProvider extends ChangeNotifier {
   }
 
   bool canSwap(TokenModel token) {
-    // CONTRACT: Allow swap if asset is in wallet (has balance), is a popular/official asset, 
+    // CONTRACT: Allow swap if asset is in wallet (has balance), is a popular/official asset,
     // or is a Griot native asset.
     final hasBalance = (num.tryParse(token.balance) ?? 0) > 0;
-    return hasBalance || token.isOfficial || token.isNative || token.isEcosystem || token.isFeatured;
+    return hasBalance ||
+        token.isOfficial ||
+        token.isNative ||
+        token.isEcosystem ||
+        token.isFeatured;
   }
 
   List<TokenModel> get filteredTokens {
@@ -133,7 +177,10 @@ class WalletProvider extends ChangeNotifier {
 
       // CONTRACT: Native/Ecosystem exempt from low balance filter.
       // FIX: Ensure wallet filters work when market data is unavailable.
-      if (!isMajor && _hideLowBalance && token.hasMarketData && (token.valueUsd ?? 0) < 1) {
+      if (!isMajor &&
+          _hideLowBalance &&
+          token.hasMarketData &&
+          (token.valueUsd ?? 0) < 1) {
         return false;
       }
 
@@ -161,7 +208,7 @@ class WalletProvider extends ChangeNotifier {
     if (_wallet == null) return;
 
     // The total balance mirrors exactly what is visible in the list.
-    // If an asset is filtered out (manually hidden, low balance, or unverified filter), 
+    // If an asset is filtered out (manually hidden, low balance, or unverified filter),
     // it no longer contributes to the total.
     final visibleTokens = _tokens.where((token) {
       // 1. Manual Hide (Long press action)
@@ -188,10 +235,16 @@ class WalletProvider extends ChangeNotifier {
       // 4. Low Balance Filter
       // CONTRACT: Native/Ecosystem exempt from low balance filter.
       // FIX: Ensure wallet filters work when market data is unavailable.
-      if (!isMajor && _hideLowBalance && token.hasMarketData && (token.valueUsd ?? 0) < 1) return false;
+      if (!isMajor &&
+          _hideLowBalance &&
+          token.hasMarketData &&
+          (token.valueUsd ?? 0) < 1) {
+        return false;
+      }
 
       // 6. Chain Filter
-      if (_selectedChains.isNotEmpty && !_selectedChains.contains(token.chain)) {
+      if (_selectedChains.isNotEmpty &&
+          !_selectedChains.contains(token.chain)) {
         return false;
       }
 
@@ -218,7 +271,7 @@ class WalletProvider extends ChangeNotifier {
 
     final aggregateChangePercent = totalPreviousValueUsd > 0
         ? ((totalBalanceUsd - totalPreviousValueUsd) / totalPreviousValueUsd) *
-            100
+              100
         : 0.0;
 
     _wallet = _wallet!.copyWith(
@@ -231,7 +284,9 @@ class WalletProvider extends ChangeNotifier {
     if (_isLoading) return;
 
     final now = DateTime.now();
-    if (!force && _lastFetchTime != null && now.difference(_lastFetchTime!) < _fetchCooldown) {
+    if (!force &&
+        _lastFetchTime != null &&
+        now.difference(_lastFetchTime!) < _fetchCooldown) {
       debugPrint('WalletProvider: Skipping token fetch, cooldown active.');
       return;
     }
@@ -281,6 +336,12 @@ class WalletProvider extends ChangeNotifier {
       _tokens = parsedTokens;
       _popularAssets = popularJson;
 
+      unawaited(_walletLocalCacheService.save(
+        address: responseData['address'] ?? address,
+        tokens: parsedTokens,
+        popularAssets: popularJson,
+      ));
+
       _wallet = WalletModel(
         address: responseData['address'] ?? address,
         displayName: 'Your Griot Account',
@@ -290,14 +351,17 @@ class WalletProvider extends ChangeNotifier {
 
       _recalculateWalletTotals();
       _lastFetchTime = DateTime.now();
-      
+      if (_selectedTab == 2) {
+        await loadActivity(refresh: force || _activities.isEmpty);
+      }
+
       // If we are on the NFT tab, try to load NFTs too
       if (_selectedTab == 1) {
         loadNfts(force: force);
       }
     } catch (e) {
       debugPrint('WalletProvider: Error loading wallet: $e');
-      
+
       if (e is ApiException && e.statusCode == 401) {
         _error = 'Session expired. Please log in again.';
       } else if (_tokens.isNotEmpty) {
@@ -310,11 +374,137 @@ class WalletProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> loadActivity({bool refresh = true}) async {
+    if (refresh ? _isLoadingActivity : _isLoadingMoreActivity) return;
+    if (!refresh && _activityNextPageKey == null) return;
+
+    if (refresh) {
+      _isLoadingActivity = true;
+    } else {
+      _isLoadingMoreActivity = true;
+    }
+    notifyListeners();
+
+    try {
+      final response = await _walletApiService.getActivity(
+        limit: 20,
+        pageKey: refresh ? null : _activityNextPageKey,
+      );
+      final raw = response['activity'];
+      final page = raw is List
+          ? raw
+                .whereType<Map>()
+                .map((item) {
+                  final map = Map<String, dynamic>.from(item);
+                  final operationType = map['operationType']?.toString();
+                  final fromUser = map['fromUser'];
+                  final toUser = map['toUser'];
+                  final amount = map['transfers']?.isNotEmpty == true ? '${map['transfers'][0]['amount']} ${map['transfers'][0]['symbol']}' : '';
+
+                  if (operationType == 'send') {
+                    if (toUser != null) {
+                      map['title'] = 'Tipped ${toUser['displayName'] ?? toUser['username'] ?? 'Griot User'}';
+                      map['subtitle'] = 'Sent $amount via Griot';
+                    } else {
+                      map['title'] = 'Sent Funds';
+                      map['subtitle'] = 'Transaction broadcast';
+                    }
+                  } else if (operationType == 'receive') {
+                    if (fromUser != null) {
+                      map['title'] = 'Tip from ${fromUser['displayName'] ?? fromUser['username'] ?? 'Griot User'}';
+                      map['subtitle'] = 'Received $amount';
+                    } else {
+                      map['title'] = 'Received Funds';
+                      map['subtitle'] = 'Inbound transaction';
+                    }
+                  } else if (operationType == 'trade') {
+                    map['title'] = 'Asset Swap';
+                    map['subtitle'] = 'Token exchange completed';
+                  }
+
+                  return map;
+                })
+                .toList()
+          : <Map<String, dynamic>>[];
+      _activityNextPageKey = response['nextPageKey']?.toString();
+      if (refresh) {
+        _activities = _groupWalletActivities(page);
+      } else {
+        final existing = _activities.map((item) => item['id']).toSet();
+        _activities = _groupWalletActivities([
+          ..._activities,
+          ...page.where((item) => !existing.contains(item['id'])),
+        ]);
+      }
+    } catch (e) {
+      debugPrint('WalletProvider: Error loading activity: $e');
+    } finally {
+      _isLoadingActivity = false;
+      _isLoadingMoreActivity = false;
+      notifyListeners();
+    }
+  }
+
+  List<Map<String, dynamic>> _groupWalletActivities(
+    List<Map<String, dynamic>> activities,
+  ) {
+    final result = <Map<String, dynamic>>[];
+    final indexes = <String, int>{};
+
+    for (final activity in activities) {
+      final hash = activity['hash']?.toString() ?? '';
+      final operation = activity['operationType']?.toString() ?? '';
+      final key = hash.isNotEmpty && (operation == 'send' || operation == 'receive')
+          ? '$operation:$hash'
+          : '';
+
+      if (key.isEmpty) {
+        result.add(activity);
+        continue;
+      }
+
+      final existingIndex = indexes[key];
+      if (existingIndex == null) {
+        final grouped = Map<String, dynamic>.from(activity);
+        grouped['groupedItems'] = [activity];
+        indexes[key] = result.length;
+        result.add(grouped);
+        continue;
+      }
+
+      final grouped = result[existingIndex];
+      final items = (grouped['groupedItems'] as List).toList()..add(activity);
+      grouped['groupedItems'] = items;
+      final people = items
+          .map((item) {
+            final map = Map<String, dynamic>.from(item as Map);
+            final user = operation == 'send' ? map['toUser'] : map['fromUser'];
+            return user is Map
+                ? (user['displayName'] ?? user['username'])?.toString()
+                : null;
+          })
+          .whereType<String>()
+          .where((name) => name.trim().isNotEmpty)
+          .toSet()
+          .toList();
+      grouped['title'] = operation == 'send'
+          ? '${items.length} tips sent'
+          : '${items.length} tips received';
+      grouped['subtitle'] = operation == 'send'
+          ? 'To ${people.isEmpty ? 'multiple users' : people.join(', ')}'
+          : 'From ${people.isEmpty ? 'multiple users' : people.join(', ')}';
+    }
+
+    return result;
+  }
+
   Future<void> loadNfts({bool force = false}) async {
     if (_isLoadingNfts) return;
 
     final now = DateTime.now();
-    if (!force && _lastNftFetchTime != null && now.difference(_lastNftFetchTime!) < _nftFetchCooldown) {
+    if (!force &&
+        _lastNftFetchTime != null &&
+        now.difference(_lastNftFetchTime!) < _nftFetchCooldown) {
       debugPrint('WalletProvider: Skipping NFT fetch, cooldown active.');
       return;
     }
@@ -326,7 +516,7 @@ class WalletProvider extends ChangeNotifier {
     try {
       final nftResponse = await _walletApiService.getNfts();
       final List nftsJson = nftResponse['nfts'] ?? [];
-      
+
       final parsedNfts = nftsJson
           .map((json) => NftModel.fromJson(Map<String, dynamic>.from(json)))
           .where((nft) => !nft.classification.isSpam) // Hide spam NFTs
@@ -336,13 +526,13 @@ class WalletProvider extends ChangeNotifier {
       _lastNftFetchTime = DateTime.now();
     } catch (e) {
       debugPrint('WalletProvider: Error loading NFTs: $e');
-      
+
       if (e is ApiException && e.statusCode == 429) {
         _nftError = 'NFTs temporarily unavailable (Rate limit)';
       } else {
         _nftError = 'Failed to load NFTs';
       }
-      
+
       // We keep existing NFTs on error if we have them
     } finally {
       _isLoadingNfts = false;
@@ -369,7 +559,10 @@ class WalletProvider extends ChangeNotifier {
   void setTab(int index) {
     _selectedTab = index;
     notifyListeners();
-    
+    if (index == 2 && _activities.isEmpty) {
+      loadActivity();
+    }
+
     // CONTRACT: Load NFTs only when the NFT tab is opened
     if (index == 1 && _nfts.isEmpty) {
       loadNfts();

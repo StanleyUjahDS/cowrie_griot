@@ -6,6 +6,7 @@ class ChatUser {
   final String? username;
   final String? displayName;
   final String? profileUrl;
+  final String? bio;
   final bool isOnline;
   final String lastMessage;
   final DateTime timestamp;
@@ -22,6 +23,7 @@ class ChatUser {
     this.username,
     this.displayName,
     this.profileUrl,
+    this.bio,
     this.isOnline = false,
     this.lastMessage = '',
     required this.timestamp,
@@ -38,7 +40,7 @@ class ChatUser {
     if (username != null && username!.isNotEmpty) return username!;
     return 'Griot User';
   }
-  
+
   String? get formattedUsername => username != null ? '@$username' : null;
 
   String get shortWalletAddress {
@@ -54,6 +56,7 @@ class ChatUser {
       username: username,
       displayName: displayName,
       avatarUrl: profileUrl,
+      bio: bio,
       reputation: reputation,
       relationshipStatus: relationshipStatus,
     );
@@ -66,6 +69,7 @@ class ChatUser {
       username: user.username,
       displayName: user.displayName,
       profileUrl: user.avatarUrl,
+      bio: user.bio,
       reputation: user.reputation,
       relationshipStatus: user.relationshipStatus,
       timestamp: DateTime.now(),
@@ -74,23 +78,24 @@ class ChatUser {
 
   factory ChatUser.fromJson(Map<String, dynamic> json) {
     return ChatUser(
-      id: (json['id'] ?? json['userId'])?.toString() ?? '',
+      id: (json['id'] ?? json['userId'] ?? json['user_id'])?.toString() ?? '',
       walletAddress: (json['walletAddress'] ?? json['wallet_address'] ?? '').toString(),
       username: (json['username'] ?? json['other_username'])?.toString(),
       displayName: (json['displayName'] ?? json['display_name'] ?? json['other_display_name'])?.toString(),
       profileUrl: (json['profileUrl'] ?? json['avatarUrl'] ?? json['profile_url'] ?? json['other_avatar_url'])?.toString(),
+      bio: (json['bio'] ?? json['userBio'] ?? json['user_bio'] ?? json['other_bio'])?.toString(),
       isOnline: json['isOnline'] == true || json['is_online'] == true,
       lastMessage: (json['lastMessage'] ?? json['last_message'] ?? '')?.toString() ?? '',
-      timestamp: json['timestamp'] != null 
-          ? DateTime.parse(json['timestamp'].toString()) 
+      timestamp: json['timestamp'] != null
+          ? DateTime.parse(json['timestamp'].toString())
           : (json['last_message_at'] != null ? DateTime.parse(json['last_message_at'].toString()) : DateTime.now()),
       unreadCount: (json['unreadCount'] ?? json['unread_count'] ?? 0) as int,
       relationshipStatus: (json['relationshipStatus'] ?? json['relationship_status'])?.toString(),
       isDiscoverableByPhone: json['isDiscoverableByPhone'] == true || json['is_discoverable_by_phone'] == true,
       phoneNumber: (json['phoneNumber'] ?? json['phone_number'])?.toString(),
       phoneDiscoveryEnabled: json['phoneDiscoveryEnabled'] == true || json['phone_discovery_enabled'] == true,
-      reputation: json['reputation'] != null 
-          ? UserReputationBadge.fromJson(Map<String, dynamic>.from(json['reputation'])) 
+      reputation: json['reputation'] != null
+          ? UserReputationBadge.fromJson(Map<String, dynamic>.from(json['reputation']))
           : null,
     );
   }
@@ -102,6 +107,7 @@ class ChatUser {
       'username': username,
       'displayName': displayName,
       'profileUrl': profileUrl,
+      'bio': bio,
       'isOnline': isOnline,
       'lastMessage': lastMessage,
       'timestamp': timestamp.toIso8601String(),
@@ -120,6 +126,7 @@ class ChatUser {
     String? username,
     String? displayName,
     String? profileUrl,
+    String? bio,
     bool? isOnline,
     String? lastMessage,
     DateTime? timestamp,
@@ -136,6 +143,7 @@ class ChatUser {
       username: username ?? this.username,
       displayName: displayName ?? this.displayName,
       profileUrl: profileUrl ?? this.profileUrl,
+      bio: bio ?? this.bio,
       isOnline: isOnline ?? this.isOnline,
       lastMessage: lastMessage ?? this.lastMessage,
       timestamp: timestamp ?? this.timestamp,

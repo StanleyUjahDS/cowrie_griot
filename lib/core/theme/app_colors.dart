@@ -291,6 +291,41 @@ class AppColors {
   static const Color redLightVariant = Color(0xFFFCEAEA);
 
   // ============================================================
+  // NEW PREMIUM THEMES
+  // ============================================================
+
+  // Cyber (Neon)
+  static const Color cyberPrimary = Color(0xFF00F3FF);
+  static const Color cyberDarkBackground = Color(0xFF050505);
+  static const Color cyberDarkSurface = Color(0xFF101010);
+  static const Color cyberDarkVariant = Color(0xFF1A1A1A);
+
+  // Onyx (Pure Black)
+  static const Color onyxPrimary = Color(0xFFE2E2E2);
+  static const Color onyxDarkBackground = Color(0xFF000000);
+  static const Color onyxDarkSurface = Color(0xFF0A0A0A);
+  static const Color onyxDarkVariant = Color(0xFF121212);
+
+  // Cappuccino (Warm Neutrals)
+  static const Color cappuccinoPrimary = Color(0xFF8D6E63);
+  static const Color cappuccinoDarkBackground = Color(0xFF1C1816);
+  static const Color cappuccinoDarkSurface = Color(0xFF26211E);
+  static const Color cappuccinoDarkVariant = Color(0xFF332C28);
+
+  // Mint (Fresh Green)
+  static const Color mintPrimary = Color(0xFF00C853);
+  static const Color mintDarkBackground = Color(0xFF0A140F);
+  static const Color mintDarkSurface = Color(0xFF111E18);
+  static const Color mintDarkVariant = Color(0xFF192B22);
+
+  // ============================================================
+  // MONOCHROME THEMES
+  // ============================================================
+
+  static const Color monoPrimary = Color(0xFF000000);
+  static const Color noirPrimary = Color(0xFFFFFFFF);
+
+  // ============================================================
   // COMMON
   // ============================================================
 
@@ -332,7 +367,7 @@ class AppColors {
 
   static Color parseHexColor(String? hex) {
     if (hex == null || hex.isEmpty) return const Color(0xFF64748B);
-    
+
     try {
       String cleanHex = hex.replaceAll('#', '');
       if (cleanHex.length == 6) {

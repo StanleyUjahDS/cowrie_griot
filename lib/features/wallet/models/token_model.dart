@@ -28,6 +28,7 @@ class TokenModel {
   final String? chainId;
   final num? marketCapUsd;
   final num? volume24hUsd;
+  final num? liquidityUsd;
   final DateTime? priceUpdatedAt;
 
   const TokenModel({
@@ -56,6 +57,7 @@ class TokenModel {
     this.chainId,
     this.marketCapUsd,
     this.volume24hUsd,
+    this.liquidityUsd,
     this.priceUpdatedAt,
   });
 
@@ -81,7 +83,20 @@ class TokenModel {
 
   factory TokenModel.fromJson(Map<String, dynamic> json) {
     final String balanceText = _string(json['balance'] ?? '0');
-    final String rawBalance = _string(json['rawBalance'] ?? '0');
+
+    // Robust rawBalance parsing: handle scientific notation or numeric JSON types
+    String rawBalance = '0';
+    final rawVal = json['rawBalance'] ?? json['balance'];
+    if (rawVal != null) {
+      if (rawVal is String) {
+        rawBalance = rawVal;
+      } else if (rawVal is num) {
+        // If it's a number, convert to string without scientific notation if possible
+        rawBalance = BigInt.from(rawVal).toString();
+      } else {
+        rawBalance = rawVal.toString();
+      }
+    }
 
     // Market Data Priority mapping
     final num? priceUsd = _numOrNull(json['priceUsd']);
@@ -91,7 +106,7 @@ class TokenModel {
     final bool hasMarketData = priceUsd != null || valueUsd != null;
 
     final linksRaw = json['externalLinks'];
-    final externalLinks = linksRaw is Map 
+    final externalLinks = linksRaw is Map
         ? Map<String, String>.from(linksRaw.map((k, v) => MapEntry(k.toString(), v.toString())))
         : <String, String>{};
 
@@ -119,10 +134,43 @@ class TokenModel {
       id: json['id']?.toString(),
       type: json['type']?.toString(),
       chainId: json['chainId']?.toString(),
-      marketCapUsd: _numOrNull(json['marketCapUsd']),
-      volume24hUsd: _numOrNull(json['volume24hUsd']),
+      marketCapUsd: _numOrNull(json['marketCapUsd'] ?? json['marketCap'] ?? json['market_cap_usd']),
+      volume24hUsd: _numOrNull(json['volume24hUsd'] ?? json['volume24h'] ?? json['volume_24h_usd']),
+      liquidityUsd: _numOrNull(json['liquidityUsd'] ?? json['liquidity'] ?? json['liquidity_usd']),
       priceUpdatedAt: json['priceUpdatedAt'] != null ? DateTime.tryParse(json['priceUpdatedAt'].toString()) : null,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'symbol': symbol,
+      'balance': balance,
+      'rawBalance': rawBalance,
+      'priceUsd': priceUsd,
+      'valueUsd': valueUsd,
+      'changePercent': changePercent,
+      'chain': chain,
+      'network': rawNetwork,
+      'contractAddress': contractAddress,
+      'imageUrl': imageUrl,
+      'decimals': decimals,
+      'hasMarketData': hasMarketData,
+      'isOfficial': isOfficial,
+      'isEcosystem': isEcosystem,
+      'isFeatured': isFeatured,
+      'alwaysDisplay': alwaysDisplay,
+      'displayOrder': displayOrder,
+      'marketDataSource': marketDataSource,
+      'externalLinks': externalLinks,
+      'type': type,
+      'chainId': chainId,
+      'marketCapUsd': marketCapUsd,
+      'volume24hUsd': volume24hUsd,
+      'liquidityUsd': liquidityUsd,
+      'priceUpdatedAt': priceUpdatedAt?.toIso8601String(),
+    };
   }
 
   static String _string(dynamic value) {

@@ -8,9 +8,7 @@ import '../models/user_model.dart';
 class UserApiService {
   final ApiClient _apiClient;
 
-  UserApiService({
-    required ApiClient apiClient,
-  }) : _apiClient = apiClient;
+  UserApiService({required ApiClient apiClient}) : _apiClient = apiClient;
 
   // ============================================================
   // GET CURRENT USER
@@ -19,6 +17,12 @@ class UserApiService {
 
   Future<UserModel> getCurrentUser() async {
     final response = await _apiClient.get(ApiConfig.usersMe);
+    final data = _getData(response);
+    return UserModel.fromJson(Map<String, dynamic>.from(data));
+  }
+
+  Future<UserModel> getUserById(String userId) async {
+    final response = await _apiClient.get(ApiConfig.userById(userId));
     final data = _getData(response);
     return UserModel.fromJson(Map<String, dynamic>.from(data));
   }
@@ -32,7 +36,9 @@ class UserApiService {
     final value = username.trim().toLowerCase();
     if (value.isEmpty) return false;
 
-    final response = await _apiClient.get(ApiConfig.usernameAvailability(value));
+    final response = await _apiClient.get(
+      ApiConfig.usernameAvailability(value),
+    );
     final data = _getData(response);
 
     final available = data['available'];
@@ -56,8 +62,12 @@ class UserApiService {
   }) async {
     final Map<String, dynamic> body = {
       'username': ?username,
-      'displayName': ?displayName,
-      'avatarUrl': ?avatarUrl,
+      ...?displayName == null
+          ? null
+          : {'displayName': displayName, 'display_name': displayName},
+      ...?avatarUrl == null
+          ? null
+          : {'avatarUrl': avatarUrl, 'avatar_url': avatarUrl},
       'bio': ?bio,
     };
 
@@ -74,20 +84,27 @@ class UserApiService {
   // GET /api/users/search?q=
   // ============================================================
 
-  Future<List<UserModel>> searchUsers(String query) async {
+  Future<Map<String, dynamic>> searchUsers(
+    String query, {
+    int limit = 20,
+    int offset = 0,
+  }) async {
     final trimmedQuery = query.trim();
-    if (trimmedQuery.isEmpty) return [];
+    if (trimmedQuery.isEmpty) return {'users': <UserModel>[], 'total': 0};
 
-    final response = await _apiClient.get(ApiConfig.usersSearch(trimmedQuery));
+    final response = await _apiClient.get(
+      ApiConfig.usersSearch(trimmedQuery, limit: limit, offset: offset),
+    );
     final data = _getData(response);
 
-    if (data is! List) {
-      return [];
-    }
+    final List usersJson = data is List ? data : (data['users'] ?? []);
+    final total = (data is Map ? data['total'] : null) ?? usersJson.length;
 
-    return data
+    final users = usersJson
         .map((e) => UserModel.fromJson(Map<String, dynamic>.from(e)))
         .toList();
+
+    return {'users': users, 'total': total};
   }
 
   // ============================================================
@@ -98,11 +115,46 @@ class UserApiService {
   Future<List<UserModel>> getFriends() async {
     final response = await _apiClient.get(ApiConfig.messagingFriends);
     final data = _getData(response);
-    
+
     if (data is List) {
-      return data.map((u) => UserModel.fromJson(Map<String, dynamic>.from(u))).toList();
+      return data
+          .map((u) => UserModel.fromJson(Map<String, dynamic>.from(u)))
+          .toList();
     }
     return [];
+  }
+
+  // ============================================================
+  // PREFERENCES
+  // GET /api/users/preferences
+  // PATCH /api/users/preferences
+  // ============================================================
+
+  Future<Map<String, bool>> getPreferences() async {
+    final response = await _apiClient.get(ApiConfig.userPreferences);
+    final data = _getData(response);
+    if (data is Map) {
+      return Map<String, bool>.from(
+        data.map((key, value) => MapEntry(key.toString(), value == true)),
+      );
+    }
+    return {};
+  }
+
+  Future<Map<String, bool>> updatePreferences(
+    Map<String, bool> preferences,
+  ) async {
+    final response = await _apiClient.patch(
+      ApiConfig.userPreferences,
+      body: preferences,
+    );
+    final data = _getData(response);
+    if (data is Map) {
+      return Map<String, bool>.from(
+        data.map((key, value) => MapEntry(key.toString(), value == true)),
+      );
+    }
+    return {};
   }
 
   // ==========================================================
@@ -111,11 +163,15 @@ class UserApiService {
 
   dynamic _getData(dynamic response) {
     if (response is Map<String, dynamic>) {
-      if (response['success'] == true) {
-        return response['data'];
+      // Handle the { success: true, data: ... } wrapper
+      if (response.containsKey('success')) {
+        if (response['success'] == true) {
+          return response['data'];
+        }
+        throw Exception(response['message'] ?? 'Request failed');
       }
-      throw Exception(response['message'] ?? 'Request failed');
     }
+    // Return flat response as is
     return response;
   }
 }

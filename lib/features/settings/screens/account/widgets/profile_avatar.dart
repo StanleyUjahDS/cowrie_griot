@@ -67,6 +67,7 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
 
     await showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (sheetContext) {
@@ -75,7 +76,6 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
 
         return SafeArea(
           child: Container(
-            margin: const EdgeInsets.all(12),
             padding: const EdgeInsets.fromLTRB(
               18,
               12,
@@ -84,9 +84,12 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
             ),
             decoration: BoxDecoration(
               color: colorScheme.surface,
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(
-                color: colorScheme.primary.withValues(alpha: 0.10),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+              border: Border(
+                top: BorderSide(
+                  color: colorScheme.primary.withValues(alpha: 0.6),
+                  width: 1.5,
+                ),
               ),
             ),
             child: Column(
@@ -493,6 +496,7 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
 
     await showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
         final theme =
@@ -503,8 +507,6 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
 
         return SafeArea(
           child: Container(
-            margin:
-            const EdgeInsets.all(12),
             padding:
             const EdgeInsets.fromLTRB(
               18,
@@ -516,9 +518,12 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
             BoxDecoration(
               color:
               colorScheme.surface,
-              borderRadius:
-              BorderRadius.circular(
-                28,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+              border: Border(
+                top: BorderSide(
+                  color: colorScheme.primary.withValues(alpha: 0.6),
+                  width: 1.5,
+                ),
               ),
             ),
             child: Column(
@@ -845,7 +850,7 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
                       strokeWidth: 2.5,
                     ),
                   )
-                      : _pendingImage != null 
+                      : _pendingImage != null
                         ? Image.file(_pendingImage!, fit: BoxFit.cover)
                         : _savedLocalImage != null
                           ? Image.file(_savedLocalImage!, fit: BoxFit.cover)

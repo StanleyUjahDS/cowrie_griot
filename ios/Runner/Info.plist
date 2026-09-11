@@ -18,6 +18,14 @@
 	<string>Griot</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key><string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array><string>griot</string></array>
+		</dict>
+	</array>
 	<key>CFBundleShortVersionString</key>
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
@@ -32,6 +40,8 @@
 	<string>We need access to your microphone to record voice messages.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>We use Face ID to securely unlock your wallet</string>
+	<key>NSContactsUsageDescription</key>
+	<string>We need contact access to help you find and connect with your friends on Griot.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -60,7 +70,7 @@
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
 	<key>FirebaseAppDelegateProxyEnabled</key>
-	<false/>
+	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>

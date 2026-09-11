@@ -11,7 +11,6 @@ import '../../../../core/ui/widgets/griot_loader.dart';
 import '../../../iap/providers/iap_provider.dart';
 import '../../../iap/models/plus_status_model.dart';
 
-
 class GriotPlusScreen extends StatefulWidget {
   const GriotPlusScreen({super.key});
 
@@ -19,7 +18,8 @@ class GriotPlusScreen extends StatefulWidget {
   State<GriotPlusScreen> createState() => _GriotPlusScreenState();
 }
 
-class _GriotPlusScreenState extends State<GriotPlusScreen> with WidgetsBindingObserver {
+class _GriotPlusScreenState extends State<GriotPlusScreen>
+    with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
@@ -84,12 +84,20 @@ class _GriotPlusScreenState extends State<GriotPlusScreen> with WidgetsBindingOb
     );
   }
 
-  Widget _buildContent(BuildContext context, IapProvider iapProvider, MiningProvider miningProvider, ColorScheme colors) {
-    if (iapProvider.isLoading && iapProvider.status.status == PlusSubscriptionStatus.none) {
+  Widget _buildContent(
+    BuildContext context,
+    IapProvider iapProvider,
+    MiningProvider miningProvider,
+    ColorScheme colors,
+  ) {
+    if (iapProvider.isLoading &&
+        iapProvider.status.status == PlusSubscriptionStatus.none) {
       return const Center(child: GriotLoader());
     }
 
-    if (iapProvider.error != null && iapProvider.products.isEmpty && !iapProvider.status.isPlus) {
+    if (iapProvider.error != null &&
+        iapProvider.products.isEmpty &&
+        !iapProvider.status.isPlus) {
       return _buildErrorState(iapProvider.error!);
     }
 
@@ -100,7 +108,7 @@ class _GriotPlusScreenState extends State<GriotPlusScreen> with WidgetsBindingOb
         children: [
           _buildHeroCard(context, iapProvider.status),
           const SizedBox(height: 32),
-          
+
           if (iapProvider.status.isPlus) ...[
             _buildActiveStatusDetails(iapProvider.status),
             const SizedBox(height: 32),
@@ -112,8 +120,9 @@ class _GriotPlusScreenState extends State<GriotPlusScreen> with WidgetsBindingOb
             context,
             icon: Icons.bolt_rounded,
             title: 'Mining Multiplier',
-            description: 'Gain a premium boost to your daily decentralized rewards.',
-            extra: miningProvider.status != null 
+            description:
+                'Gain a premium boost to your daily decentralized rewards.',
+            extra: miningProvider.status != null
                 ? '${miningProvider.status!.multiplier.total}x Active'
                 : 'Boost Active',
             color: Colors.amber,
@@ -122,21 +131,23 @@ class _GriotPlusScreenState extends State<GriotPlusScreen> with WidgetsBindingOb
             context,
             icon: Icons.verified_user_rounded,
             title: 'Premium Badge',
-            description: 'Stand out in the community with a unique Griot Plus identity.',
+            description:
+                'Stand out in the community with a unique Griot Plus identity.',
             color: colors.primary,
           ),
           _buildBenefitTile(
             context,
             icon: Icons.auto_awesome_rounded,
             title: 'Early Access',
-            description: 'Be the first to test new decentralized features and tools.',
+            description:
+                'Be the first to test new decentralized features and tools.',
             color: Colors.purple,
           ),
-          
+
           const SizedBox(height: 40),
-          
+
           if (iapProvider.isVerifying)
-             _buildProcessingState('Verifying purchase...')
+            _buildProcessingState('Verifying purchase...')
           else if (iapProvider.status.isPlus)
             _buildManageSection(iapProvider)
           else
@@ -159,14 +170,16 @@ class _GriotPlusScreenState extends State<GriotPlusScreen> with WidgetsBindingOb
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: isPlus 
-            ? [colors.primary, colors.secondary]
-            : [colors.surfaceContainerHighest, colors.surfaceContainer],
+          colors: isPlus
+              ? [colors.primary, colors.secondary]
+              : [colors.surfaceContainerHighest, colors.surfaceContainer],
         ),
         borderRadius: BorderRadius.circular(32),
         boxShadow: [
           BoxShadow(
-            color: (isPlus ? colors.primary : Colors.black).withValues(alpha: 0.1),
+            color: (isPlus ? colors.primary : colors.onSurface).withValues(
+              alpha: 0.1,
+            ),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -182,7 +195,10 @@ class _GriotPlusScreenState extends State<GriotPlusScreen> with WidgetsBindingOb
               child: SvgPicture.asset(
                 'assets/coins_logo/hbadger_logo.svg',
                 width: 140,
-                colorFilter: ColorFilter.mode(isPlus ? Colors.white : colors.onSurface, BlendMode.srcIn),
+                colorFilter: ColorFilter.mode(
+                  isPlus ? Colors.white : colors.onSurface,
+                  BlendMode.srcIn,
+                ),
               ),
             ),
           ),
@@ -190,9 +206,14 @@ class _GriotPlusScreenState extends State<GriotPlusScreen> with WidgetsBindingOb
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
-                  color: (isPlus ? Colors.white : colors.primary).withValues(alpha: 0.15),
+                  color: (isPlus ? Colors.white : colors.primary).withValues(
+                    alpha: 0.15,
+                  ),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -217,11 +238,13 @@ class _GriotPlusScreenState extends State<GriotPlusScreen> with WidgetsBindingOb
               ),
               const SizedBox(height: 12),
               Text(
-                isPlus 
-                  ? 'Your account is verified for premium network benefits.'
-                  : 'Join the inner circle of social pioneers and high-tier miners.',
+                isPlus
+                    ? 'Your account is verified for premium network benefits.'
+                    : 'Join the inner circle of social pioneers and high-tier miners.',
                 style: TextStyle(
-                  color: (isPlus ? Colors.white : colors.onSurface).withValues(alpha: 0.7),
+                  color: (isPlus ? Colors.white : colors.onSurface).withValues(
+                    alpha: 0.7,
+                  ),
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
                 ),
@@ -242,17 +265,36 @@ class _GriotPlusScreenState extends State<GriotPlusScreen> with WidgetsBindingOb
       decoration: BoxDecoration(
         color: colors.surfaceContainerLow.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: colors.primary.withValues(alpha: 0.1)),
+        border: Border(
+          top: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+          bottom: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+        ),
       ),
       child: Column(
         children: [
-          _buildDetailRow('Plan', status.productId?.contains('yearly') == true ? 'Yearly' : 'Monthly'),
+          _buildDetailRow(
+            'Plan',
+            status.productId?.contains('yearly') == true ? 'Yearly' : 'Monthly',
+          ),
           const Divider(height: 24),
-          _buildDetailRow('Status', status.status.name.toUpperCase(), color: Colors.green),
+          _buildDetailRow(
+            'Status',
+            status.status.name.toUpperCase(),
+            color: Colors.green,
+          ),
           const Divider(height: 24),
           if (status.expiresAt != null)
             _buildDetailRow('Renewal Date', df.format(status.expiresAt!)),
-          _buildDetailRow('Provider', status.provider?.toUpperCase() ?? 'STORE'),
+          _buildDetailRow(
+            'Provider',
+            status.provider?.toUpperCase() ?? 'STORE',
+          ),
         ],
       ),
     );
@@ -263,13 +305,29 @@ class _GriotPlusScreenState extends State<GriotPlusScreen> with WidgetsBindingOb
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.6), fontWeight: FontWeight.w600)),
-        Text(value, style: TextStyle(fontWeight: FontWeight.w900, color: color)),
+        Text(
+          label,
+          style: TextStyle(
+            color: colors.onSurfaceVariant.withValues(alpha: 0.6),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(fontWeight: FontWeight.w900, color: color),
+        ),
       ],
     );
   }
 
-  Widget _buildBenefitTile(BuildContext context, {required IconData icon, required String title, required String description, String? extra, required Color color}) {
+  Widget _buildBenefitTile(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String description,
+    String? extra,
+    required Color color,
+  }) {
     final colors = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -295,18 +353,43 @@ class _GriotPlusScreenState extends State<GriotPlusScreen> with WidgetsBindingOb
               children: [
                 Row(
                   children: [
-                    Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                      ),
+                    ),
                     if (extra != null) ...[
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(color: Colors.amber.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
-                        child: Text(extra, style: const TextStyle(color: Colors.amber, fontSize: 9, fontWeight: FontWeight.w900)),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          extra,
+                          style: const TextStyle(
+                            color: Colors.amber,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
                       ),
                     ],
                   ],
                 ),
-                Text(description, style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.5), fontSize: 12)),
+                Text(
+                  description,
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant.withValues(alpha: 0.5),
+                    fontSize: 12,
+                  ),
+                ),
               ],
             ),
           ),
@@ -317,11 +400,17 @@ class _GriotPlusScreenState extends State<GriotPlusScreen> with WidgetsBindingOb
 
   Widget _buildSubscriptionOptions(IapProvider iap) {
     if (!iap.isStoreAvailable) {
-      return _buildInfoCard('STORE UNAVAILABLE', 'We could not connect to the app store. Please check your connection or try again later.');
+      return _buildInfoCard(
+        'STORE UNAVAILABLE',
+        'We could not connect to the app store. Please check your connection or try again later.',
+      );
     }
 
     if (iap.products.isEmpty) {
-      return _buildInfoCard('LOADING PLANS', 'Fetching latest subscription plans from the store...');
+      return _buildInfoCard(
+        'LOADING PLANS',
+        'Fetching latest subscription plans from the store...',
+      );
     }
 
     return Column(
@@ -330,7 +419,10 @@ class _GriotPlusScreenState extends State<GriotPlusScreen> with WidgetsBindingOb
         const SizedBox(height: 16),
         TextButton(
           onPressed: () => iap.restorePurchases(),
-          child: const Text('Restore Purchases', style: TextStyle(fontWeight: FontWeight.w700)),
+          child: const Text(
+            'Restore Purchases',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
         ),
       ],
     );
@@ -352,7 +444,16 @@ class _GriotPlusScreenState extends State<GriotPlusScreen> with WidgetsBindingOb
             decoration: BoxDecoration(
               color: colors.primary.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: colors.primary.withValues(alpha: 0.1), width: 1.5),
+              border: Border(
+                top: BorderSide(
+                  color: colors.primary.withValues(alpha: 0.6),
+                  width: 1.2,
+                ),
+                bottom: BorderSide(
+                  color: colors.primary.withValues(alpha: 0.6),
+                  width: 1.2,
+                ),
+              ),
             ),
             child: Row(
               children: [
@@ -360,16 +461,44 @@ class _GriotPlusScreenState extends State<GriotPlusScreen> with WidgetsBindingOb
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(isYearly ? 'Annual Plan' : 'Monthly Plan', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
-                      Text(isYearly ? 'Best value • Save 20%' : 'Flexible month-to-', style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.6), fontSize: 13)),
+                      Text(
+                        isYearly ? 'Annual Plan' : 'Monthly Plan',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 18,
+                        ),
+                      ),
+                      Text(
+                        isYearly
+                            ? 'Best value • Save 20%'
+                            : 'Flexible month-to-',
+                        style: TextStyle(
+                          color: colors.onSurfaceVariant.withValues(alpha: 0.6),
+                          fontSize: 13,
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(product.price, style: TextStyle(color: colors.primary, fontWeight: FontWeight.w900, fontSize: 18)),
-                    Text(isYearly ? '/ year' : '/ month', style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.4), fontSize: 11, fontWeight: FontWeight.bold)),
+                    Text(
+                      product.price,
+                      style: TextStyle(
+                        color: colors.primary,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18,
+                      ),
+                    ),
+                    Text(
+                      isYearly ? '/ year' : '/ month',
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant.withValues(alpha: 0.4),
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -389,14 +518,24 @@ class _GriotPlusScreenState extends State<GriotPlusScreen> with WidgetsBindingOb
           child: FilledButton.icon(
             onPressed: _manageSubscription,
             icon: const Icon(Icons.subscriptions_rounded),
-            label: const Text('MANAGE SUBSCRIPTION', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1)),
-            style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+            label: const Text(
+              'MANAGE SUBSCRIPTION',
+              style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1),
+            ),
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 12),
         TextButton(
           onPressed: () => iap.restorePurchases(),
-          child: const Text('Restore Purchases', style: TextStyle(fontWeight: FontWeight.w700)),
+          child: const Text(
+            'Restore Purchases',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
         ),
       ],
     );
@@ -412,26 +551,49 @@ class _GriotPlusScreenState extends State<GriotPlusScreen> with WidgetsBindingOb
       ),
       child: Column(
         children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1.5)),
+          Text(
+            title,
+            style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 12,
+              letterSpacing: 1.5,
+            ),
+          ),
           const SizedBox(height: 8),
-          Text(message, textAlign: TextAlign.center, style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.6), fontSize: 13, height: 1.5)),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: colors.onSurfaceVariant.withValues(alpha: 0.6),
+              fontSize: 13,
+              height: 1.5,
+            ),
+          ),
         ],
       ),
     );
   }
 
   Widget _buildErrorState(String error) {
+    final colors = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(40),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded, size: 48, color: Colors.red),
+            Icon(Icons.error_outline_rounded, size: 48, color: colors.error),
             const SizedBox(height: 16),
-            const Text('Something went wrong', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+            const Text(
+              'Something went wrong',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+            ),
             const SizedBox(height: 8),
-            Text(error, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
+            Text(
+              error,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: colors.onSurfaceVariant),
+            ),
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: () => context.read<IapProvider>().refresh(),
@@ -444,11 +606,18 @@ class _GriotPlusScreenState extends State<GriotPlusScreen> with WidgetsBindingOb
   }
 
   Widget _buildProcessingState(String message) {
+    final colors = Theme.of(context).colorScheme;
     return Column(
       children: [
         const GriotLoader(size: 32),
         const SizedBox(height: 16),
-        Text(message, style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.grey)),
+        Text(
+          message,
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: colors.onSurfaceVariant,
+          ),
+        ),
       ],
     );
   }
@@ -462,7 +631,9 @@ class _GriotPlusScreenState extends State<GriotPlusScreen> with WidgetsBindingOb
           fontSize: 11,
           fontWeight: FontWeight.w900,
           letterSpacing: 1.5,
-          color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+          color: Theme.of(
+            context,
+          ).colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
         ),
       ),
     );

@@ -59,7 +59,7 @@ class WalletCryptoService {
     final privateKeyHex = _bigIntToHex(privateKey.value);
 
     final credentials = web3.EthPrivateKey.fromHex(privateKeyHex);
-    
+
     return WalletData(
       mnemonic: mnemonic,
       privateKey: privateKeyHex,
@@ -130,6 +130,11 @@ class WalletCryptoService {
     );
 
     final transactionData = _hexToBytes(dataHex);
+
+    final isEIP1559 = maxFeePerGas != null && maxPriorityFeePerGas != null;
+    if (!isEIP1559 && gasPrice == null) {
+      throw Exception('Legacy transaction requires gasPrice.');
+    }
 
     final transaction = web3.Transaction(
       to: legacy_wallet.EthereumAddress.fromHex(to),

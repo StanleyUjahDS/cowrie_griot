@@ -90,7 +90,12 @@ class UserProvider extends ChangeNotifier {
       }
     } catch (error) {
       _errorMessage = _cleanError(error);
-      // We don't rethrow here to allow the cached user to be shown even if offline
+
+      // IMPORTANT: Rethrow 401 so the startup service or UI
+      // can handle session expiration.
+      if (error.toString().contains('401')) {
+        rethrow;
+      }
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -322,7 +327,7 @@ class UserProvider extends ChangeNotifier {
       // Step 1-4: Orchestrated by mediaApiService (presign -> PUT -> complete)
       final Map<String, dynamic> uploadResult = await _mediaApiService.uploadMedia(filePath);
       final String avatarUrl = uploadResult['mediaUrl']?.toString() ?? '';
-      
+
       // Step 5-6: Mandatory update to PostgreSQL via PATCH /api/users/me
       // This also updates local state and cache.
       await updateUser(avatarUrl: avatarUrl);

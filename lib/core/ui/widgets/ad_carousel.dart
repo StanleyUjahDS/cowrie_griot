@@ -48,6 +48,10 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
   Color? _lastPrimaryColor;
   Color? _lastSurfaceColor;
 
+  List<CarouselItem> get _displayItems => AppConfig.adsEnabled
+      ? widget.items
+      : widget.items.where((item) => item.type != CarouselItemType.ad).toList();
+
   @override
   void initState() {
     super.initState();
@@ -57,18 +61,18 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    
+
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    
+
     // Check if theme has changed to reload ads with new colors
-    if (_lastBrightness != theme.brightness || 
+    if (_lastBrightness != theme.brightness ||
         _lastPrimaryColor != colorScheme.primary ||
         _lastSurfaceColor != colorScheme.surface) {
       _lastBrightness = theme.brightness;
       _lastPrimaryColor = colorScheme.primary;
       _lastSurfaceColor = colorScheme.surface;
-      
+
       // Dispose and clear existing ads so they reload with new theme colors
       for (var ad in _loadedAds.values) {
         ad.dispose();
@@ -92,10 +96,11 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
   void _startAutoSwipe() {
     _autoSwipeTimer?.cancel();
     _autoSwipeTimer = Timer.periodic(widget.autoSwipeDuration, (timer) {
-      if (_pageController.hasClients && widget.items.isNotEmpty) {
+      final items = _displayItems;
+      if (_pageController.hasClients && items.isNotEmpty) {
         final nextPage = (_pageController.page?.toInt() ?? 0) + 1;
         _pageController.animateToPage(
-          nextPage % widget.items.length,
+          nextPage % items.length,
           duration: const Duration(milliseconds: 800),
           curve: Curves.easeInOutCubic,
         );
@@ -108,6 +113,7 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
   }
 
   void _loadAd(int index) {
+    if (!AppConfig.adsEnabled) return;
     if (_loadedAds.containsKey(index) || _loadingIndices.contains(index)) return;
 
     final colorScheme = Theme.of(context).colorScheme;
@@ -145,6 +151,9 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
 
   @override
   Widget build(BuildContext context) {
+    final items = _displayItems;
+    if (items.isEmpty) return const SizedBox.shrink();
+
     return SizedBox(
       height: widget.height,
       child: GestureDetector(
@@ -153,16 +162,16 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
         onPanEnd: (_) => _startAutoSwipe(),
         child: PageView.builder(
           controller: _pageController,
-          itemCount: widget.items.length,
+          itemCount: items.length,
           physics: const BouncingScrollPhysics(),
           itemBuilder: (context, index) {
-            final item = widget.items[index];
-            
+            final item = items[index];
+
             if (item.type == CarouselItemType.ad) {
               _loadAd(index);
               return _buildAdSlide(index);
             }
-            
+
             return _buildFeatureSlide(item);
           },
         ),
@@ -184,18 +193,11 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
         border: Border.all(
           color: colorScheme.outline.withValues(alpha: isDark ? 0.24 : 0.14),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
-          ),
-        ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
         child: Padding(
-          padding: const EdgeInsets.all(16), 
+          padding: const EdgeInsets.all(16),
           child: ad != null
               ? AdWidget(ad: ad)
               : const Center(
@@ -215,13 +217,6 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: colorScheme.primary.withValues(alpha: 0.35),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
       ),
       child: Material(
         color: Colors.transparent,
@@ -255,7 +250,7 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
                     ),
                   ),
                 ),
-                
+
                 // Content
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
@@ -310,16 +305,9 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
                       const SizedBox(width: 12),
                       Container(
                         padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           color: Colors.white,
                           shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.1),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
                         ),
                         child: Icon(
                           item.icon,

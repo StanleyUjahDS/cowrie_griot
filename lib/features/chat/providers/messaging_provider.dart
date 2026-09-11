@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../../core/cache/local_json_cache.dart';
 import 'package:flutter/material.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
@@ -12,11 +13,12 @@ import '../services/messaging_api_service.dart';
 import '../services/media_api_service.dart';
 import '../services/tip_api_service.dart';
 import '../services/message_cache_service.dart';
-import '../services/message_sync_service.dart';
 import '../../users/models/user_model.dart';
 import '../../users/providers/user_provider.dart';
+import '../../wallet/utils/chain_assets.dart';
 import '../../miner/services/mining_api_service.dart';
 import '../../wallet/services/transaction_api_service.dart';
+import '../../wallet/services/wallet_api_service.dart';
 import '../../wallet/services/wallet_service.dart';
 import '../../wallet/services/wallet_rpc_service.dart';
 
@@ -25,53 +27,133 @@ enum RelationshipState { none, pendingSent, pendingReceived, friends, blocked }
 class MessagingProvider extends ChangeNotifier {
   final MessagingApiService _apiService;
   final MediaApiService _mediaApiService;
-  final UserProvider _userProvider;
+  UserProvider _userProvider;
   final MessageCacheService _messageCache;
-  final MessageSyncService _messageSync;
   final MiningApiService _miningApi;
   final TransactionApiService _transactionApi;
   final TipApiService _tipApi;
   final WalletService _walletService;
+  final WalletApiService _walletApi;
   final WalletRpcService _walletRpc;
+  final LocalJsonCache _localCache = const LocalJsonCache();
+
+  static const _friendsCacheKey = 'social_friends_snapshot_v1';
+  static const _receivedRequestsCacheKey = 'social_received_requests_v1';
+  static const _sentRequestsCacheKey = 'social_sent_requests_v1';
+  static const _notificationsCacheKey = 'social_notifications_snapshot_v1';
 
   MessagingProvider({
     required MessagingApiService apiService,
     required MediaApiService mediaApiService,
     required UserProvider userProvider,
     required MessageCacheService messageCache,
-    required MessageSyncService messageSync,
     required MiningApiService miningApi,
     required TransactionApiService transactionApi,
     required TipApiService tipApi,
     required WalletService walletService,
+    required WalletApiService walletApi,
     required WalletRpcService walletRpc,
   }) : _apiService = apiService,
        _mediaApiService = mediaApiService,
        _userProvider = userProvider,
        _messageCache = messageCache,
-       _messageSync = messageSync,
        _miningApi = miningApi,
        _transactionApi = transactionApi,
        _tipApi = tipApi,
        _walletService = walletService,
+       _walletApi = walletApi,
        _walletRpc = walletRpc {
-    _loadActivitySeenTime();
+    _loadNotificationSeenTime();
+    unawaited(_restoreSocialCache());
   }
 
-  bool _isDisposed = false;
+  Future<void> _restoreSocialCache() async {
+    try {
+      final cached = await Future.wait([
+        _localCache.read(_friendsCacheKey),
+        _localCache.read(_receivedRequestsCacheKey),
+        _localCache.read(_sentRequestsCacheKey),
+        _localCache.read(_notificationsCacheKey),
+      ]);
+
+      final friends = cached[0];
+      final received = cached[1];
+      final sent = cached[2];
+      final notifications = cached[3];
+
+      if (_friends.isEmpty && friends is List) {
+        _friends = friends
+            .whereType<Map>()
+            .map((json) => UserModel.fromJson(Map<String, dynamic>.from(json)))
+            .toList();
+        _friendsTotal = _friends.length;
+        _hasMoreFriends = false;
+      }
+      if (_receivedRequests.isEmpty && received is List) {
+        _receivedRequests = received
+            .whereType<Map>()
+            .map((json) => MessageRequest.fromJson(Map<String, dynamic>.from(json)))
+            .toList();
+      }
+      if (_sentRequests.isEmpty && sent is List) {
+        _sentRequests = sent
+            .whereType<Map>()
+            .map((json) => MessageRequest.fromJson(Map<String, dynamic>.from(json)))
+            .toList();
+      }
+      if (_notificationEvents.isEmpty && notifications is List) {
+        _notificationEvents = notifications
+            .whereType<Map>()
+            .map((json) {
+              final event = Map<String, dynamic>.from(json);
+              event['timestamp'] = DateTime.tryParse(
+                    event['timestamp']?.toString() ?? '',
+                  ) ??
+                  DateTime.now();
+              event['icon'] = Icons.notifications_rounded;
+              return event;
+            })
+            .toList();
+      }
+      if (_friends.isNotEmpty ||
+          _receivedRequests.isNotEmpty ||
+          _sentRequests.isNotEmpty ||
+          _notificationEvents.isNotEmpty) {
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('MessagingProvider: unable to restore social cache: $e');
+    }
+  }
+
+  Future<void> _saveSocialCache() async {
+    await Future.wait([
+      _localCache.write(_friendsCacheKey, _friends.map((user) => user.toJson()).toList()),
+      _localCache.write(_receivedRequestsCacheKey, _receivedRequests.map((request) => request.toJson()).toList()),
+      _localCache.write(_sentRequestsCacheKey, _sentRequests.map((request) => request.toJson()).toList()),
+      _localCache.write(
+        _notificationsCacheKey,
+        _notificationEvents.map((event) {
+          final copy = Map<String, dynamic>.from(event);
+          copy.remove('icon');
+          final timestamp = copy['timestamp'];
+          if (timestamp is DateTime) {
+            copy['timestamp'] = timestamp.toIso8601String();
+          }
+          return copy;
+        }).toList(),
+      ),
+    ]);
+  }
+
+  void updateUserProvider(UserProvider provider) {
+    _userProvider = provider;
+  }
 
   @override
   void dispose() {
-    _isDisposed = true;
     disconnectSocket();
     super.dispose();
-  }
-
-  @override
-  void notifyListeners() {
-    if (!_isDisposed) {
-      super.notifyListeners();
-    }
   }
 
   // ==========================================================
@@ -89,6 +171,8 @@ class MessagingProvider extends ChangeNotifier {
   List<MessageRequest> _receivedRequests = [];
   List<MessageRequest> _sentRequests = [];
   bool _isLoadingRequests = false;
+  Future<void>? _requestsLoadFuture;
+  DateTime? _lastRequestsLoadedAt;
 
   List<UserModel> _friends = [];
   final Set<String> _friendRequestInFlight = <String>{};
@@ -99,23 +183,49 @@ class MessagingProvider extends ChangeNotifier {
   String? _currentFriendsSearchQuery;
   bool _isLoadingMoreFriends = false;
 
+  List<Conversation> _discoveredGroups = [];
+  List<Conversation> _discoveredChannels = [];
+  bool _isSearchingGroups = false;
+  bool _isSearchingChannels = false;
+  int _groupsPage = 1;
+  bool _hasMoreGroups = false;
+  int _channelsPage = 1;
+  bool _hasMoreChannels = false;
+  bool _isLoadingMoreGroups = false;
+  bool _isLoadingMoreChannels = false;
+
   List<String> _blockedUserIds = [];
   bool _isLoadingBlocks = false;
+
+  bool _presenceInitialized = false;
+  bool get isPresenceInitialized => _presenceInitialized;
 
   final Map<String, bool> _presenceMap = {};
   Map<String, bool> get presenceMap => _presenceMap;
 
+  List<Map<String, dynamic>> _walletActivities = [];
+  String? _walletNextPageKey;
+  bool _isLoadingWalletActivity = false;
+  bool _isLoadingMoreWalletActivity = false;
+
   Map<String, dynamic>? _tipConfig;
   bool _isLoadingTipConfig = false;
 
-  DateTime? _lastSeenActivityTime;
-  DateTime? get lastSeenActivityTime => _lastSeenActivityTime;
+  DateTime? _lastSeenNotificationTime;
+  DateTime? get lastSeenNotificationTime => _lastSeenNotificationTime;
 
   // Real-time
   io.Socket? _socket;
   io.Socket? _walletSocket;
+  Timer? _presenceHeartbeat;
   String? _currentRoomId;
   final Map<String, Set<String>> _typingUsers = {};
+
+  // Tip Event Stream for Global UI
+  final _tipReceivedController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get tipReceivedStream =>
+      _tipReceivedController.stream;
 
   // ==========================================================
   // GETTERS
@@ -135,8 +245,22 @@ class MessagingProvider extends ChangeNotifier {
   bool get hasMoreFriends => _hasMoreFriends;
   bool get isLoadingMoreFriends => _isLoadingMoreFriends;
 
+  List<Conversation> get discoveredGroups => _discoveredGroups;
+  List<Conversation> get discoveredChannels => _discoveredChannels;
+  bool get isSearchingGroups => _isSearchingGroups;
+  bool get isSearchingChannels => _isSearchingChannels;
+  bool get hasMoreGroups => _hasMoreGroups;
+  bool get hasMoreChannels => _hasMoreChannels;
+  bool get isLoadingMoreGroups => _isLoadingMoreGroups;
+  bool get isLoadingMoreChannels => _isLoadingMoreChannels;
+
   List<String> get blockedUserIds => _blockedUserIds;
   bool get isLoadingBlocks => _isLoadingBlocks;
+
+  List<Map<String, dynamic>> get walletActivities => _walletActivities;
+  String? get walletNextPageKey => _walletNextPageKey;
+  bool get isLoadingWalletActivity => _isLoadingWalletActivity;
+  bool get isLoadingMoreWalletActivity => _isLoadingMoreWalletActivity;
 
   Map<String, dynamic>? get tipConfig => _tipConfig;
   bool get isLoadingTipConfig => _isLoadingTipConfig;
@@ -144,11 +268,11 @@ class MessagingProvider extends ChangeNotifier {
   int get pendingRequestCount =>
       _receivedRequests.where((r) => r.status == RequestStatus.pending).length;
 
-  // Activity Logic
-  List<MessageRequest> get activityItems {
+  // Social Notifications Logic (Connection requests and reactions)
+  List<MessageRequest> get requestNotifications {
     final list = [
-      ..._receivedRequests,
-      ..._sentRequests.where((r) => r.status != RequestStatus.pending),
+      ..._receivedRequests.where((r) => r.status == RequestStatus.pending),
+      ..._sentRequests.where((r) => r.status == RequestStatus.pending),
     ];
     list.sort((a, b) {
       final timeA = a.respondedAt ?? a.createdAt;
@@ -158,39 +282,35 @@ class MessagingProvider extends ChangeNotifier {
     return list;
   }
 
-  // Placeholder for future activity types (System alerts)
-  List<Map<String, dynamic>> get genericActivities {
-    return [];
+  List<Map<String, dynamic>> get notificationEvents {
+    return _notificationEvents;
   }
+
+  List<Map<String, dynamic>> _notificationEvents = [];
+  static const int _socialActivityPageSize = 30;
+  int _notificationOffset = 0;
+  bool _isLoadingMoreNotifications = false;
+  bool _hasMoreNotifications = true;
+
+  bool get isLoadingMoreNotifications => _isLoadingMoreNotifications;
+  bool get hasMoreNotifications => _hasMoreNotifications;
 
   List<Map<String, dynamic>> _miningActivities = [];
   List<Map<String, dynamic>> get miningActivities => _miningActivities;
 
-  int get unreadActivityCount {
+  int get unreadNotificationCount {
     int count = 0;
     final lastSeen =
-        _lastSeenActivityTime ?? DateTime.fromMillisecondsSinceEpoch(0);
+        _lastSeenNotificationTime ?? DateTime.fromMillisecondsSinceEpoch(0);
 
-    // 1. Message Request Activities
-    count += activityItems.where((item) {
+    // 1. Message Request Notifications
+    count += requestNotifications.where((item) {
       final time = item.respondedAt ?? item.createdAt;
       return time.isAfter(lastSeen);
     }).length;
 
-    // 2. Mining Activities
-    count += _miningActivities.where((item) {
-      final time = item['timestamp'] as DateTime;
-      return time.isAfter(lastSeen);
-    }).length;
-
-    // 3. Wallet Activities (Tips)
-    count += _walletActivities.where((item) {
-      final time = item['timestamp'] as DateTime;
-      return time.isAfter(lastSeen);
-    }).length;
-
-    // 4. Generic Activities
-    count += genericActivities.where((item) {
+    // Social notification events only.
+    count += notificationEvents.where((item) {
       return (item['timestamp'] as DateTime).isAfter(lastSeen);
     }).length;
 
@@ -226,90 +346,295 @@ class MessagingProvider extends ChangeNotifier {
   // ACTIONS
   // ==========================================================
 
-  Future<void> _loadActivitySeenTime() async {
+  Future<void> _loadNotificationSeenTime() async {
     final prefs = await SharedPreferences.getInstance();
-    final timeStr = prefs.getString('last_seen_activity_time');
+    final timeStr = prefs.getString('last_seen_notification_time');
     if (timeStr != null) {
-      _lastSeenActivityTime = DateTime.tryParse(timeStr);
+      _lastSeenNotificationTime = DateTime.tryParse(timeStr);
       notifyListeners();
     }
   }
 
-  Future<void> refreshActivity() async {
+  Future<void> refreshNotifications() async {
     await Future.wait([
-      loadRequests(),
-      loadMiningActivity(),
-      loadWalletActivity(),
+      loadRequests(force: true),
+      loadGenericNotifications(refresh: true),
     ]);
   }
 
-  List<Map<String, dynamic>> _walletActivities = [];
-  List<Map<String, dynamic>> get walletActivities => _walletActivities;
-
-  Future<void> loadWalletActivity() async {
+  Future<void> loadGenericNotifications({bool refresh = false}) async {
+    if (_isLoadingMoreNotifications) return;
+    if (!refresh && !_hasMoreNotifications) return;
+    _isLoadingMoreNotifications = true;
+    notifyListeners();
     try {
-      final history = await _transactionApi.getHistory(limit: 20);
-      final List<dynamic> transactions = history is Map
-          ? history['transactions'] ?? []
-          : history;
+      final offset = refresh ? 0 : _notificationOffset;
+      final events = await _apiService.getActivityEvents(
+        limit: _socialActivityPageSize,
+        offset: offset,
+      );
+      final mapped = events.map((event) {
+        final walletAddress = event['counterpartyWalletAddress']?.toString();
+        final shortAddress = walletAddress != null && walletAddress.length > 6
+            ? '${walletAddress.substring(0, 3)}…${walletAddress.substring(walletAddress.length - 3)}'
+            : walletAddress;
+        final actorName =
+            event['displayName'] ??
+            event['username'] ??
+            shortAddress ??
+            'Someone';
+        final metadata = event['metadata'] is Map
+            ? Map<String, dynamic>.from(event['metadata'])
+            : <String, dynamic>{};
 
-      final currentAddress = _userProvider.user?.walletAddress.toLowerCase();
+        final type = event['eventType']?.toString() ?? 'generic';
+        String title = '';
+        String message = '';
+        IconData icon = Icons.notifications_rounded;
 
-      _walletActivities = transactions
-          .where((t) {
-            final toAddr = (t['to_address'] ?? t['toAddress'])
-                ?.toString()
-                .toLowerCase();
-            final type = (t['transaction_type'] ?? t['transactionType'])
-                ?.toString();
+        final isRecipient = event['isRecipient'] != false;
+        if (type == 'message_request') {
+          title = 'New Request';
+          message = '$actorName sent you a connection request.';
+          icon = Icons.person_add_rounded;
+        } else if (type == 'request_accepted') {
+          title = 'Request Accepted';
+          message = '$actorName accepted your connection request.';
+          icon = Icons.person_add_alt_1_rounded;
+        } else if (type == 'request_declined') {
+          title = 'Request Declined';
+          message = '$actorName declined your connection request.';
+          icon = Icons.person_remove_rounded;
+        } else if (type == 'request_withdrawn') {
+          title = 'Request Withdrawn';
+          message = '$actorName withdrew a connection request.';
+          icon = Icons.undo_rounded;
+        } else if (type == 'tip_received') {
+          title = isRecipient ? 'Tip Received!' : 'Tip Sent';
+          message = isRecipient
+              ? '$actorName sent you a tip.'
+              : 'You sent a tip to $actorName.';
+          icon = Icons.volunteer_activism_outlined;
+        } else {
+          final reaction = metadata['reaction']?.toString() ?? 'reacted';
+          title = '$actorName reacted to your message';
+          message = '$actorName reacted $reaction to your message';
+          icon = Icons.favorite_rounded;
+        }
 
-            // Activity for tips is when we receive native coins from someone else
-            return toAddr == currentAddress && type == 'send';
-          })
-          .map((t) {
-            final fromAddr =
-                (t['from_address'] ?? t['fromAddress'])?.toString() ??
-                'Unknown';
-            final amountRaw = t['value_raw'] ?? t['valueRaw'] ?? '0';
-            final symbol = t['native_symbol'] ?? 'COWRIE';
-            final timestamp = DateTime.parse(
-              t['created_at'] ??
-                  t['createdAt'] ??
-                  DateTime.now().toIso8601String(),
-            );
-
-            // Simple conversion if possible, otherwise show raw
-            String displayAmount = amountRaw;
-            try {
-              final bigInt = BigInt.parse(amountRaw);
-              displayAmount = (bigInt / BigInt.from(10).pow(18))
-                  .toStringAsFixed(2);
-            } catch (_) {}
-
-            return {
-              'id': 'wallet_${t['id']}',
-              'type': 'tip',
-              'title': 'Received Tip',
-              'message':
-                  'You received $displayAmount $symbol from ${_shortenAddress(fromAddr)}',
-              'timestamp': timestamp,
-              'icon': Icons.volunteer_activism_rounded,
-              'isTip': true,
-              'color': 'amber',
-              'fromAddress': fromAddr,
-            };
-          })
-          .toList();
-
-      notifyListeners();
+        final createdAt =
+            DateTime.tryParse(event['createdAt']?.toString() ?? '') ??
+            DateTime.now();
+        return {
+          'id': 'event_${event['id']}',
+          'type': type,
+          'title': title,
+          'message': message,
+          'timestamp': createdAt,
+          'icon': icon,
+          'color': 'amber',
+          'avatarUrl': event['avatarUrl'],
+          'counterpartyUserId': event['counterpartyUserId'],
+          'counterpartyWalletAddress': walletAddress,
+          'isRecipient': isRecipient,
+          'displayName': actorName,
+          'username': event['username'],
+          'metadata': metadata,
+        };
+      }).toList();
+      final grouped = _groupTipEvents(mapped);
+      _notificationEvents = refresh
+          ? grouped
+          : _groupTipEvents([..._notificationEvents, ...grouped]);
+      _notificationOffset = offset + events.length;
+      _hasMoreNotifications = events.length == _socialActivityPageSize;
+      unawaited(_saveSocialCache());
     } catch (e) {
-      debugPrint('Error loading wallet activity: $e');
+      debugPrint('Error loading activity events: $e');
+    } finally {
+      _isLoadingMoreNotifications = false;
+      notifyListeners();
     }
   }
 
-  String _shortenAddress(String addr) {
-    if (addr.length < 10) return addr;
-    return '${addr.substring(0, 4)}...${addr.substring(addr.length - 4)}';
+  Future<void> loadMoreNotifications() => loadGenericNotifications();
+
+  /// Combines events produced by one blockchain transaction. A multi-recipient
+  /// tip can create one activity row per recipient; showing the transaction
+  /// hash once gives users a compact summary while the UI can still expand the
+  /// grouped recipients for full details.
+  List<Map<String, dynamic>> _groupTipEvents(
+    List<Map<String, dynamic>> events,
+  ) {
+    final result = <Map<String, dynamic>>[];
+    final groupedIndexes = <String, int>{};
+
+    final flattenedEvents = events.expand((event) {
+      final items = event['tipItems'];
+      if (items is List && items.isNotEmpty) {
+        return items.whereType<Map>().map(
+          (item) => Map<String, dynamic>.from(item),
+        );
+      }
+      return <Map<String, dynamic>>[event];
+    });
+
+    for (final event in flattenedEvents) {
+      if (event['type'] != 'tip_received') {
+        result.add(event);
+        continue;
+      }
+
+      final metadata = event['metadata'] is Map
+          ? Map<String, dynamic>.from(event['metadata'])
+          : <String, dynamic>{};
+      final hash = metadata['hash']?.toString() ?? '';
+      final batchId = metadata['batchId']?.toString() ??
+          metadata['batch_id']?.toString() ??
+          '';
+      final groupingId = hash.isNotEmpty ? 'hash:$hash' :
+          (batchId.isNotEmpty ? 'batch:$batchId' : '');
+
+      // Events without a transaction/batch identity must remain separate.
+      if (groupingId.isEmpty) {
+        result.add(event);
+        continue;
+      }
+
+      final existingIndex = groupedIndexes[groupingId];
+      if (existingIndex == null) {
+        final grouped = Map<String, dynamic>.from(event);
+        grouped['id'] = 'tip_group_${groupingId.replaceAll(':', '_')}';
+        grouped['isGroupedTip'] = true;
+        grouped['tipCount'] = 1;
+        grouped['tipItems'] = [event];
+        groupedIndexes[groupingId] = result.length;
+        result.add(grouped);
+      } else {
+        final grouped = result[existingIndex];
+        final items = (grouped['tipItems'] as List).toList()..add(event);
+        grouped['tipItems'] = items;
+        grouped['tipCount'] = items.length;
+        final recipient = grouped['isRecipient'] != false;
+        final people = items
+            .map((item) => (item as Map)['displayName']?.toString())
+            .whereType<String>()
+            .where((name) => name.trim().isNotEmpty)
+            .toSet()
+            .toList();
+        grouped['title'] = recipient
+            ? '${items.length} tips received'
+            : '${items.length} tips sent';
+        grouped['message'] = recipient
+            ? 'From ${people.isEmpty ? 'multiple users' : people.join(', ')}'
+            : 'To ${people.isEmpty ? 'multiple users' : people.join(', ')}';
+      }
+    }
+
+    return result;
+  }
+
+  Future<void> loadWalletActivity({bool refresh = true}) async {
+    if (refresh) {
+      if (_isLoadingWalletActivity) return;
+      _isLoadingWalletActivity = true;
+    } else {
+      if (_isLoadingMoreWalletActivity || _walletNextPageKey == null) return;
+      _isLoadingMoreWalletActivity = true;
+    }
+
+    notifyListeners();
+
+    try {
+      final response = await _walletApi.getActivity(
+        limit: 20,
+        pageKey: refresh ? null : _walletNextPageKey,
+      );
+
+      final List<dynamic> rawList = response['activity'] ?? [];
+      _walletNextPageKey = response['nextPageKey'];
+
+      final newActivities = rawList.map((item) {
+        final timestamp = DateTime.parse(
+          item['timestamp'] ??
+              item['minedAt'] ??
+              item['submittedAt'] ??
+              DateTime.now().toIso8601String(),
+        );
+
+        final operationType = item['operationType']?.toString();
+        final status = item['status']?.toString();
+        final fromUser = item['fromUser'];
+        final toUser = item['toUser'];
+
+        String title = 'Wallet Transaction';
+        String message = 'Blockchain interaction confirmed';
+        IconData icon = Icons.account_balance_wallet_outlined;
+        String color = 'primary';
+
+        if (operationType == 'trade') {
+          title = 'Asset Swap';
+          message = 'Token exchange completed successfully';
+          icon = Icons.swap_horiz_rounded;
+        } else if (operationType == 'send') {
+          final toName = toUser != null
+              ? (toUser['displayName'] ?? toUser['username'] ?? 'Griot User')
+              : null;
+          final amount = item['transfers']?.isNotEmpty == true
+              ? '${item['transfers'][0]['amount']} ${item['transfers'][0]['symbol']}'
+              : '';
+
+          title = toName != null ? 'Tipped $toName' : 'Sent Funds';
+          message = toName != null
+              ? 'You sent $amount to $toName'
+              : 'Transaction broadcast to the network';
+          icon = Icons.north_east_rounded;
+        } else if (operationType == 'receive') {
+          final fromName = fromUser != null
+              ? (fromUser['displayName'] ??
+                    fromUser['username'] ??
+                    'Griot User')
+              : null;
+          final amount = item['transfers']?.isNotEmpty == true
+              ? '${item['transfers'][0]['amount']} ${item['transfers'][0]['symbol']}'
+              : '';
+
+          title = fromName != null ? 'Tip from $fromName' : 'Received Funds';
+          message = fromName != null
+              ? '$fromName sent you $amount'
+              : 'New funds detected in your wallet';
+          icon = Icons.volunteer_activism_outlined;
+          color = 'amber';
+        }
+
+        return {
+          'id': 'wallet_${item['id']}',
+          'type': 'wallet_activity',
+          'operationType': operationType,
+          'title': title,
+          'message': message,
+          'timestamp': timestamp,
+          'icon': icon,
+          'color': color,
+          'status': status,
+          'hash': item['hash'],
+          'fromUser': fromUser,
+          'toUser': toUser,
+        };
+      }).toList();
+
+      if (refresh) {
+        _walletActivities = newActivities;
+      } else {
+        _walletActivities.addAll(newActivities);
+      }
+    } catch (e) {
+      debugPrint('Error loading wallet activity: $e');
+    } finally {
+      _isLoadingWalletActivity = false;
+      _isLoadingMoreWalletActivity = false;
+      notifyListeners();
+    }
   }
 
   Future<void> loadMiningActivity() async {
@@ -320,10 +645,14 @@ class MessagingProvider extends ChangeNotifier {
       // as per user requirement to not notify on every session press.
       _miningActivities = history
           .where(
-            (item) => item['status'] == 'settled' || item['settled'] == true,
+            (item) =>
+                item['status'] == 'settled' ||
+                item['settled'] == true ||
+                item['settledAt'] != null ||
+                item['settled_at'] != null,
           )
           .map((item) {
-            final amount = (item['amount'] ?? 0).toString();
+            final amount = (item['amount'] ?? item['reward'] ?? 0).toString();
             final currency = item['currency'] ?? 'COWRIE';
             final timestamp = DateTime.parse(
               item['created_at'] ??
@@ -384,25 +713,7 @@ class MessagingProvider extends ChangeNotifier {
 
   String normalizeNetworkName(String? name) {
     if (name == null) return '';
-    final normalized = name.trim().toLowerCase();
-    switch (normalized) {
-      case 'bnb':
-      case 'binance-smart-chain':
-      case 'binance smart chain':
-      case 'binance':
-        return 'bsc';
-      case 'ethereum':
-      case 'eth':
-        return 'ethereum';
-      case 'polygon':
-      case 'matic':
-        return 'polygon';
-      case 'base-mainnet':
-      case 'base':
-        return 'base';
-      default:
-        return normalized;
-    }
+    return ChainAssets.normalize(name);
   }
 
   Future<Map<String, dynamic>> prepareTip({
@@ -438,6 +749,26 @@ class MessagingProvider extends ChangeNotifier {
                 recipient: recipient,
                 amount: amount,
               ));
+
+    // Verify prepared data against selection before returning (Spec Point Preparation API)
+    final int returnedChainId = int.parse(response['chainId'].toString());
+    if (returnedChainId != chainId) {
+      throw Exception('Security Alert: Prepared chainId mismatch');
+    }
+
+    final String returnedNetwork = normalizeNetworkName(
+      response['network']?.toString(),
+    );
+    if (returnedNetwork != normalizedSearch) {
+      throw Exception('Security Alert: Prepared network mismatch');
+    }
+
+    final String router =
+        response['routerAddress']?.toString().toLowerCase() ?? '';
+    final txTo = response['transaction']?['to']?.toString().toLowerCase();
+    if (txTo != router) {
+      throw Exception('Security Alert: Router address mismatch');
+    }
 
     return response;
   }
@@ -476,12 +807,34 @@ class MessagingProvider extends ChangeNotifier {
                 amounts: amounts,
               ));
 
+    // Verify prepared data against selection before returning
+    final int returnedChainId = int.parse(response['chainId'].toString());
+    if (returnedChainId != chainId) {
+      throw Exception('Security Alert: Prepared chainId mismatch');
+    }
+
+    final String returnedNetwork = normalizeNetworkName(
+      response['network']?.toString(),
+    );
+    if (returnedNetwork != normalizedSearch) {
+      throw Exception('Security Alert: Prepared network mismatch');
+    }
+
+    final String router =
+        response['routerAddress']?.toString().toLowerCase() ?? '';
+    final txTo = response['transaction']?['to']?.toString().toLowerCase();
+    if (txTo != router) {
+      throw Exception('Security Alert: Router address mismatch');
+    }
+
     return response;
   }
 
   Future<String> executeTip({
     required Map<String, dynamic> preparedTip,
     void Function(String status)? onStatusUpdate,
+    String? conversationId,
+    String? tipMessage,
   }) async {
     final txData = preparedTip['transaction'];
     final String network = preparedTip['network'].toString();
@@ -538,7 +891,9 @@ class MessagingProvider extends ChangeNotifier {
     }
 
     final String? myAddress = await _walletService.getAddress();
-    if (myAddress == null) throw Exception('No wallet found');
+    if (myAddress == null) {
+      throw Exception('No wallet found');
+    }
 
     // 1. ERC-20 Approval if needed (Spec Point 3 & 5)
     if (assetType == 'token' && tokenAddress != null) {
@@ -597,6 +952,7 @@ class MessagingProvider extends ChangeNotifier {
     final String? maxFeePerGas = estimation['maxFeePerGas']?.toString();
     final String? maxPriorityFeePerGas = estimation['maxPriorityFeePerGas']
         ?.toString();
+    final String? gasPrice = estimation['gasPrice']?.toString();
 
     // 4. Sign
     if (onStatusUpdate != null) onStatusUpdate('Signing...');
@@ -605,19 +961,23 @@ class MessagingProvider extends ChangeNotifier {
       valueRaw: valueRaw,
       nonce: nonce,
       gasLimit: gasLimit,
+      gasPrice: gasPrice,
       maxFeePerGas: maxFeePerGas,
       maxPriorityFeePerGas: maxPriorityFeePerGas,
       chainId: chainId,
       dataHex: dataHex,
     );
 
-    if (signedTx == null) throw Exception('Failed to sign transaction');
+    if (signedTx == null) {
+      throw Exception('Failed to sign transaction');
+    }
 
     // 5. Broadcast
     if (onStatusUpdate != null) onStatusUpdate('Broadcasting...');
     final hash = await _walletRpc.sendRawTransaction(
       network: network,
       signedTransaction: signedTx,
+      transactionType: 'tip',
     );
 
     // 6. Poll Receipt (Spec Point 7)
@@ -628,7 +988,67 @@ class MessagingProvider extends ChangeNotifier {
       throw Exception('Transaction reverted on-chain');
     }
 
+    final transactionId = _walletRpc.lastBroadcastTransactionId;
+    if (transactionId != null && transactionId.isNotEmpty) {
+      await _transactionApi.getTransactionStatus(
+        transactionId: transactionId,
+        network: network,
+      );
+      await loadGenericNotifications(refresh: true);
+    }
+
+    // 7. Store Local Tip Activity (Spec Integration)
+    if (conversationId != null) {
+      _saveLocalTipMessage(
+        conversationId: conversationId,
+        hash: hash,
+        preparedTip: preparedTip,
+        senderAddress: myAddress,
+        text: tipMessage ?? 'Sent a tip',
+      );
+    }
+
     return hash;
+  }
+
+  void _saveLocalTipMessage({
+    required String conversationId,
+    required String hash,
+    required Map<String, dynamic> preparedTip,
+    required String senderAddress,
+    required String text,
+  }) {
+    final tipData = {
+      'transactionHash': hash,
+      'network': preparedTip['network'],
+      'chainId': preparedTip['chainId'],
+      'assetType': preparedTip['assetType'],
+      'tokenAddress': preparedTip['token'],
+      'senderAddress': senderAddress,
+      'recipientAddresses': preparedTip['batch'] == true
+          ? preparedTip['recipients']
+          : [preparedTip['recipient']],
+      'amountRaw': preparedTip['amount'] ?? preparedTip['amounts']?.first,
+      'status': 'confirmed',
+      'timestamp': DateTime.now().toIso8601String(),
+    };
+
+    final message = ChatMessage(
+      id: 'tip_${DateTime.now().millisecondsSinceEpoch}_$hash',
+      conversationId: conversationId,
+      senderId: _userProvider.user?.id ?? '',
+      text: text,
+      type: MessageType.tip,
+      status: MessageStatus.sent,
+      createdAt: DateTime.now(),
+      tipData: tipData,
+    );
+
+    // Add to local UI and cache
+    final list = _messagesByConversation[conversationId] ?? [];
+    _messagesByConversation[conversationId] = [message, ...list];
+    _messageCache.saveMessage(message);
+    notifyListeners();
   }
 
   Future<BigInt> _checkAllowance(
@@ -638,15 +1058,21 @@ class MessagingProvider extends ChangeNotifier {
     String spender,
   ) async {
     // IERC20.allowance(owner, spender)
+    final cleanOwner = owner.startsWith('0x') ? owner.substring(2) : owner;
+    final cleanSpender = spender.startsWith('0x')
+        ? spender.substring(2)
+        : spender;
     final data =
-        '0xdd62ed3e${owner.substring(2).padLeft(64, '0')}${spender.substring(2).padLeft(64, '0')}';
+        '0xdd62ed3e${cleanOwner.padLeft(64, '0')}${cleanSpender.padLeft(64, '0')}';
 
     final result = await _walletRpc.call(
       network: network,
       to: token,
       data: data,
     );
-    return BigInt.parse(result);
+
+    if (result == '0x' || result.isEmpty) return BigInt.zero;
+    return BigInt.parse(result.replaceFirst('0x', ''), radix: 16);
   }
 
   Future<String> _approveToken(
@@ -657,27 +1083,66 @@ class MessagingProvider extends ChangeNotifier {
     int chainId,
   ) async {
     // IERC20.approve(spender, amount)
+    final cleanSpender = spender.startsWith('0x')
+        ? spender.substring(2)
+        : spender;
     final data =
-        '0x095ea7b3${spender.substring(2).padLeft(64, '0')}${amount.toRadixString(16).padLeft(64, '0')}';
+        '0x095ea7b3${cleanSpender.padLeft(64, '0')}${amount.toRadixString(16).padLeft(64, '0')}';
 
     final String? myAddress = await _walletService.getAddress();
+    if (myAddress == null) {
+      throw Exception('Wallet address not found');
+    }
+
     final int nonce = await _walletRpc.getPendingNonce(
       network: network,
-      address: myAddress!,
+      address: myAddress,
     );
+
+    // Estimate fees for approval too for production reliability
+    String gasLimit = '100000';
+    String? maxFeePerGas;
+    String? maxPriorityFeePerGas;
+    String? gasPrice;
+
+    try {
+      final estimation = await _transactionApi.estimateTransaction(
+        network: network,
+        transaction: {
+          'from': myAddress,
+          'to': token,
+          'value': '0',
+          'data': data,
+        },
+      );
+      gasLimit = (estimation['gasLimit'] ?? '100000').toString();
+      maxFeePerGas = estimation['maxFeePerGas']?.toString();
+      maxPriorityFeePerGas = estimation['maxPriorityFeePerGas']?.toString();
+      gasPrice = estimation['gasPrice']?.toString();
+    } catch (e) {
+      debugPrint('Approval estimation failed, using defaults: $e');
+    }
 
     final String? signedTx = await _walletService.signNativeTransaction(
       to: token,
       valueRaw: '0',
       nonce: nonce,
-      gasLimit: '100000',
+      gasLimit: gasLimit,
+      gasPrice: gasPrice,
+      maxFeePerGas: maxFeePerGas,
+      maxPriorityFeePerGas: maxPriorityFeePerGas,
       chainId: chainId,
       dataHex: data,
     );
 
+    if (signedTx == null) {
+      throw Exception('Failed to sign approval transaction');
+    }
+
     return await _walletRpc.sendRawTransaction(
       network: network,
-      signedTransaction: signedTx!,
+      signedTransaction: signedTx,
+      transactionType: 'tip',
     );
   }
 
@@ -696,14 +1161,14 @@ class MessagingProvider extends ChangeNotifier {
     throw Exception('Transaction confirmation timeout');
   }
 
-  void markActivitiesSeen() async {
-    _lastSeenActivityTime = DateTime.now();
+  void markNotificationsSeen() async {
+    _lastSeenNotificationTime = DateTime.now();
     notifyListeners();
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
-      'last_seen_activity_time',
-      _lastSeenActivityTime!.toIso8601String(),
+      'last_seen_notification_time',
+      _lastSeenNotificationTime!.toIso8601String(),
     );
   }
 
@@ -712,9 +1177,13 @@ class MessagingProvider extends ChangeNotifier {
   // ==========================================================
 
   RelationshipState getRelationship(String userId) {
-    if (_blockedUserIds.contains(userId)) return RelationshipState.blocked;
+    if (_blockedUserIds.contains(userId)) {
+      return RelationshipState.blocked;
+    }
 
-    if (_friends.any((f) => f.id == userId)) return RelationshipState.friends;
+    if (_friends.any((f) => f.id == userId)) {
+      return RelationshipState.friends;
+    }
 
     if (_receivedRequests.any(
       (r) => r.senderId == userId && r.status == RequestStatus.pending,
@@ -757,7 +1226,9 @@ class MessagingProvider extends ChangeNotifier {
             const Duration(minutes: 1)) {
       return;
     }
-    if (_conversationsLoadFuture != null) return _conversationsLoadFuture!;
+    if (_conversationsLoadFuture != null) {
+      return _conversationsLoadFuture!;
+    }
     _conversationsLoadFuture = _loadConversations();
     try {
       await _conversationsLoadFuture;
@@ -767,41 +1238,64 @@ class MessagingProvider extends ChangeNotifier {
   }
 
   Future<void> _loadConversations() async {
-    _isLoadingConversations = true;
-    notifyListeners();
+    if (_conversations.isEmpty) {
+      _isLoadingConversations = true;
+      notifyListeners();
+    }
 
     try {
-      // 1. Load from cache first
+      await _messageCache.initialize();
+      // 1. Load from cache first (Immediate UI)
       final cached = await _messageCache.getConversations();
       if (cached.isNotEmpty) {
-        _conversations = cached;
+        // Use deduplication Map even for cache for safety
+        final byId = <String, Conversation>{};
+        for (final c in cached) {
+          byId[c.id] = c;
+        }
+        _conversations = byId.values.toList();
+        _conversations.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
         notifyListeners();
       }
 
-      // 2. Fetch from server
-      // Keep successful sections visible when one endpoint has a transient
-      // failure (for example, channels during a migration). A failed channel
-      // request must not hide valid direct conversations or groups.
+      // 2. Fetch from server in background
       final results = await Future.wait<List<Conversation>>([
-        _apiService.getConversations().catchError((_) => <Conversation>[]),
-        _apiService.getGroups().catchError((_) => <Conversation>[]),
-        _apiService.getChannels().catchError((_) => <Conversation>[]),
+        _apiService.getConversations().catchError((error) {
+          debugPrint('Messaging: conversations request failed: $error');
+          return <Conversation>[];
+        }),
+        _apiService.getGroups().catchError((error) {
+          debugPrint('Messaging: groups request failed: $error');
+          return <Conversation>[];
+        }),
+        _apiService.getChannels().catchError((error) {
+          debugPrint('Messaging: channels request failed: $error');
+          return <Conversation>[];
+        }),
       ]);
-      // A conversation can be returned by more than one endpoint. Dart sets
-      // do not deduplicate model instances unless equality is overridden, so
-      // key by the server id explicitly.
+
+      // Deduplicate by server ID
       final byId = <String, Conversation>{};
+
+      // Keep cached ones as baseline
+      for (final c in _conversations) {
+        byId[c.id] = c;
+      }
+
+      // Update with fresh data
       for (final section in results) {
         for (final conversation in section) {
           byId[conversation.id] = conversation;
         }
       }
+
       final list = byId.values.toList();
       list.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+
       _conversations = list;
       _lastConversationsLoadedAt = DateTime.now();
 
-      // 3. Update cache
+      // 3. Update cache with deduplicated list
       await _messageCache.saveConversations(list);
     } catch (e) {
       debugPrint('Error loading conversations: $e');
@@ -832,7 +1326,22 @@ class MessagingProvider extends ChangeNotifier {
   // ACTIONS - REQUESTS
   // ==========================================================
 
-  Future<void> loadRequests() async {
+  Future<void> loadRequests({bool force = false}) async {
+    if (_requestsLoadFuture != null) return _requestsLoadFuture!;
+    if (!force && _lastRequestsLoadedAt != null &&
+        DateTime.now().difference(_lastRequestsLoadedAt!) <
+            const Duration(seconds: 30)) {
+      return;
+    }
+    _requestsLoadFuture = _loadRequests();
+    try {
+      await _requestsLoadFuture!;
+    } finally {
+      _requestsLoadFuture = null;
+    }
+  }
+
+  Future<void> _loadRequests() async {
     _isLoadingRequests = true;
     notifyListeners();
 
@@ -843,6 +1352,8 @@ class MessagingProvider extends ChangeNotifier {
       ]);
       _receivedRequests = results[0];
       _sentRequests = results[1];
+      _lastRequestsLoadedAt = DateTime.now();
+      unawaited(_saveSocialCache());
     } catch (e) {
       debugPrint('Error loading requests: $e');
     } finally {
@@ -988,7 +1499,9 @@ class MessagingProvider extends ChangeNotifier {
   // ==========================================================
 
   Future<void> loadFriends({bool refresh = true}) async {
-    if (_isLoadingFriends) return;
+    if (_isLoadingFriends) {
+      return;
+    }
 
     if (refresh) {
       _friendsOffset = 0;
@@ -1018,6 +1531,7 @@ class MessagingProvider extends ChangeNotifier {
       _friendsTotal = result['total'] ?? 0;
       _hasMoreFriends = result['hasMore'] ?? false;
       _friendsOffset = result['offset'] + newFriends.length;
+      unawaited(_saveSocialCache());
     } catch (e) {
       debugPrint('Error loading friends: $e');
       if (refresh) _friends = [];
@@ -1053,7 +1567,9 @@ class MessagingProvider extends ChangeNotifier {
       );
 
       // Check if query is still relevant
-      if (_currentFriendsSearchQuery != query) return;
+      if (_currentFriendsSearchQuery != query) {
+        return;
+      }
 
       final List<dynamic> friendsJson = result['friends'] ?? [];
       final newFriends = friendsJson
@@ -1080,7 +1596,9 @@ class MessagingProvider extends ChangeNotifier {
   }
 
   Future<void> loadMoreFriends() async {
-    if (_isLoadingFriends || _isLoadingMoreFriends || !_hasMoreFriends) return;
+    if (_isLoadingFriends || _isLoadingMoreFriends || !_hasMoreFriends) {
+      return;
+    }
 
     _isLoadingMoreFriends = true;
     notifyListeners();
@@ -1157,11 +1675,118 @@ class MessagingProvider extends ChangeNotifier {
   // ACTIONS - MESSAGES
   // ==========================================================
 
+  // authoritative delivery and deduplication.
+  void upsertMessage(ChatMessage incoming) {
+    final list = _messagesByConversation[incoming.conversationId] ?? [];
+
+    final existingIndex = list.indexWhere((message) {
+      if (message.id == incoming.id) {
+        return true;
+      }
+      if (incoming.clientMessageId != null &&
+          message.clientMessageId == incoming.clientMessageId) {
+        return true;
+      }
+
+      // Fallback for deduplication if server doesn't return clientMessageId in socket events
+      // We only match 'sending' messages with same content from same sender within 60s
+      if (message.status == MessageStatus.sending &&
+          message.senderId == incoming.senderId &&
+          message.text == incoming.text &&
+          DateTime.now().difference(message.createdAt).inSeconds < 60) {
+        return true;
+      }
+      return false;
+    });
+
+    bool isNewMessage = false;
+
+    if (existingIndex >= 0) {
+      final existing = list[existingIndex];
+
+      // Update if:
+      // 1. New status is further ahead (e.g., delivered > sent)
+      // 2. Incoming message is from server (sent/delivered/read) and overrides local sending/failed
+      // 3. The ID has changed (temp client ID -> real server ID)
+
+      final bool isIncomingFromServer =
+          incoming.status != MessageStatus.sending &&
+          incoming.status != MessageStatus.failed;
+      final bool isExistingPending =
+          existing.status == MessageStatus.sending ||
+          existing.status == MessageStatus.failed;
+
+      bool shouldUpdate = false;
+
+      if (incoming.status.index > existing.status.index) {
+        shouldUpdate = true;
+      } else if (isIncomingFromServer && isExistingPending) {
+        shouldUpdate = true;
+      } else if (incoming.id != existing.id) {
+        shouldUpdate = true;
+      }
+
+      if (shouldUpdate) {
+        list[existingIndex] = existing.copyWith(
+          id: incoming.id,
+          status: incoming.status,
+          text: incoming.text,
+          mediaUrl: incoming.mediaUrl ?? existing.mediaUrl,
+          reactions: incoming.reactions.isNotEmpty
+              ? incoming.reactions
+              : existing.reactions,
+          isDeleted: incoming.isDeleted,
+          isEdited: incoming.isEdited,
+        );
+      }
+    } else {
+      list.add(incoming);
+      isNewMessage = true;
+    }
+
+    list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    _messagesByConversation[incoming.conversationId] = list;
+    _messageCache.saveMessage(incoming);
+
+    // Update conversation list
+    final convIndex = _conversations.indexWhere(
+      (c) => c.id == incoming.conversationId,
+    );
+    if (convIndex != -1) {
+      var conv = _conversations[convIndex];
+
+      // Increment unread if new and not current room
+      int unreadIncrement = 0;
+      if (isNewMessage &&
+          incoming.senderId != (_userProvider.user?.id ?? '') &&
+          incoming.conversationId != _currentRoomId) {
+        unreadIncrement = 1;
+      }
+
+      _conversations[convIndex] = conv.copyWith(
+        lastMessage: incoming,
+        updatedAt: incoming.createdAt,
+        unreadCount: conv.unreadCount + unreadIncrement,
+      );
+
+      // Keep list sorted by recency
+      _conversations.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    } else if (isNewMessage) {
+      // If conversation is missing, it might be a new one we haven't loaded yet.
+      // We should probably trigger a refresh or handle it if we have enough info.
+      loadConversations(force: true);
+    }
+
+    notifyListeners();
+  }
+
   Future<void> loadMessages(
     String conversationId, {
     bool refresh = false,
   }) async {
     if (_isLoadingMessages[conversationId] == true) return;
+
+    await _messageCache.initialize();
 
     final cachedMessages = await _messageCache.getMessages(conversationId);
     final currentMessages =
@@ -1184,16 +1809,9 @@ class MessagingProvider extends ChangeNotifier {
         before: before,
       );
 
-      await _messageCache.saveMessages(newMessages);
-      final merged = <String, ChatMessage>{
-        for (final message in currentMessages) message.id: message,
-        for (final message in newMessages) message.id: message,
-      };
-      _messagesByConversation[conversationId] = merged.values.toList();
-
-      _messagesByConversation[conversationId]?.sort(
-        (a, b) => b.createdAt.compareTo(a.createdAt),
-      );
+      for (final msg in newMessages) {
+        upsertMessage(msg);
+      }
 
       // Requirement 10: Receipts
       // When we load messages, we might want to mark them as delivered if they were sent to us
@@ -1238,6 +1856,14 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
+  void removeMessageLocally(String conversationId, String messageId) {
+    final list = _messagesByConversation[conversationId];
+    if (list != null) {
+      list.removeWhere((m) => m.id == messageId);
+      notifyListeners();
+    }
+  }
+
   Future<void> markAsDelivered(String messageId) async {
     try {
       await _apiService.markMessageReceipt(messageId, 'delivered');
@@ -1258,46 +1884,125 @@ class MessagingProvider extends ChangeNotifier {
 
   void _updateMessageStatusLocally(String messageId, MessageStatus status) {
     bool found = false;
+    String? cid;
+
     for (final entry in _messagesByConversation.entries) {
       final list = entry.value;
-      final index = list.indexWhere((m) => m.id == messageId);
+      final index = list.indexWhere(
+        (m) => m.id == messageId || m.clientMessageId == messageId,
+      );
       if (index != -1) {
         // Only progress status, don't regress
         if (list[index].status.index < status.index) {
           list[index] = list[index].copyWith(status: status);
+          cid = entry.key;
           found = true;
         }
         break;
       }
     }
-    if (found) notifyListeners();
+
+    if (found && cid != null) {
+      // Update last message in conversation list if needed
+      final convIndex = _conversations.indexWhere((c) => c.id == cid);
+      if (convIndex != -1) {
+        final conv = _conversations[convIndex];
+        if (conv.lastMessage?.id == messageId) {
+          _conversations[convIndex] = conv.copyWith(
+            lastMessage: conv.lastMessage?.copyWith(status: status),
+          );
+        }
+      }
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteMessage(String messageId) async {
+    // 1. Identify if it's an optimistic message that hasn't synced yet
+    final isOptimistic = messageId.startsWith('client_');
+
+    try {
+      if (!isOptimistic) {
+        await _apiService.deleteMessage(messageId);
+      }
+      _markMessageDeletedLocally(messageId);
+    } catch (e) {
+      debugPrint('Error deleting message: $e');
+      // If server says 404, it might have been a client ID or already deleted
+      if (e.toString().contains('404')) {
+        _markMessageDeletedLocally(messageId);
+      } else {
+        rethrow;
+      }
+    }
+  }
+
+  void _applyReactionUpdate(Map<String, dynamic> data) {
+    final messageId = (data['messageId'] ?? data['message_id'] ?? data['id'])
+        ?.toString();
+    if (messageId == null || messageId.isEmpty) return;
+
+    final rawReactions = data['reactions'];
+    if (rawReactions is! Map) return;
+
+    final reactions = <String, List<String>>{};
+    for (final entry in rawReactions.entries) {
+      final users = entry.value;
+      if (users is List) {
+        reactions[entry.key.toString()] = users
+            .map((u) => u.toString())
+            .toList();
+      }
+    }
+
+    for (final entry in _messagesByConversation.entries) {
+      final list = entry.value;
+      final index = list.indexWhere((message) => message.id == messageId);
+      if (index != -1) {
+        list[index] = list[index].copyWith(reactions: reactions);
+        notifyListeners();
+        return;
+      }
+    }
   }
 
   void _markMessageDeletedLocally(String messageId) {
     bool found = false;
     for (final entry in _messagesByConversation.entries) {
       final list = entry.value;
-      final index = list.indexWhere((m) => m.id == messageId);
+
+      // Match by server ID OR client ID
+      final index = list.indexWhere(
+        (m) => m.id == messageId || m.clientMessageId == messageId,
+      );
+
       if (index != -1) {
-        list[index] = list[index].copyWith(
+        final deletedMessage = list[index].copyWith(
           isDeleted: true,
           text: 'This message was deleted',
+          status: MessageStatus.sent, // Clear 'failed' or 'sending' status
         );
+        list[index] = deletedMessage;
+        unawaited(_messageCache.saveMessage(deletedMessage));
+
+        final conversationIndex = _conversations.indexWhere(
+          (conversation) => conversation.id == entry.key,
+        );
+        if (conversationIndex != -1 &&
+            _conversations[conversationIndex].lastMessage != null &&
+            (_conversations[conversationIndex].lastMessage!.id == messageId ||
+                _conversations[conversationIndex]
+                        .lastMessage!
+                        .clientMessageId ==
+                    messageId)) {
+          _conversations[conversationIndex] = _conversations[conversationIndex]
+              .copyWith(lastMessage: deletedMessage);
+        }
         found = true;
-        break;
+        // Don't break, check other conversations just in case (though unlikely)
       }
     }
     if (found) notifyListeners();
-  }
-
-  Future<void> deleteMessage(String messageId) async {
-    try {
-      await _apiService.deleteMessage(messageId);
-      _markMessageDeletedLocally(messageId);
-    } catch (e) {
-      debugPrint('Error deleting message: $e');
-      rethrow;
-    }
   }
 
   Future<void> sendMessage(
@@ -1312,10 +2017,11 @@ class MessagingProvider extends ChangeNotifier {
     }
 
     final currentUserId = _userProvider.user?.id ?? '';
+    final clientMsgId = 'client_${DateTime.now().millisecondsSinceEpoch}';
 
-    final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
     final optimisticMessage = ChatMessage(
-      id: tempId,
+      id: clientMsgId, // Use client ID as temp ID
+      clientMessageId: clientMsgId,
       conversationId: conversationId,
       senderId: currentUserId,
       text: trimmed,
@@ -1324,48 +2030,23 @@ class MessagingProvider extends ChangeNotifier {
       replyToMessageId: replyToMessageId,
     );
 
-    await _messageCache.saveMessage(optimisticMessage);
-
-    final currentMessages = _messagesByConversation[conversationId] ?? [];
-    _messagesByConversation[conversationId] = [
-      optimisticMessage,
-      ...currentMessages,
-    ];
-    notifyListeners();
+    upsertMessage(optimisticMessage);
 
     try {
       final realMessage = await _apiService.sendMessage(
         conversationId: conversationId,
         content: trimmed,
         replyToMessageId: replyToMessageId,
-      );
-      await _messageCache.saveMessage(realMessage);
-      await _messageCache.markSynced(realMessage.id);
-
-      final list = _messagesByConversation[conversationId] ?? [];
-
-      // 1. Remove the temp message and any other matching temp messages
-      list.removeWhere(
-        (m) =>
-            m.id == tempId ||
-            (m.id.startsWith('temp_') &&
-                m.text == realMessage.text &&
-                m.senderId == realMessage.senderId),
+        clientMessageId: clientMsgId,
       );
 
-      // 2. Only add the real message if it's not already there (e.g. added by socket)
-      if (!list.any((m) => m.id == realMessage.id)) {
-        list.add(realMessage);
-      }
-
-      // 3. Ensure consistent sorting (newest first)
-      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      notifyListeners();
+      // Update with server ID but keep client ID for deduplication
+      upsertMessage(realMessage.copyWith(clientMessageId: clientMsgId));
     } catch (e) {
       final list = _messagesByConversation[conversationId] ?? [];
-      final index = list.indexWhere((m) => m.id == tempId);
+      final index = list.indexWhere((m) => m.clientMessageId == clientMsgId);
       if (index != -1) {
-        list[index] = optimisticMessage.copyWith(status: MessageStatus.failed);
+        list[index] = list[index].copyWith(status: MessageStatus.failed);
         notifyListeners();
       }
       rethrow;
@@ -1378,9 +2059,12 @@ class MessagingProvider extends ChangeNotifier {
     required MessageType type,
     String? content,
     String? replyToMessageId,
+    String? clientMessageId, // Optional for retries
   }) async {
     final currentUserId = _userProvider.user?.id ?? '';
-    final tempId = 'temp_media_${DateTime.now().millisecondsSinceEpoch}';
+    final clientMsgId =
+        clientMessageId ??
+        'client_media_${DateTime.now().millisecondsSinceEpoch}';
 
     final String defaultText;
     switch (type) {
@@ -1399,7 +2083,8 @@ class MessagingProvider extends ChangeNotifier {
     }
 
     final optimisticMessage = ChatMessage(
-      id: tempId,
+      id: clientMsgId,
+      clientMessageId: clientMsgId,
       conversationId: conversationId,
       senderId: currentUserId,
       text: content ?? defaultText,
@@ -1410,52 +2095,111 @@ class MessagingProvider extends ChangeNotifier {
       mediaUrl: filePath, // Show local path while uploading
     );
 
-    final currentMessages = _messagesByConversation[conversationId] ?? [];
-    _messagesByConversation[conversationId] = [
-      optimisticMessage,
-      ...currentMessages,
-    ];
-    notifyListeners();
+    upsertMessage(optimisticMessage);
 
     try {
       // 1. Upload
       final Map<String, dynamic> uploadResult = await _mediaApiService
           .uploadMedia(filePath, conversationId: conversationId);
-      final String mediaId = uploadResult['id']?.toString() ?? '';
-      final String mediaUrl = uploadResult['mediaUrl']?.toString() ?? '';
 
-      // 2. Small delay to ensure backend consistency after /complete
-      await Future.delayed(const Duration(milliseconds: 300));
+      final String mediaId =
+          (uploadResult['id'] ?? uploadResult['mediaId'])?.toString() ?? '';
+      final String mediaUrl =
+          (uploadResult['mediaUrl'] ?? uploadResult['url'])?.toString() ?? '';
 
-      // 3. Send Message with mediaId
+      if (mediaId.isEmpty) {
+        throw Exception('Media upload failed: No ID returned');
+      }
+
+      // 2. Send Message with mediaId and clientMessageId
+      // Backend expects 'video', 'image', or 'audio'
+      final String apiMessageType =
+          (type == MessageType.voice || type == MessageType.audio)
+          ? 'audio'
+          : type.name;
+
       final realMessage = await _apiService.sendMessage(
         conversationId: conversationId,
         content: content ?? '',
-        messageType: type.name,
+        messageType: apiMessageType,
         replyToMessageId: replyToMessageId,
         mediaId: mediaId,
+        clientMessageId: clientMsgId,
       );
 
-      // Update real message with media URL if the server didn't already
-      final finalMessage = realMessage.copyWith(mediaUrl: mediaUrl);
-
-      await _messageCache.saveMessage(finalMessage);
-
+      // Update with server ID and media URL
+      upsertMessage(
+        realMessage.copyWith(clientMessageId: clientMsgId, mediaUrl: mediaUrl),
+      );
+    } catch (e) {
+      debugPrint('sendMediaMessage error: $e');
       final list = _messagesByConversation[conversationId] ?? [];
-      list.removeWhere((m) => m.id == tempId);
-      if (!list.any((m) => m.id == finalMessage.id)) {
-        list.add(finalMessage);
+      final index = list.indexWhere((m) => m.clientMessageId == clientMsgId);
+      if (index != -1) {
+        list[index] = list[index].copyWith(status: MessageStatus.failed);
+        notifyListeners();
       }
-      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      notifyListeners();
+      // Since this is now running in the background, we might want to notify
+      // the user via a global notification service if needed, but the bubble
+      // status change is usually enough.
+    }
+  }
+
+  Future<void> sendContactMessage({
+    required String conversationId,
+    required String contactName,
+    required String contactPhone,
+    String? replyToMessageId,
+  }) async {
+    final currentUserId = _userProvider.user?.id ?? '';
+    final clientMsgId =
+        'client_contact_${DateTime.now().millisecondsSinceEpoch}';
+    final content = '$contactName\n$contactPhone';
+
+    final optimisticMessage = ChatMessage(
+      id: clientMsgId,
+      clientMessageId: clientMsgId,
+      conversationId: conversationId,
+      senderId: currentUserId,
+      text: content,
+      type: MessageType.contact,
+      status: MessageStatus.sending,
+      createdAt: DateTime.now(),
+      replyToMessageId: replyToMessageId,
+    );
+
+    upsertMessage(optimisticMessage);
+
+    try {
+      final realMessage = await _apiService.sendMessage(
+        conversationId: conversationId,
+        content: content,
+        messageType: 'contact',
+        replyToMessageId: replyToMessageId,
+        clientMessageId: clientMsgId,
+      );
+
+      upsertMessage(realMessage.copyWith(clientMessageId: clientMsgId));
     } catch (e) {
       final list = _messagesByConversation[conversationId] ?? [];
-      final index = list.indexWhere((m) => m.id == tempId);
+      final index = list.indexWhere((m) => m.clientMessageId == clientMsgId);
       if (index != -1) {
-        list[index] = optimisticMessage.copyWith(status: MessageStatus.failed);
+        list[index] = list[index].copyWith(status: MessageStatus.failed);
         notifyListeners();
       }
       rethrow;
+    }
+  }
+
+  Future<void> retryMessage(ChatMessage message) async {
+    if (message.isMedia) {
+      await retryMediaMessage(message);
+    } else {
+      await sendMessage(
+        message.conversationId,
+        message.text,
+        replyToMessageId: message.replyToMessageId,
+      );
     }
   }
 
@@ -1468,17 +2212,15 @@ class MessagingProvider extends ChangeNotifier {
         'Original file is no longer available. Please select it again.',
       );
     }
-    final messages = _messagesByConversation[message.conversationId];
-    messages?.removeWhere((item) => item.id == message.id);
-    notifyListeners();
     await sendMediaMessage(
       conversationId: message.conversationId,
       filePath: filePath.replaceFirst('file://', ''),
       type: message.type,
-      content: message.text.startsWith('📷') || message.text.startsWith('📎')
+      content: message.text.startsWith('📷') || message.text.startsWith('🎬')
           ? null
           : message.text,
       replyToMessageId: message.replyToMessageId,
+      clientMessageId: message.clientMessageId,
     );
   }
 
@@ -1492,24 +2234,32 @@ class MessagingProvider extends ChangeNotifier {
   }
 
   void _initMessageSocket(String accessToken) {
+    // If the socket exists, we check if the token has changed.
+    // If it has, we must disconnect and recreate it to ensure the new token is used.
     if (_socket != null) {
-      if (!_socket!.connected) _socket!.connect();
-      return;
+      final currentToken = _socket!.io.options?['auth']?['token'];
+      if (currentToken != accessToken) {
+        debugPrint('Socket: Token changed, reconnecting...');
+        disconnectSocket();
+      } else {
+        if (!_socket!.connected) {
+          _socket!.connect();
+        }
+        return;
+      }
     }
 
     final socketUrl =
-        ApiConfig.baseUrl
-            .replaceFirst(RegExp(r'/api/?$'), '')
-            .replaceFirst(RegExp(r'/+$'), '') +
-        '/messages';
+        '${ApiConfig.baseUrl.replaceFirst(RegExp(r'/api/?$'), '').replaceFirst(RegExp(r'/+$'), '')}/messages';
+
+    debugPrint('Socket: Initializing for $socketUrl');
 
     _socket = io.io(
       socketUrl,
       io.OptionBuilder()
-          // Allow the Engine.IO polling handshake to fall back on local
-          // networks/dev servers, then upgrade to WebSocket when available.
-          .setTransports(['polling', 'websocket'])
+          .setTransports(['websocket'])
           .setAuth({'token': accessToken})
+          .setExtraHeaders({'Authorization': 'Bearer $accessToken'})
           .enableReconnection()
           .setReconnectionAttempts(double.infinity)
           .setReconnectionDelay(1000)
@@ -1520,24 +2270,48 @@ class MessagingProvider extends ChangeNotifier {
 
     _socket?.onConnect((_) async {
       debugPrint('Socket: Connected to /messages');
-      
+      _presenceHeartbeat?.cancel();
+      _presenceHeartbeat = Timer.periodic(const Duration(seconds: 30), (_) {
+        _socket?.emit('presence_heartbeat');
+      });
+
       // On reconnect, refresh data as per instructions
       await loadConversations(force: true);
       await loadFriends();
-      
+
       // Spec: Reload the currently open conversation
       if (_currentRoomId != null) {
+        // The screen can open before the socket handshake completes. Rejoin
+        // here so incoming messages and receipts are delivered in that case.
+        _socket?.emit('join_conversation', {'conversationId': _currentRoomId});
         loadMessages(_currentRoomId!, refresh: true);
       }
     });
 
-    _socket?.onDisconnect((_) => debugPrint('Socket: Disconnected'));
+    _socket?.onConnectError(
+      (data) => debugPrint('Socket: /messages Connect Error: $data'),
+    );
+    _socket?.onReconnectError(
+      (data) => debugPrint('Socket: /messages Reconnect Error: $data'),
+    );
+    _socket?.onError((data) => debugPrint('Socket: /messages Error: $data'));
+
+    _socket?.onDisconnect((_) {
+      debugPrint('Socket: Disconnected');
+      _presenceHeartbeat?.cancel();
+      _presenceHeartbeat = null;
+    });
 
     _socket?.on('presence_snapshot', (data) {
       debugPrint('Socket: presence_snapshot');
-      final ids = data is List
-          ? data.map((id) => id.toString()).toSet()
-          : <String>{};
+      final rawIds = data is List
+          ? data
+          : data is Map && data['userIds'] is List
+          ? data['userIds'] as List
+          : data is Map && data['user_ids'] is List
+          ? data['user_ids'] as List
+          : const <dynamic>[];
+      final ids = rawIds.map((id) => id.toString()).toSet();
 
       _presenceMap.clear();
 
@@ -1545,34 +2319,63 @@ class MessagingProvider extends ChangeNotifier {
         _presenceMap[id] = true;
       }
 
+      _presenceInitialized = true;
       notifyListeners();
     });
 
     _socket?.on('presence_updated', (data) {
-      if (data is! Map) return;
+      if (data is! Map) {
+        return;
+      }
 
-      final userId = data['userId']?.toString();
-      if (userId == null || userId.isEmpty) return;
+      final userId = (data['userId'] ?? data['user_id'])?.toString();
+      if (userId == null || userId.isEmpty) {
+        return;
+      }
 
-      _presenceMap[userId] = data['isOnline'] == true;
+      _presenceMap[userId] =
+          data['isOnline'] == true || data['is_online'] == true;
       notifyListeners();
     });
 
     _socket?.on('message_received', (data) {
+      debugPrint('Socket: message_received');
+      if (data is Map && data['type'] == 'reaction_update') {
+        _applyReactionUpdate(Map<String, dynamic>.from(data));
+        return;
+      }
+      if (data is Map && data['isDeleted'] == true) {
+        final messageId = data['messageId'] ?? data['message_id'] ?? data['id'];
+        if (messageId != null) {
+          _markMessageDeletedLocally(messageId.toString());
+        }
+        return;
+      }
       final message = ChatMessage.fromJson(Map<String, dynamic>.from(data));
-      _handleIncomingMessage(message);
+      upsertMessage(message);
+    });
+
+    _socket?.on('new_message', (data) {
+      debugPrint('Socket: new_message');
+      final message = ChatMessage.fromJson(Map<String, dynamic>.from(data));
+      upsertMessage(message);
+    });
+
+    _socket?.on('message', (data) {
+      debugPrint('Socket: message');
+      final message = ChatMessage.fromJson(Map<String, dynamic>.from(data));
+      upsertMessage(message);
     });
 
     _socket?.on('conversation_updated', (data) {
       debugPrint('Socket: conversation_updated');
       if (data is Map) {
-        // If it looks like a message, handle it as one
-        if (data.containsKey('content') || data.containsKey('text')) {
-          _handleIncomingMessage(
-            ChatMessage.fromJson(Map<String, dynamic>.from(data)),
-          );
+        final map = Map<String, dynamic>.from(data);
+        // autoritative message creation is now exclusively from 'message_received'
+        // or when payload specifically contains a full message structure.
+        if (map.containsKey('id') && map.containsKey('content')) {
+          upsertMessage(ChatMessage.fromJson(map));
         } else {
-          // If it's a conversation update, refresh the list
           loadConversations(force: true);
         }
       }
@@ -1581,13 +2384,26 @@ class MessagingProvider extends ChangeNotifier {
     _socket?.on('message_sent', (data) {
       debugPrint('Socket: message_sent');
       final message = ChatMessage.fromJson(Map<String, dynamic>.from(data));
-      _handleIncomingMessage(message);
+      upsertMessage(message);
     });
 
     _socket?.on('message_status_updated', (data) {
       debugPrint('Socket: message_status_updated');
-      final String? messageId = data['messageId']?.toString();
-      final String? statusStr = data['status']?.toString();
+      final String? messageId = (data['messageId'] ?? data['message_id'])
+          ?.toString();
+      final String? statusStr = (data['status'] ?? data['state'])?.toString();
+
+      if (messageId != null && statusStr != null) {
+        final status = _parseMessageStatus(statusStr);
+        _updateMessageStatusLocally(messageId, status);
+      }
+    });
+
+    _socket?.on('status_updated', (data) {
+      debugPrint('Socket: status_updated');
+      final String? messageId = (data['messageId'] ?? data['message_id'])
+          ?.toString();
+      final String? statusStr = (data['status'] ?? data['state'])?.toString();
 
       if (messageId != null && statusStr != null) {
         final status = _parseMessageStatus(statusStr);
@@ -1597,7 +2413,8 @@ class MessagingProvider extends ChangeNotifier {
 
     _socket?.on('message_receipt_updated', (data) {
       debugPrint('Socket: message_receipt_updated');
-      final String? messageId = (data['messageId'] ?? data['message_id'])?.toString();
+      final String? messageId = (data['messageId'] ?? data['message_id'])
+          ?.toString();
       final String? statusStr = data['status']?.toString();
 
       if (messageId != null && statusStr != null) {
@@ -1613,7 +2430,9 @@ class MessagingProvider extends ChangeNotifier {
 
       if (conversationId != null && userId != null) {
         final currentUserId = _userProvider.user?.id;
-        if (userId == currentUserId) return;
+        if (userId == currentUserId) {
+          return;
+        }
 
         final users = _typingUsers[conversationId] ?? {};
         if (isTyping) {
@@ -1627,21 +2446,8 @@ class MessagingProvider extends ChangeNotifier {
     });
 
     _socket?.on('message_reaction_updated', (data) {
-      final String? messageId = data['messageId']?.toString();
-      if (messageId != null) {
-        // Find message and update reactions
-        for (final entry in _messagesByConversation.entries) {
-          final list = entry.value;
-          final index = list.indexWhere((m) => m.id == messageId);
-          if (index != -1) {
-            final reactions = Map<String, List<String>>.from(
-              data['reactions'] ?? {},
-            );
-            list[index] = list[index].copyWith(reactions: reactions);
-            notifyListeners();
-            break;
-          }
-        }
+      if (data is Map) {
+        _applyReactionUpdate(Map<String, dynamic>.from(data));
       }
     });
 
@@ -1679,6 +2485,19 @@ class MessagingProvider extends ChangeNotifier {
       }
     });
 
+    _socket?.on('channel_comment_deleted', (data) {
+      debugPrint('Socket: channel_comment_deleted');
+      if (data is! Map) return;
+      final map = Map<String, dynamic>.from(data);
+      final postId = (map['postId'] ?? map['post_id'])?.toString();
+      final commentId = (map['commentId'] ?? map['comment_id'])?.toString();
+      if (postId == null || commentId == null) return;
+      final list = _postComments[postId];
+      if (list == null) return;
+      list.removeWhere((comment) => comment['id']?.toString() == commentId);
+      notifyListeners();
+    });
+
     // ==========================================================
     // MESSAGE REQUEST EVENTS
     // ==========================================================
@@ -1712,25 +2531,58 @@ class MessagingProvider extends ChangeNotifier {
       final request = MessageRequest.fromJson(Map<String, dynamic>.from(data));
       _handleRequestWithdrawn(request);
     });
+
+    _socket?.on('tip_received', (data) {
+      debugPrint('Socket: tip_received');
+      if (data is Map) {
+        final map = Map<String, dynamic>.from(data);
+        _handleTipReceived(map);
+        _tipReceivedController.add(map);
+      }
+    });
+  }
+
+  void _handleTipReceived(Map<String, dynamic> data) {
+    // 1. Refresh global state
+    loadWalletActivity();
+
+    // 2. Refresh wallet provider if available
+    // Note: MessagingProvider doesn't have direct access to WalletProvider,
+    // but the WalletSocket 'wallet_updated' event usually handles this.
+    // However, for immediate feedback, we ensure activity is fresh.
+
+    // 3. UI Notification trigger (handled in UI via listener if needed,
+    // or we can use a global notification event stream)
+
+    notifyListeners();
   }
 
   void _initWalletSocket(String accessToken) {
     if (_walletSocket != null) {
-      if (!_walletSocket!.connected) _walletSocket!.connect();
-      return;
+      final currentToken = _walletSocket!.io.options?['auth']?['token'];
+      if (currentToken != accessToken) {
+        _walletSocket!.disconnect();
+        _walletSocket!.dispose();
+        _walletSocket = null;
+      } else {
+        if (!_walletSocket!.connected) {
+          _walletSocket!.connect();
+        }
+        return;
+      }
     }
 
     final walletSocketUrl =
-        ApiConfig.baseUrl
-            .replaceFirst(RegExp(r'/api/?$'), '')
-            .replaceFirst(RegExp(r'/+$'), '') +
-        '/wallet';
+        '${ApiConfig.baseUrl.replaceFirst(RegExp(r'/api/?$'), '').replaceFirst(RegExp(r'/+$'), '')}/wallet';
+
+    debugPrint('Socket: Initializing wallet socket for $walletSocketUrl');
 
     _walletSocket = io.io(
       walletSocketUrl,
       io.OptionBuilder()
           .setTransports(['websocket'])
           .setAuth({'token': accessToken})
+          .setExtraHeaders({'Authorization': 'Bearer $accessToken'})
           .enableAutoConnect()
           .build(),
     );
@@ -1739,9 +2591,34 @@ class MessagingProvider extends ChangeNotifier {
       debugPrint('Socket: Connected to /wallet');
     });
 
+    _walletSocket?.onConnectError(
+      (data) => debugPrint('Socket: /wallet Connect Error: $data'),
+    );
+    _walletSocket?.onReconnectError(
+      (data) => debugPrint('Socket: /wallet Reconnect Error: $data'),
+    );
+    _walletSocket?.onError(
+      (data) => debugPrint('Socket: /wallet Error: $data'),
+    );
+
     _walletSocket?.on('wallet_updated', (data) {
       debugPrint('Socket: wallet_updated - refreshing activity');
-      loadWalletActivity();
+
+      final activity = data['activity'];
+      if (activity != null) {
+        final fromUser = activity['fromUser'];
+        if (fromUser != null) {
+          _tipReceivedController.add({
+            'senderName':
+                fromUser['displayName'] ?? fromUser['username'] ?? 'Griot User',
+            'amount': activity['value']?.toString() ?? '',
+            'asset': activity['asset']?.toString() ?? '',
+            'senderUserId': fromUser['id'],
+          });
+        }
+      }
+
+      refreshNotifications();
     });
 
     _walletSocket?.onDisconnect(
@@ -1750,6 +2627,8 @@ class MessagingProvider extends ChangeNotifier {
   }
 
   void disconnectSocket() {
+    _presenceHeartbeat?.cancel();
+    _presenceHeartbeat = null;
     _socket?.disconnect();
     _socket?.dispose();
     _socket = null;
@@ -1759,8 +2638,58 @@ class MessagingProvider extends ChangeNotifier {
     _walletSocket = null;
   }
 
-  Future<void> _refreshAllData() async {
-    await Future.wait([refreshActivity(), loadFriends(), loadConversations()]);
+  Future<void> clearState() async {
+    disconnectSocket();
+
+    _messagesByConversation.clear();
+    _isLoadingMessages.clear();
+    _conversations = [];
+    _isLoadingConversations = false;
+    _lastConversationsLoadedAt = null;
+    _conversationsLoadFuture = null;
+
+    _receivedRequests = [];
+    _sentRequests = [];
+    _isLoadingRequests = false;
+
+    _friends = [];
+    _friendRequestInFlight.clear();
+    _isLoadingFriends = false;
+    _friendsTotal = 0;
+    _hasMoreFriends = false;
+    _friendsOffset = 0;
+    _currentFriendsSearchQuery = null;
+    _isLoadingMoreFriends = false;
+
+    _discoveredGroups = [];
+    _discoveredChannels = [];
+    _isSearchingGroups = false;
+    _isSearchingChannels = false;
+
+    _blockedUserIds = [];
+    _isLoadingBlocks = false;
+
+    _presenceMap.clear();
+    _walletActivities = [];
+    _walletNextPageKey = null;
+    _isLoadingWalletActivity = false;
+    _isLoadingMoreWalletActivity = false;
+
+    _tipConfig = null;
+    _isLoadingTipConfig = false;
+
+    _lastSeenNotificationTime = null;
+    _currentRoomId = null;
+    _typingUsers.clear();
+
+    _channelPosts.clear();
+    _isLoadingPosts.clear();
+    _postComments.clear();
+    _isLoadingComments.clear();
+
+    await _messageCache.wipe();
+
+    notifyListeners();
   }
 
   void _handleRequestReceived(MessageRequest request) {
@@ -1834,69 +2763,6 @@ class MessagingProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _handleIncomingMessage(ChatMessage message) {
-    _messageSync.saveIncomingMessage(message);
-    final conversationId = message.conversationId;
-
-    // Requirement 12: Add it only to the matching conversation.
-    final list = _messagesByConversation[conversationId] ?? [];
-
-    // 1. If the message with this ID already exists, update it and return.
-    final existingIndex = list.indexWhere((m) => m.id == message.id);
-    if (existingIndex != -1) {
-      list[existingIndex] = message;
-      notifyListeners();
-      return;
-    }
-
-    // 2. If it's my message, try to find and replace a temp one.
-    final currentUserId = _userProvider.user?.id ?? '';
-    if (message.senderId == currentUserId) {
-      final tempIndex = list.indexWhere(
-        (m) => m.id.startsWith('temp_') && m.text == message.text,
-      );
-      if (tempIndex != -1) {
-        list[tempIndex] = message;
-        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        notifyListeners();
-        return;
-      }
-    }
-
-    // 3. Otherwise, add it to the list and sort.
-    list.add(message);
-    list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    _messagesByConversation[conversationId] = list;
-
-    // Update conversation last message and unread count if not current
-    final convIndex = _conversations.indexWhere((c) => c.id == conversationId);
-    if (convIndex != -1) {
-      final conv = _conversations[convIndex];
-      _conversations[convIndex] = conv.copyWith(
-        lastMessage: message,
-        updatedAt: message.createdAt,
-        unreadCount: _currentRoomId == conversationId
-            ? conv.unreadCount
-            : conv.unreadCount + 1,
-      );
-      _conversations.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-    } else {
-      // Requirement 12: Refresh the conversation if we don't have it (or if auth fails)
-      loadConversations();
-    }
-
-    // Requirement 10: Receipts - mark as delivered when received via socket
-    if (message.senderId != currentUserId) {
-      if (_currentRoomId == conversationId) {
-        markAsRead(message.id);
-      } else {
-        markAsDelivered(message.id);
-      }
-    }
-
-    notifyListeners();
-  }
-
   void setTyping(String conversationId, bool isTyping) {
     _socket?.emit(isTyping ? 'typing_start' : 'typing_stop', {
       'conversationId': conversationId,
@@ -1905,7 +2771,9 @@ class MessagingProvider extends ChangeNotifier {
 
   Future<void> toggleReaction(String messageId, String emoji) async {
     final currentUserId = _userProvider.user?.id;
-    if (currentUserId == null) return;
+    if (currentUserId == null) {
+      return;
+    }
 
     // Check if we already have this reaction from this user
     bool alreadyReacted = false;
@@ -1932,42 +2800,12 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
-  void _updateUserPresence(String userId, bool isOnline) {
-    var changed = false;
-    
-    // 0. Update presence map
-    if (_presenceMap[userId] != isOnline) {
-      _presenceMap[userId] = isOnline;
-      changed = true;
-    }
-
-    // 1. Update conversations
-    for (var i = 0; i < _conversations.length; i++) {
-      final conversation = _conversations[i];
-      final otherUser = conversation.otherUser;
-      if (otherUser?.id == userId && otherUser!.isOnline != isOnline) {
-        _conversations[i] = conversation.copyWith(
-          otherUser: otherUser.copyWith(isOnline: isOnline),
-        );
-        changed = true;
-      }
-    }
-
-    // 2. Update friends list
-    for (var i = 0; i < _friends.length; i++) {
-      if (_friends[i].id == userId && _friends[i].isOnline != isOnline) {
-        _friends[i] = _friends[i].copyWith(isOnline: isOnline);
-        changed = true;
-      }
-    }
-
-    if (changed) notifyListeners();
-  }
-
   void joinConversation(String conversationId) {
-    if (_socket == null) return;
     _currentRoomId = conversationId;
-    _socket?.emit('join_conversation', {'conversationId': conversationId});
+
+    if (_socket != null) {
+      _socket?.emit('join_conversation', {'conversationId': conversationId});
+    }
 
     // Reset unread count locally
     final index = _conversations.indexWhere((c) => c.id == conversationId);
@@ -1983,7 +2821,9 @@ class MessagingProvider extends ChangeNotifier {
   }
 
   void leaveConversation(String conversationId) {
-    if (_socket == null) return;
+    if (_socket == null) {
+      return;
+    }
     _socket?.emit('leave_conversation', {'conversationId': conversationId});
     _currentRoomId = null;
   }
@@ -1995,11 +2835,18 @@ class MessagingProvider extends ChangeNotifier {
   MessageStatus _parseMessageStatus(String status) {
     switch (status.toLowerCase()) {
       case 'read':
+      case 'seen':
         return MessageStatus.read;
       case 'delivered':
+      case 'received':
         return MessageStatus.delivered;
       case 'sent':
+      case 'pending':
+      case 'accepted':
         return MessageStatus.sent;
+      case 'failed':
+      case 'error':
+        return MessageStatus.failed;
       default:
         return MessageStatus.sending;
     }
@@ -2009,11 +2856,17 @@ class MessagingProvider extends ChangeNotifier {
     required String name,
     List<String> memberIds = const [],
     String visibility = 'public',
+    bool messagesLocked = false,
+    String? username,
+    String? description,
   }) async {
     final conversation = await _apiService.createGroup(
       name: name,
       memberIds: memberIds,
       visibility: visibility,
+      messagesLocked: messagesLocked,
+      username: username,
+      description: description,
     );
     _conversations.removeWhere((item) => item.id == conversation.id);
     _conversations.insert(0, conversation);
@@ -2041,14 +2894,44 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> createChannelPost(String conversationId, String content) async {
+  Future<void> createChannelPost(
+    String conversationId,
+    String content, {
+    String? mediaId,
+  }) async {
     try {
-      final post = await _apiService.createChannelPost(conversationId, content);
+      final post = await _apiService.createChannelPost(
+        conversationId,
+        content,
+        mediaId: mediaId,
+      );
       final list = _channelPosts[conversationId] ?? [];
-      _channelPosts[conversationId] = [post, ...list];
+      if (!list.any((item) => item.id == post.id)) {
+        _channelPosts[conversationId] = [post, ...list];
+      }
       notifyListeners();
     } catch (e) {
       debugPrint('Error creating channel post: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> sendChannelMediaPost({
+    required String conversationId,
+    required String filePath,
+    required MessageType type,
+    String? content,
+  }) async {
+    try {
+      // 1. Upload
+      final Map<String, dynamic> uploadResult = await _mediaApiService
+          .uploadMedia(filePath, conversationId: conversationId);
+      final String mediaId = uploadResult['id']?.toString() ?? '';
+
+      // 2. Create Post
+      await createChannelPost(conversationId, content ?? '', mediaId: mediaId);
+    } catch (e) {
+      debugPrint('Error sending channel media post: $e');
       rethrow;
     }
   }
@@ -2086,7 +2969,11 @@ class MessagingProvider extends ChangeNotifier {
       );
 
       final list = _postComments[postId] ?? [];
-      _postComments[postId] = [...list, comment];
+      if (!list.any(
+        (item) => item['id']?.toString() == comment['id']?.toString(),
+      )) {
+        _postComments[postId] = [...list, comment];
+      }
       notifyListeners();
     } catch (e) {
       debugPrint('Error submitting channel comment: $e');
@@ -2094,13 +2981,39 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> deleteChannelComment(
+    String conversationId,
+    String postId,
+    String commentId,
+  ) async {
+    try {
+      await _apiService.deleteChannelComment(conversationId, postId, commentId);
+      final list = _postComments[postId];
+      if (list != null) {
+        list.removeWhere((c) => c['id']?.toString() == commentId.toString());
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error deleting channel comment: $e');
+      rethrow;
+    }
+  }
+
   Future<Conversation> createChannel({
     required String name,
     required String username,
+    String? description,
+    String? imageUrl,
+    String visibility = 'public',
+    bool commentsLocked = false,
   }) async {
     final conversation = await _apiService.createChannel(
       name: name,
       username: username,
+      description: description,
+      imageUrl: imageUrl,
+      visibility: visibility,
+      commentsLocked: commentsLocked,
     );
     _conversations.removeWhere((item) => item.id == conversation.id);
     _conversations.insert(0, conversation);
@@ -2111,16 +3024,40 @@ class MessagingProvider extends ChangeNotifier {
 
   Future<void> addGroupMember(String conversationId, String userId) async {
     await _apiService.addGroupMember(conversationId, userId);
-    // Optionally refresh members or conversation list
+    await loadConversations(force: true);
   }
 
   Future<void> removeGroupMember(String conversationId, String userId) async {
     await _apiService.removeGroupMember(conversationId, userId);
+    await loadConversations(force: true);
+  }
+
+  Future<void> updateGroupMemberRole(
+    String conversationId,
+    String userId,
+    String role,
+  ) async {
+    await _apiService.updateGroupMemberRole(conversationId, userId, role);
+    notifyListeners();
   }
 
   Future<void> leaveGroup(String conversationId) async {
     await _apiService.leaveGroup(conversationId);
     _conversations.removeWhere((c) => c.id == conversationId);
+    notifyListeners();
+  }
+
+  Future<void> deleteConversation(String conversationId) async {
+    await _apiService.deleteConversation(conversationId);
+    _conversations.removeWhere((c) => c.id == conversationId);
+    await _messageCache.deleteConversation(conversationId);
+    notifyListeners();
+  }
+
+  Future<void> clearGroupMessages(String conversationId) async {
+    await _apiService.clearGroupMessages(conversationId);
+    _messagesByConversation[conversationId] = [];
+    await _messageCache.deleteMessages(conversationId);
     notifyListeners();
   }
 
@@ -2130,6 +3067,8 @@ class MessagingProvider extends ChangeNotifier {
     String? description,
     String? imageUrl,
     String? visibility,
+    bool? messagesLocked,
+    String? username,
   }) async {
     final conversation = await _apiService.updateGroup(
       conversationId,
@@ -2137,6 +3076,8 @@ class MessagingProvider extends ChangeNotifier {
       description: description,
       imageUrl: imageUrl,
       visibility: visibility,
+      messagesLocked: messagesLocked,
+      username: username,
     );
     final index = _conversations.indexWhere((c) => c.id == conversationId);
     if (index != -1) {
@@ -2151,6 +3092,8 @@ class MessagingProvider extends ChangeNotifier {
     String? description,
     String? imageUrl,
     String? visibility,
+    String? username,
+    bool? commentsLocked,
   }) async {
     final conversation = await _apiService.updateChannel(
       conversationId,
@@ -2158,6 +3101,8 @@ class MessagingProvider extends ChangeNotifier {
       description: description,
       imageUrl: imageUrl,
       visibility: visibility,
+      username: username,
+      commentsLocked: commentsLocked,
     );
     final index = _conversations.indexWhere((c) => c.id == conversationId);
     if (index != -1) {
@@ -2169,6 +3114,24 @@ class MessagingProvider extends ChangeNotifier {
   Future<void> deleteChannel(String conversationId) async {
     await _apiService.deleteChannel(conversationId);
     _conversations.removeWhere((c) => c.id == conversationId);
+    notifyListeners();
+  }
+
+  Future<void> removeChannelMember(
+    String conversationId,
+    String memberId,
+  ) async {
+    await _apiService.removeChannelMember(conversationId, memberId);
+    await loadConversations(force: true);
+  }
+
+  Future<void> addChannelAdmin(String conversationId, String userId) async {
+    await _apiService.addChannelAdmin(conversationId, userId);
+    notifyListeners();
+  }
+
+  Future<void> removeChannelAdmin(String conversationId, String userId) async {
+    await _apiService.removeChannelAdmin(conversationId, userId);
     notifyListeners();
   }
 
@@ -2206,7 +3169,9 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getGroupMembers(String conversationId) async {
+  Future<List<Map<String, dynamic>>> getGroupMembers(
+    String conversationId,
+  ) async {
     try {
       return await _apiService.getGroupMembers(conversationId);
     } catch (e) {
@@ -2215,7 +3180,9 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getChannelMembers(String conversationId) async {
+  Future<List<Map<String, dynamic>>> getChannelMembers(
+    String conversationId,
+  ) async {
     try {
       return await _apiService.getChannelMembers(conversationId);
     } catch (e) {
@@ -2235,6 +3202,98 @@ class MessagingProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('Error removing friend: $e');
       rethrow;
+    }
+  }
+
+  // ==========================================================
+  // DISCOVERY
+  // ==========================================================
+
+  Future<void> discoverGroups(String query, {bool refresh = true}) async {
+    if (query.length < 3) {
+      _discoveredGroups = [];
+      _groupsPage = 1;
+      _hasMoreGroups = false;
+      notifyListeners();
+      return;
+    }
+
+    if (refresh) {
+      _isSearchingGroups = true;
+      _groupsPage = 1;
+    } else {
+      if (_isLoadingMoreGroups || !_hasMoreGroups) return;
+      _isLoadingMoreGroups = true;
+    }
+    notifyListeners();
+
+    try {
+      final results = await _apiService.discoverGroups(
+        query,
+        page: _groupsPage,
+        limit: 20,
+      );
+
+      if (refresh) {
+        _discoveredGroups = results;
+      } else {
+        _discoveredGroups.addAll(results);
+      }
+
+      _hasMoreGroups = results.length >= 20;
+      if (_hasMoreGroups) _groupsPage++;
+    } catch (e) {
+      debugPrint('Error discovering groups: $e');
+      if (refresh) _discoveredGroups = [];
+      rethrow;
+    } finally {
+      _isSearchingGroups = false;
+      _isLoadingMoreGroups = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> discoverChannels(String query, {bool refresh = true}) async {
+    if (query.length < 3) {
+      _discoveredChannels = [];
+      _channelsPage = 1;
+      _hasMoreChannels = false;
+      notifyListeners();
+      return;
+    }
+
+    if (refresh) {
+      _isSearchingChannels = true;
+      _channelsPage = 1;
+    } else {
+      if (_isLoadingMoreChannels || !_hasMoreChannels) return;
+      _isLoadingMoreChannels = true;
+    }
+    notifyListeners();
+
+    try {
+      final results = await _apiService.discoverChannels(
+        query,
+        page: _channelsPage,
+        limit: 20,
+      );
+
+      if (refresh) {
+        _discoveredChannels = results;
+      } else {
+        _discoveredChannels.addAll(results);
+      }
+
+      _hasMoreChannels = results.length >= 20;
+      if (_hasMoreChannels) _channelsPage++;
+    } catch (e) {
+      debugPrint('Error discovering channels: $e');
+      if (refresh) _discoveredChannels = [];
+      rethrow;
+    } finally {
+      _isSearchingChannels = false;
+      _isLoadingMoreChannels = false;
+      notifyListeners();
     }
   }
 

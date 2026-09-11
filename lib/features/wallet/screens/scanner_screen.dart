@@ -38,13 +38,37 @@ class _ScannerScreenState extends State<ScannerScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = theme.colorScheme;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Scan QR'),
+        centerTitle: true,
+        automaticallyImplyLeading: false,
+        leading: Center(
+          child: GestureDetector(
+            onTap: () => Navigator.of(context).pop(),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: colors.primary.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Icon(
+                Icons.arrow_back_ios_new_rounded,
+                size: 18,
+                color: colors.primary,
+              ),
+            ),
+          ),
+        ),
         actions: [
           IconButton(
-            iconSize: 32,
+            iconSize: 24,
             onPressed: controller.toggleTorch,
             icon: ValueListenableBuilder<MobileScannerState>(
               valueListenable: controller,

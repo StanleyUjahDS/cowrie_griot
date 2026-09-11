@@ -1,10 +1,8 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../core/ui/screens/app_loading_screen.dart';
+import '../../../core/ui/widgets/griot_branded_container.dart';
 import '../../../core/services/notification_service.dart';
 
 import '../../wallet/services/wallet_service.dart';
@@ -17,12 +15,10 @@ class CreateAccountScreen extends StatefulWidget {
   });
 
   @override
-  State<CreateAccountScreen> createState() =>
-      _CreateAccountScreenState();
+  State<CreateAccountScreen> createState() => _CreateAccountScreenState();
 }
 
-class _CreateAccountScreenState
-    extends State<CreateAccountScreen> {
+class _CreateAccountScreenState extends State<CreateAccountScreen> {
   // ==========================================================
   // WALLET SERVICE
   // ==========================================================
@@ -57,8 +53,7 @@ class _CreateAccountScreenState
 
         title: 'Preparing your account',
 
-        message:
-        'Creating your secure wallet...',
+        message: 'Creating your secure wallet...',
 
         // This icon is specific to THIS operation.
         //
@@ -78,9 +73,9 @@ class _CreateAccountScreenState
         // ----------------------------------------------------
 
         onSuccess: (
-            BuildContext context,
-            dynamic result,
-            ) {
+          BuildContext context,
+          dynamic result,
+        ) {
           // The generic loading route returns dynamic.
           // We restore the expected type here.
 
@@ -109,7 +104,8 @@ class _CreateAccountScreenState
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
 
-    return GradientScaffold(
+    return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text(
           'Create Account',
@@ -120,7 +116,7 @@ class _CreateAccountScreenState
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
       ),
-      child: SafeArea(
+      body: SafeArea(
         child: Column(
           children: [
             // ==================================================
@@ -134,99 +130,60 @@ class _CreateAccountScreenState
                   vertical: 16,
                 ),
                 child: Column(
-                  crossAxisAlignment:
-                  CrossAxisAlignment.stretch,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     // ==========================================
                     // WARNING CARD
                     // ==========================================
 
-                    ClipRRect(
-                      borderRadius:
-                      BorderRadius.circular(18),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(
-                          sigmaX: 18,
-                          sigmaY: 18,
-                        ),
-                        child: Container(
-                          width: double.infinity,
-                          padding:
-                          const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: colorScheme.surface
-                                .withValues(alpha: 0.82),
-                            borderRadius:
-                            BorderRadius.circular(
-                              18,
+                    GriotBrandedContainer(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: colorScheme.primary.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(
+                                14,
+                              ),
                             ),
-                            border: Border.all(
-                              color: colorScheme
-                                  .onSurface
-                                  .withValues(alpha: 0.08),
+                            child: Icon(
+                              Icons.shield_outlined,
+                              color: colorScheme.primary,
+                              size: 26,
                             ),
                           ),
-                          child: Column(
-                            crossAxisAlignment:
-                            CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                width: 48,
-                                height: 48,
-                                decoration:
-                                BoxDecoration(
-                                  color: colorScheme
-                                      .primary
-                                      .withValues(alpha: 0.12),
-                                  borderRadius:
-                                  BorderRadius
-                                      .circular(
-                                    14,
-                                  ),
-                                ),
-                                child: Icon(
-                                  Icons.shield_outlined,
-                                  color:
-                                  colorScheme.primary,
-                                  size: 26,
-                                ),
-                              ),
 
-                              const SizedBox(
-                                height: 20,
-                              ),
-
-                              Text(
-                                'Write it Down!',
-                                style: textTheme
-                                    .titleLarge
-                                    ?.copyWith(
-                                  fontWeight:
-                                  FontWeight.w700,
-                                ),
-                              ),
-
-                              const SizedBox(
-                                height: 10,
-                              ),
-
-                              Text(
-                                'There is no way to recover '
-                                    'your account if you lose your '
-                                    'recovery phrase. Make sure to '
-                                    'store it in a safe place.',
-                                style: textTheme
-                                    .bodyMedium
-                                    ?.copyWith(
-                                  color: colorScheme
-                                      .onSurface
-                                      .withValues(alpha: 0.70),
-                                  height: 1.5,
-                                ),
-                              ),
-                            ],
+                          const SizedBox(
+                            height: 20,
                           ),
-                        ),
+
+                          Text(
+                            'Write it Down!',
+                            style: textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+
+                          const SizedBox(
+                            height: 10,
+                          ),
+
+                          Text(
+                            'There is no way to recover '
+                            'your account if you lose your '
+                            'recovery phrase. Make sure to '
+                            'store it in a safe place.',
+                            style: textTheme.bodyMedium?.copyWith(
+                              color:
+                                  colorScheme.onSurface.withValues(alpha: 0.70),
+                              height: 1.5,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
 
@@ -240,13 +197,11 @@ class _CreateAccountScreenState
 
                     Text(
                       'Backup your recovery phrase to ensure '
-                          'you do not lose access to Griot when the '
-                          'app is uninstalled or your device is lost.',
+                      'you do not lose access to Griot when the '
+                      'app is uninstalled or your device is lost.',
                       textAlign: TextAlign.center,
-                      style:
-                      textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onSurface
-                            .withValues(alpha: 0.65),
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurface.withValues(alpha: 0.65),
                         height: 1.5,
                       ),
                     ),
@@ -260,8 +215,7 @@ class _CreateAccountScreenState
                     // ==========================================
 
                     Row(
-                      crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Icon(
                           Icons.lock_outline_rounded,
@@ -276,14 +230,11 @@ class _CreateAccountScreenState
                         Expanded(
                           child: Text(
                             'Your recovery phrase belongs '
-                                'to you. Griot will never ask you '
-                                'to send it to us.',
-                            style: textTheme
-                                .bodySmall
-                                ?.copyWith(
-                              color: colorScheme
-                                  .onSurface
-                                  .withValues(alpha: 0.60),
+                            'to you. Griot will never ask you '
+                            'to send it to us.',
+                            style: textTheme.bodySmall?.copyWith(
+                              color:
+                                  colorScheme.onSurface.withValues(alpha: 0.60),
                               height: 1.45,
                             ),
                           ),
@@ -312,30 +263,21 @@ class _CreateAccountScreenState
                 child: ElevatedButton(
                   onPressed: _generateAccount,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                    colorScheme.primary,
-                    foregroundColor:
-                    colorScheme.onPrimary,
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: colorScheme.onPrimary,
                     elevation: 0,
-                    padding:
-                    const EdgeInsets.symmetric(
+                    padding: const EdgeInsets.symmetric(
                       horizontal: 20,
                       vertical: 14,
                     ),
-                    shape:
-                    RoundedRectangleBorder(
-                      borderRadius:
-                      BorderRadius.circular(16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
                     ),
                   ),
                   child: Text(
                     'Generate Account',
-                    style: textTheme.labelLarge
-                        ?.copyWith(
-                      color:
-                      colorScheme.onPrimary,
-                      fontWeight:
-                      FontWeight.w700,
+                    style: textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
                 ),

@@ -21,11 +21,7 @@ class SwapScreen extends StatefulWidget {
   final TokenModel? initialFromToken;
   final TokenModel? initialToToken;
 
-  const SwapScreen({
-    super.key,
-    this.initialFromToken,
-    this.initialToToken,
-  });
+  const SwapScreen({super.key, this.initialFromToken, this.initialToToken});
 
   @override
   State<SwapScreen> createState() => _SwapScreenState();
@@ -42,12 +38,12 @@ class _SwapScreenState extends State<SwapScreen> {
   bool _isLoading = false;
   bool _isApproving = false;
   bool _isApprovalRequired = false;
-  final bool _isUsdMode = false;
+  bool _isUsdMode = false;
   String _loadingMessage = '';
   Map<String, dynamic>? _quote;
   Timer? _debounce;
   int _quoteRequestVersion = 0;
-  
+
   String _slippageMode = 'auto';
   double? _customSlippageValue;
 
@@ -86,7 +82,9 @@ class _SwapScreenState extends State<SwapScreen> {
       if (price > 0) {
         final tokenAmount = amount / price;
         final decimals = _fromToken!.decimals ?? 18;
-        _amountController.text = tokenAmount.toStringAsFixed(decimals > 6 ? 6 : decimals);
+        _amountController.text = tokenAmount.toStringAsFixed(
+          decimals > 6 ? 6 : decimals,
+        );
       } else {
         _amountController.text = '0';
       }
@@ -102,28 +100,26 @@ class _SwapScreenState extends State<SwapScreen> {
 
   void _onMaxPressed() {
     if (_fromToken == null) return;
-    final maxBalance = num.tryParse(_fromToken!.balance)?.toDouble() ?? 0.0;
+    final maxBalance = _fromToken!.balance;
 
     if (_isUsdMode) {
       final price = _fromToken!.priceUsd?.toDouble() ?? 0.0;
-      final maxUsd = maxBalance * price;
+      final maxUsd = (double.tryParse(maxBalance) ?? 0.0) * price;
       _usdController.text = maxUsd.toStringAsFixed(2);
       _syncControllers(_usdController.text, sourceIsUsd: true);
     } else {
-      _amountController.text = maxBalance.toString();
+      _amountController.text = maxBalance;
       _syncControllers(_amountController.text, sourceIsUsd: false);
     }
 
     _getQuote();
   }
 
-
-
   Future<void> _getQuote() async {
     final fromToken = _fromToken;
     final toToken = _toToken;
     if (fromToken == null || toToken == null) return;
-    
+
     final swapApi = context.read<SwapApiService>();
     final walletProvider = context.read<WalletProvider>();
     final walletService = context.read<WalletService>();
@@ -137,9 +133,13 @@ class _SwapScreenState extends State<SwapScreen> {
       return;
     }
 
-    final enteredAmount = double.tryParse(amount) ?? 0.0;
-    final maxBalance = num.tryParse(fromToken.balance)?.toDouble() ?? 0.0;
-    if (enteredAmount > maxBalance) {
+    final amountRaw = _toBaseUnits(amount, fromToken.decimals ?? 18);
+    final balanceRaw = _tokenBalanceRaw(fromToken);
+    final requestedUnits = _parseQuantity(amountRaw);
+    final availableUnits = _parseQuantity(balanceRaw);
+    if (requestedUnits == null ||
+        availableUnits == null ||
+        requestedUnits > availableUnits) {
       if (mounted) {
         setState(() {
           _quote = null;
@@ -147,7 +147,7 @@ class _SwapScreenState extends State<SwapScreen> {
         });
         NotificationService.showError(
           context,
-          'Amount exceeds your balance of $maxBalance ${fromToken.symbol}',
+          'Amount exceeds your balance of ${fromToken.balance} ${fromToken.symbol}',
         );
       }
       return;
@@ -169,30 +169,30 @@ class _SwapScreenState extends State<SwapScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final isCrossChain = fromToken.chain.toLowerCase() !=
-          toToken.chain.toLowerCase();
+      final isCrossChain =
+          fromToken.chain.toLowerCase() != toToken.chain.toLowerCase();
 
       final quoteResponse = await swapApi.getQuote(
-            fromChain: fromToken.chain,
-            toChain: toToken.chain,
-            fromToken: fromTokenAddress,
-            toToken: toTokenAddress,
-            fromAmount: fromAmountRaw,
-            fromAddress: fromAddress,
-            toAddress: isCrossChain ? fromAddress : null,
-            modeOfSlippage: _slippageMode,
-            slippage: _slippageMode == 'custom' ? _effectiveSlippage : null,
-          );
+        fromChain: fromToken.chain,
+        toChain: toToken.chain,
+        fromToken: fromTokenAddress,
+        toToken: toTokenAddress,
+        fromAmount: fromAmountRaw,
+        fromAddress: fromAddress,
+        toAddress: isCrossChain ? fromAddress : null,
+        modeOfSlippage: _slippageMode,
+        slippage: _slippageMode == 'custom' ? _effectiveSlippage : null,
+      );
 
       if (!mounted || requestVersion != _quoteRequestVersion) return;
 
       final quote = quoteResponse;
-      
+
       final tx = quote['transactionRequest'] ?? quote['transaction'];
       if (tx is! Map) {
         throw Exception('Incomplete quote: missing transaction data.');
       }
-      
+
       final requiredFields = ['to', 'data', 'value', 'chainId'];
       for (final field in requiredFields) {
         if (tx[field] == null) {
@@ -214,7 +214,9 @@ class _SwapScreenState extends State<SwapScreen> {
               spender: approvalAddress,
             ),
           );
-          final allowance = BigInt.tryParse(allowanceHex.replaceFirst('0x', ''), radix: 16) ?? BigInt.zero;
+          final allowance =
+              BigInt.tryParse(allowanceHex.replaceFirst('0x', ''), radix: 16) ??
+              BigInt.zero;
           final requiredAmount = BigInt.tryParse(fromAmountRaw) ?? BigInt.zero;
 
           if (allowance < requiredAmount) {
@@ -249,7 +251,9 @@ class _SwapScreenState extends State<SwapScreen> {
     final fromAddress = walletProvider.wallet?.address;
 
     if (quote == null || fromToken == null || fromAddress == null) {
-      if (mounted) NotificationService.showError(context, 'Wallet session missing.');
+      if (mounted) {
+        NotificationService.showError(context, 'Wallet session missing.');
+      }
       return;
     }
 
@@ -258,14 +262,11 @@ class _SwapScreenState extends State<SwapScreen> {
     final transactionApi = context.read<TransactionApiService>();
 
     final amount = _amountController.text.trim();
-    final enteredAmount = double.tryParse(amount) ?? 0.0;
-    final balance = num.tryParse(fromToken.balance)?.toDouble() ?? 0.0;
-    if (enteredAmount > balance) {
-      NotificationService.showError(context, 'Insufficient balance.');
-      return;
-    }
 
-    final rawTransaction = quote['transactionRequest'] ?? quote['transaction'];
+    final rawTransaction =
+        quote['transactionRequest'] ??
+        quote['transaction_request'] ??
+        quote['transaction'];
     if (rawTransaction is! Map) {
       NotificationService.showError(context, 'Invalid transaction data.');
       return;
@@ -275,16 +276,32 @@ class _SwapScreenState extends State<SwapScreen> {
 
     final to = transaction['to']?.toString();
     final data = transaction['data']?.toString();
-    final value = transaction['value']?.toString() ?? '0';
-    final chainIdStr = transaction['chainId']?.toString() ?? '';
+    final value = (transaction['value'] ?? transaction['amount'] ?? '0')
+        .toString();
+    final chainIdStr = (transaction['chainId'] ?? transaction['chain_id'] ?? '')
+        .toString();
     final chainId = int.tryParse(chainIdStr);
-    int? nonce = int.tryParse(transaction['nonce']?.toString() ?? '');
-    String? gasLimit = transaction['gasLimit']?.toString() ?? transaction['gas']?.toString();
-    final gasPrice = transaction['gasPrice']?.toString();
-    final maxFeePerGas = transaction['maxFeePerGas']?.toString();
-    final maxPriorityFeePerGas = transaction['maxPriorityFeePerGas']?.toString();
+    int? nonce = int.tryParse((transaction['nonce'] ?? '').toString());
+    String? gasLimit =
+        (transaction['gasLimit'] ??
+                transaction['gas'] ??
+                transaction['gas_limit'])
+            ?.toString();
+    String? gasPrice = (transaction['gasPrice'] ?? transaction['gas_price'])
+        ?.toString();
+    String? maxFeePerGas =
+        (transaction['maxFeePerGas'] ?? transaction['max_fee_per_gas'])
+            ?.toString();
+    String? maxPriorityFeePerGas =
+        (transaction['maxPriorityFeePerGas'] ??
+                transaction['max_priority_fee_per_gas'])
+            ?.toString();
 
-    if (to == null || to.isEmpty || data == null || data.isEmpty || chainId == null) {
+    if (to == null ||
+        to.isEmpty ||
+        data == null ||
+        data.isEmpty ||
+        chainId == null) {
       NotificationService.showError(context, 'Incomplete transaction data.');
       return;
     }
@@ -295,7 +312,7 @@ class _SwapScreenState extends State<SwapScreen> {
       toToken: _toToken!,
       fromAmount: _amountController.text,
       toAmount: _fromBaseUnits(
-        quote['toAmount']?.toString(),
+        (quote['toAmount'] ?? quote['to_amount'])?.toString(),
         _toToken?.decimals ?? 18,
       ),
     );
@@ -311,16 +328,19 @@ class _SwapScreenState extends State<SwapScreen> {
     });
     try {
       nonce ??= await swapApi.getNonce(
-          network: fromToken.chain,
-          address: fromAddress,
-        );
-      
+        network: fromToken.chain,
+        address: fromAddress,
+      );
+
       final networkChainId = _getExpectedChainId(fromToken.chain);
       if (networkChainId == null || chainId != networkChainId) {
         throw Exception('Transaction chain ID mismatch for ${fromToken.chain}');
       }
 
-      if (gasLimit == null) {
+      final hasEip1559Fees =
+          maxFeePerGas != null && maxPriorityFeePerGas != null;
+      final hasLegacyFee = gasPrice != null;
+      if (gasLimit == null || (!hasEip1559Fees && !hasLegacyFee)) {
         final estimate = await transactionApi.estimateTransaction(
           network: fromToken.chain,
           transaction: {
@@ -330,11 +350,39 @@ class _SwapScreenState extends State<SwapScreen> {
             'data': data,
           },
         );
-        gasLimit = estimate['gasLimit']?.toString() ?? '300000';
+        gasLimit ??= estimate['gasLimit']?.toString() ?? '300000';
+        gasPrice ??= estimate['gasPrice']?.toString();
+        maxFeePerGas ??= estimate['maxFeePerGas']?.toString();
+        maxPriorityFeePerGas ??= estimate['maxPriorityFeePerGas']?.toString();
+      }
+
+      final requestedUnits = _parseQuantity(
+        _toBaseUnits(amount, fromToken.decimals ?? 18),
+      );
+      final availableUnits = _parseQuantity(
+        _tokenBalanceRaw(fromToken),
+      );
+      if (requestedUnits == null ||
+          availableUnits == null ||
+          requestedUnits > availableUnits) {
+        throw Exception('Insufficient balance.');
+      }
+
+      if (fromToken.isNative) {
+        final gasUnits = _parseQuantity(gasLimit);
+        final feePerGas = _parseQuantity(maxFeePerGas ?? gasPrice);
+        if (gasUnits != null && feePerGas != null) {
+          final gasReserve = gasUnits * feePerGas;
+          if (requestedUnits + gasReserve > availableUnits) {
+            throw Exception('Insufficient balance to pay the network fee.');
+          }
+        } else if (requestedUnits >= availableUnits) {
+          throw Exception('Leave enough native token to pay the network fee.');
+        }
       }
 
       if (mounted) setState(() => _loadingMessage = 'Signing...');
-      
+
       // Ensure focus is dismissed
       if (mounted) FocusScope.of(context).unfocus();
 
@@ -417,7 +465,10 @@ class _SwapScreenState extends State<SwapScreen> {
       _loadingMessage = 'Preparing...';
     });
     try {
-      final fromAmountRaw = _toBaseUnits(_amountController.text, fromToken.decimals ?? 18);
+      final fromAmountRaw = _toBaseUnits(
+        _amountController.text,
+        fromToken.decimals ?? 18,
+      );
       final data = walletService.crypto.encodeErc20Approve(
         spender: approvalAddress,
         amount: fromAmountRaw!,
@@ -438,9 +489,12 @@ class _SwapScreenState extends State<SwapScreen> {
         },
       );
 
-      final transactionRequest = quote['transactionRequest'] ?? quote['transaction'] ?? {};
-      final chainId = int.tryParse(transactionRequest['chainId']?.toString() ?? '');
-      
+      final transactionRequest =
+          quote['transactionRequest'] ?? quote['transaction'] ?? {};
+      final chainId = int.tryParse(
+        transactionRequest['chainId']?.toString() ?? '',
+      );
+
       if (chainId == null) {
         throw Exception('Approval chain ID is missing');
       }
@@ -473,7 +527,7 @@ class _SwapScreenState extends State<SwapScreen> {
         );
 
         final hash = broadcastResult['hash']?.toString();
-        
+
         TransactionLogger.log(
           endpoint: '/crypto/swap/broadcast',
           network: network,
@@ -488,7 +542,9 @@ class _SwapScreenState extends State<SwapScreen> {
 
         bool isConfirmed = false;
         for (int i = 0; i < 30; i++) {
-          if (mounted) setState(() => _loadingMessage = 'Waiting for confirmation...');
+          if (mounted) {
+            setState(() => _loadingMessage = 'Waiting for confirmation...');
+          }
           await Future.delayed(const Duration(seconds: 5));
           if (!mounted) return;
 
@@ -543,6 +599,7 @@ class _SwapScreenState extends State<SwapScreen> {
 
     return showModalBottomSheet<bool>(
       context: context,
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (context) => Container(
@@ -584,17 +641,26 @@ class _SwapScreenState extends State<SwapScreen> {
                       const SizedBox(height: 12),
                       Text(
                         fromAmount,
-                        style: text.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                        style: text.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                       Text(
                         fromToken.symbol,
-                        style: text.labelSmall?.copyWith(color: colors.onSurfaceVariant, fontWeight: FontWeight.w700),
+                        style: text.labelSmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ],
                   ),
                 ),
-                Icon(Icons.arrow_forward_rounded, color: colors.primary.withValues(alpha: 0.4), size: 28),
+                Icon(
+                  Icons.arrow_forward_rounded,
+                  color: colors.primary.withValues(alpha: 0.4),
+                  size: 28,
+                ),
                 Expanded(
                   child: Column(
                     children: [
@@ -609,12 +675,18 @@ class _SwapScreenState extends State<SwapScreen> {
                       const SizedBox(height: 12),
                       Text(
                         toAmount,
-                        style: text.titleMedium?.copyWith(fontWeight: FontWeight.w900, color: colors.primary),
+                        style: text.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          color: colors.primary,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                       Text(
                         toToken.symbol,
-                        style: text.labelSmall?.copyWith(color: colors.onSurfaceVariant, fontWeight: FontWeight.w700),
+                        style: text.labelSmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ],
                   ),
@@ -629,9 +701,17 @@ class _SwapScreenState extends State<SwapScreen> {
                 onPressed: () => Navigator.pop(context, true),
                 style: FilledButton.styleFrom(
                   backgroundColor: colors.primary,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
                 ),
-                child: const Text('CONFIRM SWAP', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1)),
+                child: const Text(
+                  'CONFIRM SWAP',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1,
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -639,7 +719,13 @@ class _SwapScreenState extends State<SwapScreen> {
               width: double.infinity,
               child: TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: Text('Cancel', style: text.bodyLarge?.copyWith(fontWeight: FontWeight.w700, color: colors.onSurfaceVariant)),
+                child: Text(
+                  'Cancel',
+                  style: text.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
               ),
             ),
           ],
@@ -685,7 +771,9 @@ class _SwapScreenState extends State<SwapScreen> {
 
         final status = statusData['status']?.toString().toUpperCase();
 
-        if (status == 'CONFIRMED' || status == 'SUCCESS' || status == 'COMPLETED') {
+        if (status == 'CONFIRMED' ||
+            status == 'SUCCESS' ||
+            status == 'COMPLETED') {
           if (mounted) {
             NotificationService.showSuccess(context, 'Swap successful!');
             await walletProvider.loadWallet();
@@ -729,9 +817,23 @@ class _SwapScreenState extends State<SwapScreen> {
     if (fraction.length > decimals) return null;
 
     final paddedFraction = fraction.padRight(decimals, '0');
-    final raw = '$whole$paddedFraction'
-        .replaceFirst(RegExp(r'^0+(?=\d)'), '');
+    final raw = '$whole$paddedFraction'.replaceFirst(RegExp(r'^0+(?=\d)'), '');
     return RegExp(r'^\d+$').hasMatch(raw) ? raw : null;
+  }
+
+  BigInt? _parseQuantity(String? value) {
+    if (value == null || value.isEmpty) return null;
+    final normalized = value.trim().toLowerCase();
+    if (normalized.startsWith('0x')) {
+      return BigInt.tryParse(normalized.substring(2), radix: 16);
+    }
+    return BigInt.tryParse(normalized);
+  }
+
+  String _tokenBalanceRaw(TokenModel token) {
+    final raw = token.rawBalance.trim();
+    if (RegExp(r'^\d+$').hasMatch(raw)) return raw;
+    return _toBaseUnits(token.balance, token.decimals ?? 18) ?? '0';
   }
 
   String _fromBaseUnits(String? baseAmount, int decimals) {
@@ -739,10 +841,7 @@ class _SwapScreenState extends State<SwapScreen> {
       return '0.00';
     }
 
-    final cleanBase = baseAmount
-        .split('.')
-        .first
-        .replaceAll(RegExp(r'\D'), '');
+    final cleanBase = baseAmount.split('.').first.replaceAll(RegExp(r'\D'), '');
     if (cleanBase.isEmpty) return '0.00';
     if (decimals == 0) return cleanBase;
 
@@ -771,10 +870,10 @@ class _SwapScreenState extends State<SwapScreen> {
     if (normalized == _nativeTokenAddress.toLowerCase()) {
       try {
         return context.read<WalletProvider>().tokens.firstWhere(
-              (token) =>
-                  token.isNative &&
-                  token.chain.toLowerCase() == _fromToken?.chain.toLowerCase(),
-            );
+          (token) =>
+              token.isNative &&
+              token.chain.toLowerCase() == _fromToken?.chain.toLowerCase(),
+        );
       } catch (_) {
         return null;
       }
@@ -824,9 +923,14 @@ class _SwapScreenState extends State<SwapScreen> {
     _debounce?.cancel();
   }
 
-  Future<void> _showTokenPicker(BuildContext context, {required bool isFrom}) async {
-    final selected = await context.push<TokenModel>('/wallet/search?mode=select');
-    
+  Future<void> _showTokenPicker(
+    BuildContext context, {
+    required bool isFrom,
+  }) async {
+    final selected = await context.push<TokenModel>(
+      '/wallet/search?mode=select',
+    );
+
     if (selected != null && mounted) {
       setState(() {
         if (isFrom) {
@@ -851,6 +955,7 @@ class _SwapScreenState extends State<SwapScreen> {
       onTap: () => FocusScope.of(context).unfocus(),
       child: GradientScaffold(
         useSafeArea: true,
+        resizeToAvoidBottomInset: false,
         extendBodyBehindAppBar: true,
         appBar: AppBar(
           title: const Text('Swap'),
@@ -864,28 +969,12 @@ class _SwapScreenState extends State<SwapScreen> {
             Expanded(
               child: Stack(
                 children: [
-                  // Decorative Glow
-                  Positioned(
-                    top: -50,
-                    right: -50,
-                    child: Container(
-                      width: 250,
-                      height: 250,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            colors.primary.withValues(alpha: 0.1),
-                            colors.primary.withValues(alpha: 0.0),
-                          ],
-                        ),
-                      ),
-                    ).animate(onPlay: (c) => c.repeat(reverse: true))
-                     .scale(begin: const Offset(0.8, 0.8), end: const Offset(1.2, 1.2), duration: 5.seconds),
-                  ),
-
+                  // Content
                   SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
                     physics: const BouncingScrollPhysics(),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -895,16 +984,22 @@ class _SwapScreenState extends State<SwapScreen> {
                         _buildSwapInput(
                           context,
                           token: _fromToken,
-                          controller: _isUsdMode ? _usdController : _amountController,
+                          controller: _isUsdMode
+                              ? _usdController
+                              : _amountController,
                           onChanged: _onAmountChanged,
-                          onTokenTap: () => _showTokenPicker(context, isFrom: true),
+                          onTokenTap: () =>
+                              _showTokenPicker(context, isFrom: true),
                           showMax: true,
                           onMaxTap: _onMaxPressed,
                           subValue: _isUsdMode
-                            ? '${_amountController.text} ${_fromToken?.symbol ?? ""}'
-                            : (_usdController.text.isNotEmpty ? '\$${_usdController.text}' : null),
+                              ? '${_amountController.text} ${_fromToken?.symbol ?? ""}'
+                              : (_usdController.text.isNotEmpty
+                                    ? '\$${_usdController.text}'
+                                    : null),
+                          suffix: _buildCurrencyToggle(context),
                         ),
-                        
+
                         const SizedBox(height: 12),
                         Center(
                           child: Container(
@@ -913,15 +1008,34 @@ class _SwapScreenState extends State<SwapScreen> {
                             decoration: BoxDecoration(
                               color: colors.surface,
                               shape: BoxShape.circle,
-                              border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.2), width: 1.5),
-                              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4))],
+                              border: Border(
+                                top: BorderSide(
+                                  color: colors.primary.withValues(alpha: 0.6),
+                                  width: 1.2,
+                                ),
+                                bottom: BorderSide(
+                                  color: colors.primary.withValues(alpha: 0.6),
+                                  width: 1.2,
+                                ),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.1),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
                             ),
                             child: Material(
                               color: Colors.transparent,
                               child: InkWell(
                                 onTap: _swapTokens,
                                 customBorder: const CircleBorder(),
-                                child: Icon(Icons.swap_vert_rounded, color: colors.primary, size: 24),
+                                child: Icon(
+                                  Icons.swap_vert_rounded,
+                                  color: colors.primary,
+                                  size: 24,
+                                ),
                               ),
                             ),
                           ),
@@ -937,11 +1051,21 @@ class _SwapScreenState extends State<SwapScreen> {
                             _quote?['toAmount']?.toString(),
                             _toToken?.decimals ?? 18,
                           ),
-                          onTokenTap: () => _showTokenPicker(context, isFrom: false),
-                          subValue: _quote != null && _toToken != null && (_toToken!.priceUsd ?? 0) > 0
+                          onTokenTap: () =>
+                              _showTokenPicker(context, isFrom: false),
+                          subValue:
+                              _quote != null &&
+                                  _toToken != null &&
+                                  (_toToken!.priceUsd ?? 0) > 0
                               ? WalletFormatters.formatCurrency(
-                                  (double.tryParse(_fromBaseUnits(_quote!['toAmount']?.toString(), _toToken!.decimals ?? 18)) ?? 0) *
-                                  (_toToken!.priceUsd?.toDouble() ?? 0)
+                                  (double.tryParse(
+                                            _fromBaseUnits(
+                                              _quote!['toAmount']?.toString(),
+                                              _toToken!.decimals ?? 18,
+                                            ),
+                                          ) ??
+                                          0) *
+                                      (_toToken!.priceUsd?.toDouble() ?? 0),
                                 )
                               : null,
                         ),
@@ -953,11 +1077,16 @@ class _SwapScreenState extends State<SwapScreen> {
                         const SizedBox(height: 24),
                         _buildInputLabel(context, 'Settings'),
                         const SizedBox(height: 8),
-                        _buildSlippageSettings(context).animate().fadeIn(delay: 200.ms),
+                        _buildSlippageSettings(
+                          context,
+                        ).animate().fadeIn(delay: 200.ms),
 
                         // Recommendation Warnings
-                        if (_quote != null && _slippageMode == 'custom' && _quote!['recommendedSlippage'] != null) ...[
-                          if (_effectiveSlippage < (_quote!['recommendedSlippage'] as double))
+                        if (_quote != null &&
+                            _slippageMode == 'custom' &&
+                            _quote!['recommendedSlippage'] != null) ...[
+                          if (_effectiveSlippage <
+                              (_quote!['recommendedSlippage'] as double))
                             Padding(
                               padding: const EdgeInsets.only(top: 16),
                               child: Container(
@@ -965,16 +1094,25 @@ class _SwapScreenState extends State<SwapScreen> {
                                 decoration: BoxDecoration(
                                   color: colors.error.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: colors.error.withValues(alpha: 0.2)),
+                                  border: Border.all(
+                                    color: colors.error.withValues(alpha: 0.2),
+                                  ),
                                 ),
                                 child: Row(
                                   children: [
-                                    Icon(Icons.error_outline_rounded, color: colors.error, size: 22),
+                                    Icon(
+                                      Icons.error_outline_rounded,
+                                      color: colors.error,
+                                      size: 22,
+                                    ),
                                     const SizedBox(width: 12),
                                     Expanded(
                                       child: Text(
                                         'Slippage is too low for this trade. Minimum required is ${((_quote!['recommendedSlippage'] as double) * 100).toStringAsFixed(1)}% due to token taxes.',
-                                        style: text.bodySmall?.copyWith(color: colors.error, fontWeight: FontWeight.bold),
+                                        style: text.bodySmall?.copyWith(
+                                          color: colors.error,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -984,73 +1122,92 @@ class _SwapScreenState extends State<SwapScreen> {
                         ],
 
                         const SizedBox(height: 48),
-                        
+
                         // Premium Action Pill
                         Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () {
-                              if (_quote == null || _isLoading || _isApproving) return;
-                              
-                              // Disable if slippage is too low in custom mode
-                              if (_slippageMode == 'custom') {
-                                final recommended = _quote!['recommendedSlippage'] as double?;
-                                if (recommended != null && _effectiveSlippage < recommended) {
-                                  return;
-                                }
-                              }
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () {
+                                  if (_quote == null ||
+                                      _isLoading ||
+                                      _isApproving) {
+                                    return;
+                                  }
 
-                              if (_isApprovalRequired) {
-                                _handleApprove();
-                              } else {
-                                _handleSwap();
-                              }
-                            },
-                            borderRadius: BorderRadius.circular(24),
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(vertical: 20),
-                              decoration: BoxDecoration(
-                                color: colors.primary,
+                                  // Disable if slippage is too low in custom mode
+                                  if (_slippageMode == 'custom') {
+                                    final recommended =
+                                        _quote!['recommendedSlippage']
+                                            as double?;
+                                    if (recommended != null &&
+                                        _effectiveSlippage < recommended) {
+                                      return;
+                                    }
+                                  }
+
+                                  if (_isApprovalRequired) {
+                                    _handleApprove();
+                                  } else {
+                                    _handleSwap();
+                                  }
+                                },
                                 borderRadius: BorderRadius.circular(24),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: colors.primary.withValues(alpha: 0.35),
-                                    blurRadius: 20,
-                                    offset: const Offset(0, 10),
+                                child: Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 20,
                                   ),
-                                ],
-                              ),
-                              child: (_isLoading || _isApproving)
-                                  ? Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        SizedBox(
-                                          height: 20,
-                                          width: 20,
-                                          child: CircularProgressIndicator(
-                                            color: Colors.white60,
-                                            strokeWidth: 3,
+                                  decoration: BoxDecoration(
+                                    color: colors.primary,
+                                    borderRadius: BorderRadius.circular(24),
+                                  ),
+                                  child: (_isLoading || _isApproving)
+                                      ? Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            SizedBox(
+                                              height: 20,
+                                              width: 20,
+                                              child: CircularProgressIndicator(
+                                                color: colors.onPrimary
+                                                    .withValues(alpha: 0.6),
+                                                strokeWidth: 3,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 16),
+                                            Text(
+                                              _loadingMessage,
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 16,
+                                                color: colors.onPrimary,
+                                              ),
+                                            ),
+                                          ],
+                                        )
+                                      : Center(
+                                          child: Text(
+                                            _isApprovalRequired
+                                                ? 'APPROVE ${_fromToken?.symbol ?? "TOKEN"}'
+                                                : 'SWAP ASSETS',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w900,
+                                              fontSize: 18,
+                                              letterSpacing: 1.5,
+                                              color: colors.onPrimary,
+                                            ),
                                           ),
                                         ),
-                                        const SizedBox(width: 16),
-                                        Text(
-                                          _loadingMessage,
-                                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Colors.white),
-                                        ),
-                                      ],
-                                    )
-                                  : Center(
-                                      child: Text(
-                                        _isApprovalRequired
-                                            ? 'APPROVE ${_fromToken?.symbol ?? "TOKEN"}'
-                                            : 'SWAP ASSETS',
-                                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 1.5, color: Colors.white),
-                                      ),
-                                    ),
+                                ),
+                              ),
+                            )
+                            .animate()
+                            .fadeIn(duration: 600.ms, delay: 400.ms)
+                            .scale(
+                              begin: const Offset(0.9, 0.9),
+                              end: const Offset(1, 1),
                             ),
-                          ),
-                        ).animate().fadeIn(duration: 600.ms, delay: 400.ms).scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1)),
                         const SizedBox(height: 20),
                       ],
                     ),
@@ -1080,6 +1237,48 @@ class _SwapScreenState extends State<SwapScreen> {
     );
   }
 
+  Widget _buildCurrencyToggle(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: _fromToken == null
+          ? null
+          : () {
+              setState(() {
+                _isUsdMode = !_isUsdMode;
+                // Sync controllers when switching mode
+                if (_isUsdMode) {
+                  _syncControllers(_amountController.text, sourceIsUsd: false);
+                } else {
+                  _syncControllers(_usdController.text, sourceIsUsd: true);
+                }
+              });
+            },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: colors.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _isUsdMode ? 'USD' : (_fromToken?.symbol ?? ''),
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.swap_horiz_rounded,
+              size: 14,
+              color: colors.onSurfaceVariant.withValues(alpha: 0.5),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildSwapInput(
     BuildContext context, {
     required TokenModel? token,
@@ -1091,6 +1290,7 @@ class _SwapScreenState extends State<SwapScreen> {
     bool showMax = false,
     VoidCallback? onMaxTap,
     String? subValue,
+    Widget? suffix,
   }) {
     final colors = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
@@ -1100,7 +1300,16 @@ class _SwapScreenState extends State<SwapScreen> {
       decoration: BoxDecoration(
         color: colors.surfaceContainerLow.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.2)),
+        border: Border(
+          top: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.2,
+          ),
+          bottom: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.2,
+          ),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1108,39 +1317,72 @@ class _SwapScreenState extends State<SwapScreen> {
           Row(
             children: [
               Expanded(
-                child: isReadOnly 
-                  ? Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Text(
-                        value ?? '0.00',
-                        style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
+                child: isReadOnly
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          value ?? '0.00',
+                          style: const TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      )
+                    : TextField(
+                        controller: controller,
+                        onChanged: onChanged,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        style: const TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w900,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: '0.00',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: colors.outlineVariant.withValues(
+                                alpha: 0.2,
+                              ),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: colors.outlineVariant.withValues(
+                                alpha: 0.2,
+                              ),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: colors.primary,
+                              width: 2,
+                            ),
+                          ),
+                          filled: true,
+                          fillColor: colors.surfaceContainerHighest.withValues(
+                            alpha: 0.3,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          isDense: true,
+                          suffixIcon: suffix != null
+                              ? Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [suffix],
+                                  ),
+                                )
+                              : null,
+                        ),
                       ),
-                    )
-                  : TextField(
-                      controller: controller,
-                      onChanged: onChanged,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
-                      decoration: InputDecoration(
-                        hintText: '0.00',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.2)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.2)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: colors.primary, width: 2),
-                        ),
-                        filled: true,
-                        fillColor: colors.surfaceContainerHighest.withValues(alpha: 0.3),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        isDense: true,
-                      ),
-                    ),
               ),
               const SizedBox(width: 16),
               _buildTokenBadge(context, token, onTokenTap),
@@ -1154,7 +1396,10 @@ class _SwapScreenState extends State<SwapScreen> {
                 if (subValue != null)
                   Text(
                     subValue,
-                    style: text.labelSmall?.copyWith(color: colors.onSurfaceVariant.withValues(alpha: 0.4), fontWeight: FontWeight.w600),
+                    style: text.labelSmall?.copyWith(
+                      color: colors.onSurfaceVariant.withValues(alpha: 0.4),
+                      fontWeight: FontWeight.w600,
+                    ),
                   )
                 else
                   const SizedBox.shrink(),
@@ -1163,21 +1408,31 @@ class _SwapScreenState extends State<SwapScreen> {
                     if (token != null)
                       Text(
                         'Balance: ${WalletFormatters.formatBalance(token.balance)}',
-                        style: text.labelSmall?.copyWith(color: colors.onSurfaceVariant.withValues(alpha: 0.4), fontWeight: FontWeight.w600),
+                        style: text.labelSmall?.copyWith(
+                          color: colors.onSurfaceVariant.withValues(alpha: 0.4),
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     if (showMax) ...[
                       const SizedBox(width: 8),
                       InkWell(
                         onTap: onMaxTap,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: colors.primary.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
                             'MAX',
-                            style: TextStyle(color: colors.primary, fontWeight: FontWeight.w900, fontSize: 10),
+                            style: TextStyle(
+                              color: colors.primary,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 10,
+                            ),
                           ),
                         ),
                       ),
@@ -1192,7 +1447,11 @@ class _SwapScreenState extends State<SwapScreen> {
     );
   }
 
-  Widget _buildTokenBadge(BuildContext context, TokenModel? token, VoidCallback onTap) {
+  Widget _buildTokenBadge(
+    BuildContext context,
+    TokenModel? token,
+    VoidCallback onTap,
+  ) {
     final colors = Theme.of(context).colorScheme;
     return InkWell(
       onTap: onTap,
@@ -1200,20 +1459,46 @@ class _SwapScreenState extends State<SwapScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: token == null ? colors.primary : colors.surfaceContainerHighest,
+          color: token == null
+              ? colors.primary
+              : colors.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (token != null) ...[
-              TokenIcon(imageUrl: token.imageUrl, symbol: token.symbol, name: token.name, chainName: token.chain, isNative: token.isNative, radius: 12),
+              TokenIcon(
+                imageUrl: token.imageUrl,
+                symbol: token.symbol,
+                name: token.name,
+                chainName: token.chain,
+                isNative: token.isNative,
+                radius: 12,
+              ),
               const SizedBox(width: 6),
-              Text(token.symbol, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+              Text(
+                token.symbol,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                ),
+              ),
             ] else
-              Text('Select', style: TextStyle(color: colors.onPrimary, fontWeight: FontWeight.w900, fontSize: 13)),
+              Text(
+                'Select',
+                style: TextStyle(
+                  color: colors.onPrimary,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                ),
+              ),
             const SizedBox(width: 4),
-            Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: token == null ? colors.onPrimary : colors.onSurfaceVariant),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 16,
+              color: token == null ? colors.onPrimary : colors.onSurfaceVariant,
+            ),
           ],
         ),
       ),
@@ -1222,13 +1507,21 @@ class _SwapScreenState extends State<SwapScreen> {
 
   Widget _buildQuoteDetails(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final griotFee = _asMap(_quote?['griotFee'] ?? _quote?['fee']);
-    final providerFee = _asMap(_quote?['providerFee']);
-    final transaction = _quote?['transaction'] ?? _quote?['transactionRequest'];
+    final griotFee = _asMap(
+      _quote?['griotFee'] ?? _quote?['griot_fee'] ?? _quote?['fee'],
+    );
+    final providerFee = _asMap(
+      _quote?['providerFee'] ?? _quote?['provider_fee'],
+    );
+    final transaction =
+        _quote?['transaction'] ??
+        _quote?['transactionRequest'] ??
+        _quote?['transaction_request'];
 
-    final buyTax = _quote?['buyTax'];
-    final sellTax = _quote?['sellTax'];
-    final recommendedSlippage = _quote?['recommendedSlippage'];
+    final buyTax = _quote?['buyTax'] ?? _quote?['buy_tax'];
+    final sellTax = _quote?['sellTax'] ?? _quote?['sell_tax'];
+    final recommendedSlippage =
+        _quote?['recommendedSlippage'] ?? _quote?['recommended_slippage'];
 
     final feePercent = griotFee['percent'];
     final feePercentDisplay = feePercent == null ? null : '$feePercent%';
@@ -1239,9 +1532,15 @@ class _SwapScreenState extends State<SwapScreen> {
     TokenModel? nativeToken;
 
     if (transaction is Map) {
-      final gas = transaction['gas']?.toString() ?? transaction['gasLimit']?.toString();
-      final gasPrice = transaction['maxFeePerGas']?.toString() ??
-          transaction['gasPrice']?.toString();
+      final gas =
+          transaction['gas']?.toString() ??
+          transaction['gasLimit']?.toString() ??
+          transaction['gas_limit']?.toString();
+      final gasPrice =
+          transaction['maxFeePerGas']?.toString() ??
+          transaction['max_fee_per_gas']?.toString() ??
+          transaction['gasPrice']?.toString() ??
+          transaction['gas_price']?.toString();
 
       if (gas != null && gasPrice != null) {
         final gasLimit = double.tryParse(gas);
@@ -1253,18 +1552,19 @@ class _SwapScreenState extends State<SwapScreen> {
 
       try {
         nativeToken = context.read<WalletProvider>().tokens.firstWhere(
-              (token) =>
-                  token.isNative &&
-                  token.chain.toLowerCase() == _fromToken?.chain.toLowerCase(),
-            );
+          (token) =>
+              token.isNative &&
+              token.chain.toLowerCase() == _fromToken?.chain.toLowerCase(),
+        );
         gasSymbol = nativeToken.symbol;
         if (gasNative != null && (nativeToken.priceUsd?.toDouble() ?? 0) > 0) {
           gasUsd = gasNative * (nativeToken.priceUsd?.toDouble() ?? 0);
         }
-      } catch (_) { }
+      } catch (_) {}
     }
 
-    final providerIncluded = providerFee['included'] == true ||
+    final providerIncluded =
+        providerFee['included'] == true ||
         providerFee['reportedByProvider'] != true;
 
     return Container(
@@ -1276,30 +1576,53 @@ class _SwapScreenState extends State<SwapScreen> {
       ),
       child: Column(
         children: [
-          _quoteRow(context, 'Rate', feePercentDisplay ?? '0.8%', valueColor: colors.primary, isBold: true),
+          _quoteRow(
+            context,
+            'Rate',
+            feePercentDisplay ?? '0.8%',
+            valueColor: colors.primary,
+            isBold: true,
+          ),
           const SizedBox(height: 10),
           if (buyTax != null && buyTax > 0) ...[
-            _quoteRow(context, 'Buy Tax', '${(buyTax * 100).toStringAsFixed(1)}%', valueColor: colors.error),
+            _quoteRow(
+              context,
+              'Buy Tax',
+              '${(buyTax * 100).toStringAsFixed(1)}%',
+              valueColor: colors.error,
+            ),
             const SizedBox(height: 10),
           ],
           if (sellTax != null && sellTax > 0) ...[
-            _quoteRow(context, 'Sell Tax', '${(sellTax * 100).toStringAsFixed(1)}%', valueColor: colors.error),
+            _quoteRow(
+              context,
+              'Sell Tax',
+              '${(sellTax * 100).toStringAsFixed(1)}%',
+              valueColor: colors.error,
+            ),
             const SizedBox(height: 10),
           ],
           if (recommendedSlippage != null && _slippageMode == 'custom') ...[
             _quoteRow(
-              context, 
-              'Min. Required Slippage', 
+              context,
+              'Min. Required Slippage',
               '${(recommendedSlippage * 100).toStringAsFixed(1)}%',
-              valueColor: _effectiveSlippage < recommendedSlippage ? colors.error : colors.primary,
+              valueColor: _effectiveSlippage < recommendedSlippage
+                  ? colors.error
+                  : colors.primary,
             ),
             const SizedBox(height: 10),
           ],
-          _quoteRow(context, 'Fee', providerIncluded ? 'Included' :
-                _formatFeeAmount(
-                  providerFee['amount']?.toString(),
-                  _tokenForAddress(providerFee['token']?.toString()),
-                )),
+          _quoteRow(
+            context,
+            'Fee',
+            providerIncluded
+                ? 'Included'
+                : _formatFeeAmount(
+                    providerFee['amount']?.toString(),
+                    _tokenForAddress(providerFee['token']?.toString()),
+                  ),
+          ),
           const SizedBox(height: 10),
           _quoteRow(
             context,
@@ -1309,7 +1632,9 @@ class _SwapScreenState extends State<SwapScreen> {
                 : WalletFormatters.formatBalance(gasNative, symbol: gasSymbol),
             subtitle: gasUsd == null
                 ? null
-                : (gasUsd < 0.01 ? r'< $0.01' : WalletFormatters.formatCurrency(gasUsd)),
+                : (gasUsd < 0.01
+                      ? r'< $0.01'
+                      : WalletFormatters.formatCurrency(gasUsd)),
           ),
         ],
       ),
@@ -1335,11 +1660,17 @@ class _SwapScreenState extends State<SwapScreen> {
         decoration: BoxDecoration(
           color: colors.surfaceContainerLow.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.1)),
+          border: Border.all(
+            color: colors.outlineVariant.withValues(alpha: 0.1),
+          ),
         ),
         child: Row(
           children: [
-            Icon(Icons.tune_rounded, size: 20, color: colors.onSurfaceVariant.withValues(alpha: 0.6)),
+            Icon(
+              Icons.tune_rounded,
+              size: 20,
+              color: colors.onSurfaceVariant.withValues(alpha: 0.6),
+            ),
             const SizedBox(width: 14),
             Text(
               'Slippage Tolerance',
@@ -1358,7 +1689,11 @@ class _SwapScreenState extends State<SwapScreen> {
               ),
             ),
             const SizedBox(width: 6),
-            Icon(Icons.chevron_right_rounded, size: 20, color: colors.primary.withValues(alpha: 0.6)),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 20,
+              color: colors.primary.withValues(alpha: 0.6),
+            ),
           ],
         ),
       ),
@@ -1368,6 +1703,7 @@ class _SwapScreenState extends State<SwapScreen> {
   void _showSlippagePicker(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (context) => _SlippagePickerSheet(
@@ -1446,8 +1782,6 @@ class _SwapScreenState extends State<SwapScreen> {
       ],
     );
   }
-
-
 }
 
 class _SlippagePickerSheet extends StatefulWidget {
@@ -1502,7 +1836,12 @@ class _SlippagePickerSheetState extends State<_SlippagePickerSheet> {
     final double? currentVal = double.tryParse(_controller.text);
 
     return Container(
-      padding: EdgeInsets.fromLTRB(24, 12, 24, MediaQuery.of(context).viewInsets.bottom + 32),
+      padding: EdgeInsets.fromLTRB(
+        24,
+        12,
+        24,
+        MediaQuery.of(context).viewInsets.bottom + 32,
+      ),
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
@@ -1522,9 +1861,12 @@ class _SlippagePickerSheetState extends State<_SlippagePickerSheet> {
             ),
           ),
           const SizedBox(height: 28),
-          Text('Swap Settings', style: text.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+          Text(
+            'Swap Settings',
+            style: text.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+          ),
           const SizedBox(height: 24),
-          
+
           // Auto / Custom Toggle
           Container(
             padding: const EdgeInsets.all(4),
@@ -1540,12 +1882,23 @@ class _SlippagePickerSheetState extends State<_SlippagePickerSheet> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       decoration: BoxDecoration(
-                        color: _mode == 'auto' ? colors.surface : Colors.transparent,
+                        color: _mode == 'auto'
+                            ? colors.surface
+                            : Colors.transparent,
                         borderRadius: BorderRadius.circular(12),
-                        boxShadow: _mode == 'auto' ? [BoxShadow(color: Colors.black12, blurRadius: 4)] : null,
+                        boxShadow: _mode == 'auto'
+                            ? [BoxShadow(color: Colors.black12, blurRadius: 4)]
+                            : null,
                       ),
                       alignment: Alignment.center,
-                      child: Text('Auto', style: TextStyle(fontWeight: _mode == 'auto' ? FontWeight.bold : FontWeight.normal)),
+                      child: Text(
+                        'Auto',
+                        style: TextStyle(
+                          fontWeight: _mode == 'auto'
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -1555,34 +1908,54 @@ class _SlippagePickerSheetState extends State<_SlippagePickerSheet> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       decoration: BoxDecoration(
-                        color: _mode == 'custom' ? colors.surface : Colors.transparent,
+                        color: _mode == 'custom'
+                            ? colors.surface
+                            : Colors.transparent,
                         borderRadius: BorderRadius.circular(12),
-                        boxShadow: _mode == 'custom' ? [BoxShadow(color: Colors.black12, blurRadius: 4)] : null,
+                        boxShadow: _mode == 'custom'
+                            ? [BoxShadow(color: Colors.black12, blurRadius: 4)]
+                            : null,
                       ),
                       alignment: Alignment.center,
-                      child: Text('Custom', style: TextStyle(fontWeight: _mode == 'custom' ? FontWeight.bold : FontWeight.normal)),
+                      child: Text(
+                        'Custom',
+                        style: TextStyle(
+                          fontWeight: _mode == 'custom'
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
           ),
-          
+
           if (_mode == 'custom') ...[
             const SizedBox(height: 24),
-            Text('Custom Slippage', style: text.labelLarge?.copyWith(fontWeight: FontWeight.bold)),
+            Text(
+              'Custom Slippage',
+              style: text.labelLarge?.copyWith(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: _controller,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     decoration: InputDecoration(
                       suffixText: '%',
                       hintText: '1.0',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                      ),
                     ),
                     onChanged: (_) => setState(() {}),
                   ),
@@ -1597,15 +1970,32 @@ class _SlippagePickerSheetState extends State<_SlippagePickerSheet> {
                 final pct = (val * 100);
                 final isSelected = currentVal == pct;
                 return InkWell(
-                  onTap: () => setState(() => _controller.text = pct.toStringAsFixed(pct == pct.toInt() ? 0 : 1)),
+                  onTap: () => setState(
+                    () => _controller.text = pct.toStringAsFixed(
+                      pct == pct.toInt() ? 0 : 1,
+                    ),
+                  ),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
-                      color: isSelected ? colors.primary : colors.surfaceContainerHighest.withValues(alpha: 0.4),
+                      color: isSelected
+                          ? colors.primary
+                          : colors.surfaceContainerHighest.withValues(
+                              alpha: 0.4,
+                            ),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text('${pct.toStringAsFixed(pct == pct.toInt() ? 0 : 1)}%', 
-                      style: TextStyle(color: isSelected ? colors.onPrimary : colors.onSurface, fontWeight: FontWeight.bold, fontSize: 12)),
+                    child: Text(
+                      '${pct.toStringAsFixed(pct == pct.toInt() ? 0 : 1)}%',
+                      style: TextStyle(
+                        color: isSelected ? colors.onPrimary : colors.onSurface,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
                   ),
                 );
               }).toList(),
@@ -1615,18 +2005,23 @@ class _SlippagePickerSheetState extends State<_SlippagePickerSheet> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: (currentVal > 15 ? colors.error : Colors.orange).withValues(alpha: 0.1),
+                  color: (currentVal > 15 ? colors.error : Colors.orange)
+                      .withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.warning_amber_rounded, color: currentVal > 15 ? colors.error : Colors.orange, size: 20),
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      color: currentVal > 15 ? colors.error : Colors.orange,
+                      size: 20,
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        currentVal > 15 
-                          ? 'Extremely high slippage. You may lose a significant portion of your tokens.'
-                          : 'High slippage. Your transaction might be front-run or result in a poor rate.',
+                        currentVal > 15
+                            ? 'Extremely high slippage. You may lose a significant portion of your tokens.'
+                            : 'High slippage. Your transaction might be front-run or result in a poor rate.',
                         style: TextStyle(
                           color: currentVal > 15 ? colors.error : Colors.orange,
                           fontSize: 12,
@@ -1642,10 +2037,13 @@ class _SlippagePickerSheetState extends State<_SlippagePickerSheet> {
             const SizedBox(height: 24),
             Text(
               'Griot will automatically adjust your slippage to ensure the best possible success rate for your trade.',
-              style: text.bodyMedium?.copyWith(color: colors.onSurfaceVariant.withValues(alpha: 0.6), height: 1.4),
+              style: text.bodyMedium?.copyWith(
+                color: colors.onSurfaceVariant.withValues(alpha: 0.6),
+                height: 1.4,
+              ),
             ),
           ],
-          
+
           const SizedBox(height: 32),
           SizedBox(
             width: double.infinity,
@@ -1654,9 +2052,14 @@ class _SlippagePickerSheetState extends State<_SlippagePickerSheet> {
               onPressed: _submit,
               style: FilledButton.styleFrom(
                 backgroundColor: colors.primary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
               ),
-              child: const Text('Save Settings', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+              child: const Text(
+                'Save Settings',
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+              ),
             ),
           ),
         ],

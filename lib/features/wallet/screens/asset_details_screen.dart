@@ -122,8 +122,8 @@ class AssetDetailsScreen extends StatelessWidget {
                     FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
-                        token.valueUsd != null 
-                            ? WalletFormatters.formatCurrency(token.valueUsd!) 
+                        token.valueUsd != null
+                            ? WalletFormatters.formatCurrency(token.valueUsd!)
                             : '--',
                         style: text.headlineMedium?.copyWith(
                           fontWeight: FontWeight.w900,
@@ -317,7 +317,16 @@ class AssetDetailsScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surfaceContainerLow,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.3)),
+        border: Border(
+          top: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+          bottom: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+        ),
       ),
       child: Column(
         children: [
@@ -329,8 +338,8 @@ class AssetDetailsScreen extends StatelessWidget {
           if (!token.isNative) ...[
             const Divider(height: 32),
             _infoRow(
-              context, 
-              'Contract', 
+              context,
+              'Contract',
               WalletFormatters.shortenAddress(token.contractAddress),
               onTap: () async {
                 await Clipboard.setData(ClipboardData(text: token.contractAddress));
@@ -376,7 +385,16 @@ class AssetDetailsScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surfaceContainerLow,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.3)),
+        border: Border(
+          top: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+          bottom: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+        ),
       ),
       child: Column(
         children: List.generate(links.length, (index) {

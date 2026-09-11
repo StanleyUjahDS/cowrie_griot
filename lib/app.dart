@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'core/network/api_client.dart';
@@ -37,14 +39,17 @@ import 'features/miner/providers/referral_provider.dart';
 import 'features/wallet/providers/wallet_provider.dart';
 import 'features/iap/providers/iap_provider.dart';
 import 'features/iap/services/plus_api_service.dart';
+import 'features/users/providers/user_preference_provider.dart';
 import 'features/local_auth/services/app_lock_service.dart';
 import 'features/local_auth/services/local_auth_service.dart';
 import 'features/local_auth/providers/app_lock_provider.dart';
 import 'features/local_auth/screens/pin_verification_screen.dart';
 import 'core/services/navigation_scroll_service.dart';
 import 'core/services/connectivity_service.dart';
-import 'core/services/push_notification_service.dart';
+import 'core/services/notification_service.dart';
 import 'core/services/deep_link_service.dart';
+import 'features/chat/models/shared_content.dart';
+import 'features/chat/services/shared_content_service.dart';
 
 class GriotCowrieApp extends StatefulWidget {
   const GriotCowrieApp({super.key});
@@ -77,6 +82,7 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
   late final AuthController _authController;
   late final AppLockService _appLockService;
   late final LocalAuthService _localAuthService;
+  StreamSubscription<SharedContent>? _sharedContentSubscription;
 
   @override
   void initState() {
@@ -86,27 +92,10 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
     // CORE INFRASTRUCTURE
     // ----------------------------------------------------------
 
-    _apiClient = ApiClient();
-
-    PushNotificationService.instance.configure(
-      apiClient: _apiClient,
-      onNotificationTap: (data) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          final type = data['type']?.toString();
-          if (type == 'chat_message') {
-            final conversationId = data['conversationId']?.toString();
-            if (conversationId != null && conversationId.isNotEmpty) {
-              AppRouter.router.push('/conversation/$conversationId');
-            }
-          } else if (type == 'message_request') {
-            AppRouter.router.push('/chat/requests');
-          }
-        });
-      },
-    );
-
-    final walletStorage = WalletStorageService();
     final authStorage = AuthStorageService();
+    final walletStorage = WalletStorageService();
+
+    _apiClient = ApiClient(authStorageService: authStorage);
 
     _walletService = WalletService(
       cryptoService: WalletCryptoService(),
@@ -168,7 +157,9 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
       walletService: _walletService,
     );
 
-    _messageCacheService.initialize();
+    // Cache initialization is best-effort because storage is unavailable in
+    // some test and newly supported platform environments.
+    unawaited(_initializeMessageCache());
     _messageSyncService.initialize();
 
     ConnectivityService.instance.initialize();
@@ -179,10 +170,42 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
     // ==========================================================
 
     AppRouter.setThemeController(_themeController);
+    _initializeSharedContent();
+  }
+
+  void _initializeSharedContent() {
+    _sharedContentSubscription = SharedContentService.instance.stream.listen(
+      _openSharedContent,
+      onError: (error) => debugPrint('Share receiver error: $error'),
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final content = await SharedContentService.instance.getInitial();
+      if (content != null && mounted) _openSharedContent(content);
+    });
+  }
+
+  void _openSharedContent(SharedContent content) {
+    if (!content.isSupported) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        AppRouter.router.go('/shared-content', extra: content);
+      }
+    });
+  }
+
+  Future<void> _initializeMessageCache() async {
+    try {
+      await _messageCacheService.initialize();
+    } catch (error, stackTrace) {
+      debugPrint('Message cache initialization deferred: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
   }
 
   @override
   void dispose() {
+    _sharedContentSubscription?.cancel();
     _apiClient.dispose();
     _walletRpcService.dispose();
     super.dispose();
@@ -236,6 +259,13 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
         ),
 
         // ======================================================
+        // USER PREFERENCE PROVIDER
+        // ======================================================
+        ChangeNotifierProvider<UserPreferenceProvider>(
+          create: (_) => UserPreferenceProvider(apiService: _userApiService),
+        ),
+
+        // ======================================================
         // WALLET PROVIDER
         // ======================================================
         ChangeNotifierProvider<WalletProvider>(
@@ -265,28 +295,33 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
             mediaApiService: _mediaApiService,
             userProvider: pCtx.read<UserProvider>(),
             messageCache: _messageCacheService,
-            messageSync: _messageSyncService,
             miningApi: _miningApiService,
             transactionApi: _transactionApiService,
             tipApi: _tipApiService,
             walletService: _walletService,
+            walletApi: _walletApiService,
             walletRpc: _walletRpcService,
           ),
           update: (_, userProvider, messaging) {
-            final provider = messaging ??
-                MessagingProvider(
-                  apiService: _messagingApiService,
-                  mediaApiService: _mediaApiService,
-                  userProvider: userProvider,
-                  messageCache: _messageCacheService,
-                  messageSync: _messageSyncService,
-                  miningApi: _miningApiService,
-                  transactionApi: _transactionApiService,
-                  tipApi: _tipApiService,
-                  walletService: _walletService,
-                  walletRpc: _walletRpcService,
-                );
+            final provider =
+                (messaging ??
+                      MessagingProvider(
+                        apiService: _messagingApiService,
+                        mediaApiService: _mediaApiService,
+                        userProvider: userProvider,
+                        messageCache: _messageCacheService,
+                        miningApi: _miningApiService,
+                        transactionApi: _transactionApiService,
+                        tipApi: _tipApiService,
+                        walletService: _walletService,
+                        walletApi: _walletApiService,
+                        walletRpc: _walletRpcService,
+                      ))
+                  ..updateUserProvider(userProvider);
+
+            // Ensure AuthController is kept in sync
             _authController.setMessagingProvider(provider);
+            _apiClient.onAccessTokenRefreshed = provider.initSocket;
             return provider;
           },
         ),
@@ -368,13 +403,100 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
             // APP LOCK BUILDER
             // ==================================================
             builder: (context, child) {
-              return _AppLockOverlay(child: child);
+              final theme = Theme.of(context);
+              final overlayStyle =
+                  theme.appBarTheme.systemOverlayStyle ??
+                  SystemUiOverlayStyle(
+                    statusBarColor: theme.scaffoldBackgroundColor,
+                    statusBarIconBrightness: theme.brightness == Brightness.dark
+                        ? Brightness.light
+                        : Brightness.dark,
+                    statusBarBrightness: theme.brightness == Brightness.dark
+                        ? Brightness.dark
+                        : Brightness.light,
+                    systemNavigationBarColor: theme.scaffoldBackgroundColor,
+                    systemNavigationBarIconBrightness:
+                        theme.brightness == Brightness.dark
+                        ? Brightness.light
+                        : Brightness.dark,
+                    systemNavigationBarDividerColor:
+                        theme.scaffoldBackgroundColor,
+                  );
+
+              return AnnotatedRegion<SystemUiOverlayStyle>(
+                value: overlayStyle,
+                child: TipNotificationListener(
+                  child: _AppLockOverlay(child: child),
+                ),
+              );
             },
           );
         },
       ),
     );
   }
+}
+
+class TipNotificationListener extends StatefulWidget {
+  final Widget child;
+  const TipNotificationListener({super.key, required this.child});
+
+  @override
+  State<TipNotificationListener> createState() =>
+      _TipNotificationListenerState();
+}
+
+class _TipNotificationListenerState extends State<TipNotificationListener> {
+  StreamSubscription? _subscription;
+  MessagingProvider? _messagingProvider;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    final messaging = Provider.of<MessagingProvider>(context);
+    if (_messagingProvider != messaging) {
+      _subscription?.cancel();
+      _messagingProvider = messaging;
+      _subscription = messaging.tipReceivedStream.listen(_onTipReceived);
+    }
+  }
+
+  void _onTipReceived(Map<String, dynamic> data) {
+    if (!mounted) return;
+
+    final userProvider = context.read<UserProvider>();
+    final walletProvider = context.read<WalletProvider>();
+
+    final currentUserId = userProvider.user?.id;
+    final senderId = data['senderUserId']?.toString();
+
+    // Don't show toast to the sender (duplicates)
+    if (senderId != null && senderId == currentUserId) return;
+
+    final amount = data['amount']?.toString() ?? '0';
+    final symbol = data['symbol']?.toString() ?? 'COWRIE';
+    final fromName = data['senderName']?.toString() ?? 'Someone';
+
+    NotificationService.showTipReceived(
+      context,
+      amount: amount,
+      symbol: symbol,
+      fromName: fromName,
+    );
+
+    // Also refresh wallet balance
+    walletProvider.loadWallet(force: true);
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 class _AppLockOverlay extends StatefulWidget {
@@ -390,7 +512,33 @@ class _AppLockOverlayState extends State<_AppLockOverlay> {
   Widget build(BuildContext context) {
     return Consumer<AppLockProvider>(
       builder: (context, lockProvider, _) {
+        // If not locked, don't show the overlay.
         if (!lockProvider.isLocked) {
+          return widget.child ?? const SizedBox.shrink();
+        }
+
+        // Check if we're on a public onboarding/auth screen.
+        // We use the router instance directly as this builder is outside the route context.
+        final String location =
+            AppRouter.router.routerDelegate.currentConfiguration.uri.path;
+
+        // Robust check for public routes. We include the splash, onboarding, and auth screens.
+        // These screens should never be obscured by the App Lock PIN overlay.
+        final bool isPublicRoute =
+            location == '/' ||
+            location.startsWith('/login') ||
+            location.startsWith('/create_account') ||
+            location.startsWith('/recover_account') ||
+            location.startsWith('/display_phrase') ||
+            location.startsWith('/loading') ||
+            location.startsWith('/verify_phrase') ||
+            location.startsWith('/set_password') ||
+            location.startsWith('/confirm_password') ||
+            location.startsWith('/verify_pin') ||
+            location.startsWith('/enable_biometrics') ||
+            location.startsWith('/welcome_');
+
+        if (isPublicRoute) {
           return widget.child ?? const SizedBox.shrink();
         }
 

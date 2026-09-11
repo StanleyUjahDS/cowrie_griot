@@ -11,6 +11,7 @@ import 'package:griot_cowrie/core/services/notification_service.dart';
 import 'package:griot_cowrie/features/chat/widgets/chat_loading.dart';
 import 'package:griot_cowrie/core/ui/scaffolds/gradient_scaffold.dart';
 import 'package:griot_cowrie/core/ui/widgets/griot_loader.dart';
+import 'package:griot_cowrie/features/chat/widgets/user_profile_sheet.dart';
 
 class FriendsListScreen extends StatefulWidget {
   const FriendsListScreen({super.key});
@@ -42,7 +43,8 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
       context.read<MessagingProvider>().loadMoreFriends();
     }
   }
@@ -75,20 +77,38 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Unfriend?'),
-        content: Text('Are you sure you want to remove ${friend.displayName ?? friend.username} from your friends?'),
+        content: Text(
+          'Are you sure you want to remove ${friend.displayName ?? friend.username} from your friends?',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
               try {
                 await context.read<MessagingProvider>().removeFriend(friend.id);
-                if (context.mounted) NotificationService.showSuccess(context, 'User removed from friends');
+                if (context.mounted) {
+                  NotificationService.showSuccess(
+                    context,
+                    'User removed from friends',
+                  );
+                }
               } catch (e) {
-                if (context.mounted) NotificationService.showError(context, 'Failed to unfriend: $e');
+                if (context.mounted) {
+                  NotificationService.showError(
+                    context,
+                    'Failed to unfriend: $e',
+                  );
+                }
               }
             },
-            child: const Text('Unfriend', style: TextStyle(color: Colors.red)),
+            child: Text(
+              'Unfriend',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           ),
         ],
       ),
@@ -100,20 +120,35 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Block User?'),
-        content: Text('Are you sure you want to block ${friend.displayName ?? friend.username}? They will no longer be able to message you.'),
+        content: Text(
+          'Are you sure you want to block ${friend.displayName ?? friend.username}? They will no longer be able to message you.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
               try {
                 await context.read<MessagingProvider>().blockUser(friend.id);
-                if (context.mounted) NotificationService.showSuccess(context, 'User blocked');
+                if (context.mounted) {
+                  NotificationService.showSuccess(context, 'User blocked');
+                }
               } catch (e) {
-                if (context.mounted) NotificationService.showError(context, 'Failed to block user: $e');
+                if (context.mounted) {
+                  NotificationService.showError(
+                    context,
+                    'Failed to block user: $e',
+                  );
+                }
               }
             },
-            child: const Text('Block', style: TextStyle(color: Colors.red)),
+            child: Text(
+              'Block',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           ),
         ],
       ),
@@ -128,6 +163,31 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
     return GradientScaffold(
       appBar: AppBar(
         centerTitle: true,
+        automaticallyImplyLeading: false,
+        leading: Center(
+          child: GestureDetector(
+            onTap: () => context.pop(),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: colors.surface.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(12),
+                border: Border(
+                  top: BorderSide(
+                    color: colors.primary.withValues(alpha: 0.6),
+                    width: 1.2,
+                  ),
+                  bottom: BorderSide(
+                    color: colors.primary.withValues(alpha: 0.6),
+                    width: 1.2,
+                  ),
+                ),
+              ),
+              child: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+            ),
+          ),
+        ),
         title: Consumer<MessagingProvider>(
           builder: (context, provider, child) {
             return Column(
@@ -158,7 +218,9 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
               decoration: BoxDecoration(
                 color: colors.surface.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: colors.outline.withValues(alpha: 0.1)),
+                border: Border.all(
+                  color: colors.outline.withValues(alpha: 0.1),
+                ),
               ),
               child: TextField(
                 controller: _searchController,
@@ -176,7 +238,10 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
                         )
                       : null,
                   border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                 ),
               ),
             ),
@@ -213,13 +278,17 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              _searchController.text.isNotEmpty ? Icons.search_off_rounded : Icons.people_outline_rounded,
+              _searchController.text.isNotEmpty
+                  ? Icons.search_off_rounded
+                  : Icons.people_outline_rounded,
               size: 64,
               color: colors.onSurfaceVariant.withValues(alpha: 0.2),
             ),
             const SizedBox(height: 16),
             Text(
-              _searchController.text.isNotEmpty ? 'No matching friends found' : 'No friends found',
+              _searchController.text.isNotEmpty
+                  ? 'No matching friends found'
+                  : 'No friends found',
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ],
@@ -248,12 +317,18 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
           }
           final f = friends[index];
           return _FriendTile(
-            user: f,
-            onTap: () => _startChat(f),
-            onProfileTap: () => context.push('/user/profile', extra: f),
-            onUnfriend: () => _showUnfriendDialog(f),
-            onBlock: () => _showBlockUserDialog(f),
-          ).animate().fadeIn(duration: 400.ms, delay: (index * 40).ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad);
+                user: f,
+                // Open the friend profile sheet first so the user can see
+                // the Message action alongside the other friend actions.
+                onTap: () => UserProfileSheet.show(context, f),
+                onMessage: () => _startChat(f),
+                onProfileTap: () => context.push('/user/profile', extra: f),
+                onUnfriend: () => _showUnfriendDialog(f),
+                onBlock: () => _showBlockUserDialog(f),
+              )
+              .animate()
+              .fadeIn(duration: 400.ms, delay: (index * 40).ms)
+              .slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad);
         },
       ),
     );
@@ -263,6 +338,7 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
 class _FriendTile extends StatelessWidget {
   final UserModel user;
   final VoidCallback onTap;
+  final VoidCallback onMessage;
   final VoidCallback onProfileTap;
   final VoidCallback onUnfriend;
   final VoidCallback onBlock;
@@ -270,6 +346,7 @@ class _FriendTile extends StatelessWidget {
   const _FriendTile({
     required this.user,
     required this.onTap,
+    required this.onMessage,
     required this.onProfileTap,
     required this.onUnfriend,
     required this.onBlock,
@@ -279,7 +356,9 @@ class _FriendTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
 
-    final bool isOnline = context.watch<MessagingProvider>().presenceMap[user.id] == true || user.isOnline;
+    final bool isOnline =
+        context.watch<MessagingProvider>().presenceMap[user.id] == true ||
+        user.isOnline;
 
     return ListTile(
       onTap: onTap,
@@ -291,8 +370,9 @@ class _FriendTile extends StatelessWidget {
             CircleAvatar(
               radius: 24,
               backgroundColor: colors.primary.withValues(alpha: 0.1),
-              backgroundImage:
-                  user.avatarUrl != null ? NetworkImage(user.avatarUrl!) : null,
+              backgroundImage: user.avatarUrl != null
+                  ? NetworkImage(user.avatarUrl!)
+                  : null,
               child: user.avatarUrl == null
                   ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg')
                   : null,
@@ -305,7 +385,7 @@ class _FriendTile extends StatelessWidget {
                   width: 12,
                   height: 12,
                   decoration: BoxDecoration(
-                    color: Colors.green,
+                    color: AppColors.success,
                     shape: BoxShape.circle,
                     border: Border.all(color: colors.surface, width: 2),
                   ),
@@ -338,13 +418,16 @@ class _FriendTile extends StatelessWidget {
       trailing: PopupMenuButton<String>(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(24),
-          side: BorderSide(color: colors.primary.withValues(alpha: 0.1), width: 1.5),
+          side: BorderSide(
+            color: colors.primary.withValues(alpha: 0.1),
+            width: 1.5,
+          ),
         ),
         elevation: 12,
         offset: const Offset(0, 40),
         onSelected: (val) {
           if (val == 'chat') {
-            onTap();
+            onMessage();
           } else if (val == 'profile') {
             onProfileTap();
           } else if (val == 'unfriend') {
@@ -355,22 +438,36 @@ class _FriendTile extends StatelessWidget {
         },
         itemBuilder: (context) => [
           PopupMenuItem(
-            value: 'chat', 
+            value: 'chat',
             child: Row(
               children: [
-                Icon(Icons.chat_bubble_outline_rounded, size: 20, color: colors.primary),
+                Icon(
+                  Icons.chat_bubble_outline_rounded,
+                  size: 20,
+                  color: colors.primary,
+                ),
                 const SizedBox(width: 12),
-                const Text('Message', style: TextStyle(fontWeight: FontWeight.w700)),
+                const Text(
+                  'Message',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
               ],
             ),
           ),
           PopupMenuItem(
-            value: 'profile', 
+            value: 'profile',
             child: Row(
               children: [
-                Icon(Icons.person_outline_rounded, size: 20, color: colors.primary),
+                Icon(
+                  Icons.person_outline_rounded,
+                  size: 20,
+                  color: colors.primary,
+                ),
                 const SizedBox(width: 12),
-                const Text('View Profile', style: TextStyle(fontWeight: FontWeight.w700)),
+                const Text(
+                  'View Profile',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
               ],
             ),
           ),
@@ -378,9 +475,19 @@ class _FriendTile extends StatelessWidget {
             value: 'unfriend',
             child: Row(
               children: [
-                const Icon(Icons.person_remove_rounded, color: Colors.red, size: 20),
+                Icon(
+                  Icons.person_remove_rounded,
+                  color: colors.error,
+                  size: 20,
+                ),
                 const SizedBox(width: 12),
-                const Text('Unfriend', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w700)),
+                Text(
+                  'Unfriend',
+                  style: TextStyle(
+                    color: colors.error,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ],
             ),
           ),
@@ -388,9 +495,15 @@ class _FriendTile extends StatelessWidget {
             value: 'block',
             child: Row(
               children: [
-                const Icon(Icons.block_rounded, color: Colors.red, size: 20),
+                Icon(Icons.block_rounded, color: colors.error, size: 20),
                 const SizedBox(width: 12),
-                const Text('Block', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w700)),
+                Text(
+                  'Block',
+                  style: TextStyle(
+                    color: colors.error,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ],
             ),
           ),
@@ -416,7 +529,12 @@ class _ReputationBadge extends StatelessWidget {
       ),
       child: Text(
         reputation.tierName.toUpperCase(),
-        style: TextStyle(color: color, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+        style: TextStyle(
+          color: color,
+          fontSize: 8,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0.5,
+        ),
       ),
     );
   }

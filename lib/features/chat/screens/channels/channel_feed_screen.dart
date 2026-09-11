@@ -2,10 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../providers/messaging_provider.dart';
 import '../../models/conversation_model.dart';
+import '../../models/chat_user.dart';
 import '../../models/chat_message.dart';
 import '../../widgets/channel_comment_sheet.dart';
+import '../../widgets/chatting/tip_sheet.dart';
+import '../../widgets/chatting/attachment_sheet.dart';
+import '../../widgets/chatting/media_preview_sheet.dart';
 import '../../services/messaging_api_service.dart';
 import 'package:griot_cowrie/features/users/providers/user_provider.dart';
 import 'package:griot_cowrie/core/services/notification_service.dart';
@@ -33,6 +39,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<MessagingProvider>();
+      provider.joinConversation(_currentConversation.id);
       provider.loadChannelPosts(_currentConversation.id);
 
       // Fetch full details to get role and subscriber count
@@ -42,7 +49,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
 
   Future<void> _fetchDetails() async {
     try {
-      final details = await context.read<MessagingApiService>().getConversation(
+      final details = await context.read<MessagingApiService>().getChannel(
         _currentConversation.id,
       );
       if (mounted) {
@@ -54,67 +61,158 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
   }
 
   @override
+  void dispose() {
+    context.read<MessagingProvider>().leaveConversation(
+      _currentConversation.id,
+    );
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Consumer2<MessagingProvider, UserProvider>(
       builder: (context, provider, userProvider, child) {
         final userId = userProvider.user?.id;
-        
+
         // Find the conversation in provider list to get latest status/role
-        final Conversation conv = provider.conversations.firstWhere(
+        final Conversation providerConv = provider.conversations.firstWhere(
           (c) => c.id == _currentConversation.id,
           orElse: () => _currentConversation,
         );
 
+        // Merge to ensure we have ownerId and latest counts from _currentConversation
+        // while keeping role and status from provider.
+        final conv = _currentConversation.copyWith(
+          role: providerConv.role,
+          status: providerConv.status,
+          unreadCount: providerConv.unreadCount,
+          memberIds: providerConv.memberIds.isNotEmpty
+              ? providerConv.memberIds
+              : _currentConversation.memberIds,
+        );
+
         final role = conv.role;
-        final canPost = role == 'owner' || role == 'admin';
-        final isSubscribed = conv.status == 'active' || conv.memberIds.contains(userId);
+        // Strictly follow owner/admin role for posting permissions,
+        // with ownerId check as a reliable fallback.
+        final isOwner =
+            role == 'owner' ||
+            (conv.ownerId != null && userId != null && conv.ownerId == userId);
+        final isAdmin = role == 'admin';
+        final canPost = isOwner || isAdmin;
+        final isSubscribed =
+            conv.status == 'active' || conv.memberIds.contains(userId);
 
         return GradientScaffold(
           appBar: AppBar(
+            toolbarHeight: 64,
             title: InkWell(
               onTap: () => Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => ChannelDetailsScreen(conversation: conv)),
+                MaterialPageRoute(
+                  builder: (_) => ChannelDetailsScreen(conversation: conv),
+                ),
               ),
-              child: Column(
-                children: [
-                  Text(
-                    conv.title ?? 'Channel',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 16,
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      conv.title ?? 'Channel',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                      ),
                     ),
-                  ),
-                  Text(
-                    '${conv.subscriberCount > 0 ? conv.subscriberCount : conv.memberIds.length} subscribers',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    const SizedBox(height: 2),
+                    Text(
+                      '${conv.subscriberCount > 0 ? conv.subscriberCount : (conv.memberCount > 0 ? conv.memberCount : (conv.memberIds.isNotEmpty ? conv.memberIds.length : 1))} subscribers',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 10,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
             centerTitle: true,
-            backgroundColor: Colors.transparent,
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            leading: IconButton(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: Icon(
+                Icons.arrow_back_ios_new_rounded,
+                size: 20,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
             actions: [
               if (!canPost && !isSubscribed)
                 Padding(
-                  padding: const EdgeInsets.only(right: 16),
-                  child: TextButton(
-                    onPressed: () =>
-                        provider.subscribeToChannel(conv.id),
+                  padding: const EdgeInsets.only(right: 8),
+                  child: FilledButton(
+                    onPressed: () => provider.subscribeToChannel(conv.id),
+                    style: FilledButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
                     child: const Text(
-                      'Subscribe',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                      'Join',
+                      style: TextStyle(fontWeight: FontWeight.w900),
                     ),
                   ),
                 ),
               IconButton(
+                onPressed: () async {
+                  final ownerId = conv.ownerId;
+                  if (ownerId == null) return;
+
+                  final api = context.read<MessagingApiService>();
+
+                  try {
+                    // Try to find in already loaded members if possible
+                    final member = await api.getChannelMember(conv.id, ownerId);
+                    if (context.mounted) {
+                      TipSheet.show(
+                        context,
+                        recipients: [ChatUser.fromJson(member)],
+                        conversationId: conv.id,
+                        conversationType: ConversationType.channel,
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      TipSheet.show(
+                        context,
+                        recipients: [],
+                        conversationId: conv.id,
+                        conversationType: ConversationType.channel,
+                      );
+                    }
+                  }
+                },
+                icon: const Icon(Icons.volunteer_activism_outlined),
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              IconButton(
                 onPressed: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => ChannelDetailsScreen(conversation: conv)),
+                  MaterialPageRoute(
+                    builder: (_) => ChannelDetailsScreen(conversation: conv),
+                  ),
                 ),
                 icon: const Icon(Icons.info_outline_rounded),
+                color: Theme.of(context).colorScheme.onSurface,
               ),
               const SizedBox(width: 8),
             ],
@@ -136,44 +234,41 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     }
 
     final posts = provider.getChannelPosts(conversationId);
-    if (posts.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.feed_rounded,
-              size: 64,
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurfaceVariant.withValues(alpha: 0.2),
+    final content = posts.isEmpty
+        ? Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.feed_rounded,
+                  size: 64,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurfaceVariant.withValues(alpha: 0.2),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'No posts yet.',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            const Text(
-              'No posts yet.',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          )
+        : RefreshIndicator(
+            onRefresh: () => provider.loadChannelPosts(conversationId),
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+              itemCount: posts.length,
+              itemBuilder: (context, index) {
+                final post = posts[index];
+                return _PostCard(post: post, conversationId: conversationId);
+              },
             ),
-          ],
-        ),
-      );
-    }
+          );
 
     return Stack(
       children: [
-        RefreshIndicator(
-          onRefresh: () => provider.loadChannelPosts(conversationId),
-          child: ListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-            itemCount: posts.length,
-            itemBuilder: (context, index) {
-              final post = posts[index];
-              return _PostCard(
-                post: post,
-                conversationId: conversationId,
-              );
-            },
-          ),
-        ),
+        Positioned.fill(child: content),
         if (canPost)
           Positioned(
             left: 0,
@@ -220,63 +315,192 @@ class _ChannelComposerState extends State<_ChannelComposer> {
         NotificationService.showError(context, 'Failed to broadcast post');
       }
     } finally {
-      if (mounted) setState(() => _isPosting = false);
+      if (mounted) {
+        setState(() => _isPosting = false);
+      }
+    }
+  }
+
+  void _showAttachmentSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => AttachmentSheet(
+        onImage: () => _pickImage(ImageSource.gallery),
+        onCamera: () => _pickImage(ImageSource.camera),
+        onVideo: () => _pickVideo(),
+        onFile: () => _pickFile(),
+      ),
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    final picker = ImagePicker();
+    final file = await picker.pickImage(source: source);
+    if (file != null) {
+      if (!mounted) return;
+      await MediaPreviewSheet.show(
+        context,
+        filePath: file.path,
+        type: MessageType.image,
+        onSend: (caption) =>
+            context.read<MessagingProvider>().sendChannelMediaPost(
+              conversationId: widget.conversationId,
+              filePath: file.path,
+              type: MessageType.image,
+              content: caption,
+            ),
+      );
+    }
+  }
+
+  Future<void> _pickVideo() async {
+    final picker = ImagePicker();
+    final file = await picker.pickVideo(source: ImageSource.gallery);
+    if (file != null) {
+      if (!mounted) return;
+      await MediaPreviewSheet.show(
+        context,
+        filePath: file.path,
+        type: MessageType.video,
+        onSend: (caption) =>
+            context.read<MessagingProvider>().sendChannelMediaPost(
+              conversationId: widget.conversationId,
+              filePath: file.path,
+              type: MessageType.video,
+              content: caption,
+            ),
+      );
+    }
+  }
+
+  Future<void> _pickFile() async {
+    final file = await FilePicker.pickFile();
+    if (file != null && file.path != null) {
+      if (!mounted) return;
+      await MediaPreviewSheet.show(
+        context,
+        filePath: file.path!,
+        type: MessageType.file,
+        onSend: (caption) =>
+            context.read<MessagingProvider>().sendChannelMediaPost(
+              conversationId: widget.conversationId,
+              filePath: file.path!,
+              type: MessageType.file,
+              content: caption,
+            ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
 
     return Container(
       padding: EdgeInsets.fromLTRB(
         16,
-        8,
+        12,
         16,
-        MediaQuery.of(context).padding.bottom + 8,
+        MediaQuery.of(context).padding.bottom + 12,
       ),
       decoration: BoxDecoration(
-        color: colors.surface,
+        color: colors.surface.withValues(alpha: 0.96),
         border: Border(
-          top: BorderSide(color: colors.outline.withValues(alpha: 0.1)),
+          top: BorderSide(color: colors.outline.withValues(alpha: 0.08)),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 20,
+            offset: const Offset(0, -5),
+          ),
+        ],
       ),
       child: Row(
         children: [
+          IconButton(
+            onPressed: _showAttachmentSheet,
+            icon: Icon(Icons.add_circle_outline_rounded, color: colors.primary),
+            visualDensity: VisualDensity.compact,
+          ),
+          const SizedBox(width: 4),
           Expanded(
             child: TextField(
               controller: _controller,
+              style: const TextStyle(fontWeight: FontWeight.w600),
               decoration: InputDecoration(
-                hintText: 'Broadcast a post...',
-                filled: true,
-                fillColor: colors.surfaceContainerHighest.withValues(
-                  alpha: 0.4,
+                hintText: 'Broadcast a story...',
+                hintStyle: TextStyle(
+                  color: colors.onSurfaceVariant.withValues(alpha: 0.4),
                 ),
+                filled: true,
+                fillColor: colors.onSurface.withValues(alpha: 0.04),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(28),
                   borderSide: BorderSide.none,
                 ),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 20,
-                  vertical: 10,
+                  vertical: 12,
                 ),
               ),
               maxLines: null,
             ),
           ),
-          const SizedBox(width: 8),
-          IconButton(
-            onPressed: _isPosting ? null : _submit,
-            icon: _isPosting
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.send_rounded),
-            color: colors.primary,
+          const SizedBox(width: 10),
+          _FloatingComposerButton(
+            icon: Icons.arrow_upward_rounded,
+            background: colors.primary,
+            foreground: colors.onPrimary,
+            onTap: _isPosting ? () {} : _submit,
+            isLoading: _isPosting,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _FloatingComposerButton extends StatelessWidget {
+  final IconData icon;
+  final Color background;
+  final Color foreground;
+  final VoidCallback onTap;
+  final bool isLoading;
+
+  const _FloatingComposerButton({
+    required this.icon,
+    required this.background,
+    required this.foreground,
+    required this.onTap,
+    this.isLoading = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: background,
+      shape: const CircleBorder(),
+      elevation: 4,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: isLoading
+              ? Padding(
+                  padding: const EdgeInsets.all(14.0),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: foreground,
+                  ),
+                )
+              : Icon(icon, color: foreground, size: 24),
+        ),
       ),
     );
   }
@@ -335,7 +559,10 @@ class _PostCard extends StatelessWidget {
                   if (role == 'owner' || role == 'admin') ...[
                     const SizedBox(width: 6),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: colors.primary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
@@ -369,8 +596,10 @@ class _PostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final textTheme = theme.textTheme;
+    final isDark = theme.brightness == Brightness.dark;
     final provider = context.watch<MessagingProvider>();
     final comments = provider.getPostComments(post.id);
 
@@ -378,35 +607,62 @@ class _PostCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: colors.primary.withValues(alpha: 0.08)),
+        borderRadius: BorderRadius.circular(28),
+        border: Border(
+          top: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.2,
+          ),
+          bottom: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.2,
+          ),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.12 : 0.03),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildAuthorInfo(context, colors, textTheme),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
                 Text(
                   post.text,
-                  style: const TextStyle(fontSize: 16, height: 1.5),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    height: 1.6,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 if (post.mediaUrl != null) ...[
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(20),
                     child: Image.network(
                       post.mediaUrl!,
                       fit: BoxFit.cover,
                       width: double.infinity,
                       errorBuilder: (context, error, stackTrace) => Container(
-                        height: 100,
-                        color: colors.surfaceContainerHighest.withValues(alpha: 0.3),
-                        child: const Center(child: Icon(Icons.error_outline_rounded)),
+                        height: 150,
+                        decoration: BoxDecoration(
+                          color: colors.surfaceContainerHighest.withValues(
+                            alpha: 0.3,
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Center(
+                          child: Icon(Icons.broken_image_outlined, size: 32),
+                        ),
                       ),
                     ),
                   ),
@@ -414,42 +670,43 @@ class _PostCard extends StatelessWidget {
               ],
             ),
           ),
-          const Divider(height: 1),
+          const Divider(height: 1, indent: 20, endIndent: 20),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Row(
               children: [
                 TextButton.icon(
                   onPressed: () =>
                       CommentSheet.show(context, conversationId, post.id),
-                  icon: Icon(Icons.chat_bubble_outline_rounded, size: 18, color: colors.onSurfaceVariant),
+                  icon: Icon(
+                    Icons.chat_bubble_outline_rounded,
+                    size: 18,
+                    color: colors.primary,
+                  ),
                   label: Text(
                     '${comments.length} comments',
                     style: TextStyle(
-                      fontWeight: FontWeight.w800, 
-                      fontSize: 13,
-                      color: colors.onSurfaceVariant,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 12,
+                      color: colors.primary,
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                 ),
                 const Spacer(),
-                IconButton(
-                  onPressed: () => provider.toggleReaction(post.id, '❤️'),
-                  icon: Icon(
-                    post.reactions.containsKey('❤️')
-                        ? Icons.favorite_rounded
-                        : Icons.favorite_border_rounded,
-                    size: 18,
-                    color: post.reactions.containsKey('❤️') ? Colors.red : null,
-                  ),
-                ),
                 IconButton(
                   onPressed: () => SharePlus.instance.share(
                     ShareParams(
                       text: '${post.text}\n\nJoin this channel on Griot.',
                     ),
                   ),
-                  icon: const Icon(Icons.share_rounded, size: 18),
+                  icon: const Icon(Icons.share_outlined, size: 18),
+                  color: colors.onSurfaceVariant.withValues(alpha: 0.6),
                 ),
               ],
             ),

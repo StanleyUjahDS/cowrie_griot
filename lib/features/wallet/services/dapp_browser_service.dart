@@ -12,7 +12,7 @@ class DAppBrowserService {
   final String Function() getChainId;
   final Function(String chainId)? onChainSwitch;
   bool _isProcessingSwitch = false;
-  
+
   static final Set<String> _connectedOrigins = {};
 
   static bool isConnected(String origin) => _connectedOrigins.contains(origin);
@@ -69,7 +69,7 @@ class DAppBrowserService {
         case 'wallet_requestPermissions':
           final address = await _walletService.getAddress();
           if (address == null) return {'error': {'code': -32000, 'message': 'Wallet not initialized'}};
-          
+
           if (!activeContext.mounted) return {'error': {'code': 4001, 'message': 'User rejected the request'}};
 
           final approved = await _showApprovalDialog(
@@ -160,8 +160,8 @@ class DAppBrowserService {
       dataHex: tx['data'] as String?,
     );
 
-    final result = await _transactionApiService.broadcastTransaction(network: network, transactionId: 'dapp_${DateTime.now().millisecondsSinceEpoch}', signedTransaction: signedTx!);
-    return {'result': result['broadcast']?['hash'] ?? result['hash']};
+    final result = await _transactionApiService.broadcastRawTransaction(network: network, signedTransaction: signedTx!, transactionType: 'send');
+    return {'result': result['hash'] ?? result['broadcast']?['hash']};
   }
 
   Future<Map<String, dynamic>> _handlePersonalSign(BuildContext activeContext, dynamic params, {String? origin}) async {

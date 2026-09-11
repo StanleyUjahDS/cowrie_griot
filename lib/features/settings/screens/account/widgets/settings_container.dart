@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../../core/ui/widgets/griot_branded_container.dart';
 
 class SettingsContainer extends StatelessWidget {
   final List<Widget> children;
@@ -10,19 +11,9 @@ class SettingsContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme =
-        Theme.of(context).colorScheme;
-
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: colorScheme.onSurface.withValues(alpha: 0.035),
-        borderRadius:
-        BorderRadius.circular(19),
-        border: Border.all(
-          color: colorScheme.onSurface.withValues(alpha: 0.065),
-        ),
-      ),
+    return GriotBrandedContainer(
+      padding: EdgeInsets.zero,
+      borderRadius: 20,
       child: Column(
         children: children,
       ),

@@ -123,14 +123,7 @@ class _ReputationScreenState extends State<ReputationScreen> {
                           referralCode,
                         ),
                   icon: _isGenerating
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
+                      ? const GriotPulseIndicator(size: 20)
                       : const Icon(Icons.share_rounded),
                   tooltip: 'Showcase your rank',
                 ),
@@ -383,11 +376,19 @@ class _ReputationScreenState extends State<ReputationScreen> {
           ],
         ),
         borderRadius: BorderRadius.circular(32),
-        border: Border.all(
-          color: AppColors.parseHexColor(
-            reputation.tier.badgeColor,
-          ).withValues(alpha: 0.1),
-          width: 1.5,
+        border: Border(
+          top: BorderSide(
+            color: AppColors.parseHexColor(
+              reputation.tier.badgeColor,
+            ).withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+          bottom: BorderSide(
+            color: AppColors.parseHexColor(
+              reputation.tier.badgeColor,
+            ).withValues(alpha: 0.6),
+            width: 1.5,
+          ),
         ),
       ),
       child: Stack(
@@ -487,6 +488,16 @@ class _ReputationScreenState extends State<ReputationScreen> {
       decoration: BoxDecoration(
         color: colors.onSurface.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(24),
+        border: Border(
+          top: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+          bottom: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+        ),
       ),
       child: Row(
         children: [
@@ -627,7 +638,16 @@ class _ReputationScreenState extends State<ReputationScreen> {
       decoration: BoxDecoration(
         color: colors.surfaceContainerLowest.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.1)),
+        border: Border(
+          top: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+          bottom: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -785,6 +805,11 @@ class _PrestigePassport extends StatelessWidget {
 
     // Use the actual theme surface colors instead of hardcoded ones
     final cardBg = isDark ? colors.surface : Colors.white;
+    final cardGradientEnd = Color.lerp(
+      cardBg,
+      tierColor,
+      isDark ? 0.1 : 0.045,
+    )!;
     final textMain = colors.onSurface;
     final textSub = colors.onSurfaceVariant;
     final chipBg = colors.surfaceContainerHighest.withValues(alpha: 0.5);
@@ -801,12 +826,24 @@ class _PrestigePassport extends StatelessWidget {
           padding: const EdgeInsets.all(36),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(54),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [cardBg, cardGradientEnd],
+            ),
             border: Border.all(
               color: isDark
                   ? tierColor.withValues(alpha: 0.2)
                   : colors.outlineVariant,
               width: 2,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.24 : 0.08),
+                blurRadius: 18,
+                offset: const Offset(0, 10),
+              ),
+            ],
           ),
           child: Stack(
             clipBehavior: Clip.none,
@@ -820,25 +857,6 @@ class _PrestigePassport extends StatelessWidget {
                       'assets/cowrie_images/Cowrie8.png',
                       width: 550,
                       fit: BoxFit.contain,
-                    ),
-                  ),
-                ),
-              ),
-
-              // Atmospheric Glow
-              Positioned(
-                top: -100,
-                right: -100,
-                child: Container(
-                  width: 350,
-                  height: 350,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        tierColor.withValues(alpha: isDark ? 0.15 : 0.1),
-                        tierColor.withValues(alpha: 0.0),
-                      ],
                     ),
                   ),
                 ),
@@ -902,7 +920,7 @@ class _PrestigePassport extends StatelessWidget {
                           ),
                         ),
                       ),
-                      // Main Glowing Sphere
+                      // Main identity badge
                       Container(
                         width: 150,
                         height: 150,
@@ -912,20 +930,17 @@ class _PrestigePassport extends StatelessWidget {
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                             colors: [
+                              Color.lerp(tierColor, Colors.white, 0.18)!,
                               tierColor,
-                              tierColor.withValues(alpha: 0.8),
                             ],
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: tierColor.withValues(alpha: 0.4),
-                              blurRadius: 40,
-                              spreadRadius: 2,
-                            ),
-                            BoxShadow(
-                              color: Colors.white.withValues(alpha: 0.2),
-                              blurRadius: 10,
-                              offset: const Offset(-4, -4),
+                              color: Colors.black.withValues(
+                                alpha: isDark ? 0.18 : 0.1,
+                              ),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
                             ),
                           ],
                           border: Border.all(
@@ -978,7 +993,14 @@ class _PrestigePassport extends StatelessWidget {
                     width: double.infinity,
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: chipBg,
+                      gradient: LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: [
+                          chipBg,
+                          tierColor.withValues(alpha: isDark ? 0.08 : 0.045),
+                        ],
+                      ),
                       borderRadius: BorderRadius.circular(32),
                       border: Border.all(color: chipBorder),
                     ),
@@ -1091,10 +1113,14 @@ class _PrestigePassport extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: tierColor.withValues(alpha: 0.18),
+                          ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.1),
-                              blurRadius: 15,
+                              color: Colors.black.withValues(alpha: 0.08),
+                              blurRadius: 5,
+                              offset: const Offset(0, 2),
                             ),
                           ],
                         ),

@@ -11,6 +11,8 @@ class TransactionLogger {
     String? backendError,
     String? providerError,
   }) {
+    if (!kDebugMode) return;
+
     debugPrint('--- TRANSACTION LOG ---');
     debugPrint('Endpoint: $endpoint');
     debugPrint('Network: $network');

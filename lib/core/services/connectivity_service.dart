@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:toastification/toastification.dart';
+import '../theme/app_colors.dart';
 
 class ConnectivityService extends ChangeNotifier {
   ConnectivityService._internal();
@@ -9,7 +10,7 @@ class ConnectivityService extends ChangeNotifier {
 
   final Connectivity _connectivity = Connectivity();
   StreamSubscription<List<ConnectivityResult>>? _subscription;
-  
+
   bool _isOnline = true;
   bool get isOnline => _isOnline;
 
@@ -24,7 +25,7 @@ class ConnectivityService extends ChangeNotifier {
       // Small delay to prevent flapping during network transitions
       Future.delayed(const Duration(milliseconds: 500), () => _updateConnectionStatus(results));
     });
-    
+
     // Initial check
     _connectivity.checkConnectivity().then(_updateConnectionStatus);
   }
@@ -32,12 +33,12 @@ class ConnectivityService extends ChangeNotifier {
   void _updateConnectionStatus(List<ConnectivityResult> results) {
     // Filter out results that are effectively 'none' or empty
     final bool online = results.isNotEmpty && !results.every((r) => r == ConnectivityResult.none);
-    
+
     if (_isOnline != online) {
       final bool wasInitiallyTrue = _isOnline;
       _isOnline = online;
       notifyListeners();
-      
+
       // Don't show "Back online" banner on first check if we were already assumed online
       if (!online || wasInitiallyTrue) {
         _showConnectivityBanner(online);
@@ -47,7 +48,7 @@ class ConnectivityService extends ChangeNotifier {
 
   void _showConnectivityBanner(bool online) {
     debugPrint('Connectivity: Showing banner (online: $online)');
-    
+
     // Safety check to ensure we don't try to show UI before the app is ready
     if (WidgetsBinding.instance.lifecycleState == null) {
       debugPrint('Connectivity: Skipping banner, app lifecycle not ready');
@@ -58,7 +59,7 @@ class ConnectivityService extends ChangeNotifier {
       toastification.dismiss(_currentToast!);
       _currentToast = null;
     }
-    
+
     try {
       _currentToast = toastification.showCustom(
         autoCloseDuration: online ? const Duration(seconds: 4) : null,
@@ -71,7 +72,7 @@ class ConnectivityService extends ChangeNotifier {
                 margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
-                  color: online ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
+                  color: online ? AppColors.success : AppColors.error,
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
@@ -91,8 +92,8 @@ class ConnectivityService extends ChangeNotifier {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        online 
-                          ? 'Back online. Connection restored.' 
+                        online
+                          ? 'Back online. Connection restored.'
                           : 'No internet connection. Please check your network.',
                         style: const TextStyle(
                           color: Colors.white,

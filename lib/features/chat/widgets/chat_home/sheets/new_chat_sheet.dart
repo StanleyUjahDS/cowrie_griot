@@ -24,7 +24,7 @@ class NewChatSheet extends StatefulWidget {
 class _NewChatSheetState extends State<NewChatSheet> {
   final TextEditingController searchController =
   TextEditingController();
-  
+
   Timer? _searchTimer;
   List<UserModel> _results = [];
   bool _isSearching = false;
@@ -65,11 +65,11 @@ class _NewChatSheetState extends State<NewChatSheet> {
 
     try {
       final apiService = context.read<UserApiService>();
-      final results = await apiService.searchUsers(query);
+      final response = await apiService.searchUsers(query);
       if (!mounted) return;
-      
+
       setState(() {
-        _results = results;
+        _results = response['users'] as List<UserModel>;
         _isSearching = false;
       });
     } catch (e) {
@@ -106,11 +106,11 @@ class _NewChatSheetState extends State<NewChatSheet> {
           child: Column(
             children: [
               const SizedBox(height: 10),
-  
+
               // ==================================================
               // HANDLE
               // ==================================================
-  
+
               Container(
                 width: 40,
                 height: 4,
@@ -120,13 +120,13 @@ class _NewChatSheetState extends State<NewChatSheet> {
                   borderRadius: BorderRadius.circular(20),
                 ),
               ),
-  
+
               const SizedBox(height: 18),
-  
+
               // ==================================================
               // HEADER
               // ==================================================
-  
+
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 20,
@@ -151,11 +151,11 @@ class _NewChatSheetState extends State<NewChatSheet> {
                   ],
                 ),
               ),
-  
+
               // ==================================================
               // SEARCH
               // ==================================================
-  
+
               Padding(
                 padding: const EdgeInsets.fromLTRB(
                   16,
@@ -188,11 +188,11 @@ class _NewChatSheetState extends State<NewChatSheet> {
                   ),
                 ),
               ),
-  
+
               // ==================================================
               // RESULTS
               // ==================================================
-  
+
               Expanded(
                 child: _isSearching
                     ? const Center(child: GriotLoader(size: 32))
@@ -209,7 +209,7 @@ class _NewChatSheetState extends State<NewChatSheet> {
                   itemBuilder:
                       (context, index) {
                     final user = _results[index];
-  
+
                     return _UserSearchItem(
                       key: ValueKey(user.id),
                       user: user,

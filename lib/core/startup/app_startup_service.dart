@@ -59,7 +59,7 @@ class AppStartupService {
 
       if (status == AuthSessionStatus.needsRegistration) {
         debugPrint('AppStartup: Identity missing. Redirection required.');
-        return false; 
+        return false;
       }
 
       // 3. Sync Profile and Init Real-time
@@ -67,7 +67,7 @@ class AppStartupService {
         debugPrint('AppStartup: Authenticated. Syncing profile...');
         try {
           await _userProvider.loadUser();
-          
+
           final accessToken = await _authSessionService.getAccessToken();
           if (accessToken != null) {
             _messagingProvider.initSocket(accessToken);
@@ -79,18 +79,31 @@ class AppStartupService {
           unawaited(PushNotificationService.instance.syncTokenWithBackend());
           unawaited(_messagingProvider.loadBlocks());
         } catch (e) {
-          debugPrint('AppStartup: Profile sync failed (Backend unreachable).');
+          debugPrint('AppStartup: Profile sync failed: $e');
+
+          // If the failure was a 401 (Unauthorized), then our assumed
+          // session is actually invalid. Fallback to unauthenticated.
+          final errorStr = e.toString();
+          if (errorStr.contains('401') || errorStr.toLowerCase().contains('unauthorized')) {
+            debugPrint('AppStartup: Session proved invalid (401). Falling back to login.');
+            status = AuthSessionStatus.unauthenticated;
+          }
         }
-      } else if (status == AuthSessionStatus.unauthenticated) {
-        debugPrint('AppStartup: Wallet exists but no session found. Proceeding to unlock flow.');
-        // Return true to enter app; the Lock Layer or Login Screen will handle auth.
-        return true;
-      } else {
-        debugPrint('AppStartup: Continuing in ${status.name} mode.');
       }
 
-      // CONTRACT: If a wallet exists, always return true to enter the app.
-      return true; 
+      // Check status AGAIN if it fell back above
+      if (status == AuthSessionStatus.unauthenticated) {
+        debugPrint('AppStartup: Wallet exists but no session found. Redirection to login required.');
+        return false;
+      }
+
+      if (status == AuthSessionStatus.offline) {
+         debugPrint('AppStartup: App is offline. Proceeding with local data.');
+      }
+
+      // CONTRACT: If a wallet exists and status is not 'needsRegistration' or 'unauthenticated',
+      // we enter the app.
+      return true;
     } catch (e) {
       debugPrint('AppStartup: Critical initialization error: $e');
       return false;

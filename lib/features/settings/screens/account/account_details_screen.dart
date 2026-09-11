@@ -8,6 +8,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../users/providers/user_provider.dart';
 import '../../../users/models/user_model.dart';
+import '../../../../core/ui/widgets/griot_branded_container.dart';
 
 import 'username_edit_sheet.dart';
 import 'display_name_edit_sheet.dart';
@@ -18,6 +19,7 @@ import 'widgets/profile_field.dart';
 import 'widgets/section_label.dart';
 import 'widgets/settings_container.dart';
 import '../../../../core/ui/widgets/griot_loader.dart';
+import '../../../../core/services/notification_service.dart';
 
 class AccountDetailsScreen extends StatefulWidget {
   const AccountDetailsScreen({super.key});
@@ -190,13 +192,17 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
         padding: const EdgeInsets.fromLTRB(18, 8, 18, 36),
         children:
             [
-                  _ProfileHero(
-                    avatarUrl: avatarUrl,
-                    displayName: displayName,
-                    username: username,
-                    reputation: user?.reputation,
+                  GriotBrandedContainer(
+                    padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                    borderRadius: 28,
+                    child: _ProfileHero(
+                      avatarUrl: avatarUrl,
+                      displayName: displayName,
+                      username: username,
+                      reputation: user?.reputation,
+                    ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 24),
                   const SectionLabel(title: 'Public Profile'),
                   SettingsContainer(
                     children: [
@@ -246,10 +252,9 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
                             return;
                           }
                           Clipboard.setData(ClipboardData(text: walletAddress));
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Wallet address copied'),
-                            ),
+                          NotificationService.showSuccess(
+                            context,
+                            'Wallet address copied',
                           );
                         },
                       ),

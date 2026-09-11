@@ -96,19 +96,28 @@ class ReceiveScreen extends StatelessWidget {
         children: [
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               physics: const BouncingScrollPhysics(),
               child: Column(
                 children: [
                   const SizedBox(height: 20),
-                  
+
                   // QR Card
                   Container(
                     padding: const EdgeInsets.all(32),
                     decoration: BoxDecoration(
                       color: colors.surface,
                       borderRadius: BorderRadius.circular(32),
-                      border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.1)),
+                      border: Border(
+                        top: BorderSide(
+                          color: colors.primary.withValues(alpha: 0.6),
+                          width: 1.5,
+                        ),
+                        bottom: BorderSide(
+                          color: colors.primary.withValues(alpha: 0.6),
+                          width: 1.5,
+                        ),
+                      ),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.05),
@@ -178,9 +187,9 @@ class ReceiveScreen extends StatelessWidget {
                       ],
                     ),
                   ).animate().fadeIn(duration: 600.ms).scale(begin: const Offset(0.9, 0.9)),
-                  
+
                   const SizedBox(height: 32),
-                  
+
                   // Action Buttons
                   Row(
                     children: [
@@ -211,9 +220,9 @@ class ReceiveScreen extends StatelessWidget {
                       ),
                     ],
                   ).animate(delay: 200.ms).fadeIn(duration: 400.ms).slideY(begin: 0.1),
-                  
+
                   const SizedBox(height: 40),
-                  
+
                   // Info Section
                   Container(
                     padding: const EdgeInsets.all(20),

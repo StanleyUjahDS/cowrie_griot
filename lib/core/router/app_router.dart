@@ -18,8 +18,10 @@ import '../../features/local_auth/screens/confirm_password_screen.dart';
 import '../../features/local_auth/screens/enable_biometrics_screen.dart';
 import '../../features/local_auth/screens/pin_verification_screen.dart';
 
+import '../ui/screens/document_viewer_screen.dart';
+import '../../features/chat/screens/dm_chat_screen.dart';
+import '../../features/chat/screens/group_chat_screen.dart';
 import '../../features/chat/screens/chat_home_screen.dart';
-import '../../features/chat/screens/chatting_screen.dart';
 import '../../features/chat/screens/channels/channel_feed_screen.dart';
 import '../../features/chat/screens/user_discovery_screen.dart';
 import '../../features/chat/screens/groups/create_group_screen.dart';
@@ -27,8 +29,10 @@ import '../../features/chat/screens/groups/group_details_screen.dart';
 import '../../features/chat/screens/channels/create_channel_screen.dart';
 import '../../features/chat/screens/channels/channel_details_screen.dart';
 import '../../features/chat/screens/message_requests_screen.dart';
-import '../../features/chat/screens/activity_screen.dart';
+import '../../features/chat/screens/notifications_screen.dart';
 import '../../features/chat/screens/friends_list_screen.dart';
+import '../../features/chat/screens/shared_content_screen.dart';
+import '../../features/chat/models/shared_content.dart';
 import '../../features/chat/screens/user_profile_screen.dart';
 import '../../features/chat/models/conversation_model.dart';
 import '../../features/chat/models/chat_user.dart';
@@ -39,6 +43,8 @@ import '../../features/settings/screens/appearance/theme_settings_screen.dart';
 import '../../features/settings/screens/appearance/accent_color_screen.dart';
 import '../../features/settings/screens/account/account_details_screen.dart';
 import '../../features/settings/screens/account/griot_plus_screen.dart';
+import '../../features/settings/screens/preferences_settings_screen.dart';
+import '../../features/settings/screens/general/about_griot_screen.dart';
 import '../../features/settings/screens/security/app_security_screen.dart';
 import '../../features/settings/screens/wallet_security/backup_wallet_screen.dart';
 
@@ -78,9 +84,7 @@ class AppRouter {
 
   static late ThemeController themeController;
 
-  static void setThemeController(
-      ThemeController controller,
-      ) {
+  static void setThemeController(ThemeController controller) {
     themeController = controller;
   }
 
@@ -106,7 +110,6 @@ class AppRouter {
       // ======================================================
       // FULL SCREEN CHAT
       // ======================================================
-
       GoRoute(
         path: '/conversation/:conversationId',
         builder: (context, state) {
@@ -114,20 +117,45 @@ class AppRouter {
           if (conversationId == null || conversationId.isEmpty) {
             return const _InvalidRoute(message: 'Invalid conversation.');
           }
-          
+
           final extra = state.extra;
-          if (extra is Conversation && extra.type == ConversationType.channel) {
-            return ChannelFeedScreen(conversation: extra);
+          if (extra is Conversation) {
+            if (extra.type == ConversationType.channel) {
+              return ChannelFeedScreen(conversation: extra);
+            }
+            if (extra.type == ConversationType.group) {
+              return GroupChatScreen(
+                conversationId: conversationId,
+                initialConversation: extra,
+              );
+            }
+            return DMChatScreen(
+              conversationId: conversationId,
+              initialConversation: extra,
+            );
           }
 
-          return ChatScreen(
-            conversationId: conversationId,
-            initialConversation: extra is Conversation ? extra : null,
+          // Fallback if extra is not provided, we might need to fetch it or guess.
+          // For now, assume it's a DM or handle it in the screens.
+          return DMChatScreen(conversationId: conversationId);
+        },
+      ),
+
+      GoRoute(
+        path: '/viewer',
+        builder: (context, state) {
+          final extra = state.extra;
+          if (extra is! Map<String, dynamic>) {
+            return const _InvalidRoute(message: 'Document data missing.');
+          }
+          return DocumentViewerScreen(
+            url: extra['url'] as String,
+            title: extra['title'] as String,
           );
         },
       ),
-      
-      // Moving /chat/:userId here would still conflict. 
+
+      // Moving /chat/:userId here would still conflict.
       // Let's use /messages/user/:userId to be safe and clean.
       GoRoute(
         path: '/chat/user/:userId',
@@ -136,9 +164,11 @@ class AppRouter {
           if (userId == null || userId.isEmpty) {
             return const _InvalidRoute(message: 'Invalid chat user.');
           }
-          return ChatScreen(
+          return DMChatScreen(
             userId: userId,
-            initialUser: state.extra is ChatUser ? state.extra as ChatUser : null,
+            initialUser: state.extra is ChatUser
+                ? state.extra as ChatUser
+                : null,
           );
         },
       ),
@@ -146,6 +176,17 @@ class AppRouter {
       GoRoute(
         path: '/chat/friends',
         builder: (context, state) => const FriendsListScreen(),
+      ),
+
+      GoRoute(
+        path: '/shared-content',
+        builder: (context, state) {
+          final content = state.extra;
+          if (content is! SharedContent) {
+            return const _InvalidRoute(message: 'Shared content missing.');
+          }
+          return SharedContentScreen(content: content);
+        },
       ),
 
       GoRoute(
@@ -202,163 +243,108 @@ class AppRouter {
       ),
 
       // ======================================================
-      // WELCOME
+      // ONBOARDING & AUTH SHELL
       // ======================================================
-
-      GoRoute(
-        path: '/welcome_one',
-        builder: (context, state) {
-          return const WelcomePage1();
+      ShellRoute(
+        builder: (context, state, child) {
+          return GradientScaffold(useSafeArea: false, child: child);
         },
-      ),
-
-      GoRoute(
-        path: '/welcome_two',
-        builder: (context, state) {
-          return const WelcomePage2();
-        },
-      ),
-
-      GoRoute(
-        path: '/welcome_three',
-        builder: (context, state) {
-          return const WelcomePage3();
-        },
-      ),
-
-      GoRoute(
-        path: '/welcome_four',
-        builder: (context, state) {
-          return const WelcomePage4();
-        },
-      ),
-
-      // ======================================================
-      // AUTH
-      // ======================================================
-
-      GoRoute(
-        path: '/login',
-        builder: (context, state) {
-          return const LoginScreen();
-        },
-      ),
-
-      GoRoute(
-        path: '/create_account',
-        builder: (context, state) {
-          return const CreateAccountScreen();
-        },
-      ),
-
-      GoRoute(
-        path: '/recover_account',
-        builder: (context, state) {
-          return const RecoverAccountScreen();
-        },
-      ),
-
-      // ======================================================
-      // GENERIC APP LOADING
-      // ======================================================
-
-      GoRoute(
-        path: '/loading',
-        builder: (context, state) {
-          final extra = state.extra;
-
-          if (extra is! AppLoadingRouteData) {
-            return const _InvalidRoute(
-              message:
-              'Invalid loading screen configuration.',
-            );
-          }
-
-          return AppLoadingScreen(
-            title: extra.title,
-            message: extra.message,
-            icon: extra.icon,
-            operation: extra.operation,
-            onSuccess: extra.onSuccess,
-          );
-        },
-      ),
-
-      // ======================================================
-      // PASSWORD
-      // ======================================================
-
-      GoRoute(
-        path: '/set_password',
-        builder: (context, state) {
-          final extra = state.extra;
-          return SetPassword(
-            onSuccess: extra is Future<void> Function(BuildContext) ? extra : null,
-          );
-        },
-      ),
-
-      GoRoute(
-        path: '/confirm_password',
-        builder: (context, state) {
-          final extra = state.extra;
-
-          if (extra is String) {
-            return VerifyPassword(
-              input: extra,
-            );
-          }
-
-          if (extra is Map<String, dynamic>) {
-            return VerifyPassword(
-              input: extra['pin'] as String,
-              onSuccess: extra['onSuccess'] as Future<void> Function(BuildContext)?,
-            );
-          }
-
-          return const _InvalidRoute(
-            message: 'Invalid password configuration.',
-          );
-        },
-      ),
-
-      // ======================================================
-      // RECOVERY PHRASE
-      // ======================================================
-
-      GoRoute(
-        path: '/display_phrase',
-        builder: (context, state) {
-          final extra = state.extra;
-
-          if (extra is! WalletData) {
-            return const _InvalidRoute(
-              message:
-              'Wallet data was not provided.',
-            );
-          }
-
-          return DisplayPhraseScreen(
-            wallet: extra,
-          );
-        },
-      ),
-
-      // ======================================================
-      // VERIFY PHRASE
-      // ======================================================
-
-      GoRoute(
-        path: '/verify_phrase',
-        builder: (context, state) {
-          return const VerifySeed();
-        },
+        routes: [
+          GoRoute(
+            path: '/welcome_one',
+            builder: (context, state) => const WelcomePage1(),
+          ),
+          GoRoute(
+            path: '/welcome_two',
+            builder: (context, state) => const WelcomePage2(),
+          ),
+          GoRoute(
+            path: '/welcome_three',
+            builder: (context, state) => const WelcomePage3(),
+          ),
+          GoRoute(
+            path: '/welcome_four',
+            builder: (context, state) => const WelcomePage4(),
+          ),
+          GoRoute(
+            path: '/login',
+            builder: (context, state) => const LoginScreen(),
+          ),
+          GoRoute(
+            path: '/create_account',
+            builder: (context, state) => const CreateAccountScreen(),
+          ),
+          GoRoute(
+            path: '/recover_account',
+            builder: (context, state) => const RecoverAccountScreen(),
+          ),
+          GoRoute(
+            path: '/display_phrase',
+            builder: (context, state) {
+              final extra = state.extra;
+              if (extra is! WalletData) {
+                return const _InvalidRoute(message: 'Wallet data missing.');
+              }
+              return DisplayPhraseScreen(wallet: extra);
+            },
+          ),
+          GoRoute(
+            path: '/loading',
+            builder: (context, state) {
+              final extra = state.extra;
+              if (extra is! AppLoadingRouteData) {
+                return const _InvalidRoute(
+                  message: 'Invalid loading screen configuration.',
+                );
+              }
+              return AppLoadingScreen(
+                title: extra.title,
+                message: extra.message,
+                icon: extra.icon,
+                operation: extra.operation,
+                onSuccess: extra.onSuccess,
+              );
+            },
+          ),
+          GoRoute(
+            path: '/verify_phrase',
+            builder: (context, state) => const VerifySeed(),
+          ),
+          GoRoute(
+            path: '/set_password',
+            builder: (context, state) {
+              final extra = state.extra;
+              return SetPassword(
+                onSuccess: extra is Future<void> Function(BuildContext)
+                    ? extra
+                    : null,
+              );
+            },
+          ),
+          GoRoute(
+            path: '/confirm_password',
+            builder: (context, state) {
+              final extra = state.extra;
+              if (extra is String) {
+                return VerifyPassword(input: extra);
+              }
+              if (extra is Map<String, dynamic>) {
+                return VerifyPassword(
+                  input: extra['pin'] as String,
+                  onSuccess:
+                      extra['onSuccess']
+                          as Future<void> Function(BuildContext)?,
+                );
+              }
+              return const _InvalidRoute(message: 'Invalid configuration.');
+            },
+          ),
+        ],
       ),
 
       // ======================================================
       // BIOMETRICS
       // ======================================================
-
       GoRoute(
         path: '/enable_biometrics',
         builder: (context, state) {
@@ -369,13 +355,14 @@ class AppRouter {
       // ======================================================
       // PIN VERIFICATION
       // ======================================================
-
       GoRoute(
         path: '/verify_pin',
         builder: (context, state) {
           final extra = state.extra;
           return PinVerificationScreen(
-            onSuccess: extra is Future<void> Function(BuildContext) ? extra : null,
+            onSuccess: extra is Future<void> Function(BuildContext)
+                ? extra
+                : null,
           );
         },
       ),
@@ -383,7 +370,6 @@ class AppRouter {
       // ======================================================
       // WALLET SCAN
       // ======================================================
-
       GoRoute(
         path: '/wallet/scan',
         builder: (context, state) {
@@ -394,7 +380,6 @@ class AppRouter {
       // ======================================================
       // WALLET SEARCH
       // ======================================================
-
       GoRoute(
         path: '/wallet/search',
         builder: (context, state) {
@@ -410,49 +395,38 @@ class AppRouter {
       // ======================================================
       // ASSET DETAILS
       // ======================================================
-
       GoRoute(
         path: '/wallet/asset',
         builder: (context, state) {
           final extra = state.extra;
 
           if (extra is! TokenModel) {
-            return const _InvalidRoute(
-              message: 'Asset data was not provided.',
-            );
+            return const _InvalidRoute(message: 'Asset data was not provided.');
           }
 
-          return AssetDetailsScreen(
-            token: extra,
-          );
+          return AssetDetailsScreen(token: extra);
         },
       ),
 
       // ======================================================
       // NFT DETAILS
       // ======================================================
-
       GoRoute(
         path: '/wallet/nft',
         builder: (context, state) {
           final extra = state.extra;
 
           if (extra is! NftModel) {
-            return const _InvalidRoute(
-              message: 'NFT data was not provided.',
-            );
+            return const _InvalidRoute(message: 'NFT data was not provided.');
           }
 
-          return NftDetailsScreen(
-            nft: extra,
-          );
+          return NftDetailsScreen(nft: extra);
         },
       ),
 
       // ======================================================
       // WALLET ACTIONS
       // ======================================================
-
       GoRoute(
         path: '/wallet/send',
         builder: (context, state) {
@@ -468,9 +442,7 @@ class AppRouter {
         path: '/wallet/receive',
         builder: (context, state) {
           final extra = state.extra;
-          return ReceiveScreen(
-            token: extra is TokenModel ? extra : null,
-          );
+          return ReceiveScreen(token: extra is TokenModel ? extra : null);
         },
       ),
 
@@ -478,7 +450,7 @@ class AppRouter {
         path: '/wallet/swap',
         builder: (context, state) {
           final extra = state.extra;
-          
+
           if (extra is Map<String, dynamic>) {
             return SwapScreen(
               initialFromToken: extra['from'] as TokenModel?,
@@ -501,14 +473,15 @@ class AppRouter {
         path: '/wallet/browser',
         builder: (context, state) {
           final url = state.extra as String?;
-          return DAppBrowserScreen(initialUrl: url ?? 'https://app.uniswap.org');
+          return DAppBrowserScreen(
+            initialUrl: url ?? 'https://app.uniswap.org',
+          );
         },
       ),
 
       // ======================================================
       // SETTINGS — THEME
       // ======================================================
-
       GoRoute(
         path: '/settings/theme',
         builder: (context, state) {
@@ -519,7 +492,6 @@ class AppRouter {
       // ======================================================
       // SETTINGS — ACCENT COLOR
       // ======================================================
-
       GoRoute(
         path: '/settings/accent-color',
         builder: (context, state) {
@@ -530,7 +502,6 @@ class AppRouter {
       // ======================================================
       // SETTINGS — SECURITY
       // ======================================================
-
       GoRoute(
         path: '/settings/app-security',
         builder: (context, state) {
@@ -548,12 +519,32 @@ class AppRouter {
       // ======================================================
       // SETTINGS — USER DETAILS
       // ======================================================
-
       GoRoute(
         path: '/settings/user-details',
         builder: (context, state) {
           return const AccountDetailsScreen();
         },
+      ),
+
+      GoRoute(
+        path: '/settings/chat-settings',
+        builder: (_, _) => const ChatSettingsScreen(),
+      ),
+      GoRoute(
+        path: '/settings/chat-privacy',
+        builder: (_, _) => const ChatPrivacyScreen(),
+      ),
+      GoRoute(
+        path: '/settings/privacy',
+        builder: (_, _) => const PrivacySettingsScreen(),
+      ),
+      GoRoute(
+        path: '/settings/notifications',
+        builder: (_, _) => const NotificationSettingsScreen(),
+      ),
+      GoRoute(
+        path: '/settings/about',
+        builder: (_, _) => const AboutGriotScreen(),
       ),
 
       GoRoute(
@@ -573,9 +564,7 @@ class AppRouter {
       GoRoute(
         path: '/settings/referrals',
         builder: (context, state) {
-          return ReferralScreen(
-            initialCode: state.uri.queryParameters['ref'],
-          );
+          return ReferralScreen(initialCode: state.uri.queryParameters['ref']);
         },
       ),
 
@@ -587,18 +576,11 @@ class AppRouter {
       // ======================================================
       // MAIN NAVIGATION SHELL
       // ======================================================
-
       StatefulShellRoute.indexedStack(
-        builder: (
-            context,
-            state,
-            navigationShell,
-            ) {
+        builder: (context, state, navigationShell) {
           return GradientScaffold(
             useSafeArea: false,
-            child: MainNavigationShell(
-              navigationShell: navigationShell,
-            ),
+            child: MainNavigationShell(navigationShell: navigationShell),
           );
         },
         branches: [
@@ -616,14 +598,13 @@ class AppRouter {
           ),
 
           // ==================================================
-          // ACTIVITY
+          // NOTIFICATIONS
           // ==================================================
-
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/activity',
-                builder: (context, state) => const ActivityScreen(),
+                path: '/notifications',
+                builder: (context, state) => const NotificationsScreen(),
               ),
             ],
           ),
@@ -631,7 +612,6 @@ class AppRouter {
           // ==================================================
           // MINER
           // ==================================================
-
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -646,7 +626,6 @@ class AppRouter {
           // ==================================================
           // WALLET
           // ==================================================
-
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -661,7 +640,6 @@ class AppRouter {
           // ==================================================
           // SETTINGS
           // ==================================================
-
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -685,9 +663,7 @@ class AppRouter {
 class _InvalidRoute extends StatelessWidget {
   final String message;
 
-  const _InvalidRoute({
-    required this.message,
-  });
+  const _InvalidRoute({required this.message});
 
   @override
   Widget build(BuildContext context) {

@@ -3,12 +3,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 
 import '../../../core/ui/widgets/griot_loader.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/ui/widgets/griot_branded_container.dart';
 import '../services/local_auth_service.dart';
-import '../providers/app_lock_provider.dart';
 
 class PinVerificationScreen extends StatefulWidget {
   final Future<void> Function(BuildContext)? onSuccess;
@@ -27,12 +26,10 @@ class PinVerificationScreen extends StatefulWidget {
   });
 
   @override
-  State<PinVerificationScreen> createState() =>
-      _PinVerificationScreenState();
+  State<PinVerificationScreen> createState() => _PinVerificationScreenState();
 }
 
-class _PinVerificationScreenState
-    extends State<PinVerificationScreen> {
+class _PinVerificationScreenState extends State<PinVerificationScreen> {
   late final LocalAuthService _authService;
 
   String _pin = '';
@@ -43,10 +40,18 @@ class _PinVerificationScreenState
   Timer? _cooldownTimer;
 
   final List<String> _keys = const [
-    '1', '2', '3',
-    '4', '5', '6',
-    '7', '8', '9',
-    '', '0', '⌫',
+    '1',
+    '2',
+    '3',
+    '4',
+    '5',
+    '6',
+    '7',
+    '8',
+    '9',
+    '',
+    '0',
+    '⌫',
   ];
 
   @override
@@ -62,15 +67,15 @@ class _PinVerificationScreenState
   }
 
   Future<void> _checkBiometrics() async {
-    final lockProvider = context.read<AppLockProvider>();
-    if (lockProvider.biometricEnabled) {
-      final success = await _authService.authenticateWithBiometrics();
-      if (success && mounted) {
-        if (widget.onSuccess != null) {
-          await widget.onSuccess!(context);
-        } else {
-          context.pop();
-        }
+    // Read the preference from secure storage here instead of relying on the
+    // provider's asynchronous startup state. This guarantees that the lock
+    // always attempts biometrics before showing the app PIN fallback.
+    final success = await _authService.authenticateWithBiometricsIfEnabled();
+    if (success && mounted) {
+      if (widget.onSuccess != null) {
+        await widget.onSuccess!(context);
+      } else {
+        context.pop();
       }
     }
   }
@@ -118,10 +123,7 @@ class _PinVerificationScreenState
   // KEY TAP
   // ============================================================
 
-  Future<void> _onKeyTap(
-      String key,
-      int index,
-      ) async {
+  Future<void> _onKeyTap(String key, int index) async {
     if (_loading || _isCooldownActive) {
       return;
     }
@@ -130,9 +132,7 @@ class _PinVerificationScreenState
       _pressedIndex = index;
     });
 
-    await Future.delayed(
-      const Duration(milliseconds: 100),
-    );
+    await Future.delayed(const Duration(milliseconds: 100));
 
     if (!mounted) {
       return;
@@ -145,10 +145,7 @@ class _PinVerificationScreenState
     if (key == '⌫') {
       if (_pin.isNotEmpty) {
         setState(() {
-          _pin = _pin.substring(
-            0,
-            _pin.length - 1,
-          );
+          _pin = _pin.substring(0, _pin.length - 1);
         });
       }
 
@@ -209,9 +206,15 @@ class _PinVerificationScreenState
     if (_failedAttempts >= 5) {
       // 30 second cooldown after 5 failed attempts
       _startCooldown(30);
-      NotificationService.showError(context, 'Too many failed attempts. Wait 30s.');
+      NotificationService.showError(
+        context,
+        'Too many failed attempts. Wait 30s.',
+      );
     } else if (_failedAttempts >= 3) {
-      NotificationService.showError(context, 'Incorrect PIN. ${5 - _failedAttempts} attempts remaining.');
+      NotificationService.showError(
+        context,
+        'Incorrect PIN. ${5 - _failedAttempts} attempts remaining.',
+      );
     } else {
       NotificationService.showError(context, 'Incorrect PIN');
     }
@@ -222,17 +225,12 @@ class _PinVerificationScreenState
   // ============================================================
 
   @override
-  Widget build(
-      BuildContext context,
-      ) {
-    final theme =
-    Theme.of(context);
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
 
-    final colors =
-        theme.colorScheme;
+    final colors = theme.colorScheme;
 
-    final text =
-        theme.textTheme;
+    final text = theme.textTheme;
 
     return Scaffold(
       appBar: widget.showAppBar
@@ -244,13 +242,23 @@ class _PinVerificationScreenState
           : null,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 24,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               const Spacer(),
+
+              GriotBrandedContainer(
+                padding: const EdgeInsets.all(16),
+                borderRadius: 32,
+                child: Icon(
+                  Icons.lock_open_rounded,
+                  size: 40,
+                  color: colors.primary,
+                ),
+              ),
+
+              const SizedBox(height: 24),
 
               Text(
                 widget.title ?? 'Enter your PIN',
@@ -259,151 +267,96 @@ class _PinVerificationScreenState
                 ),
               ),
 
-              const SizedBox(
-                height: 12,
-              ),
+              const SizedBox(height: 12),
 
               Text(
-                _isCooldownActive ? _cooldownMessage : (widget.description ?? 'Enter your 6-digit PIN to continue.'),
+                _isCooldownActive
+                    ? _cooldownMessage
+                    : (widget.description ??
+                          'Enter your 6-digit PIN to continue.'),
                 textAlign: TextAlign.center,
                 style: text.bodyMedium?.copyWith(
-                  color: _isCooldownActive ? colors.error : colors.onSurfaceVariant,
-                  fontWeight: _isCooldownActive ? FontWeight.bold : FontWeight.normal,
+                  color: _isCooldownActive
+                      ? colors.error
+                      : colors.onSurfaceVariant,
+                  fontWeight: _isCooldownActive
+                      ? FontWeight.bold
+                      : FontWeight.normal,
                 ),
               ),
 
-              const SizedBox(
-                height: 30,
-              ),
+              const SizedBox(height: 30),
 
               Row(
-                mainAxisAlignment:
-                MainAxisAlignment.center,
-                children:
-                List.generate(
-                  6,
-                      (index) {
-                    final filled =
-                        index < _pin.length;
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(6, (index) {
+                  final filled = index < _pin.length;
 
-                    return AnimatedContainer(
-                      duration:
-                      const Duration(
-                        milliseconds: 150,
-                      ),
-                      margin:
-                      const EdgeInsets
-                          .symmetric(
-                        horizontal: 6,
-                      ),
-                      width: 14,
-                      height: 14,
-                      decoration:
-                      BoxDecoration(
-                        shape:
-                        BoxShape.circle,
-                        color: filled
-                            ? colors
-                            .onSurface
-                            : colors
-                            .onSurface
-                            .withValues(alpha: 0.20),
-                      ),
-                    );
-                  },
-                ),
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    margin: const EdgeInsets.symmetric(horizontal: 6),
+                    width: 14,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: filled
+                          ? colors.onSurface
+                          : colors.onSurface.withValues(alpha: 0.20),
+                    ),
+                  );
+                }),
               ),
 
-              const SizedBox(
-                height: 45,
-              ),
+              const SizedBox(height: 45),
 
               GridView.builder(
                 shrinkWrap: true,
-                physics:
-                const NeverScrollableScrollPhysics(),
-                itemCount:
-                _keys.length,
-                gridDelegate:
-                const SliverGridDelegateWithFixedCrossAxisCount(
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _keys.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 3,
                   mainAxisSpacing: 12,
                   crossAxisSpacing: 12,
                   mainAxisExtent: 70,
                 ),
-                itemBuilder:
-                    (context, index) {
-                  final key =
-                  _keys[index];
+                itemBuilder: (context, index) {
+                  final key = _keys[index];
 
                   if (key.isEmpty) {
-                    return const SizedBox
-                        .shrink();
+                    return const SizedBox.shrink();
                   }
 
-                  final pressed =
-                      _pressedIndex ==
-                          index;
+                  final pressed = _pressedIndex == index;
 
                   return GestureDetector(
-                    onTap: () =>
-                        _onKeyTap(
-                          key,
-                          index,
-                        ),
-                    child:
-                    AnimatedContainer(
-                      duration:
-                      const Duration(
-                        milliseconds: 100,
-                      ),
-                      decoration:
-                      BoxDecoration(
-                        shape:
-                        BoxShape.circle,
+                    onTap: () => _onKeyTap(key, index),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 100),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
                         color: pressed
-                            ? colors
-                            .onSurface
-                            .withValues(alpha: 0.08)
-                            : Colors
-                            .transparent,
+                            ? colors.onSurface.withValues(alpha: 0.08)
+                            : Colors.transparent,
                       ),
                       child: Center(
                         child: key == '⌫'
-                            ? Icon(
-                          Icons
-                              .backspace,
-                          color: colors
-                              .onSurface,
-                        )
-                            : Text(
-                          key,
-                          style: text
-                              .titleMedium,
-                        ),
+                            ? Icon(Icons.backspace, color: colors.onSurface)
+                            : Text(key, style: text.titleMedium),
                       ),
                     ),
                   );
                 },
               ),
 
-              const SizedBox(
-                height: 30,
-              ),
+              const SizedBox(height: 30),
 
               if (_loading)
                 const Padding(
-                  padding:
-                  EdgeInsets.only(
-                    bottom: 20,
-                  ),
-                  child:
-                  GriotLoader(size: 28),
+                  padding: EdgeInsets.only(bottom: 20),
+                  child: GriotLoader(size: 28),
                 )
               else
-                const SizedBox(
-                  height: 20,
-                ),
+                const SizedBox(height: 20),
             ],
           ),
         ),

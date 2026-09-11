@@ -62,19 +62,25 @@ class PushNotificationService {
 
     // 5. Non-blocking check for token and cold-start tap.
     // We don't await these to prevent blocking app startup on iOS.
-    _fcm.getToken().then((token) {
-      if (token != null) debugPrint('FCM Token retrieved.');
-    }).catchError((e) => debugPrint('Error getting token: $e'));
+    _fcm
+        .getToken()
+        .then((token) {
+          if (token != null) debugPrint('FCM Token retrieved.');
+        })
+        .catchError((e) => debugPrint('Error getting token: $e'));
 
-    _fcm.getInitialMessage().then((message) {
-      if (message != null) {
-        _pendingNotificationTap = message.data;
-        // If router is already configured, handle it now
-        if (_onNotificationTap != null) {
-          _handleNotificationTap(message.data);
-        }
-      }
-    }).catchError((e) => debugPrint('Error checking initial message: $e'));
+    _fcm
+        .getInitialMessage()
+        .then((message) {
+          if (message != null) {
+            _pendingNotificationTap = message.data;
+            // If router is already configured, handle it now
+            if (_onNotificationTap != null) {
+              _handleNotificationTap(message.data);
+            }
+          }
+        })
+        .catchError((e) => debugPrint('Error checking initial message: $e'));
   }
 
   Future<String?> getToken() => _fcm.getToken();

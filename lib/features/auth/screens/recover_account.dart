@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/services/notification_service.dart';
+import '../../../core/ui/widgets/griot_branded_container.dart';
 import '../services/mnemonic_validation_service.dart';
 import '../auth_controller.dart';
 
@@ -11,7 +12,6 @@ import '../../wallet/services/wallet_crypto_service.dart';
 import '../../wallet/services/wallet_storage_service.dart';
 import '../../wallet/services/wallet_service.dart';
 
-import '/core/ui/scaffolds/gradient_scaffold.dart';
 import '/core/ui/screens/app_loading_screen.dart';
 
 class RecoverAccountScreen extends StatefulWidget {
@@ -20,18 +20,16 @@ class RecoverAccountScreen extends StatefulWidget {
   });
 
   @override
-  State<RecoverAccountScreen> createState() =>
-      _RecoverAccountScreenState();
+  State<RecoverAccountScreen> createState() => _RecoverAccountScreenState();
 }
 
-class _RecoverAccountScreenState
-    extends State<RecoverAccountScreen> {
+class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
   // ============================================================
   // SERVICES
   // ============================================================
 
   final MnemonicValidationService _mnemonicService =
-  MnemonicValidationService();
+      MnemonicValidationService();
 
   late final WalletService _walletService;
 
@@ -39,20 +37,18 @@ class _RecoverAccountScreenState
   // SEED WORD CONTROLLERS
   // ============================================================
 
-  final List<TextEditingController> _controllers =
-  List.generate(
+  final List<TextEditingController> _controllers = List.generate(
     12,
-        (_) => TextEditingController(),
+    (_) => TextEditingController(),
   );
 
   // ============================================================
   // WORD VALIDATION STATE
   // ============================================================
 
-  final List<bool> _validWords =
-  List.generate(
+  final List<bool> _validWords = List.generate(
     12,
-        (_) => false,
+    (_) => false,
   );
 
   // ============================================================
@@ -82,28 +78,24 @@ class _RecoverAccountScreenState
     super.dispose();
   }
 
-
   // ============================================================
   // WORD CHANGED
   // ============================================================
 
   void _onWordChanged(
-      int index,
-      String value,
-      ) {
-    final normalized =
-    value.trim().toLowerCase();
+    int index,
+    String value,
+  ) {
+    final normalized = value.trim().toLowerCase();
 
     // ----------------------------------------------------------
     // KEEP FIELD LOWERCASE
     // ----------------------------------------------------------
 
     if (value != normalized) {
-      _controllers[index].value =
-          _controllers[index].value.copyWith(
+      _controllers[index].value = _controllers[index].value.copyWith(
             text: normalized,
-            selection:
-            TextSelection.collapsed(
+            selection: TextSelection.collapsed(
               offset: normalized.length,
             ),
           );
@@ -127,8 +119,7 @@ class _RecoverAccountScreenState
     // VALIDATE WORD
     // ----------------------------------------------------------
 
-    final isValid =
-    _mnemonicService.isValidWord(
+    final isValid = _mnemonicService.isValidWord(
       normalized,
     );
 
@@ -150,15 +141,13 @@ class _RecoverAccountScreenState
       Clipboard.kTextPlain,
     );
 
-    final text =
-        data?.text?.trim() ?? '';
+    final text = data?.text?.trim() ?? '';
 
     if (!mounted || text.isEmpty) {
       return;
     }
 
-    final words =
-    text.split(RegExp(r'\s+'));
+    final words = text.split(RegExp(r'\s+'));
 
     // ----------------------------------------------------------
     // MUST CONTAIN EXACTLY 12 WORDS
@@ -180,7 +169,7 @@ class _RecoverAccountScreenState
     final normalizedWords = words
         .map(
           (word) => word.trim().toLowerCase(),
-    )
+        )
         .toList();
 
     // ----------------------------------------------------------
@@ -189,13 +178,11 @@ class _RecoverAccountScreenState
 
     setState(() {
       for (int i = 0; i < 12; i++) {
-        _controllers[i].text =
-        normalizedWords[i];
+        _controllers[i].text = normalizedWords[i];
 
-        _validWords[i] =
-            _mnemonicService.isValidWord(
-              normalizedWords[i],
-            );
+        _validWords[i] = _mnemonicService.isValidWord(
+          normalizedWords[i],
+        );
       }
     });
 
@@ -203,10 +190,8 @@ class _RecoverAccountScreenState
     // CHECK INDIVIDUAL WORDS
     // ----------------------------------------------------------
 
-    final invalidIndex =
-    normalizedWords.indexWhere(
-          (word) =>
-      !_mnemonicService.isValidWord(
+    final invalidIndex = normalizedWords.indexWhere(
+      (word) => !_mnemonicService.isValidWord(
         word,
       ),
     );
@@ -224,8 +209,7 @@ class _RecoverAccountScreenState
     // CHECK COMPLETE PHRASE
     // ----------------------------------------------------------
 
-    final isValidPhrase =
-    _mnemonicService.isValidPhrase(
+    final isValidPhrase = _mnemonicService.isValidPhrase(
       normalizedWords,
     );
 
@@ -273,9 +257,8 @@ class _RecoverAccountScreenState
   List<String> _getWords() {
     return _controllers
         .map(
-          (controller) =>
-          controller.text.trim().toLowerCase(),
-    )
+          (controller) => controller.text.trim().toLowerCase(),
+        )
         .toList();
   }
 
@@ -290,9 +273,8 @@ class _RecoverAccountScreenState
     // CHECK EMPTY WORD
     // ----------------------------------------------------------
 
-    final emptyIndex =
-    words.indexWhere(
-          (word) => word.isEmpty,
+    final emptyIndex = words.indexWhere(
+      (word) => word.isEmpty,
     );
 
     if (emptyIndex != -1) {
@@ -308,10 +290,8 @@ class _RecoverAccountScreenState
     // VALIDATE EVERY WORD
     // ----------------------------------------------------------
 
-    final invalidIndex =
-    words.indexWhere(
-          (word) =>
-      !_mnemonicService.isValidWord(
+    final invalidIndex = words.indexWhere(
+      (word) => !_mnemonicService.isValidWord(
         word,
       ),
     );
@@ -333,8 +313,7 @@ class _RecoverAccountScreenState
     // VALIDATE COMPLETE PHRASE
     // ----------------------------------------------------------
 
-    final isValidPhrase =
-    _mnemonicService.isValidPhrase(
+    final isValidPhrase = _mnemonicService.isValidPhrase(
       words,
     );
 
@@ -351,8 +330,7 @@ class _RecoverAccountScreenState
     // BUILD MNEMONIC
     // ----------------------------------------------------------
 
-    final mnemonic =
-    words.join(' ');
+    final mnemonic = words.join(' ');
 
     // ----------------------------------------------------------
     // GO TO GENERIC LOADING SCREEN
@@ -363,8 +341,7 @@ class _RecoverAccountScreenState
       extra: AppLoadingRouteData(
         icon: Icons.restore_rounded,
         title: 'Recovering your wallet',
-        message:
-        'Restoring your secure wallet from your recovery phrase...',
+        message: 'Restoring your secure wallet from your recovery phrase...',
 
         // ----------------------------------------------------
         // OPERATION
@@ -381,9 +358,9 @@ class _RecoverAccountScreenState
         // ----------------------------------------------------
 
         onSuccess: (
-            BuildContext context,
-            dynamic result,
-            ) {
+          BuildContext context,
+          dynamic result,
+        ) {
           if (!context.mounted) {
             return;
           }
@@ -406,380 +383,215 @@ class _RecoverAccountScreenState
 
   @override
   Widget build(
-      BuildContext context,
-      ) {
-    final theme =
-    Theme.of(context);
+    BuildContext context,
+  ) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final text = theme.textTheme;
 
-    final colors =
-        theme.colorScheme;
-
-    final text =
-        theme.textTheme;
-
-    final bool isDark =
-        theme.brightness ==
-            Brightness.dark;
+    final bool isDark = theme.brightness == Brightness.dark;
 
     // ==========================================================
     // THEME COLORS
     // ==========================================================
 
     final Color fieldColor =
-    colors.surfaceContainerHighest
-        .withValues(alpha: isDark ? 0.35 : 0.55);
-
-    final Color containerColor =
-    colors.surface.withValues(alpha: isDark ? 0.45 : 0.75);
+        colors.onSurface.withValues(alpha: isDark ? 0.05 : 0.03);
 
     final Color borderColor =
-    colors.outline.withValues(alpha: isDark ? 0.35 : 0.45);
+        colors.outline.withValues(alpha: isDark ? 0.25 : 0.15);
 
-    final Color mutedColor =
-    colors.onSurfaceVariant
-        .withValues(alpha: 0.75);
+    final Color mutedColor = colors.onSurfaceVariant.withValues(alpha: 0.75);
 
     // ==========================================================
     // SCREEN
     // ==========================================================
 
-    return GradientScaffold(
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         title: Text(
           'Recover Account',
-          style:
-          text.titleLarge?.copyWith(
-            fontWeight:
-            FontWeight.w700,
+          style: text.titleLarge?.copyWith(
+            fontWeight: FontWeight.w900,
           ),
         ),
-        backgroundColor:
-        Colors.transparent,
-        foregroundColor:
-        colors.onSurface,
+        backgroundColor: Colors.transparent,
+        foregroundColor: colors.onSurface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        surfaceTintColor:
-        Colors.transparent,
+        surfaceTintColor: Colors.transparent,
       ),
-      child: SafeArea(
-        child: Padding(
-          padding:
-          const EdgeInsets.fromLTRB(
-            18,
-            8,
-            18,
-            18,
-          ),
-          child: Column(
-            children: [
-              // ==================================================
-              // HEADER
-              // ==================================================
-
-              Text(
-                'Recover your wallet',
-                textAlign:
-                TextAlign.center,
-                style: text
-                    .headlineSmall
-                    ?.copyWith(
-                  fontWeight:
-                  FontWeight.w700,
-                ),
-              ),
-
-              const SizedBox(
-                height: 7,
-              ),
-
-              Text(
-                'Enter your 12-word recovery phrase to '
-                    'restore access to your wallet.',
-                textAlign:
-                TextAlign.center,
-                style: text.bodyMedium
-                    ?.copyWith(
-                  color: mutedColor,
-                  height: 1.45,
-                ),
-              ),
-
-              const SizedBox(
-                height: 18,
-              ),
-
-              // ==================================================
-              // SECURITY NOTICE
-              // ==================================================
-
-              Container(
-                width:
-                double.infinity,
-                padding:
-                const EdgeInsets.all(
-                  13,
-                ),
-                decoration:
-                BoxDecoration(
-                  color:
-                  containerColor,
-                  borderRadius:
-                  BorderRadius.circular(
-                    14,
-                  ),
-                  border:
-                  Border.all(
-                    color:
-                    borderColor,
-                  ),
-                ),
-                child: Row(
-                  crossAxisAlignment:
-                  CrossAxisAlignment
-                      .start,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
+                child: Column(
                   children: [
-                    Icon(
-                      Icons
-                          .lock_outline_rounded,
-                      size: 19,
-                      color:
-                      mutedColor,
-                    ),
-                    const SizedBox(
-                      width: 10,
-                    ),
-                    Expanded(
-                      child: Text(
-                        'Your recovery phrase stays on this '
-                            'device. Never share it with anyone.',
-                        style: text
-                            .bodySmall
-                            ?.copyWith(
-                          color:
-                          mutedColor,
-                          height: 1.4,
-                        ),
+                    const SizedBox(height: 12),
+
+                    Text(
+                      'Enter your 12-word recovery phrase to '
+                      'restore access to your wallet.',
+                      textAlign: TextAlign.center,
+                      style: text.bodyMedium?.copyWith(
+                        color: mutedColor,
+                        height: 1.45,
                       ),
                     ),
-                  ],
-                ),
-              ),
 
-              const SizedBox(
-                height: 16,
-              ),
+                    const SizedBox(height: 20),
 
-              // ==================================================
-              // WORD GRID
-              // ==================================================
-
-              Expanded(
-                child: Container(
-                  width:
-                  double.infinity,
-                  padding:
-                  const EdgeInsets.all(
-                    11,
-                  ),
-                  decoration:
-                  BoxDecoration(
-                    color:
-                    containerColor,
-                    borderRadius:
-                    BorderRadius.circular(
-                      18,
+                    // ==================================================
+                    // SECURITY NOTICE
+                    // ==================================================
+                    GriotBrandedContainer(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.lock_outline_rounded,
+                            size: 20,
+                            color: colors.primary,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Your recovery phrase stays on this '
+                              'device. Never share it with anyone.',
+                              style: text.bodySmall?.copyWith(
+                                color: mutedColor,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    border:
-                    Border.all(
-                      color:
-                      borderColor,
-                    ),
-                  ),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final crossAxisCount = constraints.maxWidth > 600 ? 3 : 2;
-                      final childAspectRatio = constraints.maxWidth > 600 ? 4.0 : 3.2;
-                      
-                      return GridView.builder(
-                        padding: const EdgeInsets.all(2),
-                        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                        itemCount: 12,
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: crossAxisCount,
-                          mainAxisSpacing: 9,
-                          crossAxisSpacing: 9,
-                          childAspectRatio: childAspectRatio,
-                        ),
-                        itemBuilder: (context, index) {
-                          return _SeedWordField(
-                            controller: _controllers[index],
-                            index: index,
-                            isValid: _validWords[index],
-                            fieldColor: fieldColor,
-                            borderColor: borderColor,
-                            colorScheme: colors,
-                            textTheme: text,
-                            onChanged: (value) {
-                              _onWordChanged(index, value);
+
+                    const SizedBox(height: 20),
+
+                    // ==================================================
+                    // WORD GRID
+                    // ==================================================
+                    GriotBrandedContainer(
+                      padding: const EdgeInsets.all(12),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final crossAxisCount = constraints.maxWidth > 600 ? 3 : 2;
+                          final childAspectRatio =
+                              constraints.maxWidth > 600 ? 4.0 : 2.6;
+
+                          return GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            padding: const EdgeInsets.all(2),
+                            itemCount: 12,
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: crossAxisCount,
+                              mainAxisSpacing: 10,
+                              crossAxisSpacing: 10,
+                              childAspectRatio: childAspectRatio,
+                            ),
+                            itemBuilder: (context, index) {
+                              return _SeedWordField(
+                                controller: _controllers[index],
+                                index: index,
+                                isValid: _validWords[index],
+                                fieldColor: fieldColor,
+                                borderColor: borderColor,
+                                colorScheme: colors,
+                                textTheme: text,
+                                onChanged: (value) {
+                                  _onWordChanged(index, value);
+                                },
+                              );
                             },
                           );
                         },
-                      );
-                    },
-                  ),
-                ),
-              ),
-
-              const SizedBox(
-                height: 13,
-              ),
-
-              // ==================================================
-              // CLEAR / PASTE
-              // ==================================================
-
-              Row(
-                children: [
-                  Expanded(
-                    child:
-                    OutlinedButton.icon(
-                      onPressed:
-                      _clearAll,
-                      icon:
-                      const Icon(
-                        Icons.clear_rounded,
-                        size: 18,
-                      ),
-                      label:
-                      const Text(
-                        'Clear',
-                      ),
-                      style:
-                      OutlinedButton.styleFrom(
-                        foregroundColor:
-                        colors.onSurface,
-                        side:
-                        BorderSide(
-                          color:
-                          borderColor,
-                        ),
-                        padding:
-                        const EdgeInsets
-                            .symmetric(
-                          vertical: 13,
-                        ),
-                        shape:
-                        RoundedRectangleBorder(
-                          borderRadius:
-                          BorderRadius
-                              .circular(
-                            14,
-                          ),
-                        ),
                       ),
                     ),
-                  ),
 
-                  const SizedBox(
-                    width: 10,
-                  ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              ),
+            ),
 
-                  Expanded(
-                    child:
-                    OutlinedButton.icon(
-                      onPressed:
-                      _pasteFromClipboard,
-                      icon:
-                      const Icon(
-                        Icons
-                            .content_paste_rounded,
-                        size: 18,
-                      ),
-                      label:
-                      const Text(
-                        'Paste',
-                      ),
-                      style:
-                      OutlinedButton.styleFrom(
-                        foregroundColor:
-                        colors.onSurface,
-                        side:
-                        BorderSide(
-                          color:
-                          borderColor,
-                        ),
-                        padding:
-                        const EdgeInsets
-                            .symmetric(
-                          vertical: 13,
-                        ),
-                        shape:
-                        RoundedRectangleBorder(
-                          borderRadius:
-                          BorderRadius
-                              .circular(
-                            14,
+            // ==================================================
+            // ACTIONS (Fixed at bottom but above keyboard)
+            // ==================================================
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _clearAll,
+                          icon: const Icon(Icons.clear_rounded, size: 18),
+                          label: const Text('Clear'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: colors.onSurface,
+                            side: BorderSide(color: borderColor, width: 1.5),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
                           ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _pasteFromClipboard,
+                          icon: const Icon(Icons.content_paste_rounded, size: 18),
+                          label: const Text('Paste'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: colors.onSurface,
+                            side: BorderSide(color: borderColor, width: 1.5),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: _recoverAccount,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: colors.primary,
+                        foregroundColor: colors.onPrimary,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                      ),
+                      child: Text(
+                        'Recover Wallet',
+                        style: text.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
                     ),
                   ),
                 ],
               ),
-
-              const SizedBox(
-                height: 10,
-              ),
-
-              // ==================================================
-              // RECOVER BUTTON
-              // ==================================================
-
-              SizedBox(
-                width:
-                double.infinity,
-                height: 54,
-                child:
-                ElevatedButton(
-                  onPressed:
-                  _recoverAccount,
-                  style:
-                  ElevatedButton.styleFrom(
-                    backgroundColor:
-                    colors.primary,
-                    foregroundColor:
-                    colors.onPrimary,
-                    elevation: 0,
-                    padding:
-                    const EdgeInsets
-                        .symmetric(
-                      horizontal: 20,
-                    ),
-                    shape:
-                    RoundedRectangleBorder(
-                      borderRadius:
-                      BorderRadius
-                          .circular(
-                        16,
-                      ),
-                    ),
-                  ),
-                  child: Text(
-                    'Recover Wallet',
-                    style: text
-                        .labelLarge
-                        ?.copyWith(
-                      color:
-                      colors.onPrimary,
-                      fontWeight:
-                      FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -790,8 +602,7 @@ class _RecoverAccountScreenState
 // SEED WORD FIELD
 // ================================================================
 
-class _SeedWordField
-    extends StatelessWidget {
+class _SeedWordField extends StatelessWidget {
   final TextEditingController controller;
 
   final int index;
@@ -821,28 +632,22 @@ class _SeedWordField
 
   @override
   Widget build(
-      BuildContext context,
-      ) {
-    final bool hasText =
-        controller.text
-            .trim()
-            .isNotEmpty;
+    BuildContext context,
+  ) {
+    final bool hasText = controller.text.trim().isNotEmpty;
 
     // ==========================================================
     // EFFECTIVE BORDER COLOR
     // ==========================================================
 
-    Color effectiveBorderColor =
-        borderColor;
+    Color effectiveBorderColor = borderColor;
 
     if (hasText && isValid) {
-      effectiveBorderColor =
-          Colors.green;
+      effectiveBorderColor = Colors.green.withValues(alpha: 0.5);
     }
 
     if (hasText && !isValid) {
-      effectiveBorderColor =
-          colorScheme.error;
+      effectiveBorderColor = colorScheme.error.withValues(alpha: 0.5);
     }
 
     // ==========================================================
@@ -852,23 +657,16 @@ class _SeedWordField
     return TextField(
       controller: controller,
       onChanged: onChanged,
-      textInputAction:
-      index == 11
-          ? TextInputAction.done
-          : TextInputAction.next,
+      textInputAction: index == 11 ? TextInputAction.done : TextInputAction.next,
       autocorrect: false,
       enableSuggestions: false,
-      textCapitalization:
-      TextCapitalization.none,
-      style: textTheme.bodyMedium
-          ?.copyWith(
-        color:
-        colorScheme.onSurface,
-        fontWeight:
-        FontWeight.w500,
+      textCapitalization: TextCapitalization.none,
+      style: textTheme.bodyMedium?.copyWith(
+        color: colorScheme.onSurface,
+        fontWeight: FontWeight.w700,
+        fontSize: 13,
       ),
-      decoration:
-      InputDecoration(
+      decoration: InputDecoration(
         filled: true,
         fillColor: fieldColor,
 
@@ -876,106 +674,77 @@ class _SeedWordField
         // NUMBER
         // ======================================================
 
-        prefixText:
-        '${index + 1}. ',
+        prefixText: '${index + 1}. ',
 
-        prefixStyle:
-        textTheme.bodySmall
-            ?.copyWith(
-          color: colorScheme
-              .onSurfaceVariant,
-          fontWeight:
-          FontWeight.w600,
+        prefixStyle: textTheme.bodySmall?.copyWith(
+          color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+          fontWeight: FontWeight.w900,
+          fontSize: 10,
         ),
 
         // ======================================================
         // HINT
         // ======================================================
 
-        hintText:
-        'Word ${index + 1}',
+        hintText: 'Word',
 
-        hintStyle:
-        textTheme.bodySmall
-            ?.copyWith(
-          color: colorScheme
-              .onSurfaceVariant
-              .withValues(alpha: 0.55),
+        hintStyle: textTheme.bodySmall?.copyWith(
+          color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+          fontSize: 12,
         ),
 
         // ======================================================
         // VALIDATION ICON
         // ======================================================
 
-        suffixIcon:
-        !hasText
+        suffixIcon: !hasText
             ? null
             : Icon(
-          isValid
-              ? Icons
-              .check_circle_rounded
-              : Icons
-              .error_outline_rounded,
-          size: 19,
-          color: isValid
-              ? Colors.green
-              : colorScheme
-              .error,
-        ),
+                isValid ? Icons.check_circle_rounded : Icons.error_outline_rounded,
+                size: 16,
+                color: isValid ? Colors.green : colorScheme.error,
+              ),
 
         // ======================================================
         // PADDING
         // ======================================================
 
-        contentPadding:
-        const EdgeInsets
-            .symmetric(
-          horizontal: 12,
-          vertical: 12,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 10,
+          vertical: 10,
         ),
 
         // ======================================================
         // BORDER
         // ======================================================
 
-        border:
-        OutlineInputBorder(
-          borderRadius:
-          BorderRadius.circular(
-            12,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(
+            14,
           ),
-          borderSide:
-          BorderSide(
-            color:
-            effectiveBorderColor,
+          borderSide: BorderSide(
+            color: effectiveBorderColor,
+            width: 1.2,
           ),
         ),
 
-        enabledBorder:
-        OutlineInputBorder(
-          borderRadius:
-          BorderRadius.circular(
-            12,
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(
+            14,
           ),
-          borderSide:
-          BorderSide(
-            color:
-            effectiveBorderColor,
+          borderSide: BorderSide(
+            color: effectiveBorderColor,
+            width: 1.2,
           ),
         ),
 
-        focusedBorder:
-        OutlineInputBorder(
-          borderRadius:
-          BorderRadius.circular(
-            12,
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(
+            14,
           ),
-          borderSide:
-          BorderSide(
-            color: hasText
-                ? effectiveBorderColor
-                : colorScheme.primary,
-            width: 1.4,
+          borderSide: BorderSide(
+            color: hasText ? effectiveBorderColor : colorScheme.primary,
+            width: 1.5,
           ),
         ),
       ),

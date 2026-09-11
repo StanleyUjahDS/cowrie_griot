@@ -9,8 +9,17 @@ class AdService extends ChangeNotifier {
   RewardedAd? _rewardedAd;
   bool _isRewardedAdLoading = false;
 
+  /// Initializes the ads SDK only when ads have been enabled for this build.
+  Future<void> initialize() async {
+    if (!AppConfig.adsEnabled) return;
+
+    await MobileAds.instance.initialize();
+    loadRewardedAd();
+  }
+
   /// Loads a rewarded ad.
   void loadRewardedAd() {
+    if (!AppConfig.adsEnabled) return;
     if (_isRewardedAdLoading || _rewardedAd != null) return;
 
     _isRewardedAdLoading = true;
@@ -54,6 +63,11 @@ class AdService extends ChangeNotifier {
   /// Shows the rewarded ad if available.
   /// [onRewardEarned] is called if the user watches the ad to the end.
   void showRewardedAd({required Function(RewardItem reward) onRewardEarned}) {
+    if (!AppConfig.adsEnabled) {
+      debugPrint('Rewarded ads are disabled for this build.');
+      return;
+    }
+
     if (_rewardedAd == null) {
       debugPrint('Warning: Attempted to show rewarded ad before it was loaded.');
       loadRewardedAd(); // Try loading for next time

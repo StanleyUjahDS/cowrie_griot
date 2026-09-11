@@ -20,6 +20,8 @@ class _GriotBannerAdState extends State<GriotBannerAd> {
   }
 
   void _loadAd() {
+    if (!AppConfig.adsEnabled) return;
+
     _bannerAd = BannerAd(
       adUnitId: AppConfig.bannerAdUnitId,
       size: AdSize.banner,
@@ -50,6 +52,8 @@ class _GriotBannerAdState extends State<GriotBannerAd> {
 
   @override
   Widget build(BuildContext context) {
+    if (!AppConfig.adsEnabled) return const SizedBox.shrink();
+
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;

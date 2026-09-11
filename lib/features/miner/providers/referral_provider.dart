@@ -72,4 +72,14 @@ class ReferralProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
   }
+
+  void reset() {
+    _data = null;
+    _isLoading = false;
+    _isClaiming = false;
+    _error = null;
+    _lastLoadedAt = null;
+    _loadFuture = null;
+    notifyListeners();
+  }
 }

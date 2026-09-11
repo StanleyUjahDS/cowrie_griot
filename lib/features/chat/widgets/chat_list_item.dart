@@ -33,207 +33,222 @@ class ChatListItem extends StatelessWidget {
 
     final bool isOnline = context.watch<MessagingProvider>().presenceMap[user.id] == true || user.isOnline;
 
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 14,
-        vertical: 5,
-      ),
-
-      // ==========================================================
-      // PROFILE IMAGE + ONLINE STATUS
-      // ==========================================================
-
-      leading: GestureDetector(
-        onTap: onAvatarTap,
-        child: Hero(
-          tag: 'user_avatar_${user.id}',
-          child: SizedBox(
-            width: 54,
-            height: 54,
-            child: Stack(
-              children: [
-                CircleAvatar(
-                  radius: 26,
-                  backgroundColor:
-                  colorScheme.surfaceContainerHighest,
-                  backgroundImage: hasProfileImage ? NetworkImage(profileUrl) : null,
-                  child: !hasProfileImage 
-                    ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg')
-                    : null,
-                ),
-  
-              // ======================================================
-              // ONLINE INDICATOR
-              // ======================================================
-  
-              if (isOnline)
-                Positioned(
-                  right: 0,
-                  bottom: 1,
-                  child: Container(
-                    width: 14,
-                    height: 14,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF22C55E),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: colorScheme.surface,
-                        width: 2,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border(
+          top: BorderSide(
+            color: colorScheme.primary.withValues(alpha: 0.6),
+            width: 1.2,
+          ),
+          bottom: BorderSide(
+            color: colorScheme.primary.withValues(alpha: 0.6),
+            width: 1.2,
           ),
         ),
-      ),
-    ),
-
-      // ==========================================================
-      // NAME + PHONE DISCOVERY
-      // ==========================================================
-
-      title: Row(
-        children: [
-          Expanded(
-            child: Text(
-              user.effectiveDisplayName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: textTheme.bodyLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+        boxShadow: [
+          BoxShadow(
+            color: theme.shadowColor,
+            blurRadius: 15,
+            offset: const Offset(0, 8),
           ),
-
-          if (user.reputation != null)
-            Padding(
-              padding: const EdgeInsets.only(left: 6),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppColors.parseHexColor(user.reputation!.badgeColor).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: AppColors.parseHexColor(user.reputation!.badgeColor).withValues(alpha: 0.2),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.stars_rounded,
-                      size: 10,
-                      color: AppColors.parseHexColor(user.reputation!.badgeColor),
-                    ),
-                    const SizedBox(width: 3),
-                    Text(
-                      user.reputation!.tierName.toUpperCase(),
-                      style: TextStyle(
-                        color: AppColors.parseHexColor(user.reputation!.badgeColor),
-                        fontSize: 8,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-          if (user.isDiscoverableByPhone)
-            Padding(
-              padding: const EdgeInsets.only(left: 5),
-              child: Icon(
-                Icons.contacts_rounded,
-                size: 15,
-                color: colorScheme.primary,
-              ),
-            ),
         ],
       ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap ?? () {
+            context.push('/chat/user/${user.id}');
+          },
+          onLongPress: onAvatarTap,
+          borderRadius: BorderRadius.circular(24),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                // ==========================================================
+                // PROFILE IMAGE + ONLINE STATUS
+                // ==========================================================
+                Hero(
+                  tag: 'user_avatar_${user.id}',
+                  child: SizedBox(
+                    width: 56,
+                    height: 56,
+                    child: Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 28,
+                          backgroundColor: colorScheme.surfaceContainerHighest,
+                          backgroundImage: hasProfileImage ? NetworkImage(profileUrl) : null,
+                          child: !hasProfileImage
+                            ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg')
+                            : null,
+                        ),
+                        if (isOnline)
+                          Positioned(
+                            right: 2,
+                            bottom: 2,
+                            child: Container(
+                              width: 14,
+                              height: 14,
+                              decoration: BoxDecoration(
+                                color: AppColors.success,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: colorScheme.surface,
+                                  width: 2.5,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
 
-      // ==========================================================
-      // LAST MESSAGE / USERNAME / WALLET
-      // ==========================================================
+                // ==========================================================
+                // INFO CONTENT
+                // ==========================================================
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              user.effectiveDisplayName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: textTheme.bodyLarge?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                          if (user.reputation != null)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 6),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.parseHexColor(user.reputation!.badgeColor).withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border(
+                                    top: BorderSide(
+                                      color: AppColors.parseHexColor(user.reputation!.badgeColor).withValues(alpha: 0.3),
+                                      width: 1.0,
+                                    ),
+                                    bottom: BorderSide(
+                                      color: AppColors.parseHexColor(user.reputation!.badgeColor).withValues(alpha: 0.3),
+                                      width: 1.0,
+                                    ),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.stars_rounded,
+                                      size: 10,
+                                      color: AppColors.parseHexColor(user.reputation!.badgeColor),
+                                    ),
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      user.reputation!.tierName.toUpperCase(),
+                                      style: TextStyle(
+                                        color: AppColors.parseHexColor(user.reputation!.badgeColor),
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        user.lastMessage.trim().isNotEmpty
+                            ? user.lastMessage
+                            : user.formattedUsername ?? user.shortWalletAddress,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                          fontWeight: user.unreadCount > 0 ? FontWeight.w700 : FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 3),
-        child: Text(
-          user.lastMessage.trim().isNotEmpty
-              ? user.lastMessage
-              : user.formattedUsername ??
-              user.shortWalletAddress,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: textTheme.bodyMedium?.copyWith(
-            color: colorScheme.onSurfaceVariant,
+                const SizedBox(width: 12),
+
+                // ==========================================================
+                // TIME + UNREAD COUNT
+                // ==========================================================
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      time,
+                      style: textTheme.labelSmall?.copyWith(
+                        color: user.unreadCount > 0
+                            ? (colorScheme.primary.computeLuminance() > 0.6
+                                ? colorScheme.onSurface
+                                : colorScheme.primary)
+                            : colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                        fontWeight: user.unreadCount > 0
+                            ? FontWeight.w900
+                            : FontWeight.w700,
+                        fontSize: 10,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (user.unreadCount > 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: colorScheme.primary,
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: [
+                            BoxShadow(
+                              color: colorScheme.primary.withValues(alpha: 0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          user.unreadCount > 99 ? '99+' : user.unreadCount.toString(),
+                          style: TextStyle(
+                            color: colorScheme.onPrimary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      )
+                    else
+                      Icon(
+                        Icons.done_all_rounded,
+                        size: 16,
+                        color: colorScheme.primary.withValues(alpha: 0.3),
+                      ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
-
-      // ==========================================================
-      // TIME + UNREAD COUNT
-      // ==========================================================
-
-      trailing: SizedBox(
-        width: 42,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              time,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: textTheme.bodySmall?.copyWith(
-                color: user.unreadCount > 0
-                    ? colorScheme.primary
-                    : colorScheme.onSurfaceVariant,
-                fontWeight: user.unreadCount > 0
-                    ? FontWeight.w700
-                    : FontWeight.w400,
-              ),
-            ),
-
-            const SizedBox(height: 6),
-
-            if (user.unreadCount > 0)
-              Container(
-                constraints: const BoxConstraints(
-                  minWidth: 20,
-                  minHeight: 20,
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 4,
-                ),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: colorScheme.primary,
-                  shape: BoxShape.circle,
-                ),
-                child: Text(
-                  user.unreadCount > 99
-                      ? '99+'
-                      : user.unreadCount.toString(),
-                  style: TextStyle(
-                    color: colorScheme.onPrimary,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-
-      // ==========================================================
-      // OPEN CHAT
-      // ==========================================================
-
-      onTap: onTap ?? () {
-        context.push('/chat/user/${user.id}');
-      },
     );
   }
 }

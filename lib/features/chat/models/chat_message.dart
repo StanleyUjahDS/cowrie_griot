@@ -8,18 +8,16 @@ enum MessageType {
   location,
   contact,
   system,
+  tip,
 }
 
-enum MessageStatus {
-  sending,
-  sent,
-  delivered,
-  read,
-  failed,
-}
+enum MessageStatus { sending, sent, delivered, read, failed }
 
 class ChatMessage {
   final String id;
+
+  /// Temporary client-side ID used for deduplication during delivery.
+  final String? clientMessageId;
 
   /// Conversation this message belongs to.
   final String conversationId;
@@ -59,8 +57,12 @@ class ChatMessage {
   /// Optional media ID from the media service.
   final String? mediaId;
 
+  /// Structured data for tips.
+  final Map<String, dynamic>? tipData;
+
   const ChatMessage({
     required this.id,
+    this.clientMessageId,
     required this.conversationId,
     required this.senderId,
     required this.text,
@@ -74,6 +76,7 @@ class ChatMessage {
     this.isDeleted = false,
     this.reactions = const {},
     this.mediaId,
+    this.tipData,
   });
 
   // ==========================================================
@@ -96,6 +99,7 @@ class ChatMessage {
 
   ChatMessage copyWith({
     String? id,
+    String? clientMessageId,
     String? conversationId,
     String? senderId,
     String? text,
@@ -109,9 +113,11 @@ class ChatMessage {
     bool? isDeleted,
     Map<String, List<String>>? reactions,
     String? mediaId,
+    Map<String, dynamic>? tipData,
   }) {
     return ChatMessage(
       id: id ?? this.id,
+      clientMessageId: clientMessageId ?? this.clientMessageId,
       conversationId: conversationId ?? this.conversationId,
       senderId: senderId ?? this.senderId,
       text: text ?? this.text,
@@ -125,6 +131,7 @@ class ChatMessage {
       isDeleted: isDeleted ?? this.isDeleted,
       reactions: reactions ?? this.reactions,
       mediaId: mediaId ?? this.mediaId,
+      tipData: tipData ?? this.tipData,
     );
   }
 
@@ -136,10 +143,12 @@ class ChatMessage {
     final reactionsRaw = json['reactions'];
     Map<String, List<String>> reactions = {};
     if (reactionsRaw is Map) {
-      reactions = reactionsRaw.map((key, value) => MapEntry(
-            key.toString(),
-            (value as List).map((e) => e.toString()).toList(),
-          ));
+      reactions = reactionsRaw.map(
+        (key, value) => MapEntry(
+          key.toString(),
+          (value as List).map((e) => e.toString()).toList(),
+        ),
+      );
     } else if (reactionsRaw is List) {
       for (final r in reactionsRaw) {
         if (r is Map) {
@@ -153,27 +162,40 @@ class ChatMessage {
     }
 
     return ChatMessage(
-      id: json['id']?.toString() ?? '',
+      id:
+          (json['id'] ?? json['messageId'] ?? json['message_id'])?.toString() ??
+          '',
+      clientMessageId: (json['clientMessageId'] ?? json['client_message_id'])
+          ?.toString(),
       conversationId:
           (json['conversation_id'] ?? json['conversationId'])?.toString() ?? '',
-      senderId: (json['sender_id'] ?? json['senderId'])?.toString() ?? '',
+      senderId:
+          (json['sender_id'] ??
+                  json['senderId'] ??
+                  json['author_id'] ??
+                  json['authorId'])
+              ?.toString() ??
+          '',
       text: (json['content'] ?? json['text'])?.toString() ?? '',
       type: _messageTypeFromString(
-        (json['message_type'] ?? json['messageType'] ?? json['type'])?.toString(),
+        (json['message_type'] ?? json['messageType'] ?? json['type'])
+            ?.toString(),
       ),
       status: _messageStatusFromString(json['status']?.toString()),
       createdAt: (json['created_at'] ?? json['createdAt']) != null
           ? DateTime.parse((json['created_at'] ?? json['createdAt']).toString())
           : DateTime.now(),
-      mediaUrl: json['mediaUrl']?.toString() ?? json['media_url']?.toString(),
-      thumbnailUrl:
-          json['thumbnailUrl']?.toString() ?? json['thumbnail_url']?.toString(),
+      mediaUrl: json['mediaUrl'] ?? json['media_url'],
+      thumbnailUrl: json['thumbnailUrl'] ?? json['thumbnail_url'],
       replyToMessageId:
           (json['reply_to_message_id'] ?? json['replyToMessageId'])?.toString(),
       isEdited: json['isEdited'] == true || json['is_edited'] == true,
       isDeleted: json['isDeleted'] == true || json['is_deleted'] == true,
       reactions: reactions,
       mediaId: (json['mediaId'] ?? json['media_id'])?.toString(),
+      tipData: json['tip_data'] != null || json['tipData'] != null
+          ? Map<String, dynamic>.from(json['tip_data'] ?? json['tipData'])
+          : null,
     );
   }
 
@@ -184,6 +206,7 @@ class ChatMessage {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'clientMessageId': clientMessageId,
       'conversationId': conversationId,
       'senderId': senderId,
       'content': text,
@@ -196,6 +219,7 @@ class ChatMessage {
       'isEdited': isEdited,
       'isDeleted': isDeleted,
       'mediaId': mediaId,
+      'tipData': tipData,
     };
   }
 
@@ -221,6 +245,8 @@ class ChatMessage {
         return MessageType.file;
       case 'system':
         return MessageType.system;
+      case 'tip':
+        return MessageType.tip;
       case 'text':
       default:
         return MessageType.text;
@@ -232,16 +258,23 @@ class ChatMessage {
   // ==========================================================
 
   static MessageStatus _messageStatusFromString(String? value) {
-    switch (value) {
+    if (value == null) return MessageStatus.sent;
+    switch (value.toLowerCase()) {
+      case 'read':
+      case 'seen':
+        return MessageStatus.read;
+      case 'delivered':
+      case 'received':
+        return MessageStatus.delivered;
+      case 'sent':
+      case 'pending':
+      case 'accepted':
+        return MessageStatus.sent;
+      case 'failed':
+      case 'error':
+        return MessageStatus.failed;
       case 'sending':
         return MessageStatus.sending;
-      case 'delivered':
-        return MessageStatus.delivered;
-      case 'read':
-        return MessageStatus.read;
-      case 'failed':
-        return MessageStatus.failed;
-      case 'sent':
       default:
         return MessageStatus.sent;
     }

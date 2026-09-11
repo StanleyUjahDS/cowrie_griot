@@ -18,6 +18,13 @@ class MiningApiService {
     return _asMap(_unwrap(response));
   }
 
+  Future<List<Map<String, dynamic>>> getMiningActivities() async {
+    final response = await _apiClient.get(ApiConfig.miningActivities);
+    final data = response['data'];
+    if (data is! List) return [];
+    return data.map((item) => Map<String, dynamic>.from(item)).toList();
+  }
+
   Future<List<Map<String, dynamic>>> getMiningHistory({
     int limit = 20,
     int offset = 0,

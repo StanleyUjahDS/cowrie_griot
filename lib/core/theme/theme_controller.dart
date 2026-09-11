@@ -11,18 +11,18 @@ enum AppThemeStyle {
   griot,
 
   // ============================================================
-  // OCEAN
+  // SKY
   // Messaging-style blue
   // ============================================================
 
-  ocean,
+  sky,
 
   // ============================================================
-  // EMERALD
-  // Messaging-style green
+  // FOREST
+  // Natural-style green
   // ============================================================
 
-  emerald,
+  forest,
 
   // ============================================================
   // VIOLET
@@ -68,25 +68,25 @@ enum AppThemeStyle {
   slate,
 
   // ============================================================
-  // TELEGRAM
-  // Telegram-style blue
+  // AZURE
+  // Sky-style blue
   // ============================================================
 
-  telegram,
+  azure,
 
   // ============================================================
-  // SIGNAL
-  // Signal-style blue
+  // INDIGO
+  // Deep-style blue
   // ============================================================
 
-  signal,
+  indigo,
 
   // ============================================================
-  // DISCORD
-  // Discord-style blurple
+  // AURORA
+  // Modern-style blurple
   // ============================================================
 
-  discord,
+  aurora,
 
   // ============================================================
   // TEAL
@@ -108,6 +108,22 @@ enum AppThemeStyle {
   // ============================================================
 
   red,
+
+  // ============================================================
+  // NEW PREMIUM THEMES
+  // ============================================================
+
+  cyber,
+  onyx,
+  cappuccino,
+  mint,
+
+  // ============================================================
+  // MONOCHROME THEMES
+  // ============================================================
+
+  mono,
+  noir,
 }
 
 class ThemeController extends ChangeNotifier {
@@ -195,12 +211,12 @@ class ThemeController extends ChangeNotifier {
         _themeStyle = AppThemeStyle.griot;
         break;
 
-      case 'ocean':
-        _themeStyle = AppThemeStyle.ocean;
+      case 'sky':
+        _themeStyle = AppThemeStyle.sky;
         break;
 
-      case 'emerald':
-        _themeStyle = AppThemeStyle.emerald;
+      case 'forest':
+        _themeStyle = AppThemeStyle.forest;
         break;
 
       case 'violet':
@@ -227,16 +243,16 @@ class ThemeController extends ChangeNotifier {
         _themeStyle = AppThemeStyle.slate;
         break;
 
-      case 'telegram':
-        _themeStyle = AppThemeStyle.telegram;
+      case 'azure':
+        _themeStyle = AppThemeStyle.azure;
         break;
 
-      case 'signal':
-        _themeStyle = AppThemeStyle.signal;
+      case 'indigo':
+        _themeStyle = AppThemeStyle.indigo;
         break;
 
-      case 'discord':
-        _themeStyle = AppThemeStyle.discord;
+      case 'aurora':
+        _themeStyle = AppThemeStyle.aurora;
         break;
 
       case 'teal':
@@ -249,6 +265,30 @@ class ThemeController extends ChangeNotifier {
 
       case 'red':
         _themeStyle = AppThemeStyle.red;
+        break;
+
+      case 'cyber':
+        _themeStyle = AppThemeStyle.cyber;
+        break;
+
+      case 'onyx':
+        _themeStyle = AppThemeStyle.onyx;
+        break;
+
+      case 'cappuccino':
+        _themeStyle = AppThemeStyle.cappuccino;
+        break;
+
+      case 'mint':
+        _themeStyle = AppThemeStyle.mint;
+        break;
+
+      case 'mono':
+        _themeStyle = AppThemeStyle.mono;
+        break;
+
+      case 'noir':
+        _themeStyle = AppThemeStyle.noir;
         break;
 
       default:
@@ -291,20 +331,26 @@ class ThemeController extends ChangeNotifier {
 
     final value = switch (style) {
       AppThemeStyle.griot => 'griot',
-      AppThemeStyle.ocean => 'ocean',
-      AppThemeStyle.emerald => 'emerald',
+      AppThemeStyle.sky => 'sky',
+      AppThemeStyle.forest => 'forest',
       AppThemeStyle.violet => 'violet',
       AppThemeStyle.lavender => 'lavender',
       AppThemeStyle.rose => 'rose',
       AppThemeStyle.gold => 'gold',
       AppThemeStyle.midnight => 'midnight',
       AppThemeStyle.slate => 'slate',
-      AppThemeStyle.telegram => 'telegram',
-      AppThemeStyle.signal => 'signal',
-      AppThemeStyle.discord => 'discord',
+      AppThemeStyle.azure => 'azure',
+      AppThemeStyle.indigo => 'indigo',
+      AppThemeStyle.aurora => 'aurora',
       AppThemeStyle.teal => 'teal',
       AppThemeStyle.orange => 'orange',
       AppThemeStyle.red => 'red',
+      AppThemeStyle.cyber => 'cyber',
+      AppThemeStyle.onyx => 'onyx',
+      AppThemeStyle.cappuccino => 'cappuccino',
+      AppThemeStyle.mint => 'mint',
+      AppThemeStyle.mono => 'mono',
+      AppThemeStyle.noir => 'noir',
     };
 
     await prefs.setString(

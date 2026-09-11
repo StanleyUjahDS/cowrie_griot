@@ -103,7 +103,7 @@ class UserModel {
               json['other_display_name'])
           ?.toString(),
       avatarUrl: avatarUrl,
-      bio: json['bio']?.toString(),
+      bio: (json['bio'] ?? json['userBio'] ?? json['user_bio'])?.toString(),
       reputation: json['reputation'] is Map
           ? UserReputationBadge.fromJson(
               Map<String, dynamic>.from(json['reputation']),

@@ -1,5 +1,6 @@
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_config.dart';
+import '../utils/chain_assets.dart';
 
 class SwapApiService {
   static const String directRpcTransactionId = '__direct_swap_rpc__';
@@ -22,12 +23,19 @@ class SwapApiService {
   }) async {
     final body = <String, dynamic>{
       'fromChain': fromChain,
+      'from_chain': fromChain,
       'toChain': toChain,
+      'to_chain': toChain,
       'fromToken': fromToken,
+      'from_token': fromToken,
       'toToken': toToken,
+      'to_token': toToken,
       'fromAmount': fromAmount,
+      'from_amount': fromAmount,
       'fromAddress': fromAddress,
+      'from_address': fromAddress,
       'slippageMode': modeOfSlippage,
+      'slippage_mode': modeOfSlippage,
     };
 
     if (slippage != null) {
@@ -36,6 +44,7 @@ class SwapApiService {
 
     if (toAddress != null && toAddress.isNotEmpty) {
       body['toAddress'] = toAddress;
+      body['to_address'] = toAddress;
     }
     if (order != null && order.isNotEmpty) {
       body['order'] = order;
@@ -84,10 +93,15 @@ class SwapApiService {
     required String to,
     required String data,
   }) async {
+    final formattedTo = to.startsWith('0x') ? to : '0x$to';
+    if (!ChainAssets.isValidEvmAddress(formattedTo)) {
+      throw Exception('Invalid target address: $formattedTo');
+    }
+
     final response = await _apiClient.post(
       ApiConfig.blockchainCall(network),
       body: {
-        'to': to,
+        'to': formattedTo,
         'data': data,
       },
     );
@@ -106,7 +120,9 @@ class SwapApiService {
       body: {
         'network': network,
         'signedTransaction': signedTransaction,
+        'signed_transaction': signedTransaction,
         'transactionType': transactionType,
+        'transaction_type': transactionType,
       },
     );
 

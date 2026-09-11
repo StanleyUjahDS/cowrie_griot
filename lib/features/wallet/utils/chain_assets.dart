@@ -6,7 +6,7 @@ class ChainAssets {
 
   static const Map<String, String> _chainLogos = {
     'ethereum': '$_chainPath/Ethereum.svg',
-    'bnb': '$_chainPath/Binance.svg',
+    'bsc': '$_chainPath/Binance.svg',
     'polygon': '$_chainPath/Polygon.svg',
     'arbitrum': '$_chainPath/Arbitrum.svg',
     'optimism': '$_chainPath/Optimism.svg',
@@ -18,11 +18,12 @@ class ChainAssets {
     final value = chainName.trim().toLowerCase();
 
     if (value == 'bsc' ||
+        value == 'bnb' ||
         value == 'bnb chain' ||
         value == 'binance smart chain' ||
         value == 'binance' ||
         value == 'binance-smart-chain') {
-      return 'bnb';
+      return 'bsc';
     }
 
     if (value == 'eth' || value == 'ethereum mainnet') return 'ethereum';
@@ -32,6 +33,11 @@ class ChainAssets {
     if (value == 'avax' || value == 'avalanche-c-chain') return 'avalanche';
 
     return value;
+  }
+
+  static bool isValidEvmAddress(String? value) {
+    if (value == null) return false;
+    return RegExp(r'^0x[a-fA-F0-9]{40}$').hasMatch(value);
   }
 
   static String? getLogo(String chainName) {

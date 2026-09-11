@@ -171,11 +171,20 @@ class NftDetailsScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surfaceContainerLow,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.3)),
+        border: Border(
+          top: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+          bottom: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+        ),
       ),
       child: Column(
         children: [
-          _infoRow(context, 'Contract Address', WalletFormatters.shortenAddress(nft.contractAddress), 
+          _infoRow(context, 'Contract Address', WalletFormatters.shortenAddress(nft.contractAddress),
             onTap: () {
               Clipboard.setData(ClipboardData(text: nft.contractAddress));
               NotificationService.showSuccess(context, 'Address copied');
@@ -233,7 +242,16 @@ class NftDetailsScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surfaceContainerLow,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.3)),
+        border: Border(
+          top: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+          bottom: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+        ),
       ),
       child: Column(
         children: List.generate(links.length, (index) {

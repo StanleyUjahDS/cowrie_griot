@@ -66,4 +66,13 @@ class ReputationProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  void reset() {
+    _data = null;
+    _isLoading = false;
+    _error = null;
+    _lastLoadedAt = null;
+    _loadFuture = null;
+    notifyListeners();
+  }
 }

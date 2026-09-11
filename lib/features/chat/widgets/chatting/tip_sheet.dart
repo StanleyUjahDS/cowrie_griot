@@ -1,25 +1,33 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/services/notification_service.dart';
+import '../../../../core/ui/widgets/griot_loader.dart';
 import '../../../users/providers/user_provider.dart';
 import '../../../wallet/models/token_model.dart';
 import '../../../wallet/providers/wallet_provider.dart';
+import '../../../wallet/utils/chain_assets.dart';
 import '../../models/chat_user.dart';
 import '../../models/conversation_model.dart';
 import '../../providers/messaging_provider.dart';
+
+enum _TipAudience { friends, selectedPeople }
 
 class TipSheet extends StatefulWidget {
   final List<ChatUser> initialRecipients;
   final String? conversationId;
   final ConversationType? conversationType;
+  final bool showHeader; // Optimization: hide top part if needed
 
   const TipSheet({
     super.key,
     required this.initialRecipients,
     this.conversationId,
     this.conversationType,
+    this.showHeader = true,
   });
 
   static void show(
@@ -27,15 +35,18 @@ class TipSheet extends StatefulWidget {
     required List<ChatUser> recipients,
     String? conversationId,
     ConversationType? conversationType,
+    bool showHeader = true,
   }) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
       builder: (context) => TipSheet(
         initialRecipients: recipients,
         conversationId: conversationId,
         conversationType: conversationType,
+        showHeader: showHeader,
       ),
     );
   }
@@ -49,34 +60,26 @@ class _TipSheetState extends State<TipSheet> {
 
   TokenModel? _selectedToken;
   bool _isUsdInput = false;
+  String? _status;
   bool isPreparing = false;
+  bool _differentAmounts = false;
   late List<ChatUser> recipients;
+  final Map<String, TextEditingController> _recipientAmountControllers = {};
 
-  // The selected token is the single source of truth for the network.
   String? get selectedNetwork {
-    final network = _selectedToken?.rawNetwork.trim().toLowerCase();
-    switch (network) {
-      case 'bnb':
-      case 'binance-smart-chain':
-      case 'binance smart chain':
-        return 'bsc';
-      default:
-        return network;
-    }
+    final network = _selectedToken?.rawNetwork;
+    return network != null ? ChainAssets.normalize(network) : null;
   }
 
   @override
   void initState() {
     super.initState();
     recipients = List.from(widget.initialRecipients);
-
     final provider = context.read<MessagingProvider>();
 
     if (provider.tipConfig == null) {
       provider.loadTipConfig().then((_) {
-        if (mounted) {
-          _initDefaultToken();
-        }
+        if (mounted) _initDefaultToken();
       });
     } else {
       _initDefaultToken();
@@ -99,31 +102,46 @@ class _TipSheetState extends State<TipSheet> {
     WalletProvider wallet,
     MessagingProvider provider,
   ) {
-    if (provider.tipConfig == null) {
-      return [];
-    }
+    if (provider.tipConfig == null) return [];
     final supportedNetworks = (provider.tipConfig!['networks'] as List)
-        .map((n) => n['network'].toString().toLowerCase())
+        .map((n) => ChainAssets.normalize(n['network'].toString()))
         .toSet();
 
     return wallet.tokens.where((t) {
       final balance = BigInt.tryParse(t.rawBalance) ?? BigInt.zero;
-      final hasBalance = balance > BigInt.zero;
-      final hasDecimals = t.decimals != null && t.decimals! > 0;
       final isSupported = supportedNetworks.contains(
-        t.rawNetwork.toLowerCase(),
+        ChainAssets.normalize(t.rawNetwork),
       );
-
       final isLegit = t.isOfficial || t.isEcosystem || t.hasMarketData;
-
-      return hasBalance && hasDecimals && isSupported && isLegit;
+      return balance > BigInt.zero && isSupported && isLegit;
     }).toList();
   }
 
   @override
   void dispose() {
     amountController.dispose();
+    for (final controller in _recipientAmountControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
+  }
+
+  bool get _canCustomizeAmounts => recipients.length > 1;
+
+  void _syncRecipientAmountControllers() {
+    final ids = recipients.map((recipient) => recipient.id).toSet();
+    for (final entry in _recipientAmountControllers.entries.toList()) {
+      if (!ids.contains(entry.key)) {
+        entry.value.dispose();
+        _recipientAmountControllers.remove(entry.key);
+      }
+    }
+    for (final recipient in recipients) {
+      _recipientAmountControllers.putIfAbsent(
+        recipient.id,
+        () => TextEditingController(text: amountController.text),
+      );
+    }
   }
 
   @override
@@ -132,500 +150,108 @@ class _TipSheetState extends State<TipSheet> {
     final colorScheme = theme.colorScheme;
     final provider = context.watch<MessagingProvider>();
     final wallet = context.watch<WalletProvider>();
-
     final availableTokens = _getAvailableTokens(wallet, provider);
 
     final input = double.tryParse(
       amountController.text.replaceAll(RegExp(r'[^0-9.]'), ''),
     );
-    final tokenAmount = input == null || _selectedToken == null
-        ? 0.0
-        : (_isUsdInput ? input / (_selectedToken!.priceUsd ?? 1.0) : input);
-    final usdValue = tokenAmount * (_selectedToken?.priceUsd ?? 0.0);
+    final tokenAmount = _currentTokenAmount;
+    final usdValue = _isUsdInput
+        ? (input ?? 0.0)
+        : (tokenAmount * (_selectedToken?.priceUsd ?? 0.0));
 
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
       child: Container(
-        margin: const EdgeInsets.all(12),
-        padding: const EdgeInsets.fromLTRB(18, 12, 18, 22),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         decoration: BoxDecoration(
           color: colorScheme.surface,
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(
-            color: colorScheme.primary.withValues(alpha: 0.15),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          border: Border(
+            top: BorderSide(
+              color: colorScheme.primary.withValues(alpha: 0.6),
+              width: 1.5,
+            ),
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.22),
-              blurRadius: 35,
-              offset: const Offset(0, 12),
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 30,
             ),
           ],
         ),
         child: ConstrainedBox(
           constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.85,
+            maxHeight: MediaQuery.of(context).size.height * 0.8,
           ),
           child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  width: 40,
+                  width: 32,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.25),
-                    borderRadius: BorderRadius.circular(20),
+                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                const SizedBox(height: 18),
-                Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: colorScheme.primary.withValues(alpha: 0.10),
-                    border: Border.all(
-                      color: colorScheme.primary.withValues(alpha: 0.18),
-                    ),
+                const SizedBox(height: 16),
+
+                if (widget.showHeader) ...[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.bolt_rounded,
+                        color: colorScheme.primary,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        recipients.length > 1 ? 'Batch Tip' : 'Send Tip',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
                   ),
-                  padding: const EdgeInsets.all(16),
-                  child: SvgPicture.asset(
-                    'assets/cowrie_images/cowriesvg.svg',
-                    fit: BoxFit.contain,
-                    colorFilter: ColorFilter.mode(
-                      colorScheme.primary,
-                      BlendMode.srcIn,
-                    ),
-                  ),
-                ),
+                  const SizedBox(height: 12),
+                ],
+
+                // Recipient Row
+                _buildRecipientChip(colorScheme, theme),
                 const SizedBox(height: 12),
-                Text(
-                  recipients.length > 1
-                      ? 'Batch Tip Members'
-                      : 'Tip ${recipients.firstOrNull?.effectiveDisplayName ?? "User"}',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  recipients.length > 1
-                      ? 'Sending to ${recipients.length} people'
-                      : 'Send crypto directly to this user',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 20),
 
-                if (widget.conversationType != null &&
-                    widget.conversationType != ConversationType.dm)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: InkWell(
-                      onTap: () async {
-                        final selected = await _showRecipientSelector(
-                          recipients,
-                          widget.conversationId!,
-                          widget.conversationType!,
-                        );
-                        if (selected != null) {
-                          setState(() {
-                            recipients = selected;
-                          });
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: colorScheme.primary.withValues(alpha: 0.05),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: colorScheme.primary.withValues(alpha: 0.1),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.group_add_rounded,
-                              size: 20,
-                              color: colorScheme.primary,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                recipients.isEmpty
-                                    ? 'Select recipients'
-                                    : '${recipients.length} selected',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                            const Icon(Icons.chevron_right_rounded, size: 20),
-                          ],
-                        ),
-                      ),
-                    ),
+                // Token Selector
+                _buildTokenSelector(colorScheme, theme, availableTokens),
+                const SizedBox(height: 12),
+
+                if (_canCustomizeAmounts) ...[
+                  _buildAmountModeSelector(colorScheme),
+                  const SizedBox(height: 12),
+                ],
+
+                // Input Area
+                _differentAmounts && _canCustomizeAmounts
+                    ? _buildIndividualAmountInputs(colorScheme, theme)
+                    : _buildInputArea(colorScheme, theme),
+                const SizedBox(height: 8),
+
+                if (!_differentAmounts && input != null && input > 0)
+                  _buildEstimationBadge(
+                    colorScheme,
+                    theme,
+                    tokenAmount,
+                    usdValue,
                   ),
 
-                if (selectedNetwork != null)
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 14),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: colorScheme.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.lan_outlined,
-                          size: 14,
-                          color: colorScheme.primary,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Network: ${selectedNetwork!.toUpperCase()}',
-                          style: TextStyle(
-                            color: colorScheme.primary,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 10,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                const SizedBox(height: 16),
 
-                InkWell(
-                  borderRadius: BorderRadius.circular(18),
-                  onTap: () async {
-                    final selected = await _showTokenSelector(
-                      _selectedToken,
-                      availableTokens,
-                    );
-                    if (selected != null) {
-                      setState(() {
-                        _selectedToken = selected;
-                      });
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: colorScheme.onSurface.withValues(alpha: 0.035),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: colorScheme.outline.withValues(alpha: 0.10),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: colorScheme.primary.withValues(alpha: 0.08),
-                          ),
-                          child:
-                              _selectedToken?.imageUrl != null &&
-                                  _selectedToken!.imageUrl.isNotEmpty
-                              ? ClipOval(
-                                  child: Image.network(
-                                    _selectedToken!.imageUrl,
-                                  ),
-                                )
-                              : Center(
-                                  child: Text(
-                                    _selectedToken?.symbol.substring(0, 1) ??
-                                        '?',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w900,
-                                      color: colorScheme.primary,
-                                    ),
-                                  ),
-                                ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _selectedToken?.name ?? 'Select Token',
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '${_selectedToken?.symbol ?? ""} • \$${(_selectedToken?.priceUsd ?? 0.0).toStringAsFixed(4)}',
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Icon(
-                          Icons.keyboard_arrow_down_rounded,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: colorScheme.onSurface.withValues(alpha: 0.045),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _TipModeButton(
-                          label: _selectedToken?.symbol ?? "Token",
-                          selected: !_isUsdInput,
-                          onTap: () {
-                            setState(() {
-                              _isUsdInput = false;
-                              amountController.clear();
-                            });
-                          },
-                        ),
-                      ),
-                      Expanded(
-                        child: _TipModeButton(
-                          label: 'USD',
-                          selected: _isUsdInput,
-                          onTap: () {
-                            setState(() {
-                              _isUsdInput = true;
-                              amountController.clear();
-                            });
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colorScheme.onSurface.withValues(alpha: 0.035),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: colorScheme.primary.withValues(alpha: 0.12),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      if (_isUsdInput)
-                        Text(
-                          '\$',
-                          style: theme.textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      Expanded(
-                        child: TextField(
-                          controller: amountController,
-                          autofocus: true,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          textAlign: TextAlign.center,
-                          onChanged: (_) => setState(() {}),
-                          style: theme.textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: '0.00',
-                            border: InputBorder.none,
-                            hintStyle: theme.textTheme.headlineMedium?.copyWith(
-                              color: colorScheme.onSurfaceVariant.withValues(
-                                alpha: 0.35,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (!_isUsdInput)
-                        Text(
-                          _selectedToken?.symbol ?? "",
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: colorScheme.primary,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 10),
-
-                if (input != null && input > 0)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: colorScheme.primary.withValues(alpha: 0.055),
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    child: Column(
-                      children: [
-                        Text(
-                          _isUsdInput
-                              ? '${tokenAmount.toStringAsFixed(6)} ${_selectedToken?.symbol ?? ""}'
-                              : '\$${usdValue.toStringAsFixed(2)}',
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: colorScheme.primary,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          _isUsdInput
-                              ? 'Estimated token amount'
-                              : 'Estimated USD value',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                const SizedBox(height: 18),
-
-                SizedBox(
-                  width: double.infinity,
-                  height: 54,
-                  child: FilledButton.icon(
-                    onPressed:
-                        amountController.text.isEmpty ||
-                            isPreparing ||
-                            recipients.isEmpty ||
-                            _selectedToken == null
-                        ? null
-                        : () async {
-                            setState(() => isPreparing = true);
-                            try {
-                              if (recipients.length > 200) {
-                                throw Exception(
-                                  'Maximum batch size is 200 recipients',
-                                );
-                              }
-
-                              final rawAmount = _toRawAmount(
-                                amountController.text,
-                                _selectedToken!.decimals ?? 18,
-                              );
-
-                              Map<String, dynamic> prepared;
-                              if (recipients.length > 1) {
-                                prepared = await provider.prepareBatchTip(
-                                  network: selectedNetwork!,
-                                  recipients: recipients
-                                      .map((r) => r.walletAddress)
-                                      .toList(),
-                                  amounts: List.generate(
-                                    recipients.length,
-                                    (_) => rawAmount,
-                                  ),
-                                  tokenAddress: _selectedToken!.isNative
-                                      ? null
-                                      : _selectedToken!.contractAddress,
-                                );
-                              } else {
-                                prepared = await provider.prepareTip(
-                                  network: selectedNetwork!,
-                                  recipient: recipients.first.walletAddress,
-                                  amount: rawAmount,
-                                  tokenAddress: _selectedToken!.isNative
-                                      ? null
-                                      : _selectedToken!.contractAddress,
-                                );
-                              }
-
-                              final preparedNetwork = provider
-                                  .normalizeNetworkName(
-                                    prepared['network']?.toString(),
-                                  );
-                              final currentNetwork = provider
-                                  .normalizeNetworkName(selectedNetwork);
-
-                              if (preparedNetwork != currentNetwork) {
-                                throw Exception(
-                                  'Network mismatch: selected $currentNetwork, prepared $preparedNetwork',
-                                );
-                              }
-
-                              final hash = await provider.executeTip(
-                                preparedTip: prepared,
-                                onStatusUpdate: (s) {
-                                  if (mounted) {
-                                    setState(() => isPreparing = true);
-                                  }
-                                },
-                              );
-
-                              if (!context.mounted) {
-                                return;
-                              }
-
-                              Navigator.of(context).pop();
-                              NotificationService.showSuccess(
-                                context,
-                                'Tip confirmed! Hash: ${hash.substring(0, 10)}...',
-                              );
-                            } catch (e) {
-                              if (!context.mounted) {
-                                return;
-                              }
-                              setState(() => isPreparing = false);
-                              NotificationService.showError(
-                                context,
-                                'Tip failed: $e',
-                              );
-                            }
-                          },
-                    icon: isPreparing
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.bolt_rounded),
-                    label: Text(isPreparing ? 'Processing...' : 'Send Tip Now'),
-                  ),
-                ),
+                // Custom Send Button
+                _buildSendButton(colorScheme, provider, input),
               ],
             ),
           ),
@@ -634,13 +260,611 @@ class _TipSheetState extends State<TipSheet> {
     );
   }
 
+  Widget _buildRecipientChip(ColorScheme colorScheme, ThemeData theme) {
+    final bool canChange = widget.conversationType != ConversationType.dm;
+
+    return InkWell(
+      onTap: canChange
+          ? () async {
+              final selected = await _showRecipientSelector(
+                recipients,
+                conversationId: widget.conversationId,
+                type: widget.conversationType,
+              );
+              if (selected != null) {
+                setState(() => recipients = selected);
+                _syncRecipientAmountControllers();
+              }
+            }
+          : null,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: colorScheme.primary.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: colorScheme.primary.withValues(alpha: 0.1)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.group_outlined, size: 16, color: colorScheme.primary),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                recipients.length == 1
+                    ? recipients.first.effectiveDisplayName
+                    : recipients.isEmpty
+                    ? 'Choose recipients'
+                    : '${recipients.length} Recipients',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (canChange) ...[
+              const SizedBox(width: 4),
+              Icon(
+                Icons.keyboard_arrow_right_rounded,
+                size: 16,
+                color: colorScheme.primary,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTokenSelector(
+    ColorScheme colorScheme,
+    ThemeData theme,
+    List<TokenModel> available,
+  ) {
+    return InkWell(
+      onTap: () async {
+        final selected = await _showTokenSelector(_selectedToken, available);
+        if (selected != null) setState(() => _selectedToken = selected);
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: colorScheme.onSurface.withValues(alpha: 0.03),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: colorScheme.primary.withValues(alpha: 0.1),
+              ),
+              child:
+                  _selectedToken?.imageUrl != null &&
+                      _selectedToken!.imageUrl.isNotEmpty
+                  ? ClipOval(child: Image.network(_selectedToken!.imageUrl))
+                  : Center(
+                      child: Text(
+                        _selectedToken?.symbol.substring(0, 1) ?? '?',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          color: colorScheme.primary,
+                        ),
+                      ),
+                    ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                _selectedToken?.symbol ?? 'Select Token',
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+            if (selectedNetwork != null)
+              Text(
+                selectedNetwork!.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            const SizedBox(width: 8),
+            Icon(
+              Icons.expand_more_rounded,
+              color: colorScheme.onSurfaceVariant,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAmountModeSelector(ColorScheme colors) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Amount for each selected person',
+          style: TextStyle(
+            color: colors.onSurfaceVariant,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: colors.surfaceContainerHighest.withValues(alpha: 0.45),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: _amountModeButton(
+                  colors,
+                  label: 'Same amount',
+                  selected: !_differentAmounts,
+                  onPressed: () => setState(() => _differentAmounts = false),
+                ),
+              ),
+              Expanded(
+                child: _amountModeButton(
+                  colors,
+                  label: 'Different amounts',
+                  selected: _differentAmounts,
+                  onPressed: () {
+                    _syncRecipientAmountControllers();
+                    setState(() => _differentAmounts = true);
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _amountModeButton(
+    ColorScheme colors, {
+    required String label,
+    required bool selected,
+    required VoidCallback onPressed,
+  }) {
+    return TextButton(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        backgroundColor: selected ? colors.primary : Colors.transparent,
+        foregroundColor: selected ? colors.onPrimary : colors.onSurfaceVariant,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+      ),
+      child: Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
+    );
+  }
+
+  Widget _buildIndividualAmountInputs(ColorScheme colors, ThemeData theme) {
+    _syncRecipientAmountControllers();
+    return Column(
+      children: recipients.map((recipient) {
+        final controller = _recipientAmountControllers[recipient.id]!;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundImage: recipient.profileUrl != null
+                    ? NetworkImage(recipient.profileUrl!)
+                    : null,
+                child: recipient.profileUrl == null
+                    ? Text(
+                        recipient.effectiveDisplayName
+                            .substring(0, 1)
+                            .toUpperCase(),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  recipient.effectiveDisplayName,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              SizedBox(
+                width: 120,
+                child: TextField(
+                  controller: controller,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                  ],
+                  textAlign: TextAlign.right,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    hintText: '0.00',
+                    suffixText: _isUsdInput
+                        ? ' USD'
+                        : ' ${_selectedToken?.symbol ?? ''}',
+                    filled: true,
+                    fillColor: colors.surfaceContainerHighest.withValues(
+                      alpha: 0.35,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildInputArea(ColorScheme colorScheme, ThemeData theme) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: amountController,
+                autofocus: true,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                ],
+                textAlign: TextAlign.center,
+                onChanged: (_) => setState(() {}),
+                style: theme.textTheme.headlineLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: colorScheme.onSurface,
+                ),
+                decoration: InputDecoration(
+                  hintText: '0.00',
+                  border: InputBorder.none,
+                  prefixText: _isUsdInput ? '\$ ' : null,
+                  prefixStyle: theme.textTheme.headlineLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: colorScheme.onSurface.withValues(alpha: 0.5),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        Container(
+          height: 36,
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: colorScheme.onSurface.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _CompactTipModeButton(
+                label: _selectedToken?.symbol ?? "Token",
+                selected: !_isUsdInput,
+                onTap: () {
+                  if (!_isUsdInput) return;
+                  final val = double.tryParse(amountController.text) ?? 0;
+                  final price = _selectedToken?.priceUsd ?? 1.0;
+                  setState(() {
+                    _isUsdInput = false;
+                    if (val > 0) {
+                      amountController.text = (val / price)
+                          .toStringAsFixed(6)
+                          .replaceAll(RegExp(r'0+$'), '')
+                          .replaceAll(RegExp(r'\.$'), '');
+                    }
+                  });
+                },
+              ),
+              _CompactTipModeButton(
+                label: 'USD',
+                selected: _isUsdInput,
+                onTap: () {
+                  if (_isUsdInput) return;
+                  final val = double.tryParse(amountController.text) ?? 0;
+                  final price = _selectedToken?.priceUsd ?? 0.0;
+                  setState(() {
+                    _isUsdInput = true;
+                    if (val > 0) {
+                      amountController.text = (val * price).toStringAsFixed(2);
+                    }
+                  });
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEstimationBadge(
+    ColorScheme colorScheme,
+    ThemeData theme,
+    double tokenAmount,
+    double usdValue,
+  ) {
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: colorScheme.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        _isUsdInput
+            ? '≈ ${tokenAmount.toStringAsFixed(6)} ${_selectedToken?.symbol}'
+            : '≈ \$${usdValue.toStringAsFixed(2)}',
+        style: TextStyle(
+          color: colorScheme.onSurfaceVariant,
+          fontWeight: FontWeight.bold,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSendButton(
+    ColorScheme colorScheme,
+    MessagingProvider provider,
+    double? input,
+  ) {
+    final hasAmount = _differentAmounts && _canCustomizeAmounts
+        ? recipients.any(
+            (recipient) =>
+                _recipientAmountControllers[recipient.id]?.text
+                    .trim()
+                    .isNotEmpty ==
+                true,
+          )
+        : amountController.text.isNotEmpty;
+    final bool disabled =
+        !hasAmount ||
+        isPreparing ||
+        recipients.isEmpty ||
+        _selectedToken == null;
+
+    return Container(
+      width: double.infinity,
+      height: 58,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: disabled
+            ? null
+            : LinearGradient(
+                colors: [
+                  colorScheme.primary,
+                  colorScheme.primary.withValues(alpha: 0.8),
+                ],
+              ),
+        color: disabled ? colorScheme.onSurface.withValues(alpha: 0.1) : null,
+      ),
+      child: InkWell(
+        onTap: disabled ? null : () => _handleSend(provider, input),
+        borderRadius: BorderRadius.circular(18),
+        child: Center(
+          child: isPreparing
+              ? Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    GriotLoader(
+                      size: 20,
+                      strokeWidth: 2,
+                      color: colorScheme.onPrimary,
+                      useLogo: true,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      _status ?? 'Preparing...',
+                      style: TextStyle(
+                        color: colorScheme.onPrimary,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                )
+              : Text(
+                  recipients.length > 1 ? 'DISTRIBUTE TIP' : 'SEND TIP',
+                  style: TextStyle(
+                    color: colorScheme.onPrimary,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+
+  double get _currentTokenAmount {
+    final input = double.tryParse(
+      amountController.text.replaceAll(RegExp(r'[^0-9.]'), ''),
+    );
+    if (input == null || _selectedToken == null) return 0.0;
+    if (_isUsdInput) {
+      final price = _selectedToken!.priceUsd ?? 0.0;
+      return price > 0 ? input / price : 0.0;
+    }
+    return input;
+  }
+
+  String _formatTokenAmount(BigInt rawAmount, int decimals) {
+    if (decimals == 0) return rawAmount.toString();
+    final raw = rawAmount.toString().padLeft(decimals + 1, '0');
+    final split = raw.length - decimals;
+    final whole = raw.substring(0, split);
+    final fraction = raw.substring(split).replaceFirst(RegExp(r'0+$'), '');
+    return fraction.isEmpty ? whole : '$whole.$fraction';
+  }
+
+  Future<void> _handleSend(MessagingProvider provider, double? input) async {
+    setState(() => isPreparing = true);
+    try {
+      final decimals = _selectedToken!.decimals ?? 18;
+      final useIndividualAmounts = _differentAmounts && _canCustomizeAmounts;
+      final tokenAmounts = useIndividualAmounts
+          ? recipients.map((recipient) {
+              final entered =
+                  double.tryParse(
+                    _recipientAmountControllers[recipient.id]?.text.trim() ??
+                        '',
+                  ) ??
+                  0.0;
+              if (entered <= 0) return 0.0;
+              if (!_isUsdInput) return entered;
+              final price = _selectedToken!.priceUsd?.toDouble() ?? 0.0;
+              return price > 0 ? entered / price : 0.0;
+            }).toList()
+          : [_currentTokenAmount];
+
+      if (tokenAmounts.any((amount) => amount <= 0)) {
+        throw Exception('Enter a valid amount for every selected person');
+      }
+
+      final rawAmounts = tokenAmounts
+          .map(
+            (amount) =>
+                _toRawAmount(amount.toStringAsFixed(decimals), decimals),
+          )
+          .toList();
+      final rawAmountValues = rawAmounts.map(BigInt.parse).toList();
+      final totalRequired = rawAmountValues.fold<BigInt>(
+        BigInt.zero,
+        (total, amount) => total + amount,
+      );
+      final myBalance =
+          BigInt.tryParse(_selectedToken!.rawBalance) ?? BigInt.zero;
+
+      if (totalRequired > myBalance) {
+        throw Exception(
+          'Insufficient balance. You need ${_formatTokenAmount(totalRequired, decimals)} ${_selectedToken!.symbol} in total, but only have ${_selectedToken!.balance}.',
+        );
+      }
+
+      final sharedAmount = tokenAmounts.first;
+      final confirmationText = useIndividualAmounts
+          ? recipients
+                .asMap()
+                .entries
+                .map((entry) {
+                  final amount = tokenAmounts[entry.key]
+                      .toStringAsFixed(6)
+                      .replaceAll(RegExp(r'0+$'), '')
+                      .replaceAll(RegExp(r'\.$'), '');
+                  return '${entry.value.effectiveDisplayName}: $amount ${_selectedToken!.symbol}';
+                })
+                .join('\n')
+          : 'Send ${sharedAmount.toStringAsFixed(6).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '')} ${_selectedToken!.symbol} to ${recipients.length} member${recipients.length > 1 ? "s" : ""}?';
+
+      // Simple confirmation
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(recipients.length > 1 ? 'Distribute Batch' : 'Send Tip'),
+          content: Text(confirmationText),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Confirm'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm != true) {
+        setState(() => isPreparing = false);
+        return;
+      }
+
+      Map<String, dynamic> prepared;
+      if (recipients.length > 1) {
+        prepared = await provider.prepareBatchTip(
+          network: selectedNetwork!,
+          recipients: recipients.map((r) => r.walletAddress).toList(),
+          amounts: useIndividualAmounts
+              ? rawAmounts
+              : List.generate(recipients.length, (_) => rawAmounts.first),
+          tokenAddress: _selectedToken!.isNative
+              ? null
+              : _selectedToken!.contractAddress,
+        );
+      } else {
+        prepared = await provider.prepareTip(
+          network: selectedNetwork!,
+          recipient: recipients.first.walletAddress,
+          amount: rawAmounts.first,
+          tokenAddress: _selectedToken!.isNative
+              ? null
+              : _selectedToken!.contractAddress,
+        );
+      }
+
+      await provider.executeTip(
+        preparedTip: prepared,
+        conversationId: widget.conversationId,
+        tipMessage: useIndividualAmounts
+            ? 'Sent individual ${_selectedToken!.symbol} tips to ${recipients.length} people'
+            : recipients.length > 1
+            ? 'Distributed ${sharedAmount.toStringAsFixed(6).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '')} ${_selectedToken!.symbol} each'
+            : 'Tipped ${sharedAmount.toStringAsFixed(6).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '')} ${_selectedToken!.symbol}',
+        onStatusUpdate: (s) {
+          if (mounted) setState(() => _status = s);
+        },
+      );
+
+      if (mounted) {
+        context.read<WalletProvider>().loadWallet(force: true);
+        Navigator.pop(context);
+        NotificationService.showSuccess(context, 'Tip sent successfully!');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => isPreparing = false);
+        NotificationService.showError(context, 'Failed: $e');
+      }
+    }
+  }
+
   String _toRawAmount(String input, int decimals) {
+    if (input.isEmpty || input == '.') return '0';
     final cleanInput = input.replaceAll(',', '.');
     final parts = cleanInput.split('.');
-
-    BigInt whole = BigInt.parse(parts[0]);
+    BigInt whole = BigInt.zero;
+    try {
+      if (parts[0].isNotEmpty) {
+        whole = BigInt.parse(parts[0]);
+      }
+    } catch (_) {}
     BigInt fractional = BigInt.zero;
-
     if (parts.length > 1) {
       String fractionString = parts[1];
       if (fractionString.length > decimals) {
@@ -648,37 +872,62 @@ class _TipSheetState extends State<TipSheet> {
       } else {
         fractionString = fractionString.padRight(decimals, '0');
       }
-      fractional = BigInt.parse(fractionString);
+      try {
+        fractional = BigInt.parse(fractionString);
+      } catch (_) {}
     }
-
-    final BigInt multiplier = BigInt.from(10).pow(decimals);
-    return (whole * multiplier + fractional).toString();
+    return (whole * BigInt.from(10).pow(decimals) + fractional).toString();
   }
 
   Future<List<ChatUser>?> _showRecipientSelector(
-    List<ChatUser> currentlySelected,
-    String conversationId,
-    ConversationType type,
-  ) async {
+    List<ChatUser> currentlySelected, {
+    String? conversationId,
+    ConversationType? type,
+  }) async {
+    if (conversationId == null && type == null) {
+      final audience = await _showAudienceSelector();
+      if (audience == null) return null;
+      if (audience == _TipAudience.selectedPeople) {
+        return _showGlobalRecipientSelector(currentlySelected);
+      }
+    }
+
+    if (!mounted) return null;
+
+    // This part remains largely the same logic-wise but could be optimized UI-wise
     final provider = context.read<MessagingProvider>();
     final currentUserId = context.read<UserProvider>().user?.id;
-
-    final List<ChatUser> allMembers = await provider.getConversationMembers(
-      conversationId,
-      isGroup: type == ConversationType.group,
-    );
-
-    if (!mounted) {
-      return null;
+    List<ChatUser> allMembers;
+    if (conversationId != null && type != null) {
+      if (type == ConversationType.channel) {
+        final rawMembers = await provider.getChannelMembers(conversationId);
+        allMembers = rawMembers
+            .map((m) => ChatUser.fromJson(Map<String, dynamic>.from(m)))
+            .toList();
+      } else {
+        allMembers = await provider.getConversationMembers(
+          conversationId,
+          isGroup: type == ConversationType.group,
+        );
+      }
+    } else {
+      allMembers = provider.friends.map(ChatUser.fromUserModel).toList();
     }
+    final seenAddresses = <String>{};
+    final otherMembers = allMembers.where((m) {
+      if (m.id == currentUserId ||
+          m.walletAddress.isEmpty ||
+          m.walletAddress == '0x') {
+        return false;
+      }
+      if (seenAddresses.contains(m.walletAddress.toLowerCase())) {
+        return false;
+      }
+      seenAddresses.add(m.walletAddress.toLowerCase());
+      return true;
+    }).toList();
 
-    final otherMembers = allMembers
-        .where((m) => m.id != currentUserId)
-        .toList();
-
-    if (!mounted) {
-      return null;
-    }
+    if (!mounted) return null;
 
     return await showModalBottomSheet<List<ChatUser>>(
       context: context,
@@ -689,86 +938,395 @@ class _TipSheetState extends State<TipSheet> {
         return StatefulBuilder(
           builder: (context, setSheetState) {
             final colors = Theme.of(context).colorScheme;
-            return Container(
-              margin: const EdgeInsets.all(12),
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+            return DraggableScrollableSheet(
+              initialChildSize: 0.8,
+              minChildSize: 0.5,
+              maxChildSize: 0.95,
+              builder: (context, scrollController) => Container(
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(32),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 12),
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: colors.onSurfaceVariant.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Row(
+                        children: [
+                          const Text(
+                            'Select Recipients',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 18,
+                            ),
+                          ),
+                          const Spacer(),
+                          if (selected.isNotEmpty)
+                            TextButton(
+                              onPressed: () =>
+                                  setSheetState(() => selected.clear()),
+                              child: const Text('Clear'),
+                            ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView.builder(
+                        controller: scrollController,
+                        itemCount: otherMembers.length,
+                        itemBuilder: (context, index) {
+                          final member = otherMembers[index];
+                          final isSelected = selected.any(
+                            (s) => s.id == member.id,
+                          );
+                          return ListTile(
+                            onTap: () => setSheetState(
+                              () => isSelected
+                                  ? selected.removeWhere(
+                                      (s) => s.id == member.id,
+                                    )
+                                  : selected.add(member),
+                            ),
+                            leading: CircleAvatar(
+                              backgroundImage: member.profileUrl != null
+                                  ? NetworkImage(member.profileUrl!)
+                                  : null,
+                            ),
+                            title: Text(
+                              member.effectiveDisplayName,
+                              style: TextStyle(
+                                fontWeight: isSelected
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
+                              ),
+                            ),
+                            trailing: Icon(
+                              isSelected
+                                  ? Icons.check_circle_rounded
+                                  : Icons.circle_outlined,
+                              color: isSelected
+                                  ? colors.primary
+                                  : colors.outline,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: FilledButton(
+                          onPressed: () => Navigator.pop(context, selected),
+                          child: Text('Confirm (${selected.length})'),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<_TipAudience?> _showAudienceSelector() {
+    final colors = Theme.of(context).colorScheme;
+    return showModalBottomSheet<_TipAudience>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colors.onSurfaceVariant.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Who would you like to tip?',
+              style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Choose people before selecting the asset and amount.',
+              style: TextStyle(color: colors.onSurfaceVariant),
+            ),
+            const SizedBox(height: 14),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(
+                backgroundColor: colors.primary.withValues(alpha: 0.12),
+                child: Icon(Icons.people_alt_outlined, color: colors.primary),
+              ),
+              title: const Text(
+                'Tip friends',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              subtitle: const Text('Choose from your friends list'),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => Navigator.pop(sheetContext, _TipAudience.friends),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(
+                backgroundColor: colors.primary.withValues(alpha: 0.12),
+                child: Icon(
+                  Icons.person_search_outlined,
+                  color: colors.primary,
+                ),
+              ),
+              title: const Text(
+                'Tip selected people',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              subtitle: const Text('Search the global Griot user directory'),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () =>
+                  Navigator.pop(sheetContext, _TipAudience.selectedPeople),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<List<ChatUser>?> _showGlobalRecipientSelector(
+    List<ChatUser> currentlySelected,
+  ) {
+    final colors = Theme.of(context).colorScheme;
+    final currentUserId = context.read<UserProvider>().user?.id;
+
+    return showModalBottomSheet<List<ChatUser>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        List<ChatUser> selected = List.from(currentlySelected);
+        List<ChatUser> results = [];
+        Timer? debounce;
+        var isLoading = false;
+        var queryVersion = 0;
+        final searchController = TextEditingController();
+
+        Future<void> search(String query, StateSetter setSheetState) async {
+          final trimmed = query.trim();
+          final version = ++queryVersion;
+          if (trimmed.length < 2) {
+            setSheetState(() {
+              results = [];
+              isLoading = false;
+            });
+            return;
+          }
+
+          setSheetState(() => isLoading = true);
+          try {
+            final response = await context
+                .read<UserProvider>()
+                .userApiService
+                .searchUsers(trimmed, limit: 20);
+            if (version != queryVersion || !sheetContext.mounted) return;
+            final users = response['users'] as List;
+            setSheetState(() {
+              results = users
+                  .map((user) => ChatUser.fromUserModel(user))
+                  .where(
+                    (user) =>
+                        user.id != currentUserId &&
+                        user.walletAddress.isNotEmpty &&
+                        user.walletAddress != '0x',
+                  )
+                  .toList();
+              isLoading = false;
+            });
+          } catch (_) {
+            if (version == queryVersion && sheetContext.mounted) {
+              setSheetState(() {
+                results = [];
+                isLoading = false;
+              });
+            }
+          }
+        }
+
+        return StatefulBuilder(
+          builder: (context, setSheetState) => DraggableScrollableSheet(
+            initialChildSize: 0.82,
+            minChildSize: 0.55,
+            maxChildSize: 0.95,
+            builder: (context, scrollController) => Container(
               decoration: BoxDecoration(
                 color: colors.surface,
-                borderRadius: BorderRadius.circular(30),
-              ),
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * 0.7,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(32),
+                ),
               ),
               child: Column(
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Select Recipients',
-                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
-                  ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: otherMembers.length,
-                      itemBuilder: (context, index) {
-                        final member = otherMembers[index];
-                        final isSelected = selected.any(
-                          (s) => s.id == member.id,
-                        );
-                        return ListTile(
-                          onTap: () {
-                            setSheetState(() {
-                              if (isSelected) {
-                                selected.removeWhere((s) => s.id == member.id);
-                              } else {
-                                selected.add(member);
-                              }
-                            });
-                          },
-                          leading: CircleAvatar(
-                            backgroundImage: member.profileUrl != null
-                                ? NetworkImage(member.profileUrl!)
-                                : null,
-                            child: member.profileUrl == null
-                                ? const Icon(Icons.person)
-                                : null,
-                          ),
-                          title: Text(
-                            member.effectiveDisplayName,
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          trailing: Checkbox(
-                            value: isSelected,
-                            onChanged: (_) {
-                              setSheetState(() {
-                                if (isSelected) {
-                                  selected.removeWhere(
-                                    (s) => s.id == member.id,
-                                  );
-                                } else {
-                                  selected.add(member);
-                                }
-                              });
-                            },
-                          ),
-                        );
-                      },
+                  const SizedBox(height: 12),
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: colors.onSurfaceVariant.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 54,
-                    child: FilledButton(
-                      onPressed: () => Navigator.pop(context, selected),
-                      child: Text('Confirm (${selected.length})'),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Select people to tip',
+                          style: TextStyle(
+                            fontSize: 19,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: searchController,
+                          autofocus: true,
+                          decoration: InputDecoration(
+                            hintText: 'Search by name or username',
+                            prefixIcon: const Icon(Icons.search_rounded),
+                            filled: true,
+                            fillColor: colors.surfaceContainerHighest
+                                .withValues(alpha: 0.45),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                          onChanged: (value) {
+                            debounce?.cancel();
+                            debounce = Timer(
+                              const Duration(milliseconds: 350),
+                              () {
+                                search(value, setSheetState);
+                              },
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: isLoading
+                        ? const Center(child: GriotLoader())
+                        : results.isEmpty
+                        ? Center(
+                            child: Text(
+                              searchController.text.trim().length < 2
+                                  ? 'Type at least 2 characters to search.'
+                                  : 'No eligible users found.',
+                              style: TextStyle(color: colors.onSurfaceVariant),
+                            ),
+                          )
+                        : ListView.builder(
+                            controller: scrollController,
+                            itemCount: results.length,
+                            itemBuilder: (context, index) {
+                              final user = results[index];
+                              final isSelected = selected.any(
+                                (item) => item.id == user.id,
+                              );
+                              return ListTile(
+                                onTap: () => setSheetState(() {
+                                  if (isSelected) {
+                                    selected.removeWhere(
+                                      (item) => item.id == user.id,
+                                    );
+                                  } else {
+                                    selected.add(user);
+                                  }
+                                }),
+                                leading: CircleAvatar(
+                                  backgroundImage: user.profileUrl != null
+                                      ? NetworkImage(user.profileUrl!)
+                                      : null,
+                                  child: user.profileUrl == null
+                                      ? Text(
+                                          user.effectiveDisplayName
+                                              .substring(0, 1)
+                                              .toUpperCase(),
+                                        )
+                                      : null,
+                                ),
+                                title: Text(
+                                  user.effectiveDisplayName,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                subtitle: user.username == null
+                                    ? null
+                                    : Text('@${user.username}'),
+                                trailing: Icon(
+                                  isSelected
+                                      ? Icons.check_circle_rounded
+                                      : Icons.circle_outlined,
+                                  color: isSelected
+                                      ? colors.primary
+                                      : colors.outline,
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                  SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: 54,
+                        child: FilledButton(
+                          onPressed: selected.isEmpty
+                              ? null
+                              : () {
+                                  debounce?.cancel();
+                                  searchController.dispose();
+                                  Navigator.pop(sheetContext, selected);
+                                },
+                          child: Text('Continue (${selected.length})'),
+                        ),
+                      ),
                     ),
                   ),
                 ],
               ),
-            );
-          },
+            ),
+          ),
         );
       },
     );
@@ -778,79 +1336,53 @@ class _TipSheetState extends State<TipSheet> {
     TokenModel? current,
     List<TokenModel> available,
   ) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final colors = Theme.of(context).colorScheme;
     return showModalBottomSheet<TokenModel>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         margin: const EdgeInsets.all(12),
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: colorScheme.surface,
-          borderRadius: BorderRadius.circular(28),
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(24),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 18),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Select token from your wallet',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-              ),
+            const Text(
+              'Select Token',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             if (available.isEmpty)
               const Padding(
                 padding: EdgeInsets.all(32),
-                child: Text(
-                  'No supported tokens found in your wallet.',
-                  textAlign: TextAlign.center,
-                ),
+                child: Text('No supported tokens found.'),
               )
             else
-              Expanded(
+              Flexible(
                 child: ListView.builder(
                   shrinkWrap: true,
                   itemCount: available.length,
                   itemBuilder: (context, index) {
                     final token = available[index];
-                    final selected = token.identity == current?.identity;
                     return ListTile(
                       onTap: () => Navigator.pop(context, token),
-                      leading: Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: colorScheme.primary.withValues(alpha: 0.08),
-                        ),
-                        child: token.imageUrl.isNotEmpty
-                            ? ClipOval(child: Image.network(token.imageUrl))
-                            : Center(
-                                child: Text(
-                                  token.symbol.substring(0, 1),
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w900,
-                                    color: colorScheme.primary,
-                                  ),
-                                ),
-                              ),
+                      leading: CircleAvatar(
+                        backgroundImage: token.imageUrl.isNotEmpty
+                            ? NetworkImage(token.imageUrl)
+                            : null,
                       ),
                       title: Text(
                         token.name,
                         style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
-                      subtitle: Text(
-                        '${token.symbol} • ${token.balance} • ${token.chain.toUpperCase()}',
-                      ),
-                      trailing: selected
+                      subtitle: Text('${token.symbol} • ${token.balance}'),
+                      trailing: token.identity == current?.identity
                           ? Icon(
                               Icons.check_circle_rounded,
-                              color: colorScheme.primary,
+                              color: colors.primary,
                             )
                           : null,
                     );
@@ -864,12 +1396,12 @@ class _TipSheetState extends State<TipSheet> {
   }
 }
 
-class _TipModeButton extends StatelessWidget {
+class _CompactTipModeButton extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
 
-  const _TipModeButton({
+  const _CompactTipModeButton({
     required this.label,
     required this.selected,
     required this.onTap,
@@ -877,25 +1409,22 @@ class _TipModeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final colors = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        height: 38,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
-          color: selected ? colorScheme.primary : Colors.transparent,
-          borderRadius: BorderRadius.circular(11),
+          color: selected ? colors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
         ),
-        child: Center(
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: selected
-                  ? colorScheme.onPrimary
-                  : colorScheme.onSurfaceVariant,
-            ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 11,
+            color: selected ? Colors.white : colors.onSurfaceVariant,
           ),
         ),
       ),

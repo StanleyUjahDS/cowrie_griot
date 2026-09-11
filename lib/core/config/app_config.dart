@@ -1,6 +1,14 @@
 import 'dart:io';
 
 class AppConfig {
+  /// Ads stay disabled until the mediation/accounts are ready.
+  /// Enable explicitly for a build with:
+  /// --dart-define=GRIOT_ADS_ENABLED=true
+  static const bool adsEnabled = bool.fromEnvironment(
+    'GRIOT_ADS_ENABLED',
+    defaultValue: false,
+  );
+
   // ==========================================================
   // ADMOB CONFIGURATION
   // ==========================================================

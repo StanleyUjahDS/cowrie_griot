@@ -21,6 +21,7 @@ class MessageCacheService {
   final FlutterSecureStorage _secureStorage;
   final AesGcm _algorithm = AesGcm.with256bits();
   SecretKey? _encryptionKey;
+  Future<void>? _initializationFuture;
 
   MessageCacheService({
     ChatDatabase? chatDb,
@@ -33,6 +34,17 @@ class MessageCacheService {
   // ==========================================================
 
   Future<void> initialize() async {
+    if (_initializationFuture != null) return _initializationFuture!;
+    _initializationFuture = _initializeInternal();
+    try {
+      await _initializationFuture!;
+    } catch (_) {
+      _initializationFuture = null;
+      rethrow;
+    }
+  }
+
+  Future<void> _initializeInternal() async {
     await _chatDb.database; // Ensure DB is open
     await _initEncryptionKey();
   }
@@ -78,7 +90,7 @@ class MessageCacheService {
     try {
       final encryptedBytes = base64Decode(encrypted);
       final nonceBytes = base64Decode(nonce);
-      
+
       final macLength = 16; // AES-GCM tag is 16 bytes
       final cipherText = encryptedBytes.sublist(0, encryptedBytes.length - macLength);
       final macBytes = encryptedBytes.sublist(encryptedBytes.length - macLength);
@@ -88,12 +100,12 @@ class MessageCacheService {
         nonce: nonceBytes,
         mac: Mac(macBytes),
       );
-      
+
       final clearText = await _algorithm.decrypt(
         secretBox,
         secretKey: _encryptionKey!,
       );
-      
+
       return utf8.decode(clearText);
     } catch (e) {
       debugPrint('Decryption error: $e');
@@ -115,7 +127,7 @@ class MessageCacheService {
     final batch = db.batch();
     for (final message in messages) {
       final encryptionData = await _encryptFixed(message.text);
-      
+
       batch.insert(
         _tableName,
         {
@@ -316,6 +328,35 @@ class MessageCacheService {
     await db.delete(_tableName);
   }
 
+  Future<void> deleteMessages(String conversationId) async {
+    final db = await _chatDb.database;
+    await db.delete(
+      _tableName,
+      where: 'conversation_id = ?',
+      whereArgs: [conversationId],
+    );
+  }
+
+  Future<void> wipe() async {
+    try {
+      final db = await _chatDb.database;
+      await db.transaction((txn) async {
+        await txn.delete(_tableName);
+        await txn.delete(LocalConversationsTable.tableName);
+        await txn.delete(LocalProfilesTable.tableName);
+      });
+
+      // Close the database connection so the file can be safely deleted or recreated
+      await _chatDb.close();
+
+      await _secureStorage.delete(key: _storageKey);
+      _encryptionKey = null;
+      debugPrint('MessageCacheService: All data and keys wiped.');
+    } catch (e) {
+      debugPrint('MessageCacheService: Error during wipe: $e');
+    }
+  }
+
   // ==========================================================
   // CRUD OPERATIONS - CONVERSATIONS
   // ==========================================================
@@ -330,13 +371,23 @@ class MessageCacheService {
         {
           LocalConversationsTable.columnId: conv.id,
           LocalConversationsTable.columnType: conv.type.name,
-          LocalConversationsTable.columnTitle: conv.title,
-          LocalConversationsTable.columnAvatarUrl: conv.avatarUrl,
+          LocalConversationsTable.columnTitle: conv.name,
+          LocalConversationsTable.columnAvatarUrl: conv.imageUrl,
           LocalConversationsTable.columnOtherUserId: conv.otherUser?.id,
           LocalConversationsTable.columnUnreadCount: conv.unreadCount,
           LocalConversationsTable.columnLastMessageId: conv.lastMessage?.id,
           LocalConversationsTable.columnUpdatedAt: conv.updatedAt.toIso8601String(),
           LocalConversationsTable.columnCreatedAt: conv.createdAt.toIso8601String(),
+          LocalConversationsTable.columnOwnerId: conv.ownerId,
+          LocalConversationsTable.columnVisibility: conv.visibility,
+          LocalConversationsTable.columnRole: conv.role,
+          LocalConversationsTable.columnStatus: conv.status,
+          LocalConversationsTable.columnMemberCount: conv.memberCount,
+          LocalConversationsTable.columnSubscriberCount: conv.subscriberCount,
+          LocalConversationsTable.columnPostCount: conv.postCount,
+          LocalConversationsTable.columnUsername: conv.username,
+          LocalConversationsTable.columnDescription: conv.description,
+          LocalConversationsTable.columnMessagesLocked: conv.messagesLocked ? 1 : 0,
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
@@ -372,17 +423,36 @@ class MessageCacheService {
       conversations.add(Conversation(
         id: row[LocalConversationsTable.columnId] as String,
         type: _conversationTypeFromString(row[LocalConversationsTable.columnType] as String?),
-        title: row[LocalConversationsTable.columnTitle] as String?,
-        avatarUrl: row[LocalConversationsTable.columnAvatarUrl] as String?,
+        name: row[LocalConversationsTable.columnTitle] as String?,
+        imageUrl: row[LocalConversationsTable.columnAvatarUrl] as String?,
         memberIds: [], // We don't store members locally yet
         otherUser: otherUser,
         lastMessage: lastMessage,
         unreadCount: row[LocalConversationsTable.columnUnreadCount] as int,
         updatedAt: DateTime.parse(row[LocalConversationsTable.columnUpdatedAt] as String),
         createdAt: DateTime.parse(row[LocalConversationsTable.columnCreatedAt] as String),
+        ownerId: row[LocalConversationsTable.columnOwnerId] as String?,
+        visibility: (row[LocalConversationsTable.columnVisibility] ?? 'public') as String,
+        role: row[LocalConversationsTable.columnRole] as String?,
+        status: row[LocalConversationsTable.columnStatus] as String?,
+        memberCount: (row[LocalConversationsTable.columnMemberCount] ?? 0) as int,
+        subscriberCount: (row[LocalConversationsTable.columnSubscriberCount] ?? 0) as int,
+        postCount: (row[LocalConversationsTable.columnPostCount] ?? 0) as int,
+        username: row[LocalConversationsTable.columnUsername] as String?,
+        description: row[LocalConversationsTable.columnDescription] as String?,
+        messagesLocked: (row[LocalConversationsTable.columnMessagesLocked] ?? 0) == 1,
       ));
     }
     return conversations;
+  }
+
+  Future<void> deleteConversation(String conversationId) async {
+    final db = await _chatDb.database;
+    await db.delete(
+      LocalConversationsTable.tableName,
+      where: '${LocalConversationsTable.columnId} = ?',
+      whereArgs: [conversationId],
+    );
   }
 
   // ==========================================================
@@ -399,7 +469,7 @@ class MessageCacheService {
         LocalProfilesTable.columnUsername: user.username,
         LocalProfilesTable.columnDisplayName: user.displayName,
         LocalProfilesTable.columnAvatarUrl: user.profileUrl,
-        LocalProfilesTable.columnBio: null, // We don't have bio in ChatUser model
+        LocalProfilesTable.columnBio: user.bio,
         LocalProfilesTable.columnReputationTier: user.reputation?.tierName,
         LocalProfilesTable.columnReputationColor: user.reputation?.badgeColor,
         LocalProfilesTable.columnRelationshipStatus: user.relationshipStatus,
@@ -434,6 +504,7 @@ class MessageCacheService {
       username: row[LocalProfilesTable.columnUsername] as String?,
       displayName: row[LocalProfilesTable.columnDisplayName] as String?,
       profileUrl: row[LocalProfilesTable.columnAvatarUrl] as String?,
+      bio: row[LocalProfilesTable.columnBio] as String?,
       timestamp: DateTime.parse(row[LocalProfilesTable.columnLastSeenAt] as String),
       reputation: reputation,
       relationshipStatus: row[LocalProfilesTable.columnRelationshipStatus] as String?,

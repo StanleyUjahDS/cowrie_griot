@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
@@ -7,22 +9,18 @@ import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/startup/app_startup_service.dart';
+import '../../../core/services/deep_link_service.dart';
 
 import '../wallet/services/wallet_service.dart';
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({
-    super.key,
-  });
+  const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() =>
-      _SplashScreenState();
+  State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState
-    extends State<SplashScreen> {
-  
+class _SplashScreenState extends State<SplashScreen> {
   // ============================================================
   // INIT
   // ============================================================
@@ -44,7 +42,7 @@ class _SplashScreenState
   // INITIALIZE APP
   // ============================================================
   //
-  // Splash orchestrates the full application startup via 
+  // Splash orchestrates the full application startup via
   // AppStartupService.
   //
   // It determines whether to go to:
@@ -86,6 +84,12 @@ class _SplashScreenState
       if (success) {
         debugPrint('Splash: Identity confirmed. Entering app...');
         context.go('/chat');
+        // A referral may have been opened before signup/login. Replay it now
+        // that the authenticated app shell is available.
+        unawaited(
+          DeepLinkService.instance.openPendingReferralIfAuthenticated(),
+        );
+        unawaited(DeepLinkService.instance.openPendingPlusIfAuthenticated());
       } else {
         debugPrint('Splash: Startup failed or no wallet found.');
         context.go('/login');
@@ -121,110 +125,85 @@ class _SplashScreenState
   // ============================================================
 
   @override
-  Widget build(
-      BuildContext context,
-      ) {
-    final theme =
-    Theme.of(context);
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
 
-    final textTheme =
-        theme.textTheme;
+    final textTheme = theme.textTheme;
 
-    final colorScheme =
-        theme.colorScheme;
+    final colorScheme = theme.colorScheme;
 
     return GradientScaffold(
-      child: Scaffold(
-        backgroundColor:
-        Colors.transparent,
-        body: SafeArea(
-          child: Center(
-            child: Padding(
-              padding:
-              const EdgeInsets.symmetric(
-                horizontal: 24,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Spacer(flex: 3),
+
+              // ==================================================
+              // LOGO
+              // ==================================================
+              SvgPicture.asset(
+                'assets/cowrie_images/cowriesvg.svg',
+                width: MediaQuery.of(context).size.width * 0.4,
+                fit: BoxFit.contain,
               ),
-              child: Column(
-                mainAxisAlignment:
-                MainAxisAlignment.center,
-                children: [
-                  const Spacer(flex: 3),
 
-                  // ==================================================
-                  // LOGO
-                  // ==================================================
+              const Spacer(),
 
-                  SvgPicture.asset(
-                    'assets/cowrie_images/cowriesvg.svg',
-                    width: MediaQuery.of(context).size.width * 0.4,
-                    fit: BoxFit.contain,
-                  ),
-
-                  const Spacer(),
-
-                  // ==================================================
-                  // BRAND
-                  // ==================================================
-
-                  Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Griot',
-                          style: textTheme.displayLarge?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -1.5,
-                          ),
-                        ),
-                        Text(
-                          'By Cowrie',
-                          style: textTheme.titleSmall?.copyWith(
-                            color: colorScheme.primary,
-                            letterSpacing: 2,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(
-                    height: 24,
-                  ),
-
-                  // ==================================================
-                  // DESCRIPTION
-                  // ==================================================
-
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Text(
-                      'The first web3 super app to connect with others, earn, and tell your stories without censorship.',
-                      textAlign:
-                      TextAlign.center,
-                      style:
-                      textTheme.bodyLarge?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                        height: 1.5,
+              // ==================================================
+              // BRAND
+              // ==================================================
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Griot',
+                      style: textTheme.displayLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -1.5,
                       ),
                     ),
-                  ),
-
-                  const Spacer(flex: 2),
-
-                  // ==================================================
-                  // LOADER
-                  // ==================================================
-
-                  const GriotLoader(size: 40),
-
-                  const SizedBox(
-                    height: 48,
-                  ),
-                ],
+                    Text(
+                      'By Cowrie',
+                      style: textTheme.titleSmall?.copyWith(
+                        color: colorScheme.primary,
+                        letterSpacing: 2,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
+
+              const SizedBox(height: 24),
+
+              // ==================================================
+              // DESCRIPTION
+              // ==================================================
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  'The first web3 super app to connect with others, earn, and tell your stories without censorship.',
+                  textAlign: TextAlign.center,
+                  style: textTheme.bodyLarge?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                    height: 1.5,
+                  ),
+                ),
+              ),
+
+              const Spacer(flex: 2),
+
+              // ==================================================
+              // LOADER
+              // ==================================================
+              const GriotLoader(size: 40),
+
+              const SizedBox(height: 48),
+            ],
           ),
         ),
       ),

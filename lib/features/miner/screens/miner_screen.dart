@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../providers/mining_provider.dart';
 import '../providers/reputation_provider.dart';
 import '../../../core/services/navigation_scroll_service.dart';
@@ -13,6 +14,7 @@ import '../../../core/services/notification_service.dart';
 import '../../../core/services/ad_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
+import '../../../core/ui/widgets/griot_branded_container.dart';
 
 class MinerScreen extends StatefulWidget {
   const MinerScreen({super.key});
@@ -134,27 +136,48 @@ class _MinerScreenState extends State<MinerScreen> {
     final provider = context.watch<MiningProvider>();
 
     return GradientScaffold(
-      useSafeArea: true,
-      extendBodyBehindAppBar: true,
+      useSafeArea: false,
+      extendBodyBehindAppBar: false,
       appBar: AppBar(
         title: const Text('Cloud Miner'),
         centerTitle: true,
-        backgroundColor: Colors.transparent,
+        backgroundColor: colors.surface,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
+        toolbarHeight: 56,
+        automaticallyImplyLeading: false,
         actions: [
-          IconButton(
-            onPressed: () => context.push('/miner/rules'),
-            icon: Container(
-              padding: const EdgeInsets.all(8),
+          GestureDetector(
+            onTap: () => context.push('/miner/rules'),
+            child: Container(
+              width: 44,
+              height: 44,
+              margin: const EdgeInsets.only(top: 6, bottom: 6),
               decoration: BoxDecoration(
-                color: colors.onSurface.withValues(alpha: 0.05),
-                shape: BoxShape.circle,
+                color: colors.surface.withValues(alpha: 0.95),
+                borderRadius: BorderRadius.circular(14),
+                border: Border(
+                  top: BorderSide(
+                    color: colors.primary.withValues(alpha: 0.6),
+                    width: 1.2,
+                  ),
+                  bottom: BorderSide(
+                    color: colors.primary.withValues(alpha: 0.6),
+                    width: 1.2,
+                  ),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: const Icon(Icons.help_outline_rounded, size: 20),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 16),
         ],
       ),
       child: AnimatedSwitcher(
@@ -202,26 +225,20 @@ class _MinerScreenState extends State<MinerScreen> {
     return RefreshIndicator(
       key: const ValueKey('content'),
       onRefresh: provider.loadStatus,
+      displacement: 100,
       child: SingleChildScrollView(
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(24, 8, 24, 120),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
         child: Column(
           children:
               [
                     const SizedBox(height: 10),
 
                     // 1. Header (Personal Balance)
-                    Container(
+                    GriotBrandedContainer(
                       width: double.infinity,
                       padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: colors.surface.withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(32),
-                        border: Border.all(
-                          color: colors.primary.withValues(alpha: 0.08),
-                        ),
-                      ),
                       child: Column(
                         children: [
                           Text(
@@ -232,7 +249,7 @@ class _MinerScreenState extends State<MinerScreen> {
                               letterSpacing: 1.5,
                             ),
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 16),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -271,8 +288,15 @@ class _MinerScreenState extends State<MinerScreen> {
                         decoration: BoxDecoration(
                           color: colors.primary.withValues(alpha: 0.05),
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: colors.primary.withValues(alpha: 0.1),
+                          border: Border(
+                            top: BorderSide(
+                              color: colors.primary.withValues(alpha: 0.6),
+                              width: 1.5,
+                            ),
+                            bottom: BorderSide(
+                              color: colors.primary.withValues(alpha: 0.6),
+                              width: 1.5,
+                            ),
                           ),
                         ),
                         child: Row(
@@ -331,20 +355,11 @@ class _MinerScreenState extends State<MinerScreen> {
                                 color: status.canMine
                                     ? colors.primary
                                     : colors.surfaceContainerHighest,
-                                boxShadow: [
-                                  if (status.canMine && !_isWatchingAd)
-                                    BoxShadow(
-                                      color: colors.primary.withValues(
-                                        alpha: 0.3,
-                                      ),
-                                      blurRadius: 30,
-                                      offset: const Offset(0, 10),
-                                    ),
-                                ],
                               ),
                               child: _isWatchingAd
                                   ? const Center(
-                                      child: CircularProgressIndicator(
+                                      child: GriotLoader(
+                                        size: 60,
                                         color: Colors.white,
                                       ),
                                     )
@@ -358,7 +373,7 @@ class _MinerScreenState extends State<MinerScreen> {
                                               : Icons.timer_outlined,
                                           size: 48,
                                           color: status.canMine
-                                              ? Colors.white
+                                              ? colors.onPrimary
                                               : colors.onSurfaceVariant,
                                         ),
                                         const SizedBox(height: 12),
@@ -368,7 +383,7 @@ class _MinerScreenState extends State<MinerScreen> {
                                               : _timeRemaining,
                                           style: TextStyle(
                                             color: status.canMine
-                                                ? Colors.white
+                                                ? colors.onPrimary
                                                 : colors.onSurfaceVariant,
                                             fontWeight: FontWeight.w900,
                                             fontSize: status.canMine ? 18 : 22,
@@ -419,8 +434,15 @@ class _MinerScreenState extends State<MinerScreen> {
                       decoration: BoxDecoration(
                         color: colors.primary.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(28),
-                        border: Border.all(
-                          color: colors.primary.withValues(alpha: 0.1),
+                        border: Border(
+                          top: BorderSide(
+                            color: colors.primary.withValues(alpha: 0.6),
+                            width: 1.5,
+                          ),
+                          bottom: BorderSide(
+                            color: colors.primary.withValues(alpha: 0.6),
+                            width: 1.5,
+                          ),
                         ),
                       ),
                       child: Column(
@@ -495,6 +517,11 @@ class _MinerScreenState extends State<MinerScreen> {
 
                     const SizedBox(height: 32),
 
+                    // 5.7 Mining Activities
+                    _MiningActivities(activities: provider.activities),
+
+                    const SizedBox(height: 32),
+
                     // 6. Multiplier Breakdown
                     _MultiplierBreakdown(multiplier: status.multiplier),
 
@@ -530,7 +557,16 @@ class _StatCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surfaceContainerLow.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: colors.outline.withValues(alpha: 0.05)),
+        border: Border(
+          top: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+          bottom: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -568,11 +604,20 @@ class _ReputationSection extends StatelessWidget {
     final color = AppColors.parseHexColor(reputation.badgeColor);
 
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: color.withValues(alpha: 0.15)),
+        border: Border(
+          top: BorderSide(
+            color: color.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+          bottom: BorderSide(
+            color: color.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+        ),
       ),
       child: Column(
         children: [
@@ -648,11 +693,20 @@ class _ReferralSection extends StatelessWidget {
     final needed = 10 - multiplier.validReferralCount;
 
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colors.surfaceContainerLow.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: colors.outline.withValues(alpha: 0.05)),
+        border: Border(
+          top: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+          bottom: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -693,16 +747,16 @@ class _ReferralSection extends StatelessWidget {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.green.withValues(alpha: 0.1),
+                        color: AppColors.success.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: Colors.green.withValues(alpha: 0.2),
+                          color: AppColors.success.withValues(alpha: 0.2),
                         ),
                       ),
                       child: const Text(
                         'UNLOCKED',
                         style: TextStyle(
-                          color: Colors.green,
+                          color: AppColors.success,
                           fontSize: 10,
                           fontWeight: FontWeight.w900,
                         ),
@@ -767,11 +821,20 @@ class _BalanceOverview extends StatelessWidget {
     final colors = theme.colorScheme;
 
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colors.surfaceContainerLow.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: colors.outline.withValues(alpha: 0.05)),
+        border: Border(
+          top: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+          bottom: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -857,7 +920,16 @@ class _MultiplierBreakdown extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surfaceContainerHighest.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: colors.outline.withValues(alpha: 0.08)),
+        border: Border(
+          top: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+          bottom: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -952,7 +1024,7 @@ class _MultiplierBreakdown extends StatelessWidget {
             style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.w700,
               color: isBonus && value != '+0.0×' && value != '+0.000×'
-                  ? Colors.green
+                  ? AppColors.success
                   : null,
               fontFamily: 'Monospace',
             ),
@@ -960,5 +1032,122 @@ class _MultiplierBreakdown extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _MiningActivities extends StatelessWidget {
+  final List<Map<String, dynamic>> activities;
+
+  const _MiningActivities({required this.activities});
+
+  @override
+  Widget build(BuildContext context) {
+    if (activities.isEmpty) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 16),
+          child: Text(
+            'ECOSYSTEM TASKS',
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.5,
+              color: colors.onSurfaceVariant.withValues(alpha: 0.5),
+            ),
+          ),
+        ),
+        ...activities.map((activity) => _ActivityTile(activity: activity)),
+      ],
+    );
+  }
+}
+
+class _ActivityTile extends StatelessWidget {
+  final Map<String, dynamic> activity;
+
+  const _ActivityTile({required this.activity});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerLow.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(24),
+        border: Border(
+          top: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+          bottom: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+        ),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        leading: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: colors.primary.withValues(alpha: 0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(_getIcon(activity['activityType']), color: colors.primary, size: 20),
+        ),
+        title: Text(
+          activity['title'] ?? '',
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+        ),
+        subtitle: Text(
+          activity['description'] ?? '',
+          style: TextStyle(
+            color: colors.onSurfaceVariant.withValues(alpha: 0.7),
+            fontSize: 13,
+          ),
+        ),
+        trailing: Icon(
+          Icons.chevron_right_rounded,
+          color: colors.onSurfaceVariant.withValues(alpha: 0.3),
+          size: 20,
+        ),
+        onTap: () async {
+          final urlStr = activity['actionUrl'];
+          if (urlStr != null && urlStr.toString().isNotEmpty) {
+            final uri = Uri.tryParse(urlStr.toString());
+            if (uri != null) {
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
+            }
+          }
+        },
+      ),
+    );
+  }
+
+  IconData _getIcon(String? type) {
+    switch (type) {
+      case 'follow_page':
+        return Icons.person_add_rounded;
+      case 'youtube':
+      case 'watch_video':
+        return Icons.play_circle_fill_rounded;
+      case 'visit_link':
+      case 'visit_site':
+        return Icons.public_rounded;
+      case 'share_post':
+        return Icons.share_rounded;
+      default:
+        return Icons.auto_awesome_rounded;
+    }
   }
 }

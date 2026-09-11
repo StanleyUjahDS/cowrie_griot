@@ -1,6 +1,11 @@
 import 'dart:convert';
+import 'dart:math';
+import 'dart:typed_data';
+import 'package:convert/convert.dart';
+import 'package:cryptography/cryptography.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../../../core/security/encryption_service.dart';
 import 'wallet_crypto_service.dart';
 
 class WalletStorageService {
@@ -19,26 +24,61 @@ class WalletStorageService {
   static const String _addressKey =
       'wallet_address';
 
+  static const String _encryptionSaltKey =
+      'wallet_encryption_salt';
+
+  final EncryptionService _encryptionService = EncryptionService();
+
+  // ============================================================
+  // SALT MANAGEMENT
+  // ============================================================
+
+  Future<Uint8List> getOrGenerateSalt() async {
+    final saltHex = await _storage.read(key: _encryptionSaltKey);
+    if (saltHex != null) {
+      try {
+        return Uint8List.fromList(hex.decode(saltHex));
+      } catch (_) {}
+    }
+
+    final salt = Uint8List(16);
+    final random = Random.secure();
+    for (var i = 0; i < salt.length; i++) {
+      salt[i] = random.nextInt(256);
+    }
+
+    await _storage.write(
+      key: _encryptionSaltKey,
+      value: hex.encode(salt),
+    );
+
+    return salt;
+  }
+
   // ============================================================
   // SAVE WALLET
   // ============================================================
 
   Future<void> saveWallet(
-      WalletData wallet,
-      ) async {
-    // Write all wallet values.
-    //
-    // If a wallet already exists, these writes REPLACE
-    // the previous values because the keys are identical.
+      WalletData wallet, {
+      SecretKey? secretKey,
+      }) async {
+    String mnemonic = wallet.mnemonic;
+    String privateKey = wallet.privateKey;
+
+    if (secretKey != null) {
+      mnemonic = await _encryptionService.encrypt(mnemonic, secretKey);
+      privateKey = await _encryptionService.encrypt(privateKey, secretKey);
+    }
 
     await _storage.write(
       key: _mnemonicKey,
-      value: wallet.mnemonic,
+      value: mnemonic,
     );
 
     await _storage.write(
       key: _privateKeyKey,
-      value: wallet.privateKey,
+      value: privateKey,
     );
 
     await _storage.write(
@@ -56,12 +96,12 @@ class WalletStorageService {
   // LOAD WALLET
   // ============================================================
 
-  Future<WalletData?> loadWallet() async {
-    final mnemonic = await _storage.read(
+  Future<WalletData?> loadWallet({SecretKey? secretKey}) async {
+    String? mnemonic = await _storage.read(
       key: _mnemonicKey,
     );
 
-    final privateKey = await _storage.read(
+    String? privateKey = await _storage.read(
       key: _privateKeyKey,
     );
 
@@ -78,6 +118,17 @@ class WalletStorageService {
         publicKey == null ||
         address == null) {
       return null;
+    }
+
+    if (secretKey != null) {
+      try {
+        mnemonic = await _encryptionService.decrypt(mnemonic, secretKey);
+        privateKey = await _encryptionService.decrypt(privateKey, secretKey);
+      } catch (e) {
+        // If decryption fails, it might be that the data is not encrypted yet
+        // or the PIN is wrong. We re-throw to let the caller handle it.
+        throw Exception('Failed to decrypt wallet data. Please check your PIN.');
+      }
     }
 
     return WalletData(

@@ -159,12 +159,6 @@ class _BioEditSheetState extends State<BioEditSheet> {
           keyboardDismissBehavior:
           ScrollViewKeyboardDismissBehavior.onDrag,
           child: Container(
-            margin: const EdgeInsets.fromLTRB(
-              12,
-              0,
-              12,
-              12,
-            ),
             padding: const EdgeInsets.fromLTRB(
               18,
               12,
@@ -173,9 +167,12 @@ class _BioEditSheetState extends State<BioEditSheet> {
             ),
             decoration: BoxDecoration(
               color: colorScheme.surface,
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(
-                color: colorScheme.primary.withValues(alpha: 0.12),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+              border: Border(
+                top: BorderSide(
+                  color: colorScheme.primary.withValues(alpha: 0.6),
+                  width: 1.5,
+                ),
               ),
               boxShadow: [
                 BoxShadow(

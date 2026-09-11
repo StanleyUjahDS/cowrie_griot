@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../models/token_model.dart';
 import '../providers/token_search_provider.dart';
@@ -17,7 +16,7 @@ class AssetSearchScreen extends StatelessWidget {
   final bool isSelectMode;
 
   const AssetSearchScreen({
-    super.key, 
+    super.key,
     this.initialQuery,
     this.isSelectMode = false,
   });
@@ -98,6 +97,29 @@ class _AssetSearchContentState extends State<_AssetSearchContent> {
       useSafeArea: false,
       appBar: AppBar(
         title: Text(widget.isSelectMode ? 'Select Asset' : 'Search Assets'),
+        centerTitle: true,
+        automaticallyImplyLeading: false,
+        leading: Center(
+          child: GestureDetector(
+            onTap: () => Navigator.of(context).pop(),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: colors.primary.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Icon(
+                Icons.arrow_back_ios_new_rounded,
+                size: 18,
+                color: colors.primary,
+              ),
+            ),
+          ),
+        ),
         elevation: 0,
         backgroundColor: Colors.transparent,
       ),
@@ -147,7 +169,7 @@ class _AssetSearchContentState extends State<_AssetSearchContent> {
         child: CircularProgressIndicator(),
       );
     }
-    
+
     if (provider.error != null) {
       return Center(
         key: const ValueKey('error'),
@@ -288,7 +310,7 @@ class _TokenSearchResultItem extends StatelessWidget {
             if (isSelectMode) {
               if (!canSwap) {
                 NotificationService.showInfo(
-                  context, 
+                  context,
                   'Always verify you trust this token before transaction.',
                 );
               }
@@ -304,10 +326,15 @@ class _TokenSearchResultItem extends StatelessWidget {
             decoration: BoxDecoration(
               color: colors.surfaceContainerLow.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: isHidden
-                    ? colors.primary.withValues(alpha: 0.3)
-                    : colors.outlineVariant.withValues(alpha: 0.1),
+              border: Border(
+                top: BorderSide(
+                  color: (isHidden ? colors.primary : colors.primary).withValues(alpha: 0.6),
+                  width: 1.2,
+                ),
+                bottom: BorderSide(
+                  color: (isHidden ? colors.primary : colors.primary).withValues(alpha: 0.6),
+                  width: 1.2,
+                ),
               ),
             ),
             child: Column(
@@ -340,19 +367,15 @@ class _TokenSearchResultItem extends StatelessWidget {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
+                              if (token.isNative || token.isEcosystem) ...[
+                                const SizedBox(width: 8),
+                                _SearchTag(
+                                  label: token.isEcosystem ? 'Ecosystem' : 'Native',
+                                  color: token.isEcosystem ? colors.primary : colors.secondary,
+                                ),
+                              ],
                             ],
                           ),
-                          if (token.isGriotAsset) ...[
-                            const SizedBox(height: 2),
-                            Text(
-                              "Griot Native Asset",
-                              style: text.labelSmall?.copyWith(
-                                color: colors.primary,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ],
                           const SizedBox(height: 2),
                           Text(
                             '${token.symbol} • ${token.chain.toUpperCase()}',
@@ -362,6 +385,19 @@ class _TokenSearchResultItem extends StatelessWidget {
                               letterSpacing: 0.2,
                             ),
                           ),
+                          if (!token.isNative && token.contractAddress.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              token.contractAddress,
+                              style: text.labelSmall?.copyWith(
+                                color: colors.onSurfaceVariant.withValues(alpha: 0.35),
+                                fontFamily: 'monospace',
+                                fontSize: 9,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                           if (token.hasMarketData && token.priceUsd != null) ...[
                             const SizedBox(height: 2),
                             Row(
@@ -396,7 +432,7 @@ class _TokenSearchResultItem extends StatelessWidget {
                           if ((num.tryParse(token.balance) ?? 0) > 0) ...[
                             const SizedBox(height: 6),
                             Text(
-                              'Holding: \${WalletFormatters.formatBalance(token.balance)}',
+                              'Holding: ${WalletFormatters.formatBalance(token.balance)}',
                               style: text.labelSmall?.copyWith(
                                 color: isHidden ? colors.onSurfaceVariant : colors.primary,
                                 fontWeight: FontWeight.w800,
@@ -439,38 +475,6 @@ class _TokenSearchResultItem extends StatelessWidget {
                       ),
                   ],
                 ),
-                if (!token.isOfficial && !token.isNative && token.contractAddress.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: colors.surfaceContainerHighest.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            token.contractAddress,
-                            style: text.labelSmall?.copyWith(
-                              color: colors.onSurfaceVariant.withValues(alpha: 0.6),
-                              fontFamily: 'monospace',
-                              fontSize: 10,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    const Spacer(),
-                    _buildLinksRow(token),
-                  ],
-                ),
               ],
             ),
           ),
@@ -478,60 +482,29 @@ class _TokenSearchResultItem extends StatelessWidget {
       ),
     );
   }
-
-  Widget _buildLinksRow(TokenModel token) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (token.externalLinks.containsKey('dexScreener'))
-          _LinkButton(
-            icon: Icons.show_chart,
-            tooltip: 'DEX Screener',
-            onPressed: () => _launchUrl(token.externalLinks['dexScreener']!),
-          ),
-        if (token.externalLinks.containsKey('explorer'))
-          _LinkButton(
-            icon: Icons.explore_outlined,
-            tooltip: 'Explorer',
-            onPressed: () => _launchUrl(token.externalLinks['explorer']!),
-          ),
-        if (token.externalLinks.containsKey('tokenSniffer'))
-          _LinkButton(
-            icon: Icons.security,
-            tooltip: 'TokenSniffer',
-            onPressed: () => _launchUrl(token.externalLinks['tokenSniffer']!),
-          ),
-      ],
-    );
-  }
-
-  Future<void> _launchUrl(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
-  }
 }
 
-class _LinkButton extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onPressed;
+class _SearchTag extends StatelessWidget {
+  final String label;
+  final Color color;
 
-  const _LinkButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
-  });
+  const _SearchTag({required this.label, required this.color});
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      icon: Icon(icon, size: 20),
-      tooltip: tooltip,
-      onPressed: onPressed,
-      style: IconButton.styleFrom(
-        visualDensity: VisualDensity.compact,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label.toUpperCase(),
+        style: TextStyle(
+          fontSize: 8,
+          fontWeight: FontWeight.w900,
+          color: color.withValues(alpha: 0.8),
+        ),
       ),
     );
   }

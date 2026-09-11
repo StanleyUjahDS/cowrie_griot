@@ -48,7 +48,7 @@ class TokenListItem extends StatelessWidget {
     final text = Theme.of(context).textTheme;
 
     final bool isPositive = (token.changePercent ?? 0) >= 0;
-    
+
     final bool isEcosystem = token.isEcosystem;
     final bool isNative = token.isNative;
 
@@ -57,8 +57,15 @@ class TokenListItem extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: colors.primary.withValues(alpha: 0.08),
+        border: Border(
+          top: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.2,
+          ),
+          bottom: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.2,
+          ),
         ),
         boxShadow: [
           BoxShadow(

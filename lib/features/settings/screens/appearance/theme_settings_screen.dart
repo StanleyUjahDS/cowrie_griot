@@ -106,8 +106,15 @@ class ThemeSettingsPage extends StatelessWidget {
         width: double.infinity,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: colorScheme.onSurface.withValues(alpha: 0.08),
+          border: Border(
+            top: BorderSide(
+              color: colorScheme.primary.withValues(alpha: 0.6),
+              width: 1.2,
+            ),
+            bottom: BorderSide(
+              color: colorScheme.primary.withValues(alpha: 0.6),
+              width: 1.2,
+            ),
           ),
         ),
         child: child,
@@ -283,8 +290,15 @@ class ThemeSettingsPage extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: colorScheme.primary.withValues(alpha: 0.07),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: colorScheme.primary.withValues(alpha: 0.14),
+                    border: Border(
+                      top: BorderSide(
+                        color: colorScheme.primary.withValues(alpha: 0.6),
+                        width: 1.2,
+                      ),
+                      bottom: BorderSide(
+                        color: colorScheme.primary.withValues(alpha: 0.6),
+                        width: 1.2,
+                      ),
                     ),
                   ),
                   child: Row(

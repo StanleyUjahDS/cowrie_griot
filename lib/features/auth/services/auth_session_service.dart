@@ -51,7 +51,7 @@ class AuthSessionService {
        _walletAuthService = walletAuthService,
        _appLockService = appLockService ?? AppLockService(),
        _biometricService = biometricService ?? BiometricService(),
-       _pinStorageService = pinStorageService ?? const PinStorageService();
+       _pinStorageService = pinStorageService ?? PinStorageService();
 
   // ============================================================
   // HAS WALLET
@@ -98,15 +98,18 @@ class AuthSessionService {
       return AuthSessionStatus.needsRegistration;
     }
 
-    // 2. Check if we have an access token already
+    // 2. Check if we have an access token AND a refresh token
+    // We need both for a truly persistent session.
     final accessToken = await _authStorageService.getAccessToken();
-    if (accessToken != null && accessToken.isNotEmpty) {
-      debugPrint('AuthSession: Access token found, assuming authenticated.');
+    final refreshToken = await _authStorageService.getRefreshToken();
+
+    if (accessToken != null && accessToken.isNotEmpty &&
+        refreshToken != null && refreshToken.isNotEmpty) {
+      debugPrint('AuthSession: Session found, assuming authenticated.');
       return AuthSessionStatus.authenticated;
     }
 
-    // 3. Try refresh token if no access token
-    final refreshToken = await _authStorageService.getRefreshToken();
+    // 3. Try to recover with just refresh token if access token is missing
     if (refreshToken != null && refreshToken.isNotEmpty) {
       try {
         debugPrint('AuthSession: No access token, attempting refresh...');
@@ -117,9 +120,9 @@ class AuthSessionService {
         debugPrint('AuthSession: Refresh failed: $e');
 
         final errorString = e.toString().toLowerCase();
-        if (errorString.contains('unable to connect') || 
-            errorString.contains('500') || 
-            errorString.contains('502') || 
+        if (errorString.contains('unable to connect') ||
+            errorString.contains('500') ||
+            errorString.contains('502') ||
             errorString.contains('503')) {
           debugPrint('AuthSession: Server unreachable, maintaining state.');
           return AuthSessionStatus.offline;
@@ -214,13 +217,20 @@ class AuthSessionService {
     // 6. Wipe Local Databases
     try {
       final databasesPath = await getDatabasesPath();
-      final path = p.join(databasesPath, 'griot.db');
-      await deleteDatabase(path);
-      debugPrint('AuthSession: Local database wiped.');
+
+      // Main app DB
+      final mainDbPath = p.join(databasesPath, 'griot.db');
+      await deleteDatabase(mainDbPath);
+
+      // Chat DB
+      final chatDbPath = p.join(databasesPath, 'griot_chat_v2.db');
+      await deleteDatabase(chatDbPath);
+
+      debugPrint('AuthSession: All local databases wiped.');
     } catch (e) {
-      debugPrint('AuthSession: Error wiping database: $e');
+      debugPrint('AuthSession: Error wiping databases: $e');
     }
-    
+
     debugPrint('AuthSession: Full data wipe completed during sign out.');
   }
 

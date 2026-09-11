@@ -10,6 +10,7 @@ class GradientScaffold extends StatelessWidget {
   final Widget? drawer;
   final Widget? endDrawer;
   final bool useSafeArea;
+  final bool resizeToAvoidBottomInset;
 
   const GradientScaffold({
     super.key,
@@ -22,71 +23,56 @@ class GradientScaffold extends StatelessWidget {
     this.drawer,
     this.endDrawer,
     this.useSafeArea = true,
+    this.resizeToAvoidBottomInset = true,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-
-    final backgroundColor = theme.scaffoldBackgroundColor;
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
       extendBodyBehindAppBar: extendBodyBehindAppBar,
-      backgroundColor: backgroundColor,
+      resizeToAvoidBottomInset: resizeToAvoidBottomInset,
+      // The body gradient starts below the app bar when
+      // extendBodyBehindAppBar is false. Keep the app-bar band themed too.
+      backgroundColor: colorScheme.surface,
       appBar: appBar,
       drawer: drawer,
       endDrawer: endDrawer,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // ==================================================
-          // BACKGROUND GRADIENT & IMAGE
-          // ==================================================
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                color: backgroundColor,
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    backgroundColor,
-                    theme.brightness == Brightness.dark
-                        ? Color.alphaBlend(
-                            Colors.black.withValues(alpha: 0.2),
-                            backgroundColor,
-                          )
-                        : Color.alphaBlend(
-                            colors.primary.withValues(alpha: 0.04),
-                            backgroundColor,
-                          ),
-                  ],
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [colorScheme.surface, theme.scaffoldBackgroundColor],
+          ),
+        ),
+        child: Stack(
+          children: [
+            // Branded Background Image (Spiral)
+            // Placed at the top center, visible and not "depreciated" (increased opacity)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Opacity(
+                opacity: isDark ? 0.35 : 0.18,
+                child: Image.asset(
+                  'assets/cowrie_images/background_spiral.png',
+                  alignment: Alignment.topCenter,
+                  fit: BoxFit.contain,
                 ),
               ),
             ),
-          ),
 
-          // SPIRAL (Centered at top)
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: MediaQuery.of(context).size.height * 0.45,
-            child: IgnorePointer(
-              child: Image.asset(
-                'assets/cowrie_images/background_spiral.png',
-                fit: BoxFit.fitWidth,
-                alignment: Alignment.topCenter,
-              ),
-            ),
-          ),
-
-          // ==================================================
-          // CONTENT
-          // ==================================================
-          useSafeArea ? SafeArea(child: child) : child,
-        ],
+            // Content
+            useSafeArea ? SafeArea(child: child) : child,
+          ],
+        ),
       ),
       bottomNavigationBar: bottomNavigationBar,
       floatingActionButton: floatingActionButton,

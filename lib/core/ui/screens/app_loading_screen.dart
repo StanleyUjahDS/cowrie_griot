@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../scaffolds/gradient_scaffold.dart';
 import '../widgets/griot_loader.dart';
+import '../widgets/griot_branded_container.dart';
 
 // ============================================================
 // TYPES
@@ -10,10 +11,7 @@ import '../widgets/griot_loader.dart';
 
 typedef LoadingOperation = Future<Object?> Function();
 
-typedef LoadingSuccess = void Function(
-  BuildContext context,
-  Object? result,
-);
+typedef LoadingSuccess = void Function(BuildContext context, Object? result);
 
 // ============================================================
 // APP LOADING ROUTE DATA
@@ -143,11 +141,7 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
       });
 
       // Give the user a short moment to see "Ready".
-      await Future<void>.delayed(
-        const Duration(
-          milliseconds: 600,
-        ),
-      );
+      await Future<void>.delayed(const Duration(milliseconds: 600));
 
       if (!mounted) {
         return;
@@ -157,18 +151,11 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
       // CALLER DECIDES WHERE TO GO
       // ------------------------------------------------------
 
-      widget.onSuccess(
-        context,
-        result,
-      );
+      widget.onSuccess(context, result);
     } catch (error, stackTrace) {
-      debugPrint(
-        'AppLoadingScreen operation failed: $error',
-      );
+      debugPrint('AppLoadingScreen operation failed: $error');
 
-      debugPrintStack(
-        stackTrace: stackTrace,
-      );
+      debugPrintStack(stackTrace: stackTrace);
 
       if (!mounted) {
         return;
@@ -214,9 +201,7 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
         body: SafeArea(
           child: Center(
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 24,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Column(
                 children: [
                   const Spacer(),
@@ -224,27 +209,21 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
                   // ==================================================
                   // MAIN OPERATION VISUAL
                   // ==================================================
-
                   _buildAnimation(context),
 
-                  const SizedBox(
-                    height: 28,
-                  ),
+                  const SizedBox(height: 28),
 
                   // ==================================================
                   // BRAND
                   // ==================================================
-
                   Text(
-                    'Griot',
-                    style: textTheme.displaySmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  )
-                      .animate()
-                      .fadeIn(
-                        duration: 700.ms,
+                        'Griot',
+                        style: textTheme.displaySmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                       )
+                      .animate()
+                      .fadeIn(duration: 700.ms)
                       .slideY(
                         begin: 0.15,
                         end: 0,
@@ -252,9 +231,7 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
                         curve: Curves.easeOut,
                       ),
 
-                  const SizedBox(
-                    height: 6,
-                  ),
+                  const SizedBox(height: 6),
 
                   Text(
                     'By Cowrie',
@@ -263,34 +240,20 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
                       fontStyle: FontStyle.italic,
                       fontWeight: FontWeight.w600,
                     ),
-                  )
-                      .animate()
-                      .fadeIn(
-                        delay: 150.ms,
-                        duration: 700.ms,
-                      ),
+                  ).animate().fadeIn(delay: 150.ms, duration: 700.ms),
 
                   const Spacer(),
 
                   // ==================================================
                   // STATUS
                   // ==================================================
-
                   AnimatedSwitcher(
-                    duration: const Duration(
-                      milliseconds: 400,
-                    ),
-                    transitionBuilder: (
-                      child,
-                      animation,
-                    ) {
+                    duration: const Duration(milliseconds: 400),
+                    transitionBuilder: (child, animation) {
                       return FadeTransition(
                         opacity: animation,
                         child: ScaleTransition(
-                          scale: Tween<double>(
-                            begin: 0.92,
-                            end: 1,
-                          ).animate(
+                          scale: Tween<double>(begin: 0.92, end: 1).animate(
                             CurvedAnimation(
                               parent: animation,
                               curve: Curves.easeOutBack,
@@ -303,14 +266,11 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
                     child: _buildStatus(context),
                   ),
 
-                  const SizedBox(
-                    height: 30,
-                  ),
+                  const SizedBox(height: 30),
 
                   // ==================================================
                   // SECURITY MESSAGE
                   // ==================================================
-
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -319,9 +279,7 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
                         size: 15,
                         color: colorScheme.onSurface.withValues(alpha: 0.40),
                       ),
-                      const SizedBox(
-                        width: 6,
-                      ),
+                      const SizedBox(width: 6),
                       Text(
                         _error != null
                             ? 'Something went wrong'
@@ -333,9 +291,7 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
                     ],
                   ),
 
-                  const SizedBox(
-                    height: 60,
-                  ),
+                  const SizedBox(height: 60),
                 ],
               ),
             ),
@@ -349,9 +305,7 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
   // MAIN ANIMATION
   // ==========================================================
 
-  Widget _buildAnimation(
-    BuildContext context,
-  ) {
+  Widget _buildAnimation(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return SizedBox(
@@ -365,76 +319,55 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
           // ==================================================
 
           Container(
-            width: 180,
-            height: 180,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: colorScheme.primary.withValues(alpha: 0.18),
-                  blurRadius: 70,
-                  spreadRadius: 15,
+                width: 180,
+                height: 180,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: colorScheme.primary.withValues(alpha: 0.18),
+                      blurRadius: 70,
+                      spreadRadius: 15,
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          )
+              )
               .animate(
                 onPlay: (controller) {
-                  controller.repeat(
-                    reverse: true,
-                  );
+                  controller.repeat(reverse: true);
                 },
               )
               .scale(
-                begin: const Offset(
-                  0.85,
-                  0.85,
-                ),
-                end: const Offset(
-                  1.15,
-                  1.15,
-                ),
+                begin: const Offset(0.85, 0.85),
+                end: const Offset(1.15, 1.15),
                 duration: 1800.ms,
                 curve: Curves.easeInOut,
               )
-              .fade(
-                begin: 0.45,
-                end: 1,
-                duration: 1800.ms,
-              ),
+              .fade(begin: 0.45, end: 1, duration: 1800.ms),
 
           // ==================================================
           // OUTER RING
           // ==================================================
-
           Container(
-            width: 122,
-            height: 122,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: colorScheme.primary.withValues(alpha: 0.07),
-              border: Border.all(
-                color: colorScheme.primary.withValues(alpha: 0.18),
-                width: 1.5,
-              ),
-            ),
-          )
+                width: 122,
+                height: 122,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: colorScheme.primary.withValues(alpha: 0.07),
+                  border: Border.all(
+                    color: colorScheme.primary.withValues(alpha: 0.18),
+                    width: 1.5,
+                  ),
+                ),
+              )
               .animate(
                 onPlay: (controller) {
-                  controller.repeat(
-                    reverse: true,
-                  );
+                  controller.repeat(reverse: true);
                 },
               )
               .scale(
-                begin: const Offset(
-                  0.94,
-                  0.94,
-                ),
-                end: const Offset(
-                  1.06,
-                  1.06,
-                ),
+                begin: const Offset(0.94, 0.94),
+                end: const Offset(1.06, 1.06),
                 duration: 1600.ms,
                 curve: Curves.easeInOut,
               ),
@@ -442,40 +375,31 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
           // ==================================================
           // MAIN ICON
           // ==================================================
-
           Container(
-            width: 92,
-            height: 92,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: colorScheme.primary,
-              boxShadow: [
-                BoxShadow(
-                  color: colorScheme.primary.withValues(alpha: 0.30),
-                  blurRadius: 30,
-                  spreadRadius: 2,
+                width: 92,
+                height: 92,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: colorScheme.primary,
+                  boxShadow: [
+                    BoxShadow(
+                      color: colorScheme.primary.withValues(alpha: 0.30),
+                      blurRadius: 30,
+                      spreadRadius: 2,
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            child: Icon(
-              widget.icon,
-              size: widget.iconSize,
-              color: colorScheme.onPrimary,
-            ),
-          )
-              .animate()
-              .fadeIn(
-                duration: 500.ms,
+                child: Icon(
+                  widget.icon,
+                  size: widget.iconSize,
+                  color: colorScheme.onPrimary,
+                ),
               )
+              .animate()
+              .fadeIn(duration: 500.ms)
               .scale(
-                begin: const Offset(
-                  0.70,
-                  0.70,
-                ),
-                end: const Offset(
-                  1,
-                  1,
-                ),
+                begin: const Offset(0.70, 0.70),
+                end: const Offset(1, 1),
                 duration: 700.ms,
                 curve: Curves.easeOutBack,
               )
@@ -488,33 +412,30 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
           // ==================================================
           // ORBIT DOT
           // ==================================================
-
           Positioned(
-            top: 34,
-            right: 53,
-            child: Container(
-              width: 9,
-              height: 9,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: colorScheme.primary,
-                boxShadow: [
-                  BoxShadow(
-                    color: colorScheme.primary.withValues(alpha: 0.50),
-                    blurRadius: 12,
+                top: 34,
+                right: 53,
+                child: Container(
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: colorScheme.primary,
+                    boxShadow: [
+                      BoxShadow(
+                        color: colorScheme.primary.withValues(alpha: 0.50),
+                        blurRadius: 12,
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-          )
+                ),
+              )
               .animate(
                 onPlay: (controller) {
                   controller.repeat();
                 },
               )
-              .rotate(
-                duration: 2600.ms,
-              ),
+              .rotate(duration: 2600.ms),
         ],
       ),
     );
@@ -524,9 +445,7 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
   // STATUS
   // ==========================================================
 
-  Widget _buildStatus(
-    BuildContext context,
-  ) {
+  Widget _buildStatus(BuildContext context) {
     if (_error != null) {
       return _buildError(context);
     }
@@ -542,65 +461,43 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
   // LOADING
   // ==========================================================
 
-  Widget _buildLoading(
-    BuildContext context,
-  ) {
+  Widget _buildLoading(BuildContext context) {
     final theme = Theme.of(context);
     final textTheme = theme.textTheme;
     final colorScheme = theme.colorScheme;
-
     return Column(
-      key: const ValueKey(
-        'loading',
-      ),
+      key: const ValueKey('loading'),
       children: [
-        GriotLoader(
-          size: 40,
-          strokeWidth: 3.5,
-        ),
+        GriotLoader(size: 40, strokeWidth: 3.5),
 
-        const SizedBox(
-          height: 22,
-        ),
+        const SizedBox(height: 22),
 
         // ==================================================
         // TITLE
         // ==================================================
-
         if (widget.title != null) ...[
           Text(
             widget.title!,
             textAlign: TextAlign.center,
-            style: textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          )
-              .animate()
-              .fadeIn(
-                duration: 500.ms,
-              ),
+            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ).animate().fadeIn(duration: 500.ms),
 
-          const SizedBox(
-            height: 8,
-          ),
+          const SizedBox(height: 8),
         ],
 
         // ==================================================
         // MESSAGE
         // ==================================================
-
         Text(
-          widget.message,
-          textAlign: TextAlign.center,
-          style: textTheme.bodyMedium?.copyWith(
-            color: colorScheme.onSurface.withValues(alpha: 0.65),
-            height: 1.45,
-          ),
-        )
-            .animate()
-            .fadeIn(
-              duration: 500.ms,
+              widget.message,
+              textAlign: TextAlign.center,
+              style: textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurface.withValues(alpha: 0.65),
+                height: 1.45,
+              ),
             )
+            .animate()
+            .fadeIn(duration: 500.ms)
             .slideY(
               begin: 0.12,
               end: 0,
@@ -615,60 +512,33 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
   // SUCCESS
   // ==========================================================
 
-  Widget _buildSuccess(
-    BuildContext context,
-  ) {
+  Widget _buildSuccess(BuildContext context) {
     final theme = Theme.of(context);
     final textTheme = theme.textTheme;
-    final colorScheme = theme.colorScheme;
 
     return Column(
-      key: const ValueKey(
-        'success',
-      ),
+      key: const ValueKey('success'),
       children: [
-        Container(
-          width: 58,
-          height: 58,
-          decoration: BoxDecoration(
-            color: colorScheme.primary.withValues(alpha: 0.12),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            Icons.check_rounded,
-            size: 34,
-            color: colorScheme.primary,
-          ),
-        )
+        GriotBrandedContainer(
+              padding: const EdgeInsets.all(12),
+              borderRadius: 30,
+              child: Icon(Icons.check_rounded, size: 34, color: Colors.green),
+            )
             .animate()
             .scale(
-              begin: const Offset(
-                0.4,
-                0.4,
-              ),
-              end: const Offset(
-                1,
-                1,
-              ),
+              begin: const Offset(0.4, 0.4),
+              end: const Offset(1, 1),
               duration: 500.ms,
               curve: Curves.easeOutBack,
             )
             .fadeIn(),
 
-        const SizedBox(
-          height: 16,
-        ),
+        const SizedBox(height: 16),
 
         Text(
           widget.successTitle,
-          style: textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
-        )
-            .animate()
-            .fadeIn(
-              delay: 100.ms,
-            ),
+          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        ).animate().fadeIn(delay: 100.ms),
       ],
     );
   }
@@ -677,42 +547,28 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
   // ERROR
   // ==========================================================
 
-  Widget _buildError(
-    BuildContext context,
-  ) {
+  Widget _buildError(BuildContext context) {
     final theme = Theme.of(context);
     final textTheme = theme.textTheme;
     final colorScheme = theme.colorScheme;
 
     return Column(
-      key: const ValueKey(
-        'error',
-      ),
+      key: const ValueKey('error'),
       children: [
         Icon(
           Icons.error_outline_rounded,
           size: 48,
           color: colorScheme.error,
-        )
-            .animate()
-            .shake(
-              duration: 600.ms,
-            ),
+        ).animate().shake(duration: 600.ms),
 
-        const SizedBox(
-          height: 14,
-        ),
+        const SizedBox(height: 14),
 
         Text(
           'Unable to continue',
-          style: textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
+          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
         ),
 
-        const SizedBox(
-          height: 8,
-        ),
+        const SizedBox(height: 8),
 
         Text(
           'Something went wrong while '
@@ -723,28 +579,16 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
           ),
         ),
 
-        const SizedBox(
-          height: 18,
-        ),
+        const SizedBox(height: 18),
 
         SizedBox(
           height: 48,
           child: ElevatedButton(
             onPressed: _retry,
-            child: const Text(
-              'Try Again',
-            ),
+            child: const Text('Try Again'),
           ),
         ),
       ],
-    )
-        .animate()
-        .fadeIn(
-          duration: 500.ms,
-        )
-        .slideY(
-          begin: 0.12,
-          end: 0,
-        );
+    ).animate().fadeIn(duration: 500.ms).slideY(begin: 0.12, end: 0);
   }
 }

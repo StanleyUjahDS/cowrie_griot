@@ -7,7 +7,7 @@ class PinService {
 
   PinService({
     PinStorageService? storage,
-  }) : _storage = storage ?? const PinStorageService();
+  }) : _storage = storage ?? PinStorageService();
 
   Future<void> savePin(String pin) {
     return _storage.savePin(pin);
@@ -23,5 +23,13 @@ class PinService {
 
   Future<void> deletePin() {
     return _storage.deletePin();
+  }
+
+  Future<void> saveSecret(String key, String value, {String? pin}) {
+    return _storage.saveSecret(key, value, pin: pin);
+  }
+
+  Future<String?> getSecret(String key, {String? pin}) {
+    return _storage.getSecret(key, pin: pin);
   }
 }

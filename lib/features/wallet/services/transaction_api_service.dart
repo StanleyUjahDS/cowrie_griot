@@ -1,5 +1,6 @@
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_config.dart';
+import '../utils/chain_assets.dart';
 
 class TransactionApiService {
   final ApiClient _apiClient;
@@ -14,14 +15,21 @@ class TransactionApiService {
     required String toAddress,
     required String amount,
   }) async {
+    final formattedTo = toAddress.startsWith('0x') ? toAddress : '0x$toAddress';
+    if (!ChainAssets.isValidEvmAddress(formattedTo)) {
+      throw Exception('Invalid recipient address: $formattedTo');
+    }
+
     final body = <String, dynamic>{
       'network': network,
-      'toAddress': toAddress,
+      'toAddress': formattedTo,
+      'to_address': formattedTo,
       'amount': amount,
     };
 
     if (walletAccountId != null && walletAccountId.isNotEmpty) {
       body['walletAccountId'] = walletAccountId;
+      body['wallet_account_id'] = walletAccountId;
     }
 
     final response = await _apiClient.post(
@@ -39,15 +47,28 @@ class TransactionApiService {
     required String toAddress,
     required String amount,
   }) async {
+    final formattedTo = toAddress.startsWith('0x') ? toAddress : '0x$toAddress';
+    final formattedToken = tokenAddress.startsWith('0x') ? tokenAddress : '0x$tokenAddress';
+
+    if (!ChainAssets.isValidEvmAddress(formattedTo)) {
+      throw Exception('Invalid recipient address: $formattedTo');
+    }
+    if (!ChainAssets.isValidEvmAddress(formattedToken)) {
+      throw Exception('Invalid token address: $formattedToken');
+    }
+
     final body = <String, dynamic>{
       'network': network,
-      'tokenAddress': tokenAddress,
-      'toAddress': toAddress,
+      'tokenAddress': formattedToken,
+      'token_address': formattedToken,
+      'toAddress': formattedTo,
+      'to_address': formattedTo,
       'amount': amount,
     };
 
     if (walletAccountId != null && walletAccountId.isNotEmpty) {
       body['walletAccountId'] = walletAccountId;
+      body['wallet_account_id'] = walletAccountId;
     }
 
     final response = await _apiClient.post(
@@ -62,11 +83,30 @@ class TransactionApiService {
     required String network,
     required Map<String, dynamic> transaction,
   }) async {
+    final tx = Map<String, dynamic>.from(transaction);
+
+    // Normalize and validate addresses
+    if (tx['from'] != null) {
+      final from = tx['from'].toString();
+      tx['from'] = from.startsWith('0x') ? from : '0x$from';
+      if (!ChainAssets.isValidEvmAddress(tx['from'])) {
+        throw Exception('Invalid sender address: ${tx['from']}');
+      }
+    }
+
+    if (tx['to'] != null) {
+      final to = tx['to'].toString();
+      tx['to'] = to.startsWith('0x') ? to : '0x$to';
+      if (!ChainAssets.isValidEvmAddress(tx['to'])) {
+        throw Exception('Invalid recipient address: ${tx['to']}');
+      }
+    }
+
     final response = await _apiClient.post(
       ApiConfig.estimateTransaction,
       body: {
         'network': network,
-        'transaction': transaction,
+        'transaction': tx,
       },
     );
 
@@ -83,7 +123,28 @@ class TransactionApiService {
       body: {
         'network': network,
         'transactionId': transactionId,
+        'transaction_id': transactionId,
         'signedTransaction': signedTransaction,
+        'signed_transaction': signedTransaction,
+      },
+    );
+
+    return _asMap(_unwrap(response));
+  }
+
+  Future<Map<String, dynamic>> broadcastRawTransaction({
+    required String network,
+    required String signedTransaction,
+    String transactionType = 'send',
+  }) async {
+    final response = await _apiClient.post(
+      ApiConfig.swapBroadcast,
+      body: {
+        'network': network,
+        'signedTransaction': signedTransaction,
+        'signed_transaction': signedTransaction,
+        'transactionType': transactionType,
+        'transaction_type': transactionType,
       },
     );
 

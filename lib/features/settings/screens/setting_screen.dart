@@ -7,11 +7,16 @@ import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../auth/services/auth_session_service.dart';
 import '../../users/providers/user_provider.dart';
 import '../../wallet/providers/wallet_provider.dart';
+import '../../chat/providers/messaging_provider.dart';
+import '../../miner/providers/mining_provider.dart';
+import '../../miner/providers/referral_provider.dart';
+import '../../miner/providers/reputation_provider.dart';
 import '../../local_auth/providers/app_lock_provider.dart';
 import '../../../core/ui/widgets/banner_ad.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
 import '../../../core/services/navigation_scroll_service.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/ui/widgets/griot_branded_container.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
@@ -85,12 +90,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final authSessionService = context.read<AuthSessionService>();
       final userProvider = context.read<UserProvider>();
       final walletProvider = context.read<WalletProvider>();
+      final messagingProvider = context.read<MessagingProvider>();
+      final miningProvider = context.read<MiningProvider>();
+      final referralProvider = context.read<ReferralProvider>();
+      final reputationProvider = context.read<ReputationProvider>();
       final appLockProvider = context.read<AppLockProvider>();
 
-      await authSessionService.signOut();
+      // 1. Clear in-memory state and close database connections first
+      await messagingProvider.clearState();
       userProvider.clearUser();
       walletProvider.reset();
+      miningProvider.reset();
+      referralProvider.reset();
+      reputationProvider.reset();
       appLockProvider.reset();
+
+      // 2. Full wipe of session and database files
+      await authSessionService.signOut();
 
       if (!context.mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
@@ -139,12 +155,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final authSessionService = context.read<AuthSessionService>();
       final userProvider = context.read<UserProvider>();
       final walletProvider = context.read<WalletProvider>();
+      final messagingProvider = context.read<MessagingProvider>();
+      final miningProvider = context.read<MiningProvider>();
+      final referralProvider = context.read<ReferralProvider>();
+      final reputationProvider = context.read<ReputationProvider>();
       final appLockProvider = context.read<AppLockProvider>();
 
-      await authSessionService.wipeData();
+      // 1. Clear in-memory state and close database connections first
+      await messagingProvider.clearState();
       userProvider.clearUser();
       walletProvider.reset();
+      miningProvider.reset();
+      referralProvider.reset();
+      reputationProvider.reset();
       appLockProvider.reset();
+
+      // 2. Full wipe of all local data including identity
+      await authSessionService.wipeData();
 
       if (!context.mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
@@ -183,8 +210,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     Widget? trailing,
   }) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final effectiveIconColor = iconColor ?? colorScheme.onSurface;
+    final colors = theme.colorScheme;
+    final effectiveIconColor = iconColor ?? colors.primary;
 
     return Material(
       color: Colors.transparent,
@@ -192,7 +219,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
             children: [
               Container(
@@ -216,19 +243,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600, color: titleColor),
                     ),
                     if (subtitle != null) ...[
-                      const SizedBox(height: 3),
+                      const SizedBox(height: 2),
                       Text(
                         subtitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant, height: 1.2),
+                        style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant.withValues(alpha: 0.6), height: 1.2),
                       ),
                     ],
                   ],
                 ),
               ),
               const SizedBox(width: 10),
-              trailing ?? Icon(Icons.chevron_right_rounded, size: 21, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.75)),
+              trailing ?? Icon(Icons.chevron_right_rounded, size: 21, color: colors.onSurfaceVariant.withValues(alpha: 0.5)),
             ],
           ),
         ),
@@ -237,115 +264,108 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _divider(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final colors = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.only(left: 66, right: 10),
-      child: Divider(height: 1, thickness: 0.6, color: colorScheme.onSurface.withValues(alpha: 0.065)),
+      padding: const EdgeInsets.only(left: 70, right: 14),
+      child: Divider(height: 1, thickness: 0.6, color: colors.onSurface.withValues(alpha: 0.065)),
     );
   }
 
   Widget _sectionContainer({required BuildContext context, required List<Widget> children}) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      decoration: BoxDecoration(
-        color: colorScheme.onSurface.withValues(alpha: 0.035),
-        borderRadius: BorderRadius.circular(19),
-        border: Border.all(color: colorScheme.onSurface.withValues(alpha: 0.065)),
-      ),
+    return GriotBrandedContainer(
+      padding: EdgeInsets.zero,
+      borderRadius: 20,
       child: Column(children: children),
     );
   }
 
   Widget _profileHeader(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final colors = theme.colorScheme;
 
     return Consumer<UserProvider>(
       builder: (context, userProvider, _) {
         final user = userProvider.user;
         final reputation = user?.reputation;
-        
-        return Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => context.push('/settings/user-details'),
-            borderRadius: BorderRadius.circular(22),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(22),
-                color: colorScheme.primary.withValues(alpha: 0.055),
-                border: Border.all(color: colorScheme.primary.withValues(alpha: 0.12)),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 58,
-                    height: 58,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [colorScheme.primary.withValues(alpha: 0.20), colorScheme.primary.withValues(alpha: 0.08)],
-                      ),
-                    ),
-                    child: Icon(Icons.person_outline_rounded, size: 29, color: colorScheme.primary),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          user?.displayName ?? 'Your Griot Account',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.3,
-                          ),
+
+        return GriotBrandedContainer(
+          padding: EdgeInsets.zero,
+          borderRadius: 24,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => context.push('/settings/user-details'),
+              borderRadius: BorderRadius.circular(24),
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 58,
+                      height: 58,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [colors.primary.withValues(alpha: 0.20), colors.primary.withValues(alpha: 0.08)],
                         ),
-                        if (reputation != null) ...[
-                          const SizedBox(height: 5),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.workspace_premium_rounded,
-                                size: 16,
-                                color: AppColors.parseHexColor(reputation.badgeColor),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                reputation.tierName,
-                                style: theme.textTheme.labelSmall?.copyWith(
+                      ),
+                      child: Icon(Icons.person_outline_rounded, size: 29, color: colors.primary),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            user?.displayName ?? 'Your Griot Account',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                          if (reputation != null) ...[
+                            const SizedBox(height: 5),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.workspace_premium_rounded,
+                                  size: 16,
                                   color: AppColors.parseHexColor(reputation.badgeColor),
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 0.3,
-                                  fontSize: 11,
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 6),
+                                Text(
+                                  reputation.tierName,
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: AppColors.parseHexColor(reputation.badgeColor),
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 0.3,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                          const SizedBox(height: 4),
+                          Text(
+                            'Manage your profile and identity',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant.withValues(alpha: 0.6)),
                           ),
                         ],
-                        const SizedBox(height: 4),
-                        Text(
-                          'Manage your profile and identity',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(color: colorScheme.onSurface.withValues(alpha: 0.055), shape: BoxShape.circle),
-                    child: Icon(Icons.chevron_right_rounded, size: 19, color: colorScheme.onSurfaceVariant),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(color: colors.onSurface.withValues(alpha: 0.055), shape: BoxShape.circle),
+                      child: Icon(Icons.chevron_right_rounded, size: 19, color: colors.onSurfaceVariant.withValues(alpha: 0.5)),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -356,71 +376,66 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _griotPlusCard(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final colors = theme.colorScheme;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => context.push('/settings/griot-plus'),
-        borderRadius: BorderRadius.circular(22),
-        child: Container(
-          padding: const EdgeInsets.all(17),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [colorScheme.primary.withValues(alpha: 0.19), colorScheme.primary.withValues(alpha: 0.055)],
-            ),
-            border: Border.all(color: colorScheme.primary.withValues(alpha: 0.18)),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(color: colorScheme.primary.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(15)),
-                child: Icon(Icons.auto_awesome_rounded, color: colorScheme.primary, size: 24),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            'Griot Plus',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-                          ),
-                        ),
-                        const SizedBox(width: 7),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                          decoration: BoxDecoration(color: colorScheme.primary, borderRadius: BorderRadius.circular(7)),
-                          child: Text(
-                            'PLUS',
-                            style: theme.textTheme.labelSmall?.copyWith(color: colorScheme.onPrimary, fontWeight: FontWeight.w800, fontSize: 9, letterSpacing: 0.5),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Enhanced mining and premium benefits',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
-                    ),
-                  ],
+    return GriotBrandedContainer(
+      padding: EdgeInsets.zero,
+      borderRadius: 24,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => context.push('/settings/griot-plus'),
+          borderRadius: BorderRadius.circular(24),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(color: colors.primary.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(15)),
+                  child: Icon(Icons.auto_awesome_rounded, color: colors.primary, size: 24),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Icon(Icons.arrow_forward_ios_rounded, size: 15, color: colorScheme.primary),
-            ],
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              'Griot Plus',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                          const SizedBox(width: 7),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                            decoration: BoxDecoration(color: colors.primary, borderRadius: BorderRadius.circular(7)),
+                            child: Text(
+                              'PLUS',
+                              style: theme.textTheme.labelSmall?.copyWith(color: colors.onPrimary, fontWeight: FontWeight.w800, fontSize: 9, letterSpacing: 0.5),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Enhanced mining and premium benefits',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant.withValues(alpha: 0.6)),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(Icons.arrow_forward_ios_rounded, size: 15, color: colors.primary),
+              ],
+            ),
           ),
         ),
       ),
@@ -429,26 +444,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return GradientScaffold(
+      useSafeArea: false,
+      extendBodyBehindAppBar: false,
       appBar: AppBar(
         title: const Text(
           'Settings',
           style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
         ),
         centerTitle: true,
-        backgroundColor: Colors.transparent,
+        backgroundColor: colors.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
+        toolbarHeight: 56,
+        automaticallyImplyLeading: false,
       ),
-      child: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: () => context.read<UserProvider>().refreshUser(),
-          child: ListView(
-            controller: _scrollController,
-            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-            padding: const EdgeInsets.fromLTRB(18, 8, 18, 34),
-            children: [
+      child: RefreshIndicator(
+        onRefresh: () => context.read<UserProvider>().refreshUser(),
+        child: ListView(
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 120),
+          children: [
               _profileHeader(context),
               const SizedBox(height: 13),
               _griotPlusCard(context),
@@ -613,7 +632,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ),
         ),
-      ),
     );
   }
 }

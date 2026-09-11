@@ -7,13 +7,9 @@ class LocalAuthService {
   final PinService _pinService;
   final BiometricService _biometricService;
 
-  LocalAuthService({
-    PinService? pinService,
-    BiometricService? biometricService,
-  })  : _pinService =
-      pinService ?? PinService(),
-        _biometricService =
-            biometricService ?? BiometricService();
+  LocalAuthService({PinService? pinService, BiometricService? biometricService})
+    : _pinService = pinService ?? PinService(),
+      _biometricService = biometricService ?? BiometricService();
 
   // ============================================================
   // PIN
@@ -51,23 +47,33 @@ class LocalAuthService {
     return _biometricService.authenticate();
   }
 
-  Future<bool>
-  authenticateWithBiometricsIfEnabled() async {
-    final enabled =
-    await biometricsEnabled();
+  Future<bool> authenticateWithBiometricsIfEnabled() async {
+    final enabled = await biometricsEnabled();
 
     if (!enabled) {
       return false;
     }
 
-    final available =
-    await biometricsAvailable();
+    final available = await biometricsAvailable();
 
     if (!available) {
       return false;
     }
 
     return authenticateWithBiometrics();
+  }
+
+  // ============================================================
+  // SECRETS
+  // ============================================================
+
+  Future<void> saveSecret(String key, String value, {String? pin}) async {
+    // Encrypted with a key derived from the PIN if provided.
+    await _pinService.saveSecret(key, value, pin: pin);
+  }
+
+  Future<String?> getSecret(String key, {String? pin}) async {
+    return _pinService.getSecret(key, pin: pin);
   }
 
   // ============================================================

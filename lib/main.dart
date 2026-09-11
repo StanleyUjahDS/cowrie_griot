@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:toastification/toastification.dart';
 
 import 'app.dart';
@@ -35,9 +34,8 @@ Future<void> main() async {
     debugPrint('Firebase Initialization Error: $e');
   }
 
-  // Initialize these asynchronously
-  unawaited(MobileAds.instance.initialize());
-  AdService.instance.loadRewardedAd();
+  // Ads are opt-in while mediation and publisher accounts are being prepared.
+  unawaited(AdService.instance.initialize());
 
   // Load theme - also non-blocking if possible,
   // but GriotCowrieApp needs it for initial build.

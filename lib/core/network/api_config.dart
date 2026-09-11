@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 class ApiConfig {
@@ -13,32 +12,39 @@ class ApiConfig {
     defaultValue: '',
   );
 
+  static const String _productionBaseUrl = 'https://api.griot.network/api';
+
   // ==========================================================
   // BASE URL
-  // ==========================================================
-  //
-  // For local development:
-  // - Android uses 'localhost' (requires: adb reverse tcp:5001 tcp:5001)
-  // - iOS and others use the local IP address
-  //
   // ==========================================================
 
   static String get baseUrl {
     if (_configuredBaseUrl.isNotEmpty) {
-      return _configuredBaseUrl.replaceFirst(RegExp(r'/+$'), '');
+      final normalized = _configuredBaseUrl.replaceFirst(RegExp(r'/+$'), '');
+      final uri = Uri.tryParse(normalized);
+      final host = uri?.host.toLowerCase();
+      final isProductionHost = host == 'api.griot.network';
+      final isLocalDebugHost =
+          kDebugMode &&
+          (host == 'localhost' ||
+              host == '127.0.0.1' ||
+              host == '10.0.2.2' ||
+              (host?.startsWith('10.') ?? false) ||
+              (host?.startsWith('192.168.') ?? false));
+
+      if (uri != null &&
+          ((uri.scheme == 'https' && isProductionHost) ||
+              (uri.scheme == 'http' && isLocalDebugHost))) {
+        return normalized;
+      }
+
+      if (kDebugMode) {
+        debugPrint('ApiConfig: rejected unsafe/unapproved API_BASE_URL.');
+      }
     }
 
-    if (kIsWeb) {
-      return 'http://localhost:5001/api';
-    }
-
-    if (Platform.isAndroid) {
-      // For physical device, use your host IP (192.168.1.95)
-      // For emulator, use 10.0.2.2
-      return 'http://192.168.1.95:5001/api';
-    }
-
-    return 'http://192.168.1.95:5001/api';
+    // Production Hosted API
+    return _productionBaseUrl;
   }
 
   // ==========================================================
@@ -59,12 +65,18 @@ class ApiConfig {
   static String get notificationDevicesAll =>
       '$baseUrl/notifications/devices/all';
 
+  static String notificationActivity({int limit = 30, int offset = 0}) =>
+      Uri.parse('$baseUrl/notifications/activity')
+          .replace(queryParameters: {'limit': '$limit', 'offset': '$offset'})
+          .toString();
+
   // ==========================================================
   // USERS
   // ==========================================================
 
   static String get usersMe => '$baseUrl/users/me';
   static String get usersUpdate => '$baseUrl/users/me';
+  static String get userPreferences => '$baseUrl/users/preferences';
 
   // ==========================================================
   // MEDIA (PRESIGNED FLOW)
@@ -74,9 +86,17 @@ class ApiConfig {
   static String mediaComplete(String mediaId) =>
       '$baseUrl/media/$mediaId/complete';
 
-  static String usersSearch(String query) => Uri.parse(
-    '$baseUrl/users/search',
-  ).replace(queryParameters: {'q': query}).toString();
+  static String usersSearch(String query, {int limit = 20, int offset = 0}) =>
+      Uri.parse('$baseUrl/users/search')
+          .replace(
+            queryParameters: {
+              'q': query,
+              'limit': '$limit',
+              'offset': '$offset',
+            },
+          )
+          .toString();
+  static String userById(String userId) => '$baseUrl/users/$userId';
 
   static String usernameAvailability(String username) => Uri.parse(
     '$baseUrl/users/username/availability',
@@ -92,6 +112,10 @@ class ApiConfig {
   static String get walletNfts => '$walletBase/nfts';
 
   static String get cryptoAssetsBase => '$baseUrl/crypto/assets';
+
+  static String walletFlashLookup(String query) => Uri.parse(
+    '$cryptoAssetsBase/flash',
+  ).replace(queryParameters: {'q': query}).toString();
 
   static String walletAssetsSearch(String query, {String? network}) {
     final params = {'q': query};
@@ -123,6 +147,16 @@ class ApiConfig {
   static String get walletNativeBalances => '$walletBase/balances';
 
   static String get walletTokens => '$walletBase/tokens';
+
+  static String walletActivity({int limit = 20, String? pageKey}) {
+    final query = <String, String>{'limit': '$limit'};
+    if (pageKey != null && pageKey.isNotEmpty) {
+      query['pageKey'] = pageKey;
+    }
+    return Uri.parse(
+      '$walletBase/activity',
+    ).replace(queryParameters: query).toString();
+  }
 
   // ==========================================================
   // TRANSACTIONS
@@ -240,6 +274,8 @@ class ApiConfig {
 
   static String get miningStart => '$miningBase/start';
 
+  static String get miningActivities => '$miningBase/activities';
+
   static String miningHistory({int limit = 20, int offset = 0}) =>
       Uri.parse('$miningBase/history')
           .replace(queryParameters: {'limit': '$limit', 'offset': '$offset'})
@@ -251,8 +287,10 @@ class ApiConfig {
 
   static String get blockchainBase => '$baseUrl/crypto/blockchain';
 
-  static String blockchainNonce(String network, String address) =>
-      '$blockchainBase/nonce/$network/$address';
+  static String blockchainNonce(String network, String address) {
+    final formattedAddress = address.startsWith('0x') ? address : '0x$address';
+    return '$blockchainBase/nonce/$network/$formattedAddress';
+  }
 
   static String blockchainCall(String network) =>
       '$blockchainBase/call/$network';
@@ -371,12 +409,21 @@ class ApiConfig {
   static String get plusBase => '$baseUrl/plus';
   static String get plusStatus => '$plusBase/status';
   static String get plusVerify => '$plusBase/purchases/verify';
+  static String get plusCryptoCatalog => '$plusBase/crypto/catalog';
+  static String get plusCryptoInvoices => '$plusBase/crypto/invoices';
+  static String plusCryptoInvoiceVerify(String invoiceId) =>
+      '$plusCryptoInvoices/$invoiceId/verify';
+  static String plusCryptoGiftClaim(String invoiceId) =>
+      '$plusBase/crypto/gifts/$invoiceId/claim';
 
   // ==========================================================
   // GROUPS & CHANNELS
   // ==========================================================
 
   static String get messagingGroups => '$messagingBase/groups';
+
+  static String messagingConversationById(String conversationId) =>
+      '$messagingBase/conversations/$conversationId';
 
   static String messagingGroupById(String conversationId) =>
       '$messagingGroups/$conversationId';
@@ -394,6 +441,16 @@ class ApiConfig {
 
   static String messagingGroupLeave(String conversationId) =>
       '$messagingGroups/$conversationId/leave';
+
+  static String messagingGroupsDiscover(
+    String query, {
+    int page = 1,
+    int limit = 20,
+  }) => Uri.parse('$messagingGroups/discover')
+      .replace(
+        queryParameters: {'q': query, 'page': '$page', 'limit': '$limit'},
+      )
+      .toString();
 
   static String get messagingChannels => '$messagingBase/channels';
   static String get messagingChannelsMe => '$messagingChannels/me';
@@ -414,6 +471,16 @@ class ApiConfig {
     String conversationId,
     String postId,
   ) => '$messagingChannels/$conversationId/posts/$postId/comments';
+
+  static String messagingChannelsDiscover(
+    String query, {
+    int page = 1,
+    int limit = 20,
+  }) => Uri.parse('$messagingChannels/discover')
+      .replace(
+        queryParameters: {'q': query, 'page': '$page', 'limit': '$limit'},
+      )
+      .toString();
 
   // ==========================================================
   // TIPS

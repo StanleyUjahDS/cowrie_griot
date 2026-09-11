@@ -4,19 +4,14 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
 
 class BiometricService {
-  static const String _enabledKey =
-      'biometrics_enabled';
+  static const String _enabledKey = 'biometrics_enabled';
 
   final LocalAuthentication _auth;
   final FlutterSecureStorage _storage;
 
-  BiometricService({
-    LocalAuthentication? auth,
-    FlutterSecureStorage? storage,
-  })  : _auth =
-      auth ?? LocalAuthentication(),
-        _storage =
-            storage ?? const FlutterSecureStorage();
+  BiometricService({LocalAuthentication? auth, FlutterSecureStorage? storage})
+    : _auth = auth ?? LocalAuthentication(),
+      _storage = storage ?? const FlutterSecureStorage();
 
   // ============================================================
   // AVAILABILITY
@@ -24,18 +19,13 @@ class BiometricService {
 
   Future<bool> isAvailable() async {
     try {
-      final canCheck =
-      await _auth.canCheckBiometrics;
+      final canCheck = await _auth.canCheckBiometrics;
 
-      final supported =
-      await _auth.isDeviceSupported();
+      final supported = await _auth.isDeviceSupported();
 
-      final biometrics =
-      await _auth.getAvailableBiometrics();
+      final biometrics = await _auth.getAvailableBiometrics();
 
-      return canCheck &&
-          supported &&
-          biometrics.isNotEmpty;
+      return canCheck && supported && biometrics.isNotEmpty;
     } catch (_) {
       return false;
     }
@@ -46,10 +36,7 @@ class BiometricService {
   // ============================================================
 
   Future<bool> isEnabled() async {
-    final value =
-    await _storage.read(
-      key: _enabledKey,
-    );
+    final value = await _storage.read(key: _enabledKey);
 
     return value == 'true';
   }
@@ -59,10 +46,7 @@ class BiometricService {
   // ============================================================
 
   Future<void> enable() async {
-    await _storage.write(
-      key: _enabledKey,
-      value: 'true',
-    );
+    await _storage.write(key: _enabledKey, value: 'true');
   }
 
   // ============================================================
@@ -70,10 +54,7 @@ class BiometricService {
   // ============================================================
 
   Future<void> disable() async {
-    await _storage.write(
-      key: _enabledKey,
-      value: 'false',
-    );
+    await _storage.write(key: _enabledKey, value: 'false');
   }
 
   // ============================================================
@@ -83,9 +64,11 @@ class BiometricService {
   Future<bool> authenticate() async {
     try {
       return await _auth.authenticate(
-        localizedReason:
-        'Authenticate to unlock your wallet',
-        biometricOnly: false,
+        localizedReason: 'Authenticate to unlock your wallet',
+        // Keep the operating-system passcode out of this prompt. If a
+        // biometric is unavailable or cancelled, the lock screen remains
+        // visible and the app PIN is the fallback.
+        biometricOnly: true,
         persistAcrossBackgrounding: true,
       );
     } catch (_) {

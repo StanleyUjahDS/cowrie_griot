@@ -141,14 +141,19 @@ class MiningProvider extends ChangeNotifier {
     : _apiService = apiService;
 
   MiningStatus? _status;
+  List<Map<String, dynamic>> _activities = [];
   bool _isLoading = false;
+  bool _isLoadingActivities = false;
+  Future<void>? _activitiesLoadFuture;
   String? _error;
   Timer? _refreshTimer;
   DateTime? _lastLoadedAt;
   Future<void>? _loadFuture;
 
   MiningStatus? get status => _status;
+  List<Map<String, dynamic>> get activities => _activities;
   bool get isLoading => _isLoading;
+  bool get isLoadingActivities => _isLoadingActivities;
   String? get error => _error;
 
   Future<void> loadStatus({bool force = false}) async {
@@ -174,14 +179,44 @@ class MiningProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final data = await _apiService.getMiningStatus();
-      _status = MiningStatus.fromJson(data);
+      final results = await Future.wait([
+        _apiService.getMiningStatus(),
+        _apiService.getMiningActivities(),
+      ]);
+
+      _status = MiningStatus.fromJson(results[0] as Map<String, dynamic>);
+      _activities = results[1] as List<Map<String, dynamic>>;
+
       _lastLoadedAt = DateTime.now();
       _isLoading = false;
       notifyListeners();
     } catch (e) {
       _error = e.toString();
       _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadActivities() async {
+    if (_activitiesLoadFuture != null) return _activitiesLoadFuture!;
+    _activitiesLoadFuture = _loadActivities();
+    try {
+      await _activitiesLoadFuture!;
+    } finally {
+      _activitiesLoadFuture = null;
+    }
+  }
+
+  Future<void> _loadActivities() async {
+    if (_activities.isNotEmpty) return;
+    _isLoadingActivities = true;
+    notifyListeners();
+    try {
+      _activities = await _apiService.getMiningActivities();
+    } catch (e) {
+      debugPrint('Error loading mining activities: $e');
+    } finally {
+      _isLoadingActivities = false;
       notifyListeners();
     }
   }
@@ -210,5 +245,16 @@ class MiningProvider extends ChangeNotifier {
   void dispose() {
     _refreshTimer?.cancel();
     super.dispose();
+  }
+
+  void reset() {
+    _status = null;
+    _isLoading = false;
+    _error = null;
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+    _lastLoadedAt = null;
+    _loadFuture = null;
+    notifyListeners();
   }
 }

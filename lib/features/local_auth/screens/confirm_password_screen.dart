@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import '/core/ui/scaffolds/gradient_scaffold.dart';
 import '/core/services/notification_service.dart';
+import '../../../core/ui/widgets/griot_branded_container.dart';
 import '../services/local_auth_service.dart';
 import '../providers/app_lock_provider.dart';
 
@@ -30,17 +30,14 @@ class _VerifyPasswordState extends State<VerifyPassword> {
   void _onKeyTap(String key, int index) async {
     if (_loading) return;
     setState(() => _pressedIndex = index);
-
     await Future.delayed(const Duration(milliseconds: 120));
-
     if (!mounted) return;
     setState(() => _pressedIndex = null);
 
     setState(() {
       if (key == '⌫') {
         if (confirminput.isNotEmpty) {
-          confirminput =
-              confirminput.substring(0, confirminput.length - 1);
+          confirminput = confirminput.substring(0, confirminput.length - 1);
         }
       } else if (key.isNotEmpty && confirminput.length < 6) {
         confirminput += key;
@@ -57,13 +54,12 @@ class _VerifyPasswordState extends State<VerifyPassword> {
 
     if (confirminput == widget.input) {
       setState(() => _loading = true);
-      
+
       try {
         final authService = context.read<LocalAuthService>();
         final lockProvider = context.read<AppLockProvider>();
 
         await authService.savePin(confirminput);
-        // Enable app lock by default when setting a new PIN
         await lockProvider.setEnabled(true);
 
         if (!mounted) return;
@@ -71,10 +67,10 @@ class _VerifyPasswordState extends State<VerifyPassword> {
 
         if (widget.onSuccess != null) {
           await widget.onSuccess!(context);
-        }
-
-        if (mounted) {
-          context.pushReplacement('/enable_biometrics');
+        } else {
+          if (mounted) {
+            context.pushReplacement('/enable_biometrics');
+          }
         }
       } catch (e) {
         if (mounted) {
@@ -84,136 +80,179 @@ class _VerifyPasswordState extends State<VerifyPassword> {
       }
     } else {
       NotificationService.showError(context, "Wrong password");
-
-      setState(() {
-        confirminput = '';
-      });
+      setState(() => confirminput = '');
     }
   }
-
-  Color _fade(Color color, double opacity) =>
-      color.withValues(alpha: opacity);
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final textTheme = theme.textTheme;
     final colorScheme = theme.colorScheme;
-    final screenWidth = MediaQuery.of(context).size.width;
 
-    return GradientScaffold(
-      child: Scaffold(
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      appBar: AppBar(
+        title: const Text("Confirm Password"),
+        centerTitle: true,
         backgroundColor: Colors.transparent,
-        extendBodyBehindAppBar: true,
+        elevation: 0,
+        automaticallyImplyLeading: true,
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                physics: const BouncingScrollPhysics(),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 20),
 
-        appBar: AppBar(
-          title: const Text("Confirm Password"),
-          centerTitle: true,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          automaticallyImplyLeading: true,
-        ),
-
-        body: SafeArea(
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-
-                /// ================= PIN DOTS =================
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(6, (index) {
-                    final filled = index < confirminput.length;
-
-                    return AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      margin: const EdgeInsets.symmetric(horizontal: 6),
-                      width: 14,
-                      height: 14,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: filled
-                            ? colorScheme.onSurface
-                            : _fade(colorScheme.onSurface, 0.2),
+                    GriotBrandedContainer(
+                      padding: const EdgeInsets.all(16),
+                      borderRadius: 32,
+                      child: Icon(
+                        Icons.verified_user_outlined,
+                        size: 40,
+                        color: colorScheme.primary,
                       ),
-                    );
-                  }),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    Text(
+                      'Confirm Password',
+                      style: textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    Text(
+                      'Please re-enter your 6-digit password to confirm it is correct.',
+                      textAlign: TextAlign.center,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 40),
+
+                    /// ================= PIN DOTS =================
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(6, (index) {
+                        final filled = index < confirminput.length;
+
+                        return AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          margin: const EdgeInsets.symmetric(horizontal: 8),
+                          width: 14,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: filled
+                                ? colorScheme.primary
+                                : colorScheme.onSurface.withValues(alpha: 0.15),
+                          ),
+                        );
+                      }),
+                    ),
+
+                    // This spacer pushes the keyboard down
+                    const SizedBox(height: 80),
+
+                    const SizedBox(height: 60),
+
+                    /// ================= KEYBOARD =================
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: keys.length,
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3,
+                        mainAxisSpacing: 12,
+                        crossAxisSpacing: 12,
+                        mainAxisExtent: 70,
+                      ),
+                      itemBuilder: (context, index) {
+                        final key = keys[index];
+                        if (key.isEmpty) return const SizedBox.shrink();
+
+                        final isPressed = _pressedIndex == index;
+
+                        return GestureDetector(
+                          onTap: () => _onKeyTap(key, index),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 120),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: isPressed
+                                  ? colorScheme.primary.withValues(alpha: 0.1)
+                                  : Colors.transparent,
+                            ),
+                            child: Center(
+                              child: key == '⌫'
+                                  ? Icon(
+                                      Icons.backspace_rounded,
+                                      color: colorScheme.onSurface,
+                                      size: 22,
+                                    )
+                                  : Text(
+                                      key,
+                                      style: textTheme.headlineSmall?.copyWith(
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 40),
+                  ],
                 ),
+              ),
+            ),
 
-                const SizedBox(height: 40),
-
-                /// ================= KEYBOARD =================
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: keys.length,
-                  gridDelegate:
-                  const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    mainAxisExtent: 70,
+            /// ================= BUTTON =================
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+              child: SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: _onContinue,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: colorScheme.onPrimary,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
                   ),
-                  itemBuilder: (context, index) {
-                    final key = keys[index];
-                    if (key.isEmpty) return const SizedBox.shrink();
-
-                    final isPressed = _pressedIndex == index;
-
-                    return GestureDetector(
-                      onTap: () => _onKeyTap(key, index),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 120),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isPressed
-                              ? _fade(colorScheme.onSurface, 0.08)
-                              : Colors.transparent,
-                        ),
-                        child: Center(
-                          child: key == '⌫'
-                              ? Icon(
-                            Icons.backspace,
-                            color: colorScheme.onSurface,
-                          )
-                              : Text(
-                            key,
-                            style: textTheme.titleMedium,
+                  child: _loading
+                      ? SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: colorScheme.onPrimary,
+                          ),
+                        )
+                      : Text(
+                          "Confirm",
+                          style: textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w900,
                           ),
                         ),
-                      ),
-                    );
-                  },
                 ),
-
-                const SizedBox(height: 30),
-
-                /// ================= BUTTON =================
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: _onContinue,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: colorScheme.primary,
-                      foregroundColor: colorScheme.onPrimary,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(50),
-                      ),
-                    ),
-                    child: Text(
-                      "Continue",
-                      style: textTheme.titleSmall,
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );

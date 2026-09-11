@@ -4,34 +4,26 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class AppLockService {
   static const String _appLockEnabledKey = 'app_lock_enabled';
-  static const String _biometricUnlockEnabledKey =
-      'biometric_unlock_enabled';
-  static const String _autoLockDurationKey =
-      'auto_lock_duration_seconds';
+  static const String _biometricUnlockEnabledKey = 'biometric_unlock_enabled';
+  static const String _autoLockDurationKey = 'auto_lock_duration_seconds';
 
   final FlutterSecureStorage _storage;
 
-  AppLockService({
-    FlutterSecureStorage? storage,
-  }) : _storage = storage ?? const FlutterSecureStorage();
+  AppLockService({FlutterSecureStorage? storage})
+    : _storage = storage ?? const FlutterSecureStorage();
 
   // ============================================================
   // APP LOCK
   // ============================================================
 
   Future<bool> isAppLockEnabled() async {
-    final value = await _storage.read(
-      key: _appLockEnabledKey,
-    );
+    final value = await _storage.read(key: _appLockEnabledKey);
 
     return value == 'true';
   }
 
   Future<void> setAppLockEnabled(bool enabled) async {
-    await _storage.write(
-      key: _appLockEnabledKey,
-      value: enabled.toString(),
-    );
+    await _storage.write(key: _appLockEnabledKey, value: enabled.toString());
   }
 
   // ============================================================
@@ -39,16 +31,12 @@ class AppLockService {
   // ============================================================
 
   Future<bool> isBiometricUnlockEnabled() async {
-    final value = await _storage.read(
-      key: _biometricUnlockEnabledKey,
-    );
+    final value = await _storage.read(key: _biometricUnlockEnabledKey);
 
     return value == 'true';
   }
 
-  Future<void> setBiometricUnlockEnabled(
-      bool enabled,
-      ) async {
+  Future<void> setBiometricUnlockEnabled(bool enabled) async {
     await _storage.write(
       key: _biometricUnlockEnabledKey,
       value: enabled.toString(),
@@ -77,9 +65,7 @@ class AppLockService {
   Future<bool> hasPin() async {
     const pinHashKey = 'wallet_pin_hash';
 
-    final value = await _storage.read(
-      key: pinHashKey,
-    );
+    final value = await _storage.read(key: pinHashKey);
 
     return value != null && value.isNotEmpty;
   }
@@ -89,9 +75,7 @@ class AppLockService {
   // ============================================================
 
   Future<Duration> getAutoLockDuration() async {
-    final value = await _storage.read(
-      key: _autoLockDurationKey,
-    );
+    final value = await _storage.read(key: _autoLockDurationKey);
 
     if (value == null || value.isEmpty) {
       return const Duration(minutes: 5);
@@ -99,20 +83,16 @@ class AppLockService {
 
     final seconds = int.tryParse(value);
 
-    if (seconds == null || seconds <= 0) {
+    if (seconds == null || seconds < 0) {
       return const Duration(minutes: 5);
     }
 
     return Duration(seconds: seconds);
   }
 
-  Future<void> setAutoLockDuration(
-      Duration duration,
-      ) async {
-    if (duration <= Duration.zero) {
-      throw ArgumentError(
-        'Auto-lock duration must be greater than zero.',
-      );
+  Future<void> setAutoLockDuration(Duration duration) async {
+    if (duration < Duration.zero) {
+      throw ArgumentError('Auto-lock duration cannot be negative.');
     }
 
     await _storage.write(
@@ -126,16 +106,10 @@ class AppLockService {
   // ============================================================
 
   Future<void> reset() async {
-    await _storage.delete(
-      key: _appLockEnabledKey,
-    );
+    await _storage.delete(key: _appLockEnabledKey);
 
-    await _storage.delete(
-      key: _biometricUnlockEnabledKey,
-    );
+    await _storage.delete(key: _biometricUnlockEnabledKey);
 
-    await _storage.delete(
-      key: _autoLockDurationKey,
-    );
+    await _storage.delete(key: _autoLockDurationKey);
   }
 }

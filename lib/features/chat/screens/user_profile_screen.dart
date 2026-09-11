@@ -1,6 +1,4 @@
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -14,7 +12,9 @@ import '../../users/providers/user_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
+import '../../../core/ui/widgets/griot_avatar.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
+import '../widgets/chatting/fullscreen_media_viewer.dart';
 
 class UserProfileScreen extends StatefulWidget {
   final UserModel user;
@@ -25,6 +25,7 @@ class UserProfileScreen extends StatefulWidget {
 }
 
 class _UserProfileScreenState extends State<UserProfileScreen> {
+  UserModel? _canonicalUser;
   bool _isActionLoading = false;
   final ScrollController _scrollController = ScrollController();
   double _scrollOpacity = 0.0;
@@ -38,11 +39,25 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       messaging.loadBlocks();
       messaging.loadRequests();
       messaging.loadFriends();
-      
+      _loadCanonicalProfile();
+
       if (widget.user.relationshipStatus == 'self') {
         context.read<UserProvider>().loadUser();
       }
     });
+  }
+
+  Future<void> _loadCanonicalProfile() async {
+    if (widget.user.id.isEmpty) return;
+    try {
+      final user = await context
+          .read<UserProvider>()
+          .userApiService
+          .getUserById(widget.user.id);
+      if (mounted) setState(() => _canonicalUser = user);
+    } catch (_) {
+      // Keep the route payload visible if the refresh is temporarily unavailable.
+    }
   }
 
   @override
@@ -69,7 +84,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       if (mounted) NotificationService.showSuccess(context, 'Request sent!');
     } catch (e) {
       if (mounted) {
-        NotificationService.showError(context, e.toString().contains('409') ? 'Request already exists' : 'Failed to send');
+        NotificationService.showError(
+          context,
+          e.toString().contains('409')
+              ? 'Request already exists'
+              : 'Failed to send',
+        );
       }
     } finally {
       if (mounted) setState(() => _isActionLoading = false);
@@ -96,7 +116,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     setState(() => _isActionLoading = true);
     try {
       await provider.withdrawRequest(requestId);
-      if (mounted) NotificationService.showSuccess(context, 'Request withdrawn');
+      if (mounted)
+        NotificationService.showSuccess(context, 'Request withdrawn');
     } catch (e) {
       if (mounted) NotificationService.showError(context, 'Failed to withdraw');
     } finally {
@@ -119,17 +140,25 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   Future<void> _handleUnfriend() async {
     final messenger = context.read<MessagingProvider>();
-    
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Unfriend?'),
-        content: const Text('Are you sure you want to remove this user from your friends?'),
+        content: const Text(
+          'Are you sure you want to remove this user from your friends?',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Unfriend', style: TextStyle(color: Colors.red)),
+            child: Text(
+              'Unfriend',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           ),
         ],
       ),
@@ -164,24 +193,28 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         if (mounted) NotificationService.showSuccess(context, 'User blocked');
       }
     } catch (e) {
-      if (mounted) NotificationService.showError(context, 'Failed to update block status');
+      if (mounted)
+        NotificationService.showError(context, 'Failed to update block status');
     } finally {
       if (mounted) setState(() => _isActionLoading = false);
     }
   }
 
   void _showTipSheet() {
-    TipSheet.show(
-      context,
-      recipients: [ChatUser.fromUserModel(widget.user)],
-    );
+    TipSheet.show(context, recipients: [ChatUser.fromUserModel(widget.user)]);
   }
 
-  RelationshipState _getEffectiveRelationship(RelationshipState local, String? initialStatus) {
+  RelationshipState _getEffectiveRelationship(
+    RelationshipState local,
+    String? initialStatus,
+  ) {
     if (local != RelationshipState.none) return local;
-    
-    switch (initialStatus) {
+
+    switch (initialStatus?.trim().toLowerCase()) {
       case 'friend':
+      case 'friends':
+      case 'accepted':
+      case 'connected':
         return RelationshipState.friends;
       case 'request_sent':
         return RelationshipState.pendingSent;
@@ -198,21 +231,28 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    
+
     return Consumer2<MessagingProvider, UserProvider>(
       builder: (context, messaging, userProvider, child) {
-        final bool isSelf = widget.user.relationshipStatus == 'self' || 
-                           widget.user.id == userProvider.user?.id;
-        
-        final UserModel user = isSelf && userProvider.user != null ? userProvider.user! : widget.user;
+        final bool isSelf =
+            widget.user.relationshipStatus == 'self' ||
+            widget.user.id == userProvider.user?.id;
+
+        final UserModel user = isSelf && userProvider.user != null
+            ? userProvider.user!
+            : (_canonicalUser ?? widget.user);
         final relationship = messaging.getRelationship(user.id);
-        final effectiveRelationship = _getEffectiveRelationship(relationship, user.relationshipStatus);
+        final effectiveRelationship = _getEffectiveRelationship(
+          relationship,
+          user.relationshipStatus ?? widget.user.relationshipStatus,
+        );
         final pendingReq = messaging.getPendingRequest(user.id);
-        
+
         final isBlocked = effectiveRelationship == RelationshipState.blocked;
         final isFriend = effectiveRelationship == RelationshipState.friends;
-        
-        final bool isBlockedByThem = user.relationshipStatus == 'blocked_by_user';
+
+        final bool isBlockedByThem =
+            user.relationshipStatus == 'blocked_by_user';
 
         return GradientScaffold(
           useSafeArea: false,
@@ -224,8 +264,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               SliverAppBar(
                 expandedHeight: 340,
                 pinned: true,
-                stretch: true,
-                backgroundColor: colors.surface.withValues(alpha: _scrollOpacity),
+                stretch: false,
+                backgroundColor: colors.surface.withValues(
+                  alpha: _scrollOpacity,
+                ),
                 elevation: 0,
                 surfaceTintColor: Colors.transparent,
                 leading: Center(
@@ -235,86 +277,156 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: colors.surface.withValues(alpha: 0.5),
+                        color: colors.surface,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: colors.outline.withValues(alpha: 0.1)),
+                        border: Border(
+                          top: BorderSide(
+                            color: colors.primary.withValues(alpha: 0.6),
+                            width: 1.2,
+                          ),
+                          bottom: BorderSide(
+                            color: colors.primary.withValues(alpha: 0.6),
+                            width: 1.2,
+                          ),
+                        ),
                       ),
-                      child: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+                      child: Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        size: 18,
+                        color: colors.primary,
+                      ),
                     ),
                   ),
                 ),
                 actions: [
                   if (!isSelf)
-                    PopupMenuButton<String>(
-                      icon: const Icon(Icons.more_vert_rounded),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(24),
-                        side: BorderSide(color: colors.primary.withValues(alpha: 0.1), width: 1.5),
-                      ),
-                      elevation: 12,
-                      offset: const Offset(0, 50),
-                      onSelected: (val) {
-                        if (val == 'block') {
-                          _handleBlockToggle(isBlocked);
-                        } else if (val == 'unfriend') {
-                          _handleUnfriend();
-                        } else if (val == 'tip') {
-                          _showTipSheet();
-                        }
-                      },
-                      itemBuilder: (context) => [
-                        PopupMenuItem(
-                          value: 'tip',
-                          child: Row(
-                            children: [
-                              SvgPicture.asset(
-                                'assets/cowrie_images/cowriesvg.svg',
-                                width: 20,
-                                height: 20,
-                                colorFilter: ColorFilter.mode(colors.primary, BlendMode.srcIn),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: Center(
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: colors.surface,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border(
+                              top: BorderSide(
+                                color: colors.primary.withValues(alpha: 0.6),
+                                width: 1.2,
                               ),
-                              const SizedBox(width: 12),
-                              const Text('Tip User', style: TextStyle(fontWeight: FontWeight.w700)),
-                            ],
+                              bottom: BorderSide(
+                                color: colors.primary.withValues(alpha: 0.6),
+                                width: 1.2,
+                              ),
+                            ),
                           ),
-                        ),
-                        if (isFriend)
-                          PopupMenuItem(
-                            value: 'unfriend',
-                            child: Row(
-                              children: [
-                                const Icon(Icons.person_remove_rounded, color: Colors.red, size: 20),
-                                const SizedBox(width: 12),
-                                const Text('Unfriend', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w700)),
+                          child: Theme(
+                            data: Theme.of(context).copyWith(
+                              splashColor: Colors.transparent,
+                              highlightColor: Colors.transparent,
+                            ),
+                            child: PopupMenuButton<String>(
+                              icon: Icon(
+                                Icons.more_vert_rounded,
+                                color: colors.primary,
+                                size: 20,
+                              ),
+                              padding: EdgeInsets.zero,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(24),
+                                side: BorderSide(
+                                  color: colors.primary.withValues(alpha: 0.1),
+                                  width: 1.5,
+                                ),
+                              ),
+                              elevation: 4,
+                              offset: const Offset(0, 50),
+                              onSelected: (val) {
+                                if (val == 'block') {
+                                  _handleBlockToggle(isBlocked);
+                                } else if (val == 'unfriend') {
+                                  _handleUnfriend();
+                                } else if (val == 'tip') {
+                                  _showTipSheet();
+                                }
+                              },
+                              itemBuilder: (context) => [
+                                PopupMenuItem(
+                                  value: 'tip',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.volunteer_activism_outlined,
+                                        color: colors.primary,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      const Text(
+                                        'Tip User',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (isFriend)
+                                  PopupMenuItem(
+                                    value: 'unfriend',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.person_remove_rounded,
+                                          color: colors.error,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Text(
+                                          'Unfriend',
+                                          style: TextStyle(
+                                            color: colors.error,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                PopupMenuItem(
+                                  value: 'block',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        isBlocked
+                                            ? Icons.check_circle_outline_rounded
+                                            : Icons.block_rounded,
+                                        color: isBlocked
+                                            ? AppColors.success
+                                            : colors.error,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        isBlocked ? 'Unblock' : 'Block User',
+                                        style: TextStyle(
+                                          color: isBlocked
+                                              ? AppColors.success
+                                              : colors.error,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ],
                             ),
                           ),
-                        PopupMenuItem(
-                          value: 'block',
-                          child: Row(
-                            children: [
-                              Icon(isBlocked ? Icons.check_circle_outline_rounded : Icons.block_rounded, 
-                                   color: isBlocked ? Colors.green : Colors.red, size: 20),
-                              const SizedBox(width: 12),
-                              Text(
-                                isBlocked ? 'Unblock' : 'Block User', 
-                                style: TextStyle(
-                                  color: isBlocked ? Colors.green : Colors.red,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
                         ),
-                      ],
+                      ),
                     ),
                   const SizedBox(width: 8),
                 ],
                 flexibleSpace: FlexibleSpaceBar(
-                  stretchModes: const [
-                    StretchMode.zoomBackground,
-                    StretchMode.blurBackground,
-                  ],
+                  stretchModes: const [],
                   centerTitle: true,
                   titlePadding: const EdgeInsets.only(bottom: 16),
                   title: Opacity(
@@ -328,133 +440,81 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       ),
                     ),
                   ),
-                  background: Stack(
-                    alignment: Alignment.bottomCenter,
-                    children: [
-                      // Gradient & Blur Background
-                      Positioned.fill(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                colors.primary.withValues(alpha: 0.15),
-                                colors.surface.withValues(alpha: 0.05),
-                                Colors.transparent,
-                              ],
+                  background: Center(
+                    child: Opacity(
+                      opacity: (1.0 - (_scrollOpacity * 1.5)).clamp(0.0, 1.0),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(height: 40),
+                          // Avatar
+                          _buildPreviewAvatar(context, user),
+                          const SizedBox(height: 16),
+                          // Name
+                          Text(
+                            user.displayName ?? 'Griot User',
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w900,
+                              color: colors.onSurface,
                             ),
                           ),
-                          child: user.avatarUrl != null
-                              ? ImageFiltered(
-                                  imageFilter: ui.ImageFilter.blur(sigmaX: 50, sigmaY: 50),
-                                  child: Opacity(
-                                    opacity: 0.1,
-                                    child: Image.network(user.avatarUrl!, fit: BoxFit.cover),
+                          // Username
+                          if (user.username != null)
+                            Text(
+                              '@${user.username}',
+                              style: TextStyle(
+                                color: colors.primary,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 16,
+                              ),
+                            ),
+                          const SizedBox(height: 12),
+                          // Reputation Badge
+                          if (user.reputation != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.parseHexColor(
+                                  user.reputation?.badgeColor,
+                                ).withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppColors.parseHexColor(
+                                    user.reputation?.badgeColor,
+                                  ).withValues(alpha: 0.2),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.workspace_premium_rounded,
+                                    size: 14,
+                                    color: AppColors.parseHexColor(
+                                      user.reputation?.badgeColor,
+                                    ),
                                   ),
-                                )
-                              : null,
-                        ),
-                      ),
-                      
-                      // Identity Block (Avatar + Name + Username)
-                      Positioned(
-                        bottom: 40,
-                        child: Opacity(
-                          opacity: (1.0 - (_scrollOpacity * 1.5)).clamp(0.0, 1.0),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Avatar
-                              Container(
-                                width: 110,
-                                height: 110,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: colors.surface, width: 4),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.15),
-                                      blurRadius: 20,
-                                      offset: const Offset(0, 10),
-                                    ),
-                                  ],
-                                ),
-                                child: Stack(
-                                  children: [
-                                    CircleAvatar(
-                                      radius: 53,
-                                      backgroundColor: colors.surfaceContainerHighest,
-                                      backgroundImage: user.avatarUrl != null ? NetworkImage(user.avatarUrl!) : null,
-                                      child: user.avatarUrl == null 
-                                        ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg', width: 54, height: 53)
-                                        : null,
-                                    ),
-                                    if (messaging.presenceMap[user.id] == true || user.isOnline)
-                                      Positioned(
-                                        right: 4,
-                                        bottom: 4,
-                                        child: Container(
-                                          width: 20,
-                                          height: 20,
-                                          decoration: BoxDecoration(
-                                            color: Colors.green,
-                                            shape: BoxShape.circle,
-                                            border: Border.all(color: colors.surface, width: 3),
-                                          ),
-                                        ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    user.reputation?.tierName ??
+                                        'Initiate Badger',
+                                    style: TextStyle(
+                                      color: AppColors.parseHexColor(
+                                        user.reputation?.badgeColor,
                                       ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              // Name
-                              Text(
-                                user.displayName ?? 'Griot User',
-                                style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
-                              ),
-                              // Username
-                              if (user.username != null)
-                                Text(
-                                  '@${user.username}',
-                                  style: TextStyle(color: colors.primary, fontWeight: FontWeight.w800, fontSize: 16),
-                                ),
-                              const SizedBox(height: 8),
-                              // Reputation Badge
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: AppColors.parseHexColor(user.reputation?.badgeColor).withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: AppColors.parseHexColor(user.reputation?.badgeColor).withValues(alpha: 0.2),
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 12,
+                                    ),
                                   ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.workspace_premium_rounded,
-                                      size: 14,
-                                      color: AppColors.parseHexColor(user.reputation?.badgeColor),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      user.reputation?.tierName ?? 'Initiate Badger',
-                                      style: TextStyle(
-                                        color: AppColors.parseHexColor(user.reputation?.badgeColor),
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                                ],
                               ),
-                            ],
-                          ),
-                        ),
+                            ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -466,11 +526,21 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: _buildInteractionRow(context, effectiveRelationship, pendingReq, colors),
+                    child: _buildInteractionRow(
+                      context,
+                      effectiveRelationship,
+                      pendingReq,
+                      colors,
+                    ),
                   ).animate().fadeIn(delay: 100.ms),
                 )
               else if (isBlockedByThem)
-                const SliverToBoxAdapter(child: Padding(padding: EdgeInsets.symmetric(horizontal: 24), child: _LockIndicatorCard())),
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 24),
+                    child: _LockIndicatorCard(),
+                  ),
+                ),
 
               const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
@@ -490,9 +560,21 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                           decoration: BoxDecoration(
                             color: colors.surface.withValues(alpha: 0.4),
                             borderRadius: BorderRadius.circular(24),
-                            border: Border.all(color: colors.outline.withValues(alpha: 0.05)),
+                            border: Border(
+                              top: BorderSide(
+                                color: colors.primary.withValues(alpha: 0.6),
+                                width: 1.5,
+                              ),
+                              bottom: BorderSide(
+                                color: colors.primary.withValues(alpha: 0.6),
+                                width: 1.5,
+                              ),
+                            ),
                           ),
-                          child: Text(user.bio!, style: theme.textTheme.bodyLarge),
+                          child: Text(
+                            user.bio!,
+                            style: theme.textTheme.bodyLarge,
+                          ),
                         ),
                         const SizedBox(height: 32),
                       ],
@@ -508,20 +590,62 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             ],
           ),
         );
-      }
+      },
     );
   }
 
-  Widget _buildInteractionRow(BuildContext context, RelationshipState state, MessageRequest? request, ColorScheme colors) {
+  Widget _buildPreviewAvatar(BuildContext context, UserModel user) {
+    final avatarUrl = user.avatarUrl?.trim();
+    final avatar = GriotAvatar(
+      avatarUrl: avatarUrl,
+      radius: 55,
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+    );
+
+    if (avatarUrl == null || avatarUrl.isEmpty) return avatar;
+
+    return GestureDetector(
+      onTap: () => FullscreenMediaViewer.show(context, avatarUrl),
+      child: avatar,
+    );
+  }
+
+  Widget _buildInteractionRow(
+    BuildContext context,
+    RelationshipState state,
+    MessageRequest? request,
+    ColorScheme colors,
+  ) {
     switch (state) {
       case RelationshipState.none:
-        return _ProfileHubButton(
-          label: 'Connect',
-          icon: Icons.person_add_alt_1_rounded,
-          color: colors.primary,
-          isPrimary: true,
-          isLoading: _isActionLoading,
-          onTap: _handleConnect,
+        return Row(
+          children: [
+            Expanded(
+              child: _ProfileHubButton(
+                label: 'Tip',
+                icon: Icons.volunteer_activism_outlined,
+                color: colors.primary,
+                isPrimary: false,
+                onTap: () {
+                  TipSheet.show(
+                    context,
+                    recipients: [ChatUser.fromUserModel(widget.user)],
+                  );
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _ProfileHubButton(
+                label: 'Connect',
+                icon: Icons.person_add_alt_1_rounded,
+                color: colors.primary,
+                isPrimary: true,
+                isLoading: _isActionLoading,
+                onTap: _handleConnect,
+              ),
+            ),
+          ],
         );
       case RelationshipState.pendingSent:
         return Row(
@@ -566,7 +690,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               child: _ProfileHubButton(
                 label: 'Accept',
                 icon: Icons.check_rounded,
-                color: Colors.green,
+                color: AppColors.success,
                 isPrimary: true,
                 isLoading: _isActionLoading,
                 onTap: () => _handleAccept(request!.id),
@@ -579,11 +703,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           children: [
             Expanded(
               child: _ProfileHubButton(
-                label: 'Friends',
-                icon: Icons.people_rounded,
-                color: Colors.green,
+                label: 'Tip User',
+                icon: Icons.volunteer_activism_outlined,
+                color: colors.primary,
                 isPrimary: false,
-                onTap: null,
+                onTap: () {
+                  TipSheet.show(
+                    context,
+                    recipients: [ChatUser.fromUserModel(widget.user)],
+                  );
+                },
               ),
             ),
             const SizedBox(width: 12),
@@ -593,7 +722,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 icon: Icons.chat_bubble_rounded,
                 color: colors.primary,
                 isPrimary: true,
-                onTap: () => context.push('/chat/user/${widget.user.id}'),
+                onTap: () => context.push(
+                  '/chat/user/${widget.user.id}',
+                  extra: ChatUser.fromUserModel(widget.user),
+                ),
               ),
             ),
           ],
@@ -617,7 +749,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         fontSize: 11,
         fontWeight: FontWeight.w900,
         letterSpacing: 1.5,
-        color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+        color: Theme.of(
+          context,
+        ).colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
       ),
     );
   }
@@ -625,7 +759,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
 class _ProfileHubButton extends StatelessWidget {
   final String label;
-  final IconData icon;
+  final IconData? icon;
   final Color color;
   final bool isPrimary;
   final bool isLoading;
@@ -633,7 +767,7 @@ class _ProfileHubButton extends StatelessWidget {
 
   const _ProfileHubButton({
     required this.label,
-    required this.icon,
+    this.icon,
     required this.color,
     required this.isPrimary,
     this.isLoading = false,
@@ -642,6 +776,7 @@ class _ProfileHubButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -653,22 +788,36 @@ class _ProfileHubButton extends StatelessWidget {
           decoration: BoxDecoration(
             color: isPrimary ? color : color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(18),
-            border: isPrimary ? null : Border.all(color: color.withValues(alpha: 0.2)),
+            border: isPrimary
+                ? null
+                : Border.all(color: color.withValues(alpha: 0.2)),
           ),
           child: Center(
-            child: isLoading 
-              ? GriotLoader(size: 20, color: isPrimary ? Colors.white : color)
-              : Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(icon, size: 20, color: isPrimary ? Colors.white : color),
-                    const SizedBox(width: 10),
-                    Text(
-                      label,
-                      style: TextStyle(color: isPrimary ? Colors.white : color, fontWeight: FontWeight.w900, fontSize: 14),
-                    ),
-                  ],
-                ),
+            child: isLoading
+                ? GriotLoader(
+                    size: 20,
+                    color: isPrimary ? colors.onPrimary : color,
+                  )
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (icon != null)
+                        Icon(
+                          icon,
+                          size: 20,
+                          color: isPrimary ? colors.onPrimary : color,
+                        ),
+                      const SizedBox(width: 10),
+                      Text(
+                        label,
+                        style: TextStyle(
+                          color: isPrimary ? colors.onPrimary : color,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
           ),
         ),
       ),
@@ -688,15 +837,35 @@ class _IdentityDetailsCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surfaceContainerLow.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: colors.outline.withValues(alpha: 0.05)),
+        border: Border(
+          top: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+          bottom: BorderSide(
+            color: colors.primary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+        ),
       ),
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
-          _row(context, Icons.fingerprint_rounded, 'Griot Digital ID', user.shortWalletAddress),
+          _row(
+            context,
+            Icons.fingerprint_rounded,
+            'Griot Digital ID',
+            user.shortWalletAddress,
+          ),
           _divider(context),
-          _row(context, Icons.calendar_today_rounded, 'Member Since', 
-            user.createdAt != null ? DateFormat('MMMM yyyy').format(user.createdAt!) : 'NEW USER'),
+          _row(
+            context,
+            Icons.calendar_today_rounded,
+            'Member Since',
+            user.createdAt != null
+                ? DateFormat('MMMM yyyy').format(user.createdAt!)
+                : 'NEW USER',
+          ),
         ],
       ),
     );
@@ -708,9 +877,19 @@ class _IdentityDetailsCard extends StatelessWidget {
       children: [
         Icon(icon, size: 16, color: colors.primary.withValues(alpha: 0.6)),
         const SizedBox(width: 16),
-        Text(label, style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.7), fontWeight: FontWeight.w600, fontSize: 13)),
+        Text(
+          label,
+          style: TextStyle(
+            color: colors.onSurfaceVariant.withValues(alpha: 0.7),
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+          ),
+        ),
         const Spacer(),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+        Text(
+          value,
+          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+        ),
       ],
     );
   }
@@ -718,7 +897,10 @@ class _IdentityDetailsCard extends StatelessWidget {
   Widget _divider(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Divider(height: 1, color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.05)),
+      child: Divider(
+        height: 1,
+        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.05),
+      ),
     );
   }
 }
@@ -737,12 +919,25 @@ class _LockIndicatorCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const Icon(Icons.lock_rounded, color: Colors.red, size: 40),
+          Icon(Icons.lock_rounded, color: colors.error, size: 40),
           const SizedBox(height: 16),
-          const Text('PROFILE LOCKED', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 1.0)),
+          const Text(
+            'PROFILE LOCKED',
+            style: TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 18,
+              letterSpacing: 1.0,
+            ),
+          ),
           const SizedBox(height: 8),
-          Text('This identity is private. Connect to see more.', 
-               textAlign: TextAlign.center, style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.7), fontWeight: FontWeight.w500)),
+          Text(
+            'This identity is private. Connect to see more.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: colors.onSurfaceVariant.withValues(alpha: 0.7),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ],
       ),
     );

@@ -1,5 +1,6 @@
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_config.dart';
+import '../utils/chain_assets.dart';
 
 /// Direct EVM RPC operations proxied through the backend.
 ///
@@ -8,6 +9,7 @@ import '../../../core/network/api_config.dart';
 /// with Alchemy/Ethers configurations and to maintain secure nonce tracking.
 class WalletRpcService {
   final ApiClient _apiClient;
+  String? lastBroadcastTransactionId;
 
   WalletRpcService({required ApiClient apiClient}) : _apiClient = apiClient;
 
@@ -32,21 +34,25 @@ class WalletRpcService {
   Future<String> sendRawTransaction({
     required String network,
     required String signedTransaction,
+    String transactionType = 'send',
   }) async {
-    // We use the standard broadcast endpoint for all transactions
-    // to ensure they are recorded in the user's history.
     final response = await _apiClient.post(
-      ApiConfig.broadcastTransaction,
+      ApiConfig.swapBroadcast,
       body: {
         'network': network,
         'signedTransaction': signedTransaction,
-        'transactionId': 'direct_${DateTime.now().millisecondsSinceEpoch}',
+        'transactionType': transactionType,
       },
     );
 
     final data = _unwrap(response);
-    final broadcast = data['broadcast'];
-    final hash = broadcast is Map ? broadcast['hash']?.toString() : null;
+    final transaction = data is Map ? data['transaction'] : null;
+    lastBroadcastTransactionId = transaction is Map
+        ? transaction['id']?.toString()
+        : null;
+    final hash = data is Map
+        ? (data['hash'] ?? data['broadcast']?['hash'])?.toString()
+        : null;
 
     if (hash == null || !RegExp(r'^0x[a-fA-F0-9]{64}$').hasMatch(hash)) {
       throw Exception('Backend returned an invalid transaction hash');
@@ -60,10 +66,15 @@ class WalletRpcService {
     required String to,
     required String data,
   }) async {
+    final formattedTo = to.startsWith('0x') ? to : '0x$to';
+    if (!ChainAssets.isValidEvmAddress(formattedTo)) {
+      throw Exception('Invalid target address: $formattedTo');
+    }
+
     final response = await _apiClient.post(
       ApiConfig.blockchainCall(network),
       body: {
-        'to': to,
+        'to': formattedTo,
         'data': data,
         'blockTag': 'latest',
       },

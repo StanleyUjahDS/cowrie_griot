@@ -20,7 +20,7 @@ class MediaApiService {
       'filename': filename,
       'contentType': contentType,
       'sizeBytes': sizeBytes,
-      if (conversationId != null) 'conversationId': conversationId,
+      ...?conversationId == null ? null : {'conversationId': conversationId},
     });
 
     final presignData = _getData(presignResponse);
@@ -44,7 +44,7 @@ class MediaApiService {
     // 3. Complete
     final completeResponse = await _apiClient.post(ApiConfig.mediaComplete(mediaId));
     final completeData = _getData(completeResponse);
-    
+
     return {
       'id': mediaId,
       'mediaUrl': completeData['mediaUrl'].toString(),
@@ -80,10 +80,12 @@ class MediaApiService {
 
   dynamic _getData(dynamic response) {
     if (response is Map<String, dynamic>) {
-      if (response['success'] == true) {
-        return response['data'];
+      if (response.containsKey('success')) {
+        if (response['success'] == true) {
+          return response['data'];
+        }
+        throw Exception(response['message'] ?? 'Request failed');
       }
-      throw Exception(response['message'] ?? 'Request failed');
     }
     return response;
   }

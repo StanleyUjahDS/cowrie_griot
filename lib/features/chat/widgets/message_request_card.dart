@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../models/message_request.dart';
 import '../../users/models/user_model.dart';
+import '../../../../core/theme/app_colors.dart';
 
 class MessageRequestCard extends StatelessWidget {
   final MessageRequest request;
@@ -64,10 +65,16 @@ class MessageRequestCard extends StatelessWidget {
                     CircleAvatar(
                       radius: 26,
                       backgroundColor: colors.surfaceContainerHighest,
-                      backgroundImage: hasProfileImage ? NetworkImage(profileUrl) : null,
-                      child: !hasProfileImage 
-                        ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg', width: 32, height: 32)
-                        : null,
+                      backgroundImage: hasProfileImage
+                          ? NetworkImage(profileUrl)
+                          : null,
+                      child: !hasProfileImage
+                          ? SvgPicture.asset(
+                              'assets/coins_logo/hbadger_logo.svg',
+                              width: 32,
+                              height: 32,
+                            )
+                          : null,
                     ),
                     const SizedBox(width: 14),
                     Expanded(
@@ -78,14 +85,19 @@ class MessageRequestCard extends StatelessWidget {
                             request.displayName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                            ),
                           ),
                           Text(
                             request.formattedUsername ?? 'Griot User',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: colors.primary,
+                              color: colors.primary.computeLuminance() > 0.6
+                                  ? colors.onSurfaceVariant
+                                  : colors.primary,
                               fontWeight: FontWeight.w700,
                               fontSize: 13,
                             ),
@@ -97,7 +109,10 @@ class MessageRequestCard extends StatelessWidget {
                       Container(
                         width: 8,
                         height: 8,
-                        decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
+                        decoration: BoxDecoration(
+                          color: AppColors.success,
+                          shape: BoxShape.circle,
+                        ),
                       ),
                   ],
                 ),
@@ -105,7 +120,10 @@ class MessageRequestCard extends StatelessWidget {
                 if (request.message.trim().isNotEmpty) ...[
                   Text(
                     request.message,
-                    style: text.bodyMedium?.copyWith(color: colors.onSurfaceVariant, height: 1.5),
+                    style: text.bodyMedium?.copyWith(
+                      color: colors.onSurfaceVariant,
+                      height: 1.5,
+                    ),
                   ),
                   const SizedBox(height: 20),
                 ],
@@ -124,6 +142,7 @@ class MessageRequestCard extends StatelessWidget {
                         label: 'Accept',
                         onTap: onAccept,
                         color: colors.primary,
+                        foregroundColor: colors.onPrimary,
                         isFilled: true,
                       ),
                     ),
@@ -142,12 +161,14 @@ class _ActionButton extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
   final Color color;
+  final Color? foregroundColor;
   final bool isFilled;
 
   const _ActionButton({
     required this.label,
     required this.onTap,
     required this.color,
+    this.foregroundColor,
     this.isFilled = false,
   });
 
@@ -166,7 +187,7 @@ class _ActionButton extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            color: isFilled ? Colors.white : color,
+            color: isFilled ? (foregroundColor ?? color) : color,
             fontWeight: FontWeight.w900,
             fontSize: 13,
           ),

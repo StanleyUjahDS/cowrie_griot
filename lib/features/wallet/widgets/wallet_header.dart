@@ -5,7 +5,6 @@ class WalletHeader extends StatelessWidget {
   final String displayName;
   final String? avatarUrl;
   final Widget addressCard;
-  final VoidCallback onNotificationsTap;
   final VoidCallback onScanTap;
   final VoidCallback? onProfileTap;
 
@@ -14,7 +13,6 @@ class WalletHeader extends StatelessWidget {
     required this.displayName,
     this.avatarUrl,
     required this.addressCard,
-    required this.onNotificationsTap,
     required this.onScanTap,
     this.onProfileTap,
   });
@@ -85,24 +83,40 @@ class WalletHeader extends StatelessWidget {
               ],
             ),
           ),
-          IconButton(
-            tooltip: 'Notifications',
-            visualDensity: VisualDensity.compact,
-            onPressed: onNotificationsTap,
-            icon: Icon(
-              Icons.notifications_none_rounded,
-              color: colors.onSurfaceVariant,
+          GestureDetector(
+            onTap: onScanTap,
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: colors.surface.withValues(alpha: 0.95),
+                borderRadius: BorderRadius.circular(14),
+                border: Border(
+                  top: BorderSide(
+                    color: colors.primary.withValues(alpha: 0.6),
+                    width: 1.2,
+                  ),
+                  bottom: BorderSide(
+                    color: colors.primary.withValues(alpha: 0.6),
+                    width: 1.2,
+                  ),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Icon(
+                Icons.qr_code_scanner_rounded,
+                color: colors.primary,
+                size: 20,
+              ),
             ),
           ),
-          IconButton(
-            tooltip: 'Scan QR code',
-            visualDensity: VisualDensity.compact,
-            onPressed: onScanTap,
-            icon: Icon(
-              Icons.qr_code_scanner_rounded,
-              color: colors.onSurfaceVariant,
-            ),
-          ),
+          const SizedBox(width: 8),
         ],
       ),
     );

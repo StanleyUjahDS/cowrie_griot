@@ -5,9 +5,8 @@ import '../services/app_lock_service.dart';
 class AppLockProvider extends ChangeNotifier with WidgetsBindingObserver {
   final AppLockService _appLockService;
 
-  AppLockProvider({
-    required AppLockService appLockService,
-  })  : _appLockService = appLockService {
+  AppLockProvider({required AppLockService appLockService})
+    : _appLockService = appLockService {
     WidgetsBinding.instance.addObserver(this);
     _init();
   }
@@ -24,17 +23,18 @@ class AppLockProvider extends ChangeNotifier with WidgetsBindingObserver {
   Duration get autoLockDuration => _autoLockDuration;
 
   Future<void> _init() async {
-    _isEnabled = await _appLockService.isAppLockEnabled();
+    final hasPin = await _appLockService.hasPin();
+    _isEnabled = hasPin && await _appLockService.isAppLockEnabled();
     _biometricEnabled = await _appLockService.isBiometricUnlockEnabled();
     _autoLockDuration = await _appLockService.getAutoLockDuration();
-    
+
     // Cold start: If app lock is enabled, start in locked state
     if (_isEnabled) {
       _isLocked = true;
     } else {
       _isLocked = false;
     }
-    
+
     notifyListeners();
   }
 
@@ -42,25 +42,37 @@ class AppLockProvider extends ChangeNotifier with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (!_isEnabled) return;
 
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
-      _backgroundTimestamp = DateTime.now();
-    } else if (state == AppLifecycleState.resumed) {
-      if (_backgroundTimestamp != null) {
-        final now = DateTime.now();
-        final difference = now.difference(_backgroundTimestamp!);
-        
-        if (difference >= _autoLockDuration) {
-          lock();
-        }
+    // `inactive` is also emitted for temporary interruptions such as the
+    // keyboard, dialogs, notification shade, and biometric prompts. It must
+    // not be treated as leaving the app or it can lock over normal settings.
+    // `paused`/`hidden` represent the app actually leaving the foreground.
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _backgroundTimestamp ??= DateTime.now();
+
+      // Zero is a valid setting: lock as soon as the app is backgrounded.
+      if (_autoLockDuration == Duration.zero) {
+        lock();
       }
+      return;
+    }
+
+    if (state == AppLifecycleState.resumed) {
+      final backgroundTimestamp = _backgroundTimestamp;
       _backgroundTimestamp = null;
+
+      if (backgroundTimestamp != null &&
+          (DateTime.now().difference(backgroundTimestamp) >=
+              _autoLockDuration)) {
+        lock();
+      }
     }
   }
 
   void lock() {
     if (!_isEnabled) return;
     if (_isLocked) return;
-    
+
     _isLocked = true;
     notifyListeners();
   }

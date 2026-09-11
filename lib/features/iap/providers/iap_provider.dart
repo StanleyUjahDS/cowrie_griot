@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart';
@@ -55,28 +55,32 @@ class IapProvider extends ChangeNotifier {
       } catch (e) {
         debugPrint('IAP: Backend status check failed: $e');
       }
-      
+
       // 2. Initialize store
       _isStoreAvailable = await _iap.isAvailable();
       if (_isStoreAvailable) {
-        final ProductDetailsResponse response = await _iap.queryProductDetails(_productIds);
-        
+        final ProductDetailsResponse response = await _iap.queryProductDetails(
+          _productIds,
+        );
+
         if (response.error != null) {
           debugPrint('IAP: StoreKit error: ${response.error?.message}');
-          _useMockProducts(); 
+          _handleStoreFailure('Subscriptions are temporarily unavailable.');
         } else if (response.productDetails.isEmpty) {
-          debugPrint('IAP: No products found. Using mock data for dev.');
-          _useMockProducts();
+          debugPrint('IAP: No products found.');
+          _handleStoreFailure(
+            'No subscription products are currently available.',
+          );
         } else {
           _products = response.productDetails;
           _products.sort((a, b) => a.id.contains('monthly') ? -1 : 1);
         }
       } else {
-        _useMockProducts();
+        _handleStoreFailure('The app store is unavailable.');
       }
     } catch (e) {
       debugPrint('IAP: initialization error: $e');
-      _useMockProducts();
+      _handleStoreFailure('Subscriptions are temporarily unavailable.');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -84,25 +88,44 @@ class IapProvider extends ChangeNotifier {
   }
 
   void _useMockProducts() {
+    if (!kDebugMode) {
+      _setUnavailable('Subscriptions are temporarily unavailable.');
+      return;
+    }
+
     _products = [
       _MockProductDetails(
         id: monthlyId,
         title: 'Griot Plus Monthly',
         description: 'Premium decentralized features monthly',
-        price: '\$9.99',
-        rawPrice: 9.99,
+        price: '\$4.99',
+        rawPrice: 4.99,
         currencyCode: 'USD',
       ),
       _MockProductDetails(
         id: yearlyId,
         title: 'Griot Plus Yearly',
         description: 'Premium decentralized features yearly',
-        price: '\$99.99',
-        rawPrice: 99.99,
+        price: '\$49.99',
+        rawPrice: 49.99,
         currencyCode: 'USD',
       ),
     ];
     _isStoreAvailable = true;
+  }
+
+  void _handleStoreFailure(String message) {
+    if (kDebugMode) {
+      _useMockProducts();
+    } else {
+      _setUnavailable(message);
+    }
+  }
+
+  void _setUnavailable(String message) {
+    _products = [];
+    _isStoreAvailable = false;
+    _error = message;
   }
 
   Future<void> buyProduct(ProductDetails product) async {
@@ -140,14 +163,16 @@ class IapProvider extends ChangeNotifier {
         _error = purchase.error?.message;
         _isLoading = false;
         notifyListeners();
-      } else if (purchase.status == PurchaseStatus.purchased || purchase.status == PurchaseStatus.restored) {
+      } else if (purchase.status == PurchaseStatus.purchased ||
+          purchase.status == PurchaseStatus.restored) {
         final success = await _verifyAndComplete(purchase);
         if (success && purchase.pendingCompletePurchase) {
           await _iap.completePurchase(purchase);
         }
       }
 
-      if (purchase.status == PurchaseStatus.canceled && purchase.pendingCompletePurchase) {
+      if (purchase.status == PurchaseStatus.canceled &&
+          purchase.pendingCompletePurchase) {
         await _iap.completePurchase(purchase);
       }
     }
@@ -166,7 +191,8 @@ class IapProvider extends ChangeNotifier {
       if (Platform.isIOS) {
         final skDetails = purchase as AppStorePurchaseDetails;
         receipt = skDetails.verificationData.serverVerificationData;
-        originalTransactionId = skDetails.skPaymentTransaction.transactionIdentifier;
+        originalTransactionId =
+            skDetails.skPaymentTransaction.transactionIdentifier;
       } else if (Platform.isAndroid) {
         final googleDetails = purchase as GooglePlayPurchaseDetails;
         purchaseToken = googleDetails.verificationData.serverVerificationData;
@@ -202,13 +228,20 @@ class IapProvider extends ChangeNotifier {
 }
 
 class _MockProductDetails implements ProductDetails {
-  @override final String id;
-  @override final String title;
-  @override final String description;
-  @override final String price;
-  @override final double rawPrice;
-  @override final String currencyCode;
-  @override final String currencySymbol = '\$';
+  @override
+  final String id;
+  @override
+  final String title;
+  @override
+  final String description;
+  @override
+  final String price;
+  @override
+  final double rawPrice;
+  @override
+  final String currencyCode;
+  @override
+  final String currencySymbol = '\$';
 
   _MockProductDetails({
     required this.id,

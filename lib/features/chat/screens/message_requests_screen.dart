@@ -44,6 +44,22 @@ class _MessageRequestsScreenState extends State<MessageRequestsScreen> with Sing
       appBar: AppBar(
         title: const Text('Message Requests'),
         centerTitle: true,
+        automaticallyImplyLeading: false,
+        leading: Center(
+          child: GestureDetector(
+            onTap: () => context.pop(),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: colors.surface.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: colors.outline.withValues(alpha: 0.1)),
+              ),
+              child: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+            ),
+          ),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
@@ -217,7 +233,16 @@ class _RequestCardState extends State<_RequestCard> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: colors.primary.withValues(alpha: 0.08)),
+              border: Border(
+                top: BorderSide(
+                  color: colors.primary.withValues(alpha: 0.6),
+                  width: 1.2,
+                ),
+                bottom: BorderSide(
+                  color: colors.primary.withValues(alpha: 0.6),
+                  width: 1.2,
+                ),
+              ),
             ),
             child: Column(
               children: [
@@ -226,8 +251,8 @@ class _RequestCardState extends State<_RequestCard> {
                     CircleAvatar(
                       radius: 26,
                       backgroundColor: colors.surfaceContainerHighest,
-                      backgroundImage: targetProfileUrl != null && targetProfileUrl.trim().isNotEmpty 
-                        ? NetworkImage(targetProfileUrl) 
+                      backgroundImage: targetProfileUrl != null && targetProfileUrl.trim().isNotEmpty
+                        ? NetworkImage(targetProfileUrl)
                         : null,
                       child: targetProfileUrl == null || targetProfileUrl.trim().isEmpty
                         ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg', width: 32, height: 32)
@@ -253,9 +278,9 @@ class _RequestCardState extends State<_RequestCard> {
                           Text(
                             _formatAddress(targetWallet),
                             style: TextStyle(
-                              color: colors.onSurfaceVariant.withValues(alpha: 0.4), 
-                              fontSize: 10, 
-                              fontFamily: 'monospace', 
+                              color: colors.onSurfaceVariant.withValues(alpha: 0.4),
+                              fontSize: 10,
+                              fontFamily: 'monospace',
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -270,7 +295,7 @@ class _RequestCardState extends State<_RequestCard> {
                 ),
                 const SizedBox(height: 16),
                 Row(
-                  children: isReceived 
+                  children: isReceived
                     ? [
                         Expanded(
                           child: _ActionButton(
@@ -343,7 +368,7 @@ class _ActionButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
         ),
         alignment: Alignment.center,
-        child: isLoading 
+        child: isLoading
           ? SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: isFilled ? Colors.white : color))
           : Text(
               label,
