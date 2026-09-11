@@ -63,8 +63,9 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
         Navigator.pop(context);
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         NotificationService.showError(context, 'Failed to send request');
+      }
     } finally {
       if (mounted) setState(() => _isActionLoading = false);
     }

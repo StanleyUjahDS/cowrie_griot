@@ -116,8 +116,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     setState(() => _isActionLoading = true);
     try {
       await provider.withdrawRequest(requestId);
-      if (mounted)
+      if (mounted) {
         NotificationService.showSuccess(context, 'Request withdrawn');
+      }
     } catch (e) {
       if (mounted) NotificationService.showError(context, 'Failed to withdraw');
     } finally {
@@ -193,8 +194,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         if (mounted) NotificationService.showSuccess(context, 'User blocked');
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         NotificationService.showError(context, 'Failed to update block status');
+      }
     } finally {
       if (mounted) setState(() => _isActionLoading = false);
     }
