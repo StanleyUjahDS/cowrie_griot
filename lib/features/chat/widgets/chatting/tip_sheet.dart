@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../../../core/services/notification_service.dart';
 import '../../../../core/ui/widgets/griot_bottom_sheet.dart';
 import '../../../../core/ui/widgets/griot_loader.dart';
+import '../../../users/models/user_model.dart';
 import '../../../users/providers/user_provider.dart';
 import '../../../wallet/models/token_model.dart';
 import '../../../wallet/providers/wallet_provider.dart';
@@ -1176,7 +1177,19 @@ class _TipSheetState extends State<TipSheet> {
             final seenIds = <String>{};
             setSheetState(() {
               results = users
-                  .map((user) => ChatUser.fromUserModel(user))
+                  .map<ChatUser?>((rawUser) {
+                    if (rawUser is ChatUser) return rawUser;
+                    if (rawUser is UserModel) {
+                      return ChatUser.fromUserModel(rawUser);
+                    }
+                    if (rawUser is Map) {
+                      return ChatUser.fromJson(
+                        Map<String, dynamic>.from(rawUser),
+                      );
+                    }
+                    return null;
+                  })
+                  .whereType<ChatUser>()
                   .where(
                     (user) =>
                         user.id != currentUserId &&
