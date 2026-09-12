@@ -1333,44 +1333,47 @@ class _TipSheetState extends State<TipSheet> {
                                 final isSelected = selected.any(
                                   (item) => item.id == user.id,
                                 );
-                                return ListTile(
-                                  onTap: () => setSheetState(() {
-                                    if (isSelected) {
-                                      selected.removeWhere(
-                                        (item) => item.id == user.id,
-                                      );
-                                    } else {
-                                      selected.add(user);
-                                    }
-                                  }),
-                                  leading: CircleAvatar(
-                                    backgroundImage: user.profileUrl != null
-                                        ? NetworkImage(user.profileUrl!)
-                                        : null,
-                                    child: user.profileUrl == null
-                                        ? Text(
-                                            user.effectiveDisplayName
-                                                .substring(0, 1)
-                                                .toUpperCase(),
-                                          )
-                                        : null,
-                                  ),
-                                  title: Text(
-                                    user.effectiveDisplayName,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
+                                return Material(
+                                  color: Colors.transparent,
+                                  child: ListTile(
+                                    onTap: () => setSheetState(() {
+                                      if (isSelected) {
+                                        selected.removeWhere(
+                                          (item) => item.id == user.id,
+                                        );
+                                      } else {
+                                        selected.add(user);
+                                      }
+                                    }),
+                                    leading: CircleAvatar(
+                                      backgroundImage: user.profileUrl != null
+                                          ? NetworkImage(user.profileUrl!)
+                                          : null,
+                                      child: user.profileUrl == null
+                                          ? Text(
+                                              user.effectiveDisplayName
+                                                  .substring(0, 1)
+                                                  .toUpperCase(),
+                                            )
+                                          : null,
                                     ),
-                                  ),
-                                  subtitle: user.username == null
-                                      ? null
-                                      : Text('@${user.username}'),
-                                  trailing: Icon(
-                                    isSelected
-                                        ? Icons.check_circle_rounded
-                                        : Icons.circle_outlined,
-                                    color: isSelected
-                                        ? colors.primary
-                                        : colors.outline,
+                                    title: Text(
+                                      user.effectiveDisplayName,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    subtitle: user.username == null
+                                        ? null
+                                        : Text('@${user.username}'),
+                                    trailing: Icon(
+                                      isSelected
+                                          ? Icons.check_circle_rounded
+                                          : Icons.circle_outlined,
+                                      color: isSelected
+                                          ? colors.primary
+                                          : colors.outline,
+                                    ),
                                   ),
                                 );
                               },
@@ -1450,24 +1453,27 @@ class _TipSheetState extends State<TipSheet> {
                   itemCount: available.length,
                   itemBuilder: (context, index) {
                     final token = available[index];
-                    return ListTile(
-                      onTap: () => Navigator.pop(context, token),
-                      leading: CircleAvatar(
-                        backgroundImage: token.imageUrl.isNotEmpty
-                            ? NetworkImage(token.imageUrl)
+                    return Material(
+                      color: Colors.transparent,
+                      child: ListTile(
+                        onTap: () => Navigator.pop(context, token),
+                        leading: CircleAvatar(
+                          backgroundImage: token.imageUrl.isNotEmpty
+                              ? NetworkImage(token.imageUrl)
+                              : null,
+                        ),
+                        title: Text(
+                          token.name,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        subtitle: Text('${token.symbol} • ${token.balance}'),
+                        trailing: token.identity == current?.identity
+                            ? Icon(
+                                Icons.check_circle_rounded,
+                                color: colors.primary,
+                              )
                             : null,
                       ),
-                      title: Text(
-                        token.name,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      subtitle: Text('${token.symbol} • ${token.balance}'),
-                      trailing: token.identity == current?.identity
-                          ? Icon(
-                              Icons.check_circle_rounded,
-                              color: colors.primary,
-                            )
-                          : null,
                     );
                   },
                 ),
