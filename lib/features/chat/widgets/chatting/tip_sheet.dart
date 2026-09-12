@@ -1134,20 +1134,22 @@ class _TipSheetState extends State<TipSheet> {
   ) {
     final colors = Theme.of(context).colorScheme;
     final currentUserId = context.read<UserProvider>().user?.id;
+    // The modal builder can rebuild when the keyboard opens or closes. Keep
+    // selection and search state outside it so selected recipients survive
+    // those layout rebuilds.
+    final selected = List<ChatUser>.from(currentlySelected);
+    List<ChatUser> results = [];
+    Timer? debounce;
+    var isLoading = false;
+    String? errorMessage;
+    var queryVersion = 0;
+    final searchController = TextEditingController();
 
     return showModalBottomSheet<List<ChatUser>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
-        List<ChatUser> selected = List.from(currentlySelected);
-        List<ChatUser> results = [];
-        Timer? debounce;
-        var isLoading = false;
-        String? errorMessage;
-        var queryVersion = 0;
-        final searchController = TextEditingController();
-
         Future<void> search(String query, StateSetter setSheetState) async {
           final trimmed = query.trim();
           final version = ++queryVersion;
@@ -1169,7 +1171,7 @@ class _TipSheetState extends State<TipSheet> {
                 .read<UserProvider>()
                 .userApiService
                 .searchUsers(trimmed, limit: 20);
-            if (version != queryVersion || !sheetContext.mounted) return;
+            if (version != queryVersion || !mounted) return;
             final users = response['users'] as List? ?? const [];
             final seenIds = <String>{};
             setSheetState(() {
@@ -1186,7 +1188,7 @@ class _TipSheetState extends State<TipSheet> {
               isLoading = false;
             });
           } catch (_) {
-            if (version == queryVersion && sheetContext.mounted) {
+            if (version == queryVersion && mounted) {
               setSheetState(() {
                 results = [];
                 isLoading = false;
