@@ -1146,7 +1146,6 @@ class _TipSheetState extends State<TipSheet> {
     var queryVersion = 0;
     var closed = false;
     final searchController = TextEditingController();
-    final searchFocusNode = FocusNode();
 
     final sheet = showModalBottomSheet<List<ChatUser>>(
       context: context,
@@ -1216,193 +1215,188 @@ class _TipSheetState extends State<TipSheet> {
         }
 
         return StatefulBuilder(
-          builder: (context, setSheetState) => DraggableScrollableSheet(
-            initialChildSize: 0.82,
-            minChildSize: 0.55,
-            maxChildSize: 0.95,
-            builder: (context, scrollController) => PopScope<Object?>(
+          builder: (context, setSheetState) => SizedBox(
+            height: MediaQuery.sizeOf(context).height * 0.92,
+            child: PopScope<Object?>(
               onPopInvokedWithResult: (didPop, result) {
                 if (!didPop) return;
-                searchFocusNode.unfocus();
+                FocusManager.instance.primaryFocus?.unfocus();
                 closed = true;
                 queryVersion++;
                 debounce?.cancel();
               },
-              child: SizedBox.expand(
-                child: GriotBottomSheet(
-                  radius: 28,
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 12),
-                      Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: colors.onSurfaceVariant.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
+              child: GriotBottomSheet(
+                radius: 28,
+                child: Column(
+                  children: [
+                    const SizedBox(height: 12),
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: colors.onSurfaceVariant.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(2),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Select people to tip',
-                              style: TextStyle(
-                                fontSize: 19,
-                                fontWeight: FontWeight.w900,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Select people to tip',
+                            style: TextStyle(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: searchController,
+                            autofocus: true,
+                            decoration: InputDecoration(
+                              hintText: 'Search name, username, or wallet',
+                              prefixIcon: const Icon(Icons.search_rounded),
+                              filled: true,
+                              fillColor: colors.surfaceContainerHighest
+                                  .withValues(alpha: 0.45),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: BorderSide.none,
                               ),
                             ),
+                            onChanged: (value) {
+                              debounce?.cancel();
+                              debounce = Timer(
+                                const Duration(milliseconds: 350),
+                                () {
+                                  search(value, setSheetState);
+                                },
+                              );
+                            },
+                          ),
+                          if (selected.isNotEmpty) ...[
                             const SizedBox(height: 12),
-                            TextField(
-                              controller: searchController,
-                              focusNode: searchFocusNode,
-                              autofocus: true,
-                              decoration: InputDecoration(
-                                hintText: 'Search name, username, or wallet',
-                                prefixIcon: const Icon(Icons.search_rounded),
-                                filled: true,
-                                fillColor: colors.surfaceContainerHighest
-                                    .withValues(alpha: 0.45),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  borderSide: BorderSide.none,
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                '${selected.length} selected',
+                                style: TextStyle(
+                                  color: colors.onSurfaceVariant,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
                                 ),
                               ),
-                              onChanged: (value) {
-                                debounce?.cancel();
-                                debounce = Timer(
-                                  const Duration(milliseconds: 350),
-                                  () {
-                                    search(value, setSheetState);
-                                  },
+                            ),
+                            const SizedBox(height: 6),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: selected.map((user) {
+                                  return InputChip(
+                                    label: Text(user.effectiveDisplayName),
+                                    onDeleted: () => setSheetState(
+                                      () => selected.removeWhere(
+                                        (item) => item.id == user.id,
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: isLoading
+                          ? const Center(child: GriotLoader())
+                          : results.isEmpty
+                          ? Center(
+                              child: Text(
+                                errorMessage ??
+                                    (searchController.text.trim().length < 2
+                                        ? 'Type at least 2 characters to search.'
+                                        : 'No eligible users found.'),
+                                style: TextStyle(
+                                  color: colors.onSurfaceVariant,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: results.length,
+                              itemBuilder: (context, index) {
+                                final user = results[index];
+                                final isSelected = selected.any(
+                                  (item) => item.id == user.id,
+                                );
+                                return ListTile(
+                                  onTap: () => setSheetState(() {
+                                    if (isSelected) {
+                                      selected.removeWhere(
+                                        (item) => item.id == user.id,
+                                      );
+                                    } else {
+                                      selected.add(user);
+                                    }
+                                  }),
+                                  leading: CircleAvatar(
+                                    backgroundImage: user.profileUrl != null
+                                        ? NetworkImage(user.profileUrl!)
+                                        : null,
+                                    child: user.profileUrl == null
+                                        ? Text(
+                                            user.effectiveDisplayName
+                                                .substring(0, 1)
+                                                .toUpperCase(),
+                                          )
+                                        : null,
+                                  ),
+                                  title: Text(
+                                    user.effectiveDisplayName,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  subtitle: user.username == null
+                                      ? null
+                                      : Text('@${user.username}'),
+                                  trailing: Icon(
+                                    isSelected
+                                        ? Icons.check_circle_rounded
+                                        : Icons.circle_outlined,
+                                    color: isSelected
+                                        ? colors.primary
+                                        : colors.outline,
+                                  ),
                                 );
                               },
                             ),
-                            if (selected.isNotEmpty) ...[
-                              const SizedBox(height: 12),
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: Text(
-                                  '${selected.length} selected',
-                                  style: TextStyle(
-                                    color: colors.onSurfaceVariant,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: Wrap(
-                                  spacing: 6,
-                                  runSpacing: 6,
-                                  children: selected.map((user) {
-                                    return InputChip(
-                                      label: Text(user.effectiveDisplayName),
-                                      onDeleted: () => setSheetState(
-                                        () => selected.removeWhere(
-                                          (item) => item.id == user.id,
-                                        ),
-                                      ),
-                                    );
-                                  }).toList(),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      Expanded(
-                        child: isLoading
-                            ? const Center(child: GriotLoader())
-                            : results.isEmpty
-                            ? Center(
-                                child: Text(
-                                  errorMessage ??
-                                      (searchController.text.trim().length < 2
-                                          ? 'Type at least 2 characters to search.'
-                                          : 'No eligible users found.'),
-                                  style: TextStyle(
-                                    color: colors.onSurfaceVariant,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              )
-                            : ListView.builder(
-                                controller: scrollController,
-                                itemCount: results.length,
-                                itemBuilder: (context, index) {
-                                  final user = results[index];
-                                  final isSelected = selected.any(
-                                    (item) => item.id == user.id,
-                                  );
-                                  return ListTile(
-                                    onTap: () => setSheetState(() {
-                                      if (isSelected) {
-                                        selected.removeWhere(
-                                          (item) => item.id == user.id,
-                                        );
-                                      } else {
-                                        selected.add(user);
-                                      }
-                                    }),
-                                    leading: CircleAvatar(
-                                      backgroundImage: user.profileUrl != null
-                                          ? NetworkImage(user.profileUrl!)
-                                          : null,
-                                      child: user.profileUrl == null
-                                          ? Text(
-                                              user.effectiveDisplayName
-                                                  .substring(0, 1)
-                                                  .toUpperCase(),
-                                            )
-                                          : null,
-                                    ),
-                                    title: Text(
-                                      user.effectiveDisplayName,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    subtitle: user.username == null
-                                        ? null
-                                        : Text('@${user.username}'),
-                                    trailing: Icon(
-                                      isSelected
-                                          ? Icons.check_circle_rounded
-                                          : Icons.circle_outlined,
-                                      color: isSelected
-                                          ? colors.primary
-                                          : colors.outline,
-                                    ),
-                                  );
-                                },
-                              ),
-                      ),
-                      SafeArea(
-                        top: false,
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                          child: SizedBox(
-                            width: double.infinity,
-                            height: 54,
-                            child: FilledButton(
-                              onPressed: selected.isEmpty
-                                  ? null
-                                  : () {
-                                      searchFocusNode.unfocus();
-                                      Navigator.pop(sheetContext, selected);
-                                    },
-                              child: Text('Continue (${selected.length})'),
-                            ),
+                    ),
+                    SafeArea(
+                      top: false,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: 54,
+                          child: FilledButton(
+                            onPressed: selected.isEmpty
+                                ? null
+                                : () {
+                                    FocusManager.instance.primaryFocus
+                                        ?.unfocus();
+                                    Navigator.pop(sheetContext, selected);
+                                  },
+                            child: Text('Continue (${selected.length})'),
                           ),
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -1414,7 +1408,6 @@ class _TipSheetState extends State<TipSheet> {
       closed = true;
       queryVersion++;
       debounce?.cancel();
-      searchFocusNode.dispose();
       searchController.dispose();
     });
   }
