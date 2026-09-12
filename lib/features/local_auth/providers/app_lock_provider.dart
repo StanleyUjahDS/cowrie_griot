@@ -42,16 +42,21 @@ class AppLockProvider extends ChangeNotifier with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (!_isEnabled) return;
 
-    // `inactive` is also emitted for temporary interruptions such as the
-    // keyboard, dialogs, notification shade, and biometric prompts. It must
-    // not be treated as leaving the app or it can lock over normal settings.
-    // `paused`/`hidden` represent the app actually leaving the foreground.
-    if (state == AppLifecycleState.paused ||
+    // iOS commonly reports an app switch as `inactive` before `paused` or
+    // `hidden`, and some versions may only deliver `inactive`. Record it but
+    // wait for `resumed` before locking. This avoids locking over a temporary
+    // system dialog or biometric prompt while still enforcing Immediate.
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
       _backgroundTimestamp ??= DateTime.now();
 
-      // Zero is a valid setting: lock as soon as the app is backgrounded.
-      if (_autoLockDuration == Duration.zero) {
+      // For a real background transition, lock immediately when configured.
+      // If this was only a transient inactive state, resumed below will
+      // enforce the same setting without locking over the system prompt.
+      if ((state == AppLifecycleState.paused ||
+              state == AppLifecycleState.hidden) &&
+          _autoLockDuration == Duration.zero) {
         lock();
       }
       return;
@@ -62,8 +67,9 @@ class AppLockProvider extends ChangeNotifier with WidgetsBindingObserver {
       _backgroundTimestamp = null;
 
       if (backgroundTimestamp != null &&
-          (DateTime.now().difference(backgroundTimestamp) >=
-              _autoLockDuration)) {
+          (_autoLockDuration == Duration.zero ||
+              DateTime.now().difference(backgroundTimestamp) >=
+                  _autoLockDuration)) {
         lock();
       }
     }
