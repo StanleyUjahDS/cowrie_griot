@@ -328,6 +328,9 @@ class ApiConfig {
   static String messagingDirectById(String conversationId) =>
       '$messagingDirect/$conversationId';
 
+  static String messagingDirectOtherUser(String conversationId) =>
+      '$messagingDirect/$conversationId/other-user';
+
   static String messagingDirectMembers(String conversationId) =>
       '$messagingDirect/$conversationId/members';
 

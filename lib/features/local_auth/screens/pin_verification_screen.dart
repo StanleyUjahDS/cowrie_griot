@@ -34,6 +34,7 @@ class _PinVerificationScreenState extends State<PinVerificationScreen> {
 
   String _pin = '';
   bool _loading = false;
+  bool _biometricPending = false;
   int? _pressedIndex;
   int _failedAttempts = 0;
   DateTime? _cooldownUntil;
@@ -60,6 +61,7 @@ class _PinVerificationScreenState extends State<PinVerificationScreen> {
     _authService = LocalAuthService();
 
     if (widget.autoBiometrics) {
+      _biometricPending = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _checkBiometrics();
       });
@@ -67,15 +69,29 @@ class _PinVerificationScreenState extends State<PinVerificationScreen> {
   }
 
   Future<void> _checkBiometrics() async {
-    // Read the preference from secure storage here instead of relying on the
-    // provider's asynchronous startup state. This guarantees that the lock
-    // always attempts biometrics before showing the app PIN fallback.
-    final success = await _authService.authenticateWithBiometricsIfEnabled();
-    if (success && mounted) {
-      if (widget.onSuccess != null) {
-        await widget.onSuccess!(context);
-      } else {
-        context.pop();
+    try {
+      // Read the preference directly so the lock screen does not depend on
+      // the provider's asynchronous startup state.
+      final enabled = await _authService.biometricsEnabled();
+      final available = enabled && await _authService.biometricsAvailable();
+
+      if (!available) {
+        return;
+      }
+
+      final success = await _authService.authenticateWithBiometrics();
+      if (success && mounted) {
+        if (widget.onSuccess != null) {
+          await widget.onSuccess!(context);
+        } else {
+          context.pop();
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _biometricPending = false;
+        });
       }
     }
   }
@@ -260,103 +276,123 @@ class _PinVerificationScreenState extends State<PinVerificationScreen> {
 
               const SizedBox(height: 24),
 
-              Text(
-                widget.title ?? 'Enter your PIN',
-                style: text.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
+              if (_biometricPending) ...[
+                Text(
+                  'Unlock with biometrics',
+                  style: text.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-
-              const SizedBox(height: 12),
-
-              Text(
-                _isCooldownActive
-                    ? _cooldownMessage
-                    : (widget.description ??
-                          'Enter your 6-digit PIN to continue.'),
-                textAlign: TextAlign.center,
-                style: text.bodyMedium?.copyWith(
-                  color: _isCooldownActive
-                      ? colors.error
-                      : colors.onSurfaceVariant,
-                  fontWeight: _isCooldownActive
-                      ? FontWeight.bold
-                      : FontWeight.normal,
+                const SizedBox(height: 12),
+                Text(
+                  'Use Face ID or fingerprint to continue.',
+                  textAlign: TextAlign.center,
+                  style: text.bodyMedium?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
                 ),
-              ),
-
-              const SizedBox(height: 30),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(6, (index) {
-                  final filled = index < _pin.length;
-
-                  return AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    margin: const EdgeInsets.symmetric(horizontal: 6),
-                    width: 14,
-                    height: 14,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: filled
-                          ? colors.onSurface
-                          : colors.onSurface.withValues(alpha: 0.20),
-                    ),
-                  );
-                }),
-              ),
-
-              const SizedBox(height: 45),
-
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: _keys.length,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  mainAxisExtent: 70,
+                const SizedBox(height: 36),
+                const GriotLoader(size: 32),
+                const SizedBox(height: 50),
+              ] else ...[
+                Text(
+                  widget.title ?? 'Enter your PIN',
+                  style: text.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-                itemBuilder: (context, index) {
-                  final key = _keys[index];
 
-                  if (key.isEmpty) {
-                    return const SizedBox.shrink();
-                  }
+                const SizedBox(height: 12),
 
-                  final pressed = _pressedIndex == index;
+                Text(
+                  _isCooldownActive
+                      ? _cooldownMessage
+                      : (widget.description ??
+                            'Enter your 6-digit PIN to continue.'),
+                  textAlign: TextAlign.center,
+                  style: text.bodyMedium?.copyWith(
+                    color: _isCooldownActive
+                        ? colors.error
+                        : colors.onSurfaceVariant,
+                    fontWeight: _isCooldownActive
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                  ),
+                ),
 
-                  return GestureDetector(
-                    onTap: () => _onKeyTap(key, index),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 100),
+                const SizedBox(height: 30),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(6, (index) {
+                    final filled = index < _pin.length;
+
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      margin: const EdgeInsets.symmetric(horizontal: 6),
+                      width: 14,
+                      height: 14,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: pressed
-                            ? colors.onSurface.withValues(alpha: 0.08)
-                            : Colors.transparent,
+                        color: filled
+                            ? colors.onSurface
+                            : colors.onSurface.withValues(alpha: 0.20),
                       ),
-                      child: Center(
-                        child: key == '⌫'
-                            ? Icon(Icons.backspace, color: colors.onSurface)
-                            : Text(key, style: text.titleMedium),
+                    );
+                  }),
+                ),
+
+                const SizedBox(height: 45),
+
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _keys.length,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    mainAxisExtent: 70,
+                  ),
+                  itemBuilder: (context, index) {
+                    final key = _keys[index];
+
+                    if (key.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+
+                    final pressed = _pressedIndex == index;
+
+                    return GestureDetector(
+                      onTap: () => _onKeyTap(key, index),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 100),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: pressed
+                              ? colors.onSurface.withValues(alpha: 0.08)
+                              : Colors.transparent,
+                        ),
+                        child: Center(
+                          child: key == '⌫'
+                              ? Icon(Icons.backspace, color: colors.onSurface)
+                              : Text(key, style: text.titleMedium),
+                        ),
                       ),
-                    ),
-                  );
-                },
-              ),
+                    );
+                  },
+                ),
 
-              const SizedBox(height: 30),
+                const SizedBox(height: 30),
 
-              if (_loading)
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 20),
-                  child: GriotLoader(size: 28),
-                )
-              else
-                const SizedBox(height: 20),
+                if (_loading)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 20),
+                    child: GriotLoader(size: 28),
+                  )
+                else
+                  const SizedBox(height: 20),
+              ],
             ],
           ),
         ),

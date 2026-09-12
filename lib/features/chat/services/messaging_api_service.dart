@@ -65,6 +65,13 @@ class MessagingApiService {
     return Conversation.fromJson(Map<String, dynamic>.from(_getData(response)));
   }
 
+  Future<ChatUser> getOtherDirectUser(String conversationId) async {
+    final response = await _apiClient.get(
+      ApiConfig.messagingDirectOtherUser(conversationId),
+    );
+    return ChatUser.fromJson(Map<String, dynamic>.from(_getData(response)));
+  }
+
   Future<List<Conversation>> getGroups() async {
     final response = await _apiClient.get(ApiConfig.messagingGroups);
     return _conversationList(_getData(response), fallbackType: 'group');

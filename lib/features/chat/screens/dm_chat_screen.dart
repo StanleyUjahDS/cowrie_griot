@@ -79,12 +79,12 @@ class _DMChatScreenState extends State<DMChatScreen> {
 
   Future<void> _initConversationById(String conversationId) async {
     final provider = Provider.of<MessagingProvider>(context, listen: false);
+    final apiService = context.read<MessagingApiService>();
     provider.joinConversation(conversationId);
     provider.loadMessages(conversationId, refresh: true);
 
     if (_conversation == null) {
       if (!mounted) return;
-      final apiService = context.read<MessagingApiService>();
       try {
         final conversation = await apiService.getConversation(conversationId);
         if (mounted) {
@@ -99,6 +99,51 @@ class _DMChatScreenState extends State<DMChatScreen> {
       } catch (e) {
         debugPrint('Failed to load conversation details: $e');
       }
+    }
+
+    var participant = _conversation?.otherUser;
+    if (participant == null) {
+      try {
+        participant = await apiService.getOtherDirectUser(conversationId);
+        if (mounted) {
+          setState(() {
+            _conversation = _conversation?.copyWith(otherUser: participant);
+          });
+        }
+      } catch (error) {
+        debugPrint('Failed to load DM participant: $error');
+      }
+    }
+    if (participant != null) {
+      await _hydrateOtherUserProfile(participant);
+    }
+  }
+
+  /// Conversation lists may contain an expired signed avatar URL from the
+  /// local cache. Refresh the participant profile when opening a DM so the
+  /// header always receives the current backend URL.
+  Future<void> _hydrateOtherUserProfile(ChatUser participant) async {
+    try {
+      final profile = await context
+          .read<UserProvider>()
+          .userApiService
+          .getUserById(participant.id);
+      if (!mounted) return;
+
+      final refreshed = participant.copyWith(
+        username: profile.username ?? participant.username,
+        displayName: profile.displayName ?? participant.displayName,
+        profileUrl: profile.avatarUrl ?? participant.profileUrl,
+        bio: profile.bio ?? participant.bio,
+        relationshipStatus:
+            profile.relationshipStatus ?? participant.relationshipStatus,
+        isPlus: profile.isPlus || participant.isPlus,
+      );
+      setState(() {
+        _conversation = _conversation?.copyWith(otherUser: refreshed);
+      });
+    } catch (error) {
+      debugPrint('Failed to refresh DM participant profile: $error');
     }
   }
 
@@ -130,6 +175,10 @@ class _DMChatScreenState extends State<DMChatScreen> {
               ? conversation.copyWith(otherUser: widget.initialUser)
               : conversation;
         });
+        final participant = _conversation?.otherUser;
+        if (participant != null) {
+          await _hydrateOtherUserProfile(participant);
+        }
         provider.joinConversation(conversation.id);
         provider.loadMessages(conversation.id, refresh: true);
       }
