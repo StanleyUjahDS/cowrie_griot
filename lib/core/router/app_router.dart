@@ -234,7 +234,16 @@ class AppRouter {
       GoRoute(
         path: '/user/profile',
         builder: (context, state) {
-          final user = state.extra as users.UserModel?;
+          final extra = state.extra;
+          // Conversation lists carry ChatUser instances, while discovery and
+          // profile flows may carry UserModel instances. Long-pressing a DM
+          // must support both representations instead of throwing a runtime
+          // type-cast error.
+          final user = extra is users.UserModel
+              ? extra
+              : extra is ChatUser
+              ? extra.toUserModel()
+              : null;
           if (user == null) {
             return const _InvalidRoute(message: 'User data missing.');
           }
