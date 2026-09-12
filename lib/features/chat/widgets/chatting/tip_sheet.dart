@@ -1144,9 +1144,10 @@ class _TipSheetState extends State<TipSheet> {
     var isLoading = false;
     String? errorMessage;
     var queryVersion = 0;
+    var closed = false;
     final searchController = TextEditingController();
 
-    return showModalBottomSheet<List<ChatUser>>(
+    final sheet = showModalBottomSheet<List<ChatUser>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -1172,7 +1173,7 @@ class _TipSheetState extends State<TipSheet> {
                 .read<UserProvider>()
                 .userApiService
                 .searchUsers(trimmed, limit: 20);
-            if (version != queryVersion || !mounted) return;
+            if (closed || version != queryVersion || !mounted) return;
             final users = response['users'] as List? ?? const [];
             final seenIds = <String>{};
             setSheetState(() {
@@ -1201,7 +1202,7 @@ class _TipSheetState extends State<TipSheet> {
               isLoading = false;
             });
           } catch (_) {
-            if (version == queryVersion && mounted) {
+            if (!closed && version == queryVersion && mounted) {
               setSheetState(() {
                 results = [];
                 isLoading = false;
@@ -1378,8 +1379,9 @@ class _TipSheetState extends State<TipSheet> {
                           onPressed: selected.isEmpty
                               ? null
                               : () {
+                                  closed = true;
+                                  queryVersion++;
                                   debounce?.cancel();
-                                  searchController.dispose();
                                   Navigator.pop(sheetContext, selected);
                                 },
                           child: Text('Continue (${selected.length})'),
@@ -1394,6 +1396,12 @@ class _TipSheetState extends State<TipSheet> {
         );
       },
     );
+    return sheet.whenComplete(() {
+      closed = true;
+      queryVersion++;
+      debounce?.cancel();
+      searchController.dispose();
+    });
   }
 
   Future<TokenModel?> _showTokenSelector(
