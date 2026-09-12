@@ -1,6 +1,7 @@
 // lib/features/local_auth/services/app_lock_service.dart
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:local_auth/local_auth.dart';
 
 class AppLockService {
   static const String _appLockEnabledKey = 'app_lock_enabled';
@@ -63,14 +64,15 @@ class AppLockService {
   // ============================================================
 
   Future<bool> areBiometricsAvailable() async {
-    // Keep this service independent from local_auth.
-    //
-    // The actual biometric availability check is handled
-    // by BiometricService.
-    //
-    // This method exists so SettingsScreen can safely query
-    // whether biometric unlock can be enabled.
-    return true;
+    try {
+      final auth = LocalAuthentication();
+      final canCheck = await auth.canCheckBiometrics;
+      final supported = await auth.isDeviceSupported();
+      final biometrics = await auth.getAvailableBiometrics();
+      return canCheck && supported && biometrics.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
   }
 
   // ============================================================

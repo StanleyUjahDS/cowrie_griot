@@ -1,13 +1,14 @@
 // biometrics_screen.dart
 
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:local_auth/local_auth.dart';
+import 'package:provider/provider.dart';
 
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
 import '../../../core/services/notification_service.dart';
+import '../providers/app_lock_provider.dart';
 
 class BiometricsScreen extends StatefulWidget {
   const BiometricsScreen({
@@ -27,9 +28,6 @@ class _BiometricsScreenState
 
   final LocalAuthentication _auth =
   LocalAuthentication();
-
-  static const FlutterSecureStorage _storage =
-  FlutterSecureStorage();
 
   // ============================================================
   // STATE
@@ -117,6 +115,8 @@ class _BiometricsScreenState
       return;
     }
 
+    final appLockProvider = context.read<AppLockProvider>();
+
     setState(() {
       _authenticating = true;
     });
@@ -130,7 +130,7 @@ class _BiometricsScreenState
       await _auth.authenticate(
         localizedReason:
         'Use biometrics to unlock your wallet',
-        biometricOnly: false,
+        biometricOnly: true,
         persistAcrossBackgrounding: true,
       );
 
@@ -158,10 +158,7 @@ class _BiometricsScreenState
       // SAVE BIOMETRIC PREFERENCE
       // ========================================================
 
-      await _storage.write(
-        key: 'biometrics_enabled',
-        value: 'true',
-      );
+      await appLockProvider.setBiometricEnabled(true);
 
       // ========================================================
       // CONTINUE TO APPLICATION
@@ -210,6 +207,8 @@ class _BiometricsScreenState
       return;
     }
 
+    final appLockProvider = context.read<AppLockProvider>();
+
     setState(() {
       _authenticating = true;
     });
@@ -219,10 +218,7 @@ class _BiometricsScreenState
       // SAVE BIOMETRIC PREFERENCE
       // ========================================================
 
-      await _storage.write(
-        key: 'biometrics_enabled',
-        value: 'false',
-      );
+      await appLockProvider.setBiometricEnabled(false);
 
       // ========================================================
       // CONTINUE TO APPLICATION
