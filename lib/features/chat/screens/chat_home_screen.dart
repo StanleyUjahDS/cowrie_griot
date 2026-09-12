@@ -201,7 +201,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
             borderRadius: BorderRadius.circular(20),
           ),
           elevation: 6,
-          child: const Icon(Icons.add_rounded, size: 32),
+          child: const Icon(Icons.search_rounded, size: 30),
         ),
       ),
       child: Stack(
