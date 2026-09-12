@@ -5,6 +5,7 @@ import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:griot_cowrie/features/users/providers/user_provider.dart';
+import 'package:griot_cowrie/features/users/models/user_model.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
@@ -512,16 +513,29 @@ class _DMChatScreenState extends State<DMChatScreen> {
             : _conversation;
         final providerOtherUser = baseConversation?.otherUser;
         final fallbackOtherUser = _conversation?.otherUser;
+        final knownFriend = providerOtherUser == null
+            ? null
+            : provider.friends.cast<UserModel?>().firstWhere(
+                (friend) => friend?.id == providerOtherUser.id,
+                orElse: () => null,
+              );
+        final friendFallback = knownFriend == null
+            ? null
+            : ChatUser.fromUserModel(knownFriend);
+        final freshOtherUser = fallbackOtherUser ?? friendFallback;
         final otherUser = providerOtherUser == null
-            ? fallbackOtherUser
-            : ((providerOtherUser.profileUrl == null ||
-                      providerOtherUser.profileUrl!.trim().isEmpty) &&
-                  fallbackOtherUser?.profileUrl != null &&
-                  fallbackOtherUser!.profileUrl!.trim().isNotEmpty)
-            ? providerOtherUser.copyWith(
-                profileUrl: fallbackOtherUser.profileUrl,
-              )
-            : providerOtherUser;
+            ? freshOtherUser
+            : providerOtherUser.copyWith(
+                username: freshOtherUser?.username,
+                displayName: freshOtherUser?.displayName,
+                profileUrl: freshOtherUser?.profileUrl,
+                bio: freshOtherUser?.bio,
+                relationshipStatus: freshOtherUser?.relationshipStatus,
+                reputation: freshOtherUser?.reputation,
+                isPlus:
+                    providerOtherUser.isPlus ||
+                    (freshOtherUser?.isPlus ?? false),
+              );
         final currentConversation = baseConversation?.copyWith(
           otherUser: otherUser,
         );
