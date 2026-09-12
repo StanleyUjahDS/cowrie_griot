@@ -6,10 +6,7 @@ import '../models/conversation_model.dart';
 class ChannelListItem extends StatelessWidget {
   final Conversation conversation;
 
-  const ChannelListItem({
-    super.key,
-    required this.conversation,
-  });
+  const ChannelListItem({super.key, required this.conversation});
 
   @override
   Widget build(BuildContext context) {
@@ -18,8 +15,7 @@ class ChannelListItem extends StatelessWidget {
     final textTheme = theme.textTheme;
 
     final imageUrl = conversation.imageUrl;
-    final hasImage =
-        imageUrl != null && imageUrl.trim().isNotEmpty;
+    final hasImage = imageUrl != null && imageUrl.trim().isNotEmpty;
 
     final bool isDark = theme.brightness == Brightness.dark;
 
@@ -72,7 +68,9 @@ class ChannelListItem extends StatelessWidget {
                       color: colorScheme.primary.withValues(alpha: 0.15),
                       width: 1.5,
                     ),
-                    color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                    color: colorScheme.surfaceContainerHighest.withValues(
+                      alpha: 0.5,
+                    ),
                   ),
                   child: ClipOval(
                     child: hasImage
@@ -109,7 +107,10 @@ class ChannelListItem extends StatelessWidget {
                           ),
                           const SizedBox(width: 6),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: colorScheme.primary.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(6),
@@ -127,11 +128,13 @@ class ChannelListItem extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${conversation.subscriberCount} subscribers${conversation.lastMessage != null ? ' • ${conversation.lastMessage!.text}' : ''}',
+                        '${conversation.subscriberCount} subscribers${conversation.lastMessage != null ? ' • ${conversation.lastMessage!.previewText}' : ''}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                          color: colorScheme.onSurfaceVariant.withValues(
+                            alpha: 0.6,
+                          ),
                           fontWeight: FontWeight.w600,
                           fontSize: 12,
                         ),
@@ -152,7 +155,9 @@ class ChannelListItem extends StatelessWidget {
                     Text(
                       _formatTime(conversation.updatedAt),
                       style: textTheme.labelSmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                        color: colorScheme.onSurfaceVariant.withValues(
+                          alpha: 0.4,
+                        ),
                         fontWeight: FontWeight.w700,
                         fontSize: 10,
                       ),
@@ -161,7 +166,9 @@ class ChannelListItem extends StatelessWidget {
                     Icon(
                       Icons.chevron_right_rounded,
                       size: 20,
-                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.2),
+                      color: colorScheme.onSurfaceVariant.withValues(
+                        alpha: 0.2,
+                      ),
                     ),
                   ],
                 ),

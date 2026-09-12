@@ -411,6 +411,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
                         timestamp: conv.updatedAt,
                         unreadCount: conv.unreadCount,
                       ),
+                      lastMessage: conv.lastMessage,
                       time: _formatTime(conv.updatedAt),
                       onTap: () =>
                           context.push('/conversation/${conv.id}', extra: conv),
@@ -511,6 +512,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
                 timestamp: conv.updatedAt,
                 unreadCount: conv.unreadCount,
               ),
+              lastMessage: conv.lastMessage,
               time: _formatTime(conv.updatedAt),
               onTap: () =>
                   context.push('/conversation/${conv.id}', extra: conv),

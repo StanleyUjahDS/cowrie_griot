@@ -91,6 +91,27 @@ class ChatMessage {
 
   bool get isFile => type == MessageType.file;
 
+  /// Human-readable text used in conversation overviews and notifications.
+  /// The full message bubble renders the actual payload; list previews need a
+  /// useful label even when a message has no text body.
+  String get previewText {
+    if (isDeleted) return 'Message deleted';
+    final trimmed = text.trim();
+    if (type == MessageType.text && trimmed.isNotEmpty) return trimmed;
+    return switch (type) {
+      MessageType.image => 'Photo',
+      MessageType.video => 'Video',
+      MessageType.audio => 'Audio message',
+      MessageType.voice => 'Voice message',
+      MessageType.file => trimmed.isNotEmpty ? trimmed : 'File',
+      MessageType.location => 'Location',
+      MessageType.contact => 'Contact',
+      MessageType.tip => 'Tip',
+      MessageType.system => trimmed.isNotEmpty ? trimmed : 'System message',
+      MessageType.text => trimmed.isNotEmpty ? trimmed : 'Message',
+    };
+  }
+
   bool get hasReply => replyToMessageId != null && replyToMessageId!.isNotEmpty;
 
   // ==========================================================

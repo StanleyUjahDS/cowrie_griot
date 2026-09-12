@@ -6,11 +6,14 @@ import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/widgets/griot_plus_badge.dart';
 import '../models/chat_user.dart';
+import '../models/chat_message.dart';
 import '../providers/messaging_provider.dart';
+import '../../users/providers/user_provider.dart';
 
 class ChatListItem extends StatelessWidget {
   final ChatUser user;
   final String time;
+  final ChatMessage? lastMessage;
   final VoidCallback? onTap;
   final VoidCallback? onAvatarTap;
 
@@ -18,6 +21,7 @@ class ChatListItem extends StatelessWidget {
     super.key,
     required this.user,
     required this.time,
+    this.lastMessage,
     this.onTap,
     this.onAvatarTap,
   });
@@ -30,6 +34,9 @@ class ChatListItem extends StatelessWidget {
 
     final profileUrl = user.profileUrl;
     final hasProfileImage = profileUrl != null && profileUrl.trim().isNotEmpty;
+    final currentUserId = context.read<UserProvider>().user?.id;
+    final preview = lastMessage?.previewText ?? user.lastMessage;
+    final isOwnMessage = lastMessage?.senderId == currentUserId;
 
     final bool isOnline =
         context.watch<MessagingProvider>().presenceMap[user.id] == true ||
@@ -199,20 +206,37 @@ class ChatListItem extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        user.lastMessage.trim().isNotEmpty
-                            ? user.lastMessage
-                            : user.formattedUsername ?? user.shortWalletAddress,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant.withValues(
-                            alpha: 0.7,
+                      Row(
+                        children: [
+                          if (isOwnMessage && lastMessage != null)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: _DeliveryIcon(
+                                status: lastMessage!.status,
+                                color: colorScheme.onSurfaceVariant.withValues(
+                                  alpha: 0.7,
+                                ),
+                              ),
+                            ),
+                          Expanded(
+                            child: Text(
+                              preview.trim().isNotEmpty
+                                  ? preview
+                                  : user.formattedUsername ??
+                                        user.shortWalletAddress,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: textTheme.bodyMedium?.copyWith(
+                                color: colorScheme.onSurfaceVariant.withValues(
+                                  alpha: 0.7,
+                                ),
+                                fontWeight: user.unreadCount > 0
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                              ),
+                            ),
                           ),
-                          fontWeight: user.unreadCount > 0
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                        ),
+                        ],
                       ),
                     ],
                   ),
@@ -286,5 +310,24 @@ class ChatListItem extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _DeliveryIcon extends StatelessWidget {
+  final MessageStatus status;
+  final Color color;
+
+  const _DeliveryIcon({required this.status, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = switch (status) {
+      MessageStatus.sending => Icons.schedule_rounded,
+      MessageStatus.sent => Icons.done_rounded,
+      MessageStatus.delivered => Icons.done_all_rounded,
+      MessageStatus.read => Icons.done_all_rounded,
+      MessageStatus.failed => Icons.error_outline_rounded,
+    };
+    return Icon(icon, size: 14, color: color);
   }
 }

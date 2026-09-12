@@ -6,11 +6,7 @@ class GroupListItem extends StatelessWidget {
   final Conversation conversation;
   final VoidCallback? onTap;
 
-  const GroupListItem({
-    super.key,
-    required this.conversation,
-    this.onTap,
-  });
+  const GroupListItem({super.key, required this.conversation, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +15,9 @@ class GroupListItem extends StatelessWidget {
     final textTheme = theme.textTheme;
 
     final description = (conversation.description ?? '').trim();
-    final hasImage = conversation.imageUrl != null && conversation.imageUrl!.trim().isNotEmpty;
+    final hasImage =
+        conversation.imageUrl != null &&
+        conversation.imageUrl!.trim().isNotEmpty;
 
     final bool isDark = theme.brightness == Brightness.dark;
 
@@ -67,16 +65,21 @@ class GroupListItem extends StatelessWidget {
                       color: colorScheme.primary.withValues(alpha: 0.15),
                       width: 1.5,
                     ),
-                    color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                    color: colorScheme.surfaceContainerHighest.withValues(
+                      alpha: 0.5,
+                    ),
                   ),
                   child: ClipOval(
                     child: hasImage
-                        ? Image.network(conversation.imageUrl!, fit: BoxFit.cover)
+                        ? Image.network(
+                            conversation.imageUrl!,
+                            fit: BoxFit.cover,
+                          )
                         : Icon(
-                      Icons.groups_rounded,
-                      size: 30,
-                      color: colorScheme.primary,
-                    ),
+                            Icons.groups_rounded,
+                            size: 30,
+                            color: colorScheme.primary,
+                          ),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -100,11 +103,16 @@ class GroupListItem extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        description.isNotEmpty ? description : 'Group conversation',
+                        conversation.lastMessage?.previewText ??
+                            (description.isNotEmpty
+                                ? description
+                                : 'Group conversation'),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                          color: colorScheme.onSurfaceVariant.withValues(
+                            alpha: 0.6,
+                          ),
                           fontWeight: FontWeight.w600,
                           fontSize: 12,
                         ),
@@ -124,7 +132,10 @@ class GroupListItem extends StatelessWidget {
                   children: [
                     if (conversation.memberCount > 0)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: colorScheme.primary.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(10),
@@ -132,12 +143,17 @@ class GroupListItem extends StatelessWidget {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.person_rounded, size: 12, color: colorScheme.primary),
+                            Icon(
+                              Icons.person_rounded,
+                              size: 12,
+                              color: colorScheme.primary,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               conversation.memberCount.toString(),
                               style: TextStyle(
-                                color: colorScheme.primary.computeLuminance() > 0.6
+                                color:
+                                    colorScheme.primary.computeLuminance() > 0.6
                                     ? colorScheme.onSurface
                                     : colorScheme.primary,
                                 fontSize: 10,
@@ -151,7 +167,9 @@ class GroupListItem extends StatelessWidget {
                     Icon(
                       Icons.chevron_right_rounded,
                       size: 20,
-                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.2),
+                      color: colorScheme.onSurfaceVariant.withValues(
+                        alpha: 0.2,
+                      ),
                     ),
                   ],
                 ),
