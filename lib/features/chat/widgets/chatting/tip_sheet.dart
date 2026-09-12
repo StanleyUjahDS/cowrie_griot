@@ -1448,7 +1448,10 @@ class _TipSheetState extends State<TipSheet> {
                 child: Text('No supported tokens found.'),
               )
             else
-              Flexible(
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.6,
+                ),
                 child: ListView.builder(
                   shrinkWrap: true,
                   itemCount: available.length,
