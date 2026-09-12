@@ -37,18 +37,13 @@ class MessageInput extends StatelessWidget {
     final showWarning = textLength > 3500;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(28),
         child: BackdropFilter(
           filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
           child: Container(
-            padding: EdgeInsets.fromLTRB(
-              12,
-              12,
-              12,
-              MediaQuery.of(context).padding.bottom + 12,
-            ),
+            padding: EdgeInsets.fromLTRB(12, 12, 12, 8),
             decoration: BoxDecoration(
               color: theme.scaffoldBackgroundColor.withValues(alpha: 0.9),
               borderRadius: BorderRadius.circular(28),

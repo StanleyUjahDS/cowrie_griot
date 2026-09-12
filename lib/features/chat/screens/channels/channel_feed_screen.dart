@@ -400,14 +400,9 @@ class _ChannelComposerState extends State<_ChannelComposer> {
     final colors = theme.colorScheme;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
       child: Container(
-        padding: EdgeInsets.fromLTRB(
-          16,
-          12,
-          16,
-          MediaQuery.of(context).padding.bottom + 12,
-        ),
+        padding: EdgeInsets.fromLTRB(16, 12, 16, 12),
         decoration: BoxDecoration(
           color: colors.surface.withValues(alpha: 0.96),
           borderRadius: BorderRadius.circular(28),

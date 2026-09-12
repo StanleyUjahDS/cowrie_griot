@@ -269,13 +269,13 @@ class _CommentSheetState extends State<CommentSheet> {
               }
 
               return Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
                 child: Container(
                   padding: EdgeInsets.fromLTRB(
                     16,
                     8,
                     16,
-                    MediaQuery.of(context).viewInsets.bottom + 16,
+                    MediaQuery.of(context).viewInsets.bottom + 8,
                   ),
                   decoration: BoxDecoration(
                     color: colors.surface,
