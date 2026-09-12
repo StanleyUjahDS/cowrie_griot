@@ -16,6 +16,7 @@ class AppLockProvider extends ChangeNotifier with WidgetsBindingObserver {
   bool _biometricEnabled = false;
   Duration _autoLockDuration = const Duration(minutes: 5);
   DateTime? _backgroundTimestamp;
+  bool _enteredBackground = false;
 
   bool get isLocked => _isLocked;
   bool get isEnabled => _isEnabled;
@@ -42,21 +43,21 @@ class AppLockProvider extends ChangeNotifier with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (!_isEnabled) return;
 
-    // iOS commonly reports an app switch as `inactive` before `paused` or
-    // `hidden`, and some versions may only deliver `inactive`. Record it but
-    // wait for `resumed` before locking. This avoids locking over a temporary
-    // system dialog or biometric prompt while still enforcing Immediate.
-    if (state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.paused ||
+    // `inactive` is also emitted for Face ID, permission dialogs, keyboards,
+    // and other temporary system sheets. It must not count as leaving the
+    // app. A real background transition is represented by paused/hidden.
+    if (state == AppLifecycleState.inactive) {
+      _backgroundTimestamp ??= DateTime.now();
+      return;
+    }
+
+    if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
+      _enteredBackground = true;
       _backgroundTimestamp ??= DateTime.now();
 
       // For a real background transition, lock immediately when configured.
-      // If this was only a transient inactive state, resumed below will
-      // enforce the same setting without locking over the system prompt.
-      if ((state == AppLifecycleState.paused ||
-              state == AppLifecycleState.hidden) &&
-          _autoLockDuration == Duration.zero) {
+      if (_autoLockDuration == Duration.zero) {
         lock();
       }
       return;
@@ -64,9 +65,12 @@ class AppLockProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     if (state == AppLifecycleState.resumed) {
       final backgroundTimestamp = _backgroundTimestamp;
+      final enteredBackground = _enteredBackground;
       _backgroundTimestamp = null;
+      _enteredBackground = false;
 
-      if (backgroundTimestamp != null &&
+      if (enteredBackground &&
+          backgroundTimestamp != null &&
           (_autoLockDuration == Duration.zero ||
               DateTime.now().difference(backgroundTimestamp) >=
                   _autoLockDuration)) {
@@ -86,6 +90,7 @@ class AppLockProvider extends ChangeNotifier with WidgetsBindingObserver {
   void unlock() {
     _isLocked = false;
     _backgroundTimestamp = null;
+    _enteredBackground = false;
     notifyListeners();
   }
 
@@ -116,6 +121,7 @@ class AppLockProvider extends ChangeNotifier with WidgetsBindingObserver {
     _biometricEnabled = false;
     _autoLockDuration = const Duration(minutes: 5);
     _backgroundTimestamp = null;
+    _enteredBackground = false;
     notifyListeners();
   }
 
