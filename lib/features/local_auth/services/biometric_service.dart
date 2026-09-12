@@ -5,6 +5,7 @@ import 'package:local_auth/local_auth.dart';
 
 class BiometricService {
   static const String _enabledKey = 'biometrics_enabled';
+  static const String _appLockEnabledKey = 'biometric_unlock_enabled';
 
   final LocalAuthentication _auth;
   final FlutterSecureStorage _storage;
@@ -36,9 +37,17 @@ class BiometricService {
   // ============================================================
 
   Future<bool> isEnabled() async {
-    final value = await _storage.read(key: _enabledKey);
+    // The app-lock preference is authoritative when present.
+    final appLockValue = await _storage.read(key: _appLockEnabledKey);
 
-    return value == 'true';
+    if (appLockValue != null) {
+      return appLockValue == 'true';
+    }
+
+    // Existing installs may only have the original preference.
+    final legacyValue = await _storage.read(key: _enabledKey);
+
+    return legacyValue == 'true';
   }
 
   // ============================================================
@@ -47,6 +56,7 @@ class BiometricService {
 
   Future<void> enable() async {
     await _storage.write(key: _enabledKey, value: 'true');
+    await _storage.write(key: _appLockEnabledKey, value: 'true');
   }
 
   // ============================================================
@@ -55,6 +65,7 @@ class BiometricService {
 
   Future<void> disable() async {
     await _storage.write(key: _enabledKey, value: 'false');
+    await _storage.write(key: _appLockEnabledKey, value: 'false');
   }
 
   // ============================================================

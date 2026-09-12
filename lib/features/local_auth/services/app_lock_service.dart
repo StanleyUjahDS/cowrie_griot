@@ -5,6 +5,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 class AppLockService {
   static const String _appLockEnabledKey = 'app_lock_enabled';
   static const String _biometricUnlockEnabledKey = 'biometric_unlock_enabled';
+  // Kept for compatibility with the original biometric setup screen.
+  static const String _legacyBiometricEnabledKey = 'biometrics_enabled';
   static const String _autoLockDurationKey = 'auto_lock_duration_seconds';
 
   final FlutterSecureStorage _storage;
@@ -33,12 +35,25 @@ class AppLockService {
   Future<bool> isBiometricUnlockEnabled() async {
     final value = await _storage.read(key: _biometricUnlockEnabledKey);
 
-    return value == 'true';
+    if (value != null) {
+      return value == 'true';
+    }
+
+    // Existing installs may only have the legacy preference.
+    final legacyValue = await _storage.read(key: _legacyBiometricEnabledKey);
+
+    return legacyValue == 'true';
   }
 
   Future<void> setBiometricUnlockEnabled(bool enabled) async {
     await _storage.write(
       key: _biometricUnlockEnabledKey,
+      value: enabled.toString(),
+    );
+    // Keep the legacy preference synchronized so all local-auth entry points
+    // observe the same user choice.
+    await _storage.write(
+      key: _legacyBiometricEnabledKey,
       value: enabled.toString(),
     );
   }
@@ -109,6 +124,8 @@ class AppLockService {
     await _storage.delete(key: _appLockEnabledKey);
 
     await _storage.delete(key: _biometricUnlockEnabledKey);
+
+    await _storage.delete(key: _legacyBiometricEnabledKey);
 
     await _storage.delete(key: _autoLockDurationKey);
   }
