@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -749,13 +750,28 @@ class MessageBubble extends StatelessWidget {
   }
 
   Widget _buildContactContent(BuildContext context) {
-    final lines = message.text
-        .split('\n')
-        .map((line) => line.trim())
-        .where((line) => line.isNotEmpty)
-        .toList();
-    final name = lines.isNotEmpty ? lines.first : 'Contact';
-    final phone = lines.length > 1 ? lines.sublist(1).join(' ') : '';
+    var name = 'Contact';
+    var phone = '';
+
+    // New messages use structured JSON. Continue accepting the previous
+    // newline format so already-sent contact messages still render correctly.
+    try {
+      final decoded = jsonDecode(message.text);
+      if (decoded is Map) {
+        name = decoded['name']?.toString().trim() ?? name;
+        phone = decoded['phone']?.toString().trim() ?? phone;
+      }
+    } catch (_) {
+      final lines = message.text
+          .split('\n')
+          .map((line) => line.trim())
+          .where((line) => line.isNotEmpty)
+          .toList();
+      name = lines.isNotEmpty ? lines.first : name;
+      phone = lines.length > 1 ? lines.sublist(1).join(' ') : phone;
+    }
+
+    if (name.isEmpty) name = 'Contact';
     final textColor = isMe ? colorScheme.onPrimary : colorScheme.onSurface;
 
     return InkWell(

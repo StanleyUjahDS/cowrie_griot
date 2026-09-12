@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import '../../../core/cache/local_json_cache.dart';
 import 'package:flutter/material.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
@@ -2172,7 +2173,14 @@ class MessagingProvider extends ChangeNotifier {
     final currentUserId = _userProvider.user?.id ?? '';
     final clientMsgId =
         'client_contact_${DateTime.now().millisecondsSinceEpoch}';
-    final content = '$contactName\n$contactPhone';
+    // Keep the contact payload structured so names and phone numbers remain
+    // unambiguous across devices. The message body is encrypted by the
+    // messaging backend like every other message.
+    final content = jsonEncode({
+      'type': 'contact',
+      'name': contactName.trim(),
+      'phone': contactPhone.trim(),
+    });
 
     final optimisticMessage = ChatMessage(
       id: clientMsgId,
