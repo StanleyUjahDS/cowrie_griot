@@ -1146,6 +1146,7 @@ class _TipSheetState extends State<TipSheet> {
     var queryVersion = 0;
     var closed = false;
     final searchController = TextEditingController();
+    final searchFocusNode = FocusNode();
 
     final sheet = showModalBottomSheet<List<ChatUser>>(
       context: context,
@@ -1222,6 +1223,7 @@ class _TipSheetState extends State<TipSheet> {
             builder: (context, scrollController) => PopScope<Object?>(
               onPopInvokedWithResult: (didPop, result) {
                 if (!didPop) return;
+                searchFocusNode.unfocus();
                 closed = true;
                 queryVersion++;
                 debounce?.cancel();
@@ -1254,6 +1256,7 @@ class _TipSheetState extends State<TipSheet> {
                           const SizedBox(height: 12),
                           TextField(
                             controller: searchController,
+                            focusNode: searchFocusNode,
                             autofocus: true,
                             decoration: InputDecoration(
                               hintText: 'Search name, username, or wallet',
@@ -1389,6 +1392,7 @@ class _TipSheetState extends State<TipSheet> {
                             onPressed: selected.isEmpty
                                 ? null
                                 : () {
+                                    searchFocusNode.unfocus();
                                     Navigator.pop(sheetContext, selected);
                                   },
                             child: Text('Continue (${selected.length})'),
@@ -1408,6 +1412,7 @@ class _TipSheetState extends State<TipSheet> {
       closed = true;
       queryVersion++;
       debounce?.cancel();
+      searchFocusNode.dispose();
       searchController.dispose();
     });
   }
