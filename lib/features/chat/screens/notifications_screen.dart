@@ -8,6 +8,7 @@ import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../core/theme/app_colors.dart';
 import '../providers/messaging_provider.dart';
 import '../models/message_request.dart';
+import '../models/chat_user.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -20,6 +21,28 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   DateTime? _visitTime;
   final ScrollController _scrollController = ScrollController();
   final Set<String> _expandedTipIds = <String>{};
+
+  void _openRequestChat(MessageRequest request, {required bool received}) {
+    final userId = received ? request.senderId : request.receiverId;
+    if (userId == null || userId.isEmpty) return;
+
+    final user = ChatUser(
+      id: userId,
+      walletAddress: received
+          ? request.senderWalletAddress
+          : request.receiverWalletAddress,
+      username: received ? request.senderUsername : request.receiverUsername,
+      displayName: received
+          ? request.senderDisplayName
+          : request.receiverDisplayName,
+      profileUrl: received
+          ? request.senderProfileUrl
+          : request.receiverProfileUrl,
+      isOnline: received && request.senderIsOnline,
+      timestamp: DateTime.now(),
+    );
+    context.push('/chat/user/$userId', extra: user);
+  }
 
   @override
   void initState() {
@@ -191,8 +214,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         'You are now connected with ${rawItem.displayName}.';
                     icon = Icons.person_add_alt_1_rounded;
                     color = AppColors.success;
-                    onTap = () =>
-                        context.push('/chat/user/${rawItem.senderId}');
+                    onTap = () => _openRequestChat(rawItem, received: true);
                     break;
                   case RequestStatus.declined:
                     title = 'Request Declined';
@@ -216,8 +238,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         '${rawItem.receiverDisplayName ?? rawItem.receiverWalletAddress} accepted your request!';
                     icon = Icons.person_add_alt_1_rounded;
                     color = AppColors.success;
-                    onTap = () =>
-                        context.push('/chat/user/${rawItem.receiverId}');
+                    onTap = () => _openRequestChat(rawItem, received: false);
                     break;
                   case RequestStatus.declined:
                     title = 'Request Declined';
@@ -274,9 +295,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     rawItem['displayName']?.toString() ?? 'Griot user';
 
                 final groupedItems = rawItem['tipItems'] is List
-                    ? (rawItem['tipItems'] as List)
-                          .whereType<Map>()
-                          .toList()
+                    ? (rawItem['tipItems'] as List).whereType<Map>().toList()
                     : const <Map>[];
                 final isGrouped = groupedItems.length > 1;
                 final people = groupedItems
@@ -315,8 +334,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         : <String, dynamic>{};
                     final itemAmount = itemMetadata['amountRaw'];
                     final itemAsset = itemMetadata['assetType']?.toString();
-                    final itemName = item['displayName']?.toString() ??
-                        'Griot user';
+                    final itemName =
+                        item['displayName']?.toString() ?? 'Griot user';
                     final amount = itemAmount is List
                         ? itemAmount.map((value) => value.toString()).join(', ')
                         : itemAmount?.toString();

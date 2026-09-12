@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/ui/widgets/griot_plus_badge.dart';
 import '../models/chat_user.dart';
 import '../providers/messaging_provider.dart';
 
@@ -28,10 +29,11 @@ class ChatListItem extends StatelessWidget {
     final textTheme = theme.textTheme;
 
     final profileUrl = user.profileUrl;
-    final hasProfileImage =
-        profileUrl != null && profileUrl.trim().isNotEmpty;
+    final hasProfileImage = profileUrl != null && profileUrl.trim().isNotEmpty;
 
-    final bool isOnline = context.watch<MessagingProvider>().presenceMap[user.id] == true || user.isOnline;
+    final bool isOnline =
+        context.watch<MessagingProvider>().presenceMap[user.id] == true ||
+        user.isOnline;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -59,9 +61,11 @@ class ChatListItem extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: onTap ?? () {
-            context.push('/chat/user/${user.id}');
-          },
+          onTap:
+              onTap ??
+              () {
+                context.push('/chat/user/${user.id}', extra: user);
+              },
           onLongPress: onAvatarTap,
           borderRadius: BorderRadius.circular(24),
           child: Padding(
@@ -81,10 +85,14 @@ class ChatListItem extends StatelessWidget {
                         CircleAvatar(
                           radius: 28,
                           backgroundColor: colorScheme.surfaceContainerHighest,
-                          backgroundImage: hasProfileImage ? NetworkImage(profileUrl) : null,
+                          backgroundImage: hasProfileImage
+                              ? NetworkImage(profileUrl)
+                              : null,
                           child: !hasProfileImage
-                            ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg')
-                            : null,
+                              ? SvgPicture.asset(
+                                  'assets/coins_logo/hbadger_logo.svg',
+                                )
+                              : null,
                         ),
                         if (isOnline)
                           Positioned(
@@ -134,17 +142,26 @@ class ChatListItem extends StatelessWidget {
                             Padding(
                               padding: const EdgeInsets.only(left: 6),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: AppColors.parseHexColor(user.reputation!.badgeColor).withValues(alpha: 0.1),
+                                  color: AppColors.parseHexColor(
+                                    user.reputation!.badgeColor,
+                                  ).withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(6),
                                   border: Border(
                                     top: BorderSide(
-                                      color: AppColors.parseHexColor(user.reputation!.badgeColor).withValues(alpha: 0.3),
+                                      color: AppColors.parseHexColor(
+                                        user.reputation!.badgeColor,
+                                      ).withValues(alpha: 0.3),
                                       width: 1.0,
                                     ),
                                     bottom: BorderSide(
-                                      color: AppColors.parseHexColor(user.reputation!.badgeColor).withValues(alpha: 0.3),
+                                      color: AppColors.parseHexColor(
+                                        user.reputation!.badgeColor,
+                                      ).withValues(alpha: 0.3),
                                       width: 1.0,
                                     ),
                                   ),
@@ -155,13 +172,17 @@ class ChatListItem extends StatelessWidget {
                                     Icon(
                                       Icons.stars_rounded,
                                       size: 10,
-                                      color: AppColors.parseHexColor(user.reputation!.badgeColor),
+                                      color: AppColors.parseHexColor(
+                                        user.reputation!.badgeColor,
+                                      ),
                                     ),
                                     const SizedBox(width: 3),
                                     Text(
                                       user.reputation!.tierName.toUpperCase(),
                                       style: TextStyle(
-                                        color: AppColors.parseHexColor(user.reputation!.badgeColor),
+                                        color: AppColors.parseHexColor(
+                                          user.reputation!.badgeColor,
+                                        ),
                                         fontSize: 8,
                                         fontWeight: FontWeight.w900,
                                         letterSpacing: 0.5,
@@ -171,6 +192,10 @@ class ChatListItem extends StatelessWidget {
                                 ),
                               ),
                             ),
+                          if (user.isPlus) ...[
+                            const SizedBox(width: 6),
+                            const GriotPlusBadge(isPlus: true, compact: true),
+                          ],
                         ],
                       ),
                       const SizedBox(height: 4),
@@ -181,8 +206,12 @@ class ChatListItem extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-                          fontWeight: user.unreadCount > 0 ? FontWeight.w700 : FontWeight.w500,
+                          color: colorScheme.onSurfaceVariant.withValues(
+                            alpha: 0.7,
+                          ),
+                          fontWeight: user.unreadCount > 0
+                              ? FontWeight.w700
+                              : FontWeight.w500,
                         ),
                       ),
                     ],
@@ -203,9 +232,11 @@ class ChatListItem extends StatelessWidget {
                       style: textTheme.labelSmall?.copyWith(
                         color: user.unreadCount > 0
                             ? (colorScheme.primary.computeLuminance() > 0.6
-                                ? colorScheme.onSurface
-                                : colorScheme.primary)
-                            : colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                                  ? colorScheme.onSurface
+                                  : colorScheme.primary)
+                            : colorScheme.onSurfaceVariant.withValues(
+                                alpha: 0.4,
+                              ),
                         fontWeight: user.unreadCount > 0
                             ? FontWeight.w900
                             : FontWeight.w700,
@@ -215,7 +246,10 @@ class ChatListItem extends StatelessWidget {
                     const SizedBox(height: 8),
                     if (user.unreadCount > 0)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: colorScheme.primary,
                           borderRadius: BorderRadius.circular(10),
@@ -228,7 +262,9 @@ class ChatListItem extends StatelessWidget {
                           ],
                         ),
                         child: Text(
-                          user.unreadCount > 99 ? '99+' : user.unreadCount.toString(),
+                          user.unreadCount > 99
+                              ? '99+'
+                              : user.unreadCount.toString(),
                           style: TextStyle(
                             color: colorScheme.onPrimary,
                             fontSize: 10,

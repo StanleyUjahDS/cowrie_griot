@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/services/notification_service.dart';
+import '../../../../core/ui/widgets/griot_bottom_sheet.dart';
 import '../../../../core/ui/widgets/griot_loader.dart';
 import '../../../users/providers/user_provider.dart';
 import '../../../wallet/models/token_model.dart';
@@ -391,7 +392,7 @@ class _TipSheetState extends State<TipSheet> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Amount for each selected person',
+          'Tip amount',
           style: TextStyle(
             color: colors.onSurfaceVariant,
             fontSize: 12,
@@ -399,6 +400,16 @@ class _TipSheetState extends State<TipSheet> {
           ),
         ),
         const SizedBox(height: 6),
+        if (!_differentAmounts)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+              recipients.length > 1
+                  ? 'The same amount will be sent to each selected person.'
+                  : 'Select more than one person to set different amounts.',
+              style: TextStyle(color: colors.onSurfaceVariant, fontSize: 11),
+            ),
+          ),
         Container(
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
@@ -1133,6 +1144,7 @@ class _TipSheetState extends State<TipSheet> {
         List<ChatUser> results = [];
         Timer? debounce;
         var isLoading = false;
+        String? errorMessage;
         var queryVersion = 0;
         final searchController = TextEditingController();
 
@@ -1143,18 +1155,23 @@ class _TipSheetState extends State<TipSheet> {
             setSheetState(() {
               results = [];
               isLoading = false;
+              errorMessage = null;
             });
             return;
           }
 
-          setSheetState(() => isLoading = true);
+          setSheetState(() {
+            isLoading = true;
+            errorMessage = null;
+          });
           try {
             final response = await context
                 .read<UserProvider>()
                 .userApiService
                 .searchUsers(trimmed, limit: 20);
             if (version != queryVersion || !sheetContext.mounted) return;
-            final users = response['users'] as List;
+            final users = response['users'] as List? ?? const [];
+            final seenIds = <String>{};
             setSheetState(() {
               results = users
                   .map((user) => ChatUser.fromUserModel(user))
@@ -1164,6 +1181,7 @@ class _TipSheetState extends State<TipSheet> {
                         user.walletAddress.isNotEmpty &&
                         user.walletAddress != '0x',
                   )
+                  .where((user) => seenIds.add(user.id))
                   .toList();
               isLoading = false;
             });
@@ -1172,6 +1190,8 @@ class _TipSheetState extends State<TipSheet> {
               setSheetState(() {
                 results = [];
                 isLoading = false;
+                errorMessage =
+                    'Search failed. Check your connection and try again.';
               });
             }
           }
@@ -1182,13 +1202,8 @@ class _TipSheetState extends State<TipSheet> {
             initialChildSize: 0.82,
             minChildSize: 0.55,
             maxChildSize: 0.95,
-            builder: (context, scrollController) => Container(
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(32),
-                ),
-              ),
+            builder: (context, scrollController) => GriotBottomSheet(
+              radius: 28,
               child: Column(
                 children: [
                   const SizedBox(height: 12),
@@ -1217,7 +1232,7 @@ class _TipSheetState extends State<TipSheet> {
                           controller: searchController,
                           autofocus: true,
                           decoration: InputDecoration(
-                            hintText: 'Search by name or username',
+                            hintText: 'Search name, username, or wallet',
                             prefixIcon: const Icon(Icons.search_rounded),
                             filled: true,
                             fillColor: colors.surfaceContainerHighest
@@ -1237,6 +1252,38 @@ class _TipSheetState extends State<TipSheet> {
                             );
                           },
                         ),
+                        if (selected.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              '${selected.length} selected',
+                              style: TextStyle(
+                                color: colors.onSurfaceVariant,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: selected.map((user) {
+                                return InputChip(
+                                  label: Text(user.effectiveDisplayName),
+                                  onDeleted: () => setSheetState(
+                                    () => selected.removeWhere(
+                                      (item) => item.id == user.id,
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -1246,10 +1293,12 @@ class _TipSheetState extends State<TipSheet> {
                         : results.isEmpty
                         ? Center(
                             child: Text(
-                              searchController.text.trim().length < 2
-                                  ? 'Type at least 2 characters to search.'
-                                  : 'No eligible users found.',
+                              errorMessage ??
+                                  (searchController.text.trim().length < 2
+                                      ? 'Type at least 2 characters to search.'
+                                      : 'No eligible users found.'),
                               style: TextStyle(color: colors.onSurfaceVariant),
+                              textAlign: TextAlign.center,
                             ),
                           )
                         : ListView.builder(

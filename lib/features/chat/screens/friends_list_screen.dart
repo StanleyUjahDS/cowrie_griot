@@ -5,12 +5,14 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:griot_cowrie/features/chat/providers/messaging_provider.dart';
+import 'package:griot_cowrie/features/chat/models/chat_user.dart';
 import 'package:griot_cowrie/features/users/models/user_model.dart';
 import 'package:griot_cowrie/core/theme/app_colors.dart';
 import 'package:griot_cowrie/core/services/notification_service.dart';
 import 'package:griot_cowrie/features/chat/widgets/chat_loading.dart';
 import 'package:griot_cowrie/core/ui/scaffolds/gradient_scaffold.dart';
 import 'package:griot_cowrie/core/ui/widgets/griot_loader.dart';
+import 'package:griot_cowrie/core/ui/widgets/griot_plus_badge.dart';
 import 'package:griot_cowrie/features/chat/widgets/user_profile_sheet.dart';
 
 class FriendsListScreen extends StatefulWidget {
@@ -61,9 +63,12 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
   Future<void> _startChat(UserModel friend) async {
     try {
       final provider = context.read<MessagingProvider>();
-      final conversation = await provider.startDirectChat(friend.id);
+      final conversation = await provider.startDirectChat(
+        friend.id,
+        otherUser: ChatUser.fromUserModel(friend),
+      );
       if (mounted) {
-        context.push('/conversation/${conversation.id}');
+        context.push('/conversation/${conversation.id}', extra: conversation);
       }
     } catch (e) {
       if (mounted) {
@@ -406,6 +411,10 @@ class _FriendTile extends StatelessWidget {
           if (user.reputation != null) ...[
             const SizedBox(width: 8),
             _ReputationBadge(reputation: user.reputation!),
+          ],
+          if (user.isPlus) ...[
+            const SizedBox(width: 8),
+            const GriotPlusBadge(isPlus: true, compact: true),
           ],
         ],
       ),

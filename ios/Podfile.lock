@@ -271,7 +271,7 @@ SPEC CHECKSUMS:
   app_links: 3dbc685f76b1693c66a6d9dd1e9ab6f73d97dc0a
   audio_session: 9bb7f6c970f21241b19f5a3658097ae459681ba0
   connectivity_plus: cb623214f4e1f6ef8fe7403d580fdad517d2f7dd
-  file_picker_darwin: 5c32d1a83c7cd2e4e2d2eaea629cf830b3b5dc49
+  file_picker_darwin: 4c2b9a50ea44cb3b071381ea0cf48591bdd80251
   Firebase: 5523dd53ebe603451b4e1befcd99fa20a5c015cd
   firebase_core: 22b31970001508f6e63945bedcb7b9de68819aa5
   firebase_messaging: e0eae0e66bd04d3c1856ad08ad84ac75e0673a55

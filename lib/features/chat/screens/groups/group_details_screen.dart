@@ -15,6 +15,7 @@ import '../../services/media_api_service.dart';
 import '../../../users/providers/user_provider.dart';
 import '../../../../core/services/notification_service.dart';
 import '../../../../core/ui/widgets/griot_loader.dart';
+import '../../../../core/ui/widgets/griot_plus_badge.dart';
 
 class GroupDetailsScreen extends StatefulWidget {
   final Conversation conversation;
@@ -99,7 +100,8 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
   Future<void> _handleDeleteGroup() async {
     final confirm = await _showConfirmationSheet(
       title: 'Delete Circle?',
-      message: 'This will permanently delete the circle for everyone. This action is irreversible.',
+      message:
+          'This will permanently delete the circle for everyone. This action is irreversible.',
       confirmLabel: 'Delete Permanently',
       isDestructive: true,
     );
@@ -126,7 +128,8 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
   Future<void> _handleClearMessages() async {
     final confirm = await _showConfirmationSheet(
       title: 'Clear Chat?',
-      message: 'Are you sure you want to clear all messages in this circle? This action is permanent.',
+      message:
+          'Are you sure you want to clear all messages in this circle? This action is permanent.',
       confirmLabel: 'Clear Chat',
       isDestructive: true,
     );
@@ -140,7 +143,9 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
       );
       if (mounted) NotificationService.showSuccess(context, 'Chat cleared');
     } catch (e) {
-      if (mounted) NotificationService.showError(context, 'Failed to clear chat');
+      if (mounted) {
+        NotificationService.showError(context, 'Failed to clear chat');
+      }
     } finally {
       if (mounted) setState(() => _isActionLoading = false);
     }
@@ -156,7 +161,9 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
       await _loadMembers();
       if (mounted) NotificationService.showSuccess(context, 'Member removed');
     } catch (e) {
-      if (mounted) NotificationService.showError(context, 'Failed to remove member');
+      if (mounted) {
+        NotificationService.showError(context, 'Failed to remove member');
+      }
     } finally {
       if (mounted) setState(() => _isActionLoading = false);
     }
@@ -171,9 +178,13 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
         newRole,
       );
       await _loadMembers();
-      if (mounted) NotificationService.showSuccess(context, 'Role updated to $newRole');
+      if (mounted) {
+        NotificationService.showSuccess(context, 'Role updated to $newRole');
+      }
     } catch (e) {
-      if (mounted) NotificationService.showError(context, 'Failed to update role');
+      if (mounted) {
+        NotificationService.showError(context, 'Failed to update role');
+      }
     } finally {
       if (mounted) setState(() => _isActionLoading = false);
     }
@@ -247,8 +258,12 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                   child: FilledButton(
                     onPressed: () => Navigator.pop(context, true),
                     style: FilledButton.styleFrom(
-                      backgroundColor: isDestructive ? colorScheme.error : colorScheme.primary,
-                      foregroundColor: isDestructive ? colorScheme.onError : colorScheme.onPrimary,
+                      backgroundColor: isDestructive
+                          ? colorScheme.error
+                          : colorScheme.primary,
+                      foregroundColor: isDestructive
+                          ? colorScheme.onError
+                          : colorScheme.onPrimary,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
@@ -282,294 +297,325 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
         builder: (innerContext, setSheetState) {
           final colorScheme = Theme.of(innerContext).colorScheme;
           return Container(
-          width: double.infinity,
-          padding: EdgeInsets.fromLTRB(
-            24,
-            12,
-            24,
-            MediaQuery.of(context).viewInsets.bottom + 40,
-          ),
-          decoration: BoxDecoration(
-            color: colorScheme.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 24),
-                  decoration: BoxDecoration(
-                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => Navigator.pop(sheetContext),
-                      icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-                      visualDensity: VisualDensity.compact,
+            width: double.infinity,
+            padding: EdgeInsets.fromLTRB(
+              24,
+              12,
+              24,
+              MediaQuery.of(context).viewInsets.bottom + 40,
+            ),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(32),
+              ),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 24),
+                    decoration: BoxDecoration(
+                      color: colorScheme.onSurfaceVariant.withValues(
+                        alpha: 0.2,
+                      ),
+                      borderRadius: BorderRadius.circular(2),
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Circle Settings',
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.5,
+                  ),
+                  Row(
+                    children: [
+                      IconButton(
+                        onPressed: () => Navigator.pop(sheetContext),
+                        icon: const Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          size: 20,
+                        ),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Circle Settings',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Avatar Picker
+                  Center(
+                    child: GestureDetector(
+                      onTap: () async {
+                        final picker = ImagePicker();
+                        final picked = await picker.pickImage(
+                          source: ImageSource.gallery,
+                          imageQuality: 70,
+                        );
+                        if (picked != null) {
+                          setSheetState(
+                            () => selectedImage = File(picked.path),
+                          );
+                        }
+                      },
+                      child: Stack(
+                        children: [
+                          Container(
+                            width: 100,
+                            height: 100,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: colorScheme.primary.withValues(alpha: 0.1),
+                              border: Border.all(
+                                color: colorScheme.primary.withValues(
+                                  alpha: 0.2,
+                                ),
+                                width: 2,
+                              ),
+                            ),
+                            child: ClipOval(
+                              child: selectedImage != null
+                                  ? Image.file(
+                                      selectedImage!,
+                                      fit: BoxFit.cover,
+                                    )
+                                  : (widget.conversation.avatarUrl != null
+                                        ? Image.network(
+                                            widget.conversation.avatarUrl!,
+                                            fit: BoxFit.cover,
+                                          )
+                                        : Icon(
+                                            Icons.groups_rounded,
+                                            size: 40,
+                                            color: colorScheme.primary,
+                                          )),
+                            ),
+                          ),
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: colorScheme.primary,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: colorScheme.surface,
+                                  width: 2,
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.camera_alt_rounded,
+                                size: 16,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 24),
+                  ),
+                  const SizedBox(height: 24),
 
-                // Avatar Picker
-                Center(
-                  child: GestureDetector(
-                    onTap: () async {
-                      final picker = ImagePicker();
-                      final picked = await picker.pickImage(
-                        source: ImageSource.gallery,
-                        imageQuality: 70,
-                      );
-                      if (picked != null) {
-                        setSheetState(() => selectedImage = File(picked.path));
-                      }
-                    },
-                    child: Stack(
+                  TextField(
+                    controller: _nameController,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                    decoration: InputDecoration(
+                      labelText: 'Circle Name',
+                      hintText: 'Enter a name for your circle',
+                      filled: true,
+                      fillColor: colorScheme.onSurface.withValues(alpha: 0.05),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _usernameController,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                    decoration: InputDecoration(
+                      labelText: 'Circle Username',
+                      hintText: 'e.g. my-awesome-circle',
+                      prefixText: '@',
+                      filled: true,
+                      fillColor: colorScheme.onSurface.withValues(alpha: 0.05),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _descriptionController,
+                    maxLines: 3,
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                    decoration: InputDecoration(
+                      labelText: 'Description',
+                      hintText: 'What is this circle about?',
+                      filled: true,
+                      fillColor: colorScheme.onSurface.withValues(alpha: 0.05),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: colorScheme.onSurface.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
                       children: [
-                        Container(
-                          width: 100,
-                          height: 100,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: colorScheme.primary.withValues(alpha: 0.1),
-                            border: Border.all(
-                              color: colorScheme.primary.withValues(alpha: 0.2),
-                              width: 2,
-                            ),
-                          ),
-                          child: ClipOval(
-                            child: selectedImage != null
-                                ? Image.file(selectedImage!, fit: BoxFit.cover)
-                                : (widget.conversation.avatarUrl != null
-                                    ? Image.network(
-                                        widget.conversation.avatarUrl!,
-                                        fit: BoxFit.cover)
-                                    : Icon(Icons.groups_rounded,
-                                        size: 40, color: colorScheme.primary)),
+                        Expanded(
+                          child: _VisibilityToggleButton(
+                            label: 'Public',
+                            icon: Icons.public_rounded,
+                            selected: visibility == 'public',
+                            onTap: () =>
+                                setSheetState(() => visibility = 'public'),
                           ),
                         ),
-                        Positioned(
-                          right: 0,
-                          bottom: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: colorScheme.primary,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: colorScheme.surface, width: 2),
-                            ),
-                            child: const Icon(Icons.camera_alt_rounded,
-                                size: 16, color: Colors.white),
+                        Expanded(
+                          child: _VisibilityToggleButton(
+                            label: 'Private',
+                            icon: Icons.lock_outline_rounded,
+                            selected: visibility == 'private',
+                            onTap: () =>
+                                setSheetState(() => visibility = 'private'),
                           ),
                         ),
                       ],
                     ),
                   ),
-                ),
-                const SizedBox(height: 24),
-
-                TextField(
-                  controller: _nameController,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                  decoration: InputDecoration(
-                    labelText: 'Circle Name',
-                    hintText: 'Enter a name for your circle',
-                    filled: true,
-                    fillColor: colorScheme.onSurface.withValues(alpha: 0.05),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
+                  const SizedBox(height: 32),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Admins only can send',
+                      style: TextStyle(fontWeight: FontWeight.w700),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _usernameController,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                  decoration: InputDecoration(
-                    labelText: 'Circle Username',
-                    hintText: 'e.g. my-awesome-circle',
-                    prefixText: '@',
-                    filled: true,
-                    fillColor: colorScheme.onSurface.withValues(alpha: 0.05),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
+                    subtitle: const Text(
+                      'Owners and admins can still post when enabled.',
                     ),
+                    value: messagesLocked,
+                    onChanged: (value) =>
+                        setSheetState(() => messagesLocked = value),
                   ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _descriptionController,
-                  maxLines: 3,
-                  style: const TextStyle(fontWeight: FontWeight.w500),
-                  decoration: InputDecoration(
-                    labelText: 'Description',
-                    hintText: 'What is this circle about?',
-                    filled: true,
-                    fillColor: colorScheme.onSurface.withValues(alpha: 0.05),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: colorScheme.onSurface.withValues(alpha: 0.05),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
+                  const SizedBox(height: 16),
+                  Row(
                     children: [
                       Expanded(
-                        child: _VisibilityToggleButton(
-                          label: 'Public',
-                          icon: Icons.public_rounded,
-                          selected: visibility == 'public',
-                          onTap: () =>
-                              setSheetState(() => visibility = 'public'),
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(sheetContext),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: const Text('Cancel'),
                         ),
                       ),
+                      const SizedBox(width: 16),
                       Expanded(
-                        child: _VisibilityToggleButton(
-                          label: 'Private',
-                          icon: Icons.lock_outline_rounded,
-                          selected: visibility == 'private',
-                          onTap: () =>
-                              setSheetState(() => visibility = 'private'),
+                        child: FilledButton(
+                          onPressed: () => Navigator.pop(sheetContext, {
+                            'action': 'save',
+                            'name': _nameController.text.trim(),
+                            'username': _usernameController.text.trim(),
+                            'description': _descriptionController.text.trim(),
+                            'visibility': visibility,
+                            'messagesLocked': messagesLocked,
+                            'imageFile': selectedImage,
+                          }),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: const Text('Save Changes'),
                         ),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 32),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Admins only can send',
-                      style: TextStyle(fontWeight: FontWeight.w700)),
-                  subtitle: const Text(
-                      'Owners and admins can still post when enabled.'),
-                  value: messagesLocked,
-                  onChanged: (value) =>
-                      setSheetState(() => messagesLocked = value),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(sheetContext),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        child: const Text('Cancel'),
+                  const SizedBox(height: 32),
+                  const Divider(),
+                  const SizedBox(height: 24),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'DANGER ZONE',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        color: colorScheme.error.withValues(alpha: 0.7),
+                        letterSpacing: 1.2,
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: () => Navigator.pop(sheetContext, {
-                          'action': 'save',
-                          'name': _nameController.text.trim(),
-                          'username': _usernameController.text.trim(),
-                          'description': _descriptionController.text.trim(),
-                          'visibility': visibility,
-                          'messagesLocked': messagesLocked,
-                          'imageFile': selectedImage,
-                        }),
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        child: const Text('Save Changes'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 32),
-                const Divider(),
-                const SizedBox(height: 24),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'DANGER ZONE',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      color: colorScheme.error.withValues(alpha: 0.7),
-                      letterSpacing: 1.2,
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () =>
-                            Navigator.pop(sheetContext, {'action': 'clear'}),
-                        icon: const Icon(Icons.cleaning_services_rounded,
-                            size: 18),
-                        label: const Text(
-                          'Clear Chat',
-                          style: TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: colorScheme.error,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          side: BorderSide(
-                            color: colorScheme.error.withValues(alpha: 0.3),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () =>
+                              Navigator.pop(sheetContext, {'action': 'clear'}),
+                          icon: const Icon(
+                            Icons.cleaning_services_rounded,
+                            size: 18,
                           ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                          label: const Text(
+                            'Clear Chat',
+                            style: TextStyle(fontWeight: FontWeight.w800),
                           ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () =>
-                            Navigator.pop(sheetContext, {'action': 'delete'}),
-                        icon:
-                            const Icon(Icons.delete_outline_rounded, size: 18),
-                        label: const Text(
-                          'Delete Circle',
-                          style: TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: colorScheme.error,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          side: BorderSide(
-                            color: colorScheme.error.withValues(alpha: 0.3),
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: colorScheme.error,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            side: BorderSide(
+                              color: colorScheme.error.withValues(alpha: 0.3),
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () =>
+                              Navigator.pop(sheetContext, {'action': 'delete'}),
+                          icon: const Icon(
+                            Icons.delete_outline_rounded,
+                            size: 18,
+                          ),
+                          label: const Text(
+                            'Delete Circle',
+                            style: TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: colorScheme.error,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            side: BorderSide(
+                              color: colorScheme.error.withValues(alpha: 0.3),
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -607,14 +653,14 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
 
       if (!mounted) return;
       await context.read<MessagingProvider>().updateGroup(
-            widget.conversation.id,
-            name: result['name'],
-            username: result['username'],
-            description: result['description'],
-            visibility: result['visibility'],
-            messagesLocked: result['messagesLocked'] as bool?,
-            imageUrl: imageUrl,
-          );
+        widget.conversation.id,
+        name: result['name'],
+        username: result['username'],
+        description: result['description'],
+        visibility: result['visibility'],
+        messagesLocked: result['messagesLocked'] as bool?,
+        imageUrl: imageUrl,
+      );
       if (mounted) {
         NotificationService.showSuccess(context, 'Group updated');
       }
@@ -723,14 +769,26 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          (member['display_name'] ??
-                              member['username'] ??
-                              'Griot User') + (userId == currentUserId ? ' (You)' : ''),
-                          style: textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.5,
-                          ),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                (member['display_name'] ??
+                                        member['username'] ??
+                                        'Griot User') +
+                                    (userId == currentUserId ? ' (You)' : ''),
+                                style: textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
+                            ),
+                            if (member['is_plus'] == true ||
+                                member['isPlus'] == true) ...[
+                              const SizedBox(width: 6),
+                              const GriotPlusBadge(isPlus: true, compact: true),
+                            ],
+                          ],
                         ),
                         const SizedBox(height: 2),
                         Container(
@@ -828,7 +886,10 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
               ],
               if ((iAmOwner || iAmAdmin) && !isOwner && !(iAmAdmin && isAdmin))
                 ListTile(
-                  leading: Icon(Icons.person_remove_rounded, color: colors.error),
+                  leading: Icon(
+                    Icons.person_remove_rounded,
+                    color: colors.error,
+                  ),
                   title: Text(
                     'Remove from Group',
                     style: TextStyle(
@@ -869,8 +930,12 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
         final conversation = widget.conversation.copyWith(
           role: providerConv.role,
           status: providerConv.status,
-          memberCount: providerConv.memberCount > 0 ? providerConv.memberCount : widget.conversation.memberCount,
-          memberIds: providerConv.memberIds.isNotEmpty ? providerConv.memberIds : widget.conversation.memberIds,
+          memberCount: providerConv.memberCount > 0
+              ? providerConv.memberCount
+              : widget.conversation.memberCount,
+          memberIds: providerConv.memberIds.isNotEmpty
+              ? providerConv.memberIds
+              : widget.conversation.memberIds,
         );
 
         final myMember = _members.firstWhere(
@@ -878,7 +943,8 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
           orElse: () => {},
         );
         final myRole = myMember['role'] ?? conversation.role;
-        final iAmOwner = myRole == 'owner' || conversation.ownerId == currentUserId;
+        final iAmOwner =
+            myRole == 'owner' || conversation.ownerId == currentUserId;
         final iAmAdmin = myRole == 'admin';
         final canManage = iAmOwner || iAmAdmin;
 
@@ -894,64 +960,8 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                 backgroundColor: theme.scaffoldBackgroundColor,
                 elevation: 0,
                 leading: Center(
-              child: GestureDetector(
-                onTap: () => Navigator.of(context).pop(),
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: colors.surface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: colors.primary.withValues(alpha: 0.2),
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.arrow_back_ios_new_rounded,
-                    size: 18,
-                    color: colors.primary,
-                  ),
-                ),
-              ),
-            ),
-            actions: [
-              if (canManage)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: Center(
-                    child: GestureDetector(
-                      onTap: _isActionLoading ? null : _editGroupSettings,
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: colors.surface,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: colors.primary.withValues(alpha: 0.2),
-                          ),
-                        ),
-                        child: Icon(
-                          Icons.settings_rounded,
-                          size: 20,
-                          color: colors.primary,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              Padding(
-                padding: const EdgeInsets.only(right: 12.0),
-                child: Center(
                   child: GestureDetector(
-                    onTap: () async {
-                      final link =
-                          'https://griot.network/circle/@${conversation.username ?? conversation.id}';
-                      await Clipboard.setData(ClipboardData(text: link));
-                      if (!context.mounted) return;
-                      NotificationService.showSuccess(context, 'Link copied');
-                      await SharePlus.instance.share(ShareParams(text: link));
-                    },
+                    onTap: () => Navigator.of(context).pop(),
                     child: Container(
                       width: 40,
                       height: 40,
@@ -963,199 +973,279 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                         ),
                       ),
                       child: Icon(
-                        Icons.share_rounded,
-                        size: 20,
+                        Icons.arrow_back_ios_new_rounded,
+                        size: 18,
                         color: colors.primary,
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
-            flexibleSpace: FlexibleSpaceBar(
-              centerTitle: true,
-              title: Text(
-                widget.conversation.title ?? 'Circle',
-                style: TextStyle(
-                  color: colors.onSurface,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 18,
-                ),
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Circle Identity Section
-                  _buildSectionLabel('CIRCLE IDENTITY'),
-                  const SizedBox(height: 12),
-                  _CircleInfoCard(
-                    conversation: conversation,
-                    colors: colors,
-                    actualMemberCount: _members.length,
-                  ),
-                  const SizedBox(height: 32),
-
-                  if (widget.conversation.description != null &&
-                      widget.conversation.description!.isNotEmpty) ...[
-                    _buildSectionLabel('ABOUT THIS CIRCLE'),
-                    const SizedBox(height: 12),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: colors.surfaceContainerHighest.withValues(
-                          alpha: 0.4,
-                        ),
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border(
-                          top: BorderSide(
-                            color: colors.primary.withValues(alpha: 0.6),
-                            width: 1.5,
-                          ),
-                          bottom: BorderSide(
-                            color: colors.primary.withValues(alpha: 0.6),
-                            width: 1.5,
-                          ),
-                        ),
-                      ),
-                      child: Text(
-                        widget.conversation.description!,
-                        style: textTheme.bodyLarge?.copyWith(
-                          color: colors.onSurface,
-                          height: 1.5,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                  ],
-
-                  // Circle Actions
-                  _buildSectionLabel('CIRCLE ACTIONS'),
-                  const SizedBox(height: 12),
-                  _CircleActionsCard(
-                    canManage: canManage,
-                    onAddMember: _handleAddMember,
-                    onTipMembers: () => TipSheet.show(
-                      context,
-                      recipients: [],
-                      conversationId: widget.conversation.id,
-                      conversationType: ConversationType.group,
-                    ),
-                    onShare: () async {
-                      final link = 'https://griot.network/circle/@${conversation.username ?? conversation.id}';
-                      await SharePlus.instance.share(ShareParams(text: link));
-                    },
-                    colors: colors,
-                  ),
-                  const SizedBox(height: 32),
-
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _buildSectionLabel('COMMUNITY MEMBERS'),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  if (_isLoadingMembers)
-                    const Center(child: GriotLoader(size: 32))
-                  else
-                    ListView.builder(
-                      shrinkWrap: true,
-                      padding: EdgeInsets.zero,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _members.length,
-                      itemBuilder: (context, index) {
-                        final member = _members[index];
-                        final isMe = member['user_id'] == currentUserId;
-                        final role = member['role']?.toString() ?? 'member';
-                        final isOwner = role == 'owner';
-                        final isAdmin = role == 'admin';
-
-                        return InkWell(
-                          onTap: () => _showMemberOptions(
-                            member,
-                            iAmOwner ? 'owner' : (iAmAdmin ? 'admin' : 'member'),
-                            currentUserId,
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Row(
-                              children: [
-                                CircleAvatar(
-                                  radius: 22,
-                                  backgroundImage: member['avatar_url'] != null
-                                      ? NetworkImage(member['avatar_url'])
-                                      : null,
-                                  child: member['avatar_url'] == null
-                                      ? const Icon(Icons.person)
-                                      : null,
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        (member['display_name'] ??
-                                                member['username'] ??
-                                                'Griot User') +
-                                            (isMe ? ' (You)' : ''),
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 15,
-                                        ),
-                                      ),
-                                      if (isOwner || isAdmin)
-                                        Text(
-                                          role.toUpperCase(),
-                                          style: TextStyle(
-                                            fontSize: 9,
-                                            color: colors.primary,
-                                            fontWeight: FontWeight.w900,
-                                            letterSpacing: 0.5,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                                if (!isMe && canManage && !isOwner)
-                                  Icon(
-                                    Icons.more_vert_rounded,
-                                    color: colors.onSurfaceVariant.withValues(
-                                      alpha: 0.4,
-                                    ),
-                                    size: 20,
-                                  ),
-                              ],
+                actions: [
+                  if (canManage)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8.0),
+                      child: Center(
+                        child: GestureDetector(
+                          onTap: _isActionLoading ? null : _editGroupSettings,
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: colors.surface,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: colors.primary.withValues(alpha: 0.2),
+                              ),
+                            ),
+                            child: Icon(
+                              Icons.settings_rounded,
+                              size: 20,
+                              color: colors.primary,
                             ),
                           ),
-                        );
-                      },
+                        ),
+                      ),
                     ),
-
-                  const SizedBox(height: 48),
-
-                  if (myRole != 'owner')
-                    _buildDangerButton(
-                      label: 'Leave Group',
-                      icon: Icons.logout_rounded,
-                      onTap: _handleLeaveGroup,
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12.0),
+                    child: Center(
+                      child: GestureDetector(
+                        onTap: () async {
+                          final link =
+                              'https://griot.network/circle/@${conversation.username ?? conversation.id}';
+                          await Clipboard.setData(ClipboardData(text: link));
+                          if (!context.mounted) return;
+                          NotificationService.showSuccess(
+                            context,
+                            'Link copied',
+                          );
+                          await SharePlus.instance.share(
+                            ShareParams(text: link),
+                          );
+                        },
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: colors.surface,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: colors.primary.withValues(alpha: 0.2),
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.share_rounded,
+                            size: 20,
+                            color: colors.primary,
+                          ),
+                        ),
+                      ),
                     ),
-                  const SizedBox(height: 32),
+                  ),
                 ],
+                flexibleSpace: FlexibleSpaceBar(
+                  centerTitle: true,
+                  title: Text(
+                    widget.conversation.title ?? 'Circle',
+                    style: TextStyle(
+                      color: colors.onSurface,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
               ),
-            ),
+              SliverToBoxAdapter(
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Circle Identity Section
+                      _buildSectionLabel('CIRCLE IDENTITY'),
+                      const SizedBox(height: 12),
+                      _CircleInfoCard(
+                        conversation: conversation,
+                        colors: colors,
+                        actualMemberCount: _members.length,
+                      ),
+                      const SizedBox(height: 32),
+
+                      if (widget.conversation.description != null &&
+                          widget.conversation.description!.isNotEmpty) ...[
+                        _buildSectionLabel('ABOUT THIS CIRCLE'),
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: colors.surfaceContainerHighest.withValues(
+                              alpha: 0.4,
+                            ),
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border(
+                              top: BorderSide(
+                                color: colors.primary.withValues(alpha: 0.6),
+                                width: 1.5,
+                              ),
+                              bottom: BorderSide(
+                                color: colors.primary.withValues(alpha: 0.6),
+                                width: 1.5,
+                              ),
+                            ),
+                          ),
+                          child: Text(
+                            widget.conversation.description!,
+                            style: textTheme.bodyLarge?.copyWith(
+                              color: colors.onSurface,
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                      ],
+
+                      // Circle Actions
+                      _buildSectionLabel('CIRCLE ACTIONS'),
+                      const SizedBox(height: 12),
+                      _CircleActionsCard(
+                        canManage: canManage,
+                        onAddMember: _handleAddMember,
+                        onTipMembers: () => TipSheet.show(
+                          context,
+                          recipients: [],
+                          conversationId: widget.conversation.id,
+                          conversationType: ConversationType.group,
+                        ),
+                        onShare: () async {
+                          final link =
+                              'https://griot.network/circle/@${conversation.username ?? conversation.id}';
+                          await SharePlus.instance.share(
+                            ShareParams(text: link),
+                          );
+                        },
+                        colors: colors,
+                      ),
+                      const SizedBox(height: 32),
+
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [_buildSectionLabel('COMMUNITY MEMBERS')],
+                      ),
+                      const SizedBox(height: 12),
+                      if (_isLoadingMembers)
+                        const Center(child: GriotLoader(size: 32))
+                      else
+                        ListView.builder(
+                          shrinkWrap: true,
+                          padding: EdgeInsets.zero,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _members.length,
+                          itemBuilder: (context, index) {
+                            final member = _members[index];
+                            final isMe = member['user_id'] == currentUserId;
+                            final role = member['role']?.toString() ?? 'member';
+                            final isOwner = role == 'owner';
+                            final isAdmin = role == 'admin';
+
+                            return InkWell(
+                              onTap: () => _showMemberOptions(
+                                member,
+                                iAmOwner
+                                    ? 'owner'
+                                    : (iAmAdmin ? 'admin' : 'member'),
+                                currentUserId,
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
+                                child: Row(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 22,
+                                      backgroundImage:
+                                          member['avatar_url'] != null
+                                          ? NetworkImage(member['avatar_url'])
+                                          : null,
+                                      child: member['avatar_url'] == null
+                                          ? const Icon(Icons.person)
+                                          : null,
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Flexible(
+                                                child: Text(
+                                                  (member['display_name'] ??
+                                                          member['username'] ??
+                                                          'Griot User') +
+                                                      (isMe ? ' (You)' : ''),
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 15,
+                                                  ),
+                                                ),
+                                              ),
+                                              if (member['is_plus'] == true ||
+                                                  member['isPlus'] == true) ...[
+                                                const SizedBox(width: 6),
+                                                const GriotPlusBadge(
+                                                  isPlus: true,
+                                                  compact: true,
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                          if (isOwner || isAdmin)
+                                            Text(
+                                              role.toUpperCase(),
+                                              style: TextStyle(
+                                                fontSize: 9,
+                                                color: colors.primary,
+                                                fontWeight: FontWeight.w900,
+                                                letterSpacing: 0.5,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (!isMe && canManage && !isOwner)
+                                      Icon(
+                                        Icons.more_vert_rounded,
+                                        color: colors.onSurfaceVariant
+                                            .withValues(alpha: 0.4),
+                                        size: 20,
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+
+                      const SizedBox(height: 48),
+
+                      if (myRole != 'owner')
+                        _buildDangerButton(
+                          label: 'Leave Group',
+                          icon: Icons.logout_rounded,
+                          onTap: _handleLeaveGroup,
+                        ),
+                      const SizedBox(height: 32),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
+        );
       },
     );
   }
@@ -1245,14 +1335,25 @@ class _CircleInfoCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _infoRow(Icons.tag_rounded, 'Handle',
-            conversation.username != null ? '@${conversation.username}' : 'NO HANDLE'),
+          _infoRow(
+            Icons.tag_rounded,
+            'Handle',
+            conversation.username != null
+                ? '@${conversation.username}'
+                : 'NO HANDLE',
+          ),
           _divider(),
-          _infoRow(Icons.people_outline_rounded, 'Members',
-            '${(actualMemberCount != null && actualMemberCount! > 0) ? actualMemberCount : conversation.memberCount} members'),
+          _infoRow(
+            Icons.people_outline_rounded,
+            'Members',
+            '${(actualMemberCount != null && actualMemberCount! > 0) ? actualMemberCount : conversation.memberCount} members',
+          ),
           _divider(),
-          _infoRow(Icons.calendar_today_rounded, 'Created',
-            DateFormat('MMMM yyyy').format(conversation.createdAt)),
+          _infoRow(
+            Icons.calendar_today_rounded,
+            'Created',
+            DateFormat('MMMM yyyy').format(conversation.createdAt),
+          ),
         ],
       ),
     );
@@ -1263,9 +1364,19 @@ class _CircleInfoCard extends StatelessWidget {
       children: [
         Icon(icon, size: 16, color: colors.primary.withValues(alpha: 0.6)),
         const SizedBox(width: 16),
-        Text(label, style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.7), fontWeight: FontWeight.w600, fontSize: 13)),
+        Text(
+          label,
+          style: TextStyle(
+            color: colors.onSurfaceVariant.withValues(alpha: 0.7),
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+          ),
+        ),
         const Spacer(),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+        Text(
+          value,
+          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+        ),
       ],
     );
   }
@@ -1365,11 +1476,17 @@ class _ActionButton extends StatelessWidget {
           decoration: BoxDecoration(
             color: isPrimary ? colors.primary : colors.surface,
             borderRadius: BorderRadius.circular(18),
-            border: isPrimary ? null : Border.all(color: colors.outline.withValues(alpha: 0.1)),
+            border: isPrimary
+                ? null
+                : Border.all(color: colors.outline.withValues(alpha: 0.1)),
           ),
           child: Column(
             children: [
-              Icon(icon, color: isPrimary ? colors.onPrimary : colors.primary, size: 20),
+              Icon(
+                icon,
+                color: isPrimary ? colors.onPrimary : colors.primary,
+                size: 20,
+              ),
               const SizedBox(height: 8),
               Text(
                 label,

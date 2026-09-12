@@ -625,6 +625,10 @@ class MessageBubble extends StatelessWidget {
       return _buildTipContent(context);
     }
 
+    if (message.type == MessageType.contact) {
+      return _buildContactContent(context);
+    }
+
     // 3. Handle Regular Text
     final theme = Theme.of(context);
 
@@ -741,6 +745,75 @@ class MessageBubble extends StatelessWidget {
         if (firstUrl != null && !message.isMedia && !message.isFile)
           LinkPreviewWidget(url: firstUrl, isMe: isMe),
       ],
+    );
+  }
+
+  Widget _buildContactContent(BuildContext context) {
+    final lines = message.text
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+    final name = lines.isNotEmpty ? lines.first : 'Contact';
+    final phone = lines.length > 1 ? lines.sublist(1).join(' ') : '';
+    final textColor = isMe ? colorScheme.onPrimary : colorScheme.onSurface;
+
+    return InkWell(
+      onTap: phone.isEmpty
+          ? null
+          : () => launchUrl(Uri(scheme: 'tel', path: phone)),
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 22,
+              backgroundColor: isMe
+                  ? colorScheme.onPrimary.withValues(alpha: 0.18)
+                  : colorScheme.primary.withValues(alpha: 0.12),
+              child: Icon(Icons.person_rounded, color: textColor),
+            ),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: textColor,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  if (phone.isNotEmpty)
+                    Text(
+                      phone,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: textColor.withValues(alpha: 0.75),
+                        fontSize: 13,
+                      ),
+                    ),
+                  if (phone.isNotEmpty)
+                    Text(
+                      'Tap to call',
+                      style: TextStyle(
+                        color: textColor.withValues(alpha: 0.6),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

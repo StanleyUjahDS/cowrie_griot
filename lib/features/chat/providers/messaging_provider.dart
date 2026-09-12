@@ -92,28 +92,30 @@ class MessagingProvider extends ChangeNotifier {
       if (_receivedRequests.isEmpty && received is List) {
         _receivedRequests = received
             .whereType<Map>()
-            .map((json) => MessageRequest.fromJson(Map<String, dynamic>.from(json)))
+            .map(
+              (json) =>
+                  MessageRequest.fromJson(Map<String, dynamic>.from(json)),
+            )
             .toList();
       }
       if (_sentRequests.isEmpty && sent is List) {
         _sentRequests = sent
             .whereType<Map>()
-            .map((json) => MessageRequest.fromJson(Map<String, dynamic>.from(json)))
+            .map(
+              (json) =>
+                  MessageRequest.fromJson(Map<String, dynamic>.from(json)),
+            )
             .toList();
       }
       if (_notificationEvents.isEmpty && notifications is List) {
-        _notificationEvents = notifications
-            .whereType<Map>()
-            .map((json) {
-              final event = Map<String, dynamic>.from(json);
-              event['timestamp'] = DateTime.tryParse(
-                    event['timestamp']?.toString() ?? '',
-                  ) ??
-                  DateTime.now();
-              event['icon'] = Icons.notifications_rounded;
-              return event;
-            })
-            .toList();
+        _notificationEvents = notifications.whereType<Map>().map((json) {
+          final event = Map<String, dynamic>.from(json);
+          event['timestamp'] =
+              DateTime.tryParse(event['timestamp']?.toString() ?? '') ??
+              DateTime.now();
+          event['icon'] = Icons.notifications_rounded;
+          return event;
+        }).toList();
       }
       if (_friends.isNotEmpty ||
           _receivedRequests.isNotEmpty ||
@@ -128,9 +130,18 @@ class MessagingProvider extends ChangeNotifier {
 
   Future<void> _saveSocialCache() async {
     await Future.wait([
-      _localCache.write(_friendsCacheKey, _friends.map((user) => user.toJson()).toList()),
-      _localCache.write(_receivedRequestsCacheKey, _receivedRequests.map((request) => request.toJson()).toList()),
-      _localCache.write(_sentRequestsCacheKey, _sentRequests.map((request) => request.toJson()).toList()),
+      _localCache.write(
+        _friendsCacheKey,
+        _friends.map((user) => user.toJson()).toList(),
+      ),
+      _localCache.write(
+        _receivedRequestsCacheKey,
+        _receivedRequests.map((request) => request.toJson()).toList(),
+      ),
+      _localCache.write(
+        _sentRequestsCacheKey,
+        _sentRequests.map((request) => request.toJson()).toList(),
+      ),
       _localCache.write(
         _notificationsCacheKey,
         _notificationEvents.map((event) {
@@ -489,11 +500,13 @@ class MessagingProvider extends ChangeNotifier {
           ? Map<String, dynamic>.from(event['metadata'])
           : <String, dynamic>{};
       final hash = metadata['hash']?.toString() ?? '';
-      final batchId = metadata['batchId']?.toString() ??
+      final batchId =
+          metadata['batchId']?.toString() ??
           metadata['batch_id']?.toString() ??
           '';
-      final groupingId = hash.isNotEmpty ? 'hash:$hash' :
-          (batchId.isNotEmpty ? 'batch:$batchId' : '');
+      final groupingId = hash.isNotEmpty
+          ? 'hash:$hash'
+          : (batchId.isNotEmpty ? 'batch:$batchId' : '');
 
       // Events without a transaction/batch identity must remain separate.
       if (groupingId.isEmpty) {
@@ -1306,11 +1319,15 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
-  Future<Conversation> startDirectChat(String otherUserId) async {
+  Future<Conversation> startDirectChat(
+    String otherUserId, {
+    ChatUser? otherUser,
+  }) async {
     try {
-      final conversation = await _apiService.findDirectConversation(
-        otherUserId,
-      );
+      var conversation = await _apiService.findDirectConversation(otherUserId);
+      if (conversation.otherUser == null && otherUser != null) {
+        conversation = conversation.copyWith(otherUser: otherUser);
+      }
       if (!_conversations.any((c) => c.id == conversation.id)) {
         _conversations.insert(0, conversation);
       }
@@ -1328,7 +1345,8 @@ class MessagingProvider extends ChangeNotifier {
 
   Future<void> loadRequests({bool force = false}) async {
     if (_requestsLoadFuture != null) return _requestsLoadFuture!;
-    if (!force && _lastRequestsLoadedAt != null &&
+    if (!force &&
+        _lastRequestsLoadedAt != null &&
         DateTime.now().difference(_lastRequestsLoadedAt!) <
             const Duration(seconds: 30)) {
       return;
@@ -2516,8 +2534,32 @@ class MessagingProvider extends ChangeNotifier {
 
     _socket?.on('message_request_accepted', (data) {
       debugPrint('Socket: message_request_accepted');
-      final request = MessageRequest.fromJson(Map<String, dynamic>.from(data));
+      if (data is! Map) {
+        return;
+      }
+
+      // The backend broadcasts the full acceptance result:
+      // { request: {...}, conversation: {...} }.
+      // Older clients expected the request object directly, so unwrap the
+      // nested request while retaining the conversation for an immediate UI
+      // update.
+      final payload = Map<String, dynamic>.from(data);
+      final requestJson = payload['request'] is Map
+          ? Map<String, dynamic>.from(payload['request'])
+          : payload;
+      final request = MessageRequest.fromJson(requestJson);
       _handleRequestAccepted(request);
+
+      final conversationJson = payload['conversation'];
+      if (conversationJson is Map) {
+        final conversation = Conversation.fromJson(
+          Map<String, dynamic>.from(conversationJson),
+        );
+        if (!_conversations.any((c) => c.id == conversation.id)) {
+          _conversations.insert(0, conversation);
+          notifyListeners();
+        }
+      }
     });
 
     _socket?.on('message_request_declined', (data) {

@@ -6,7 +6,7 @@ import 'tables/local_profiles_table.dart';
 
 class ChatDatabase {
   static const String _dbName = 'griot_chat_v2.db';
-  static const int _dbVersion = 3;
+  static const int _dbVersion = 4;
 
   Database? _db;
 
@@ -31,13 +31,20 @@ class ChatDatabase {
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       // For simplicity in dev, we just drop and recreate
-      await db.execute('DROP TABLE IF EXISTS ${LocalConversationsTable.tableName}');
+      await db.execute(
+        'DROP TABLE IF EXISTS ${LocalConversationsTable.tableName}',
+      );
       await db.execute(LocalConversationsTable.createTable);
     }
     if (oldVersion < 3) {
       // Add messages_locked column to local_conversations
       await db.execute(
         'ALTER TABLE ${LocalConversationsTable.tableName} ADD COLUMN ${LocalConversationsTable.columnMessagesLocked} INTEGER DEFAULT 0',
+      );
+    }
+    if (oldVersion < 4) {
+      await db.execute(
+        'ALTER TABLE ${LocalProfilesTable.tableName} ADD COLUMN ${LocalProfilesTable.columnIsPlus} INTEGER NOT NULL DEFAULT 0',
       );
     }
   }

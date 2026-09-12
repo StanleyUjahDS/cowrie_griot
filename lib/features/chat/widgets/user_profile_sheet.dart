@@ -5,12 +5,15 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../providers/messaging_provider.dart';
+import '../models/chat_user.dart';
+import '../models/conversation_model.dart';
 import '../models/message_request.dart';
 import '../../users/models/user_model.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
 import '../../../core/ui/widgets/griot_avatar.dart';
+import '../../../core/ui/widgets/griot_plus_badge.dart';
 import 'chatting/fullscreen_media_viewer.dart';
 import '../../../core/ui/widgets/griot_bottom_sheet.dart';
 
@@ -261,12 +264,23 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
           ],
         ),
         const SizedBox(height: 20),
-        Text(
-          user.displayName ?? 'Griot User',
-          style: text.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w900,
-            letterSpacing: -0.6,
-          ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text(
+                user.displayName ?? 'Griot User',
+                style: text.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.6,
+                ),
+              ),
+            ),
+            if (user.isPlus) ...[
+              const SizedBox(width: 8),
+              const GriotPlusBadge(isPlus: true, compact: true),
+            ],
+          ],
         ),
         if (user.username != null)
           Text(
@@ -352,35 +366,14 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
           ],
         ),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildSecondaryButton(
-                context,
-                label: 'View Assets',
-                icon: Icons.account_balance_wallet_rounded,
-                onTap: () {
-                  Navigator.pop(context);
-                  context.push(
-                    '/wallet/search',
-                    extra: widget.user.walletAddress,
-                  );
-                },
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildSecondaryButton(
-                context,
-                label: 'Full Identity',
-                icon: Icons.person_search_rounded,
-                onTap: () {
-                  Navigator.pop(context);
-                  context.push('/user/profile', extra: widget.user);
-                },
-              ),
-            ),
-          ],
+        _buildSecondaryButton(
+          context,
+          label: 'Full Identity',
+          icon: Icons.person_search_rounded,
+          onTap: () {
+            Navigator.pop(context);
+            context.push('/user/profile', extra: widget.user);
+          },
         ),
       ],
     );
@@ -404,9 +397,34 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
         onTap: () {
           Navigator.pop(context);
           if (conversationId != null) {
-            context.push('/conversation/$conversationId');
+            Conversation? conversation;
+            for (final candidate in provider.conversations) {
+              if (candidate.id == conversationId) {
+                conversation = candidate;
+                break;
+              }
+            }
+            if (conversation != null) {
+              final hydratedConversation = conversation.otherUser == null
+                  ? conversation.copyWith(
+                      otherUser: ChatUser.fromUserModel(widget.user),
+                    )
+                  : conversation;
+              context.push(
+                '/conversation/$conversationId',
+                extra: hydratedConversation,
+              );
+            } else {
+              context.push(
+                '/chat/user/${widget.user.id}',
+                extra: ChatUser.fromUserModel(widget.user),
+              );
+            }
           } else {
-            context.push('/chat/user/${widget.user.id}');
+            context.push(
+              '/chat/user/${widget.user.id}',
+              extra: ChatUser.fromUserModel(widget.user),
+            );
           }
         },
       );
@@ -503,8 +521,8 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
   }
 
   String _shortenAddress(String addr) {
-    if (addr.length < 12) return addr;
-    return '${addr.substring(0, 8)}...${addr.substring(addr.length - 6)}';
+    if (addr.length <= 8) return addr;
+    return '${addr.substring(0, 3)}...${addr.substring(addr.length - 3)}';
   }
 }
 

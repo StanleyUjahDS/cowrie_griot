@@ -1,11 +1,7 @@
 import 'chat_user.dart';
 import 'chat_message.dart';
 
-enum ConversationType {
-  dm,
-  group,
-  channel,
-}
+enum ConversationType { dm, group, channel }
 
 class Conversation {
   final String id;
@@ -68,33 +64,62 @@ class Conversation {
   }
 
   factory Conversation.fromJson(Map<String, dynamic> json) {
-    final typeString = ((json['type'] ?? json['conversation_type'] ?? json['conversationType'])?.toString() ?? 'dm')
-        .trim()
-        .toLowerCase();
+    final typeString =
+        ((json['type'] ?? json['conversation_type'] ?? json['conversationType'])
+                    ?.toString() ??
+                'dm')
+            .trim()
+            .toLowerCase();
     final type = typeString == 'group'
         ? ConversationType.group
         : typeString == 'channel'
-            ? ConversationType.channel
-            : ConversationType.dm;
+        ? ConversationType.channel
+        : ConversationType.dm;
 
     ChatUser? otherUser;
     if (json['otherUser'] != null) {
-      otherUser = ChatUser.fromJson(Map<String, dynamic>.from(json['otherUser']));
+      otherUser = ChatUser.fromJson(
+        Map<String, dynamic>.from(json['otherUser']),
+      );
     } else if (json['other_user_id'] != null || json['otherUserId'] != null) {
       otherUser = ChatUser(
         id: (json['other_user_id'] ?? json['otherUserId']).toString(),
-        walletAddress: (json['other_wallet_address'] ?? json['otherWalletAddress'] ?? '').toString(),
+        walletAddress:
+            (json['other_wallet_address'] ?? json['otherWalletAddress'] ?? '')
+                .toString(),
         username: (json['other_username'] ?? json['otherUsername'])?.toString(),
-        displayName: (json['other_display_name'] ?? json['otherDisplayName'])?.toString(),
-        profileUrl: (json['other_avatar_url'] ?? json['otherAvatarUrl'] ?? json['image_url'] ?? json['imageUrl'])?.toString(),
-        relationshipStatus: (json['relationship_status'] ?? json['relationshipStatus'])?.toString(),
-        timestamp: (json['last_message_at'] ?? json['lastMessageAt'] ?? json['updated_at'] ?? json['updatedAt']) != null
-            ? DateTime.parse((json['last_message_at'] ?? json['lastMessageAt'] ?? json['updated_at'] ?? json['updatedAt']).toString())
+        displayName: (json['other_display_name'] ?? json['otherDisplayName'])
+            ?.toString(),
+        profileUrl:
+            (json['other_avatar_url'] ??
+                    json['otherAvatarUrl'] ??
+                    json['other_profile_url'] ??
+                    json['otherProfileUrl'] ??
+                    json['image_url'] ??
+                    json['imageUrl'])
+                ?.toString(),
+        relationshipStatus:
+            (json['relationship_status'] ?? json['relationshipStatus'])
+                ?.toString(),
+        timestamp:
+            (json['last_message_at'] ??
+                    json['lastMessageAt'] ??
+                    json['updated_at'] ??
+                    json['updatedAt']) !=
+                null
+            ? DateTime.parse(
+                (json['last_message_at'] ??
+                        json['lastMessageAt'] ??
+                        json['updated_at'] ??
+                        json['updatedAt'])
+                    .toString(),
+              )
             : DateTime.now(),
       );
     }
 
-    final rawMemberIds = json['memberIds'] ?? json['member_ids'] ?? json['members'];
+    final rawMemberIds =
+        json['memberIds'] ?? json['member_ids'] ?? json['members'];
     final memberIds = rawMemberIds is List
         ? rawMemberIds.map((value) => value.toString()).toList()
         : <String>[];
@@ -103,7 +128,8 @@ class Conversation {
       id: json['id']?.toString() ?? '',
       type: type,
       name: json['name']?.toString() ?? json['title']?.toString(),
-      imageUrl: json['image_url']?.toString() ??
+      imageUrl:
+          json['image_url']?.toString() ??
           json['imageUrl']?.toString() ??
           json['avatarUrl']?.toString() ??
           json['other_avatar_url']?.toString() ??
@@ -112,15 +138,19 @@ class Conversation {
       ownerId: (json['owner_id'] ?? json['ownerId'] ?? json['created_by'])
           ?.toString(),
       visibility: (json['visibility'] ?? 'public').toString(),
-      messagesLocked: json['messages_locked'] == true || json['messagesLocked'] == true,
-      commentsLocked: json['comments_locked'] == true || json['commentsLocked'] == true,
+      messagesLocked:
+          json['messages_locked'] == true || json['messagesLocked'] == true,
+      commentsLocked:
+          json['comments_locked'] == true || json['commentsLocked'] == true,
       role: json['role']?.toString(),
       status: json['status']?.toString(),
       memberCount: _intValue(json['member_count'] ?? json['memberCount']),
       subscriberCount: _intValue(
         json['subscriber_count'] ??
             json['subscriberCount'] ??
-            (type == ConversationType.channel ? (json['member_count'] ?? json['memberCount']) : null) ??
+            (type == ConversationType.channel
+                ? (json['member_count'] ?? json['memberCount'])
+                : null) ??
             (type == ConversationType.channel ? memberIds.length : 0),
       ),
       postCount: _intValue(json['post_count'] ?? json['postCount']),
@@ -129,22 +159,25 @@ class Conversation {
       otherUser: otherUser,
       lastMessage: json['last_message'] != null || json['lastMessage'] != null
           ? ChatMessage.fromJson(
-            Map<String, dynamic>.from(json['last_message'] ?? json['lastMessage']),
-          )
+              Map<String, dynamic>.from(
+                json['last_message'] ?? json['lastMessage'],
+              ),
+            )
           : null,
       unreadCount: _intValue(json['unread_count'] ?? json['unreadCount']),
-      updatedAt: (json['last_message_at'] ??
+      updatedAt:
+          (json['last_message_at'] ??
                   json['lastMessageAt'] ??
                   json['updated_at'] ??
                   json['updatedAt']) !=
               null
           ? DateTime.parse(
-            (json['last_message_at'] ??
-                    json['lastMessageAt'] ??
-                    json['updated_at'] ??
-                    json['updatedAt'])
-                .toString(),
-          )
+              (json['last_message_at'] ??
+                      json['lastMessageAt'] ??
+                      json['updated_at'] ??
+                      json['updatedAt'])
+                  .toString(),
+            )
           : DateTime.now(),
       createdAt: (json['created_at'] ?? json['createdAt']) != null
           ? DateTime.parse((json['created_at'] ?? json['createdAt']).toString())

@@ -5,25 +5,19 @@ import 'package:provider/provider.dart';
 import '../../../../users/models/user_model.dart';
 import '../../../../users/services/user_api_service.dart';
 import '../../../../../core/ui/widgets/griot_loader.dart';
+import '../../../../../core/ui/widgets/griot_plus_badge.dart';
 
 class NewChatSheet extends StatefulWidget {
-  final void Function(
-      String username,
-      String walletAddress,
-      ) onSendRequest;
+  final void Function(String username, String walletAddress) onSendRequest;
 
-  const NewChatSheet({
-    super.key,
-    required this.onSendRequest,
-  });
+  const NewChatSheet({super.key, required this.onSendRequest});
 
   @override
   State<NewChatSheet> createState() => _NewChatSheetState();
 }
 
 class _NewChatSheetState extends State<NewChatSheet> {
-  final TextEditingController searchController =
-  TextEditingController();
+  final TextEditingController searchController = TextEditingController();
 
   Timer? _searchTimer;
   List<UserModel> _results = [];
@@ -92,15 +86,11 @@ class _NewChatSheetState extends State<NewChatSheet> {
 
     return Material(
       color: colorScheme.surface,
-      borderRadius: const BorderRadius.vertical(
-        top: Radius.circular(26),
-      ),
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
       child: Container(
         height: MediaQuery.of(context).size.height * 0.72,
         decoration: BoxDecoration(
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(26),
-          ),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
         ),
         child: SafeArea(
           child: Column(
@@ -110,13 +100,11 @@ class _NewChatSheetState extends State<NewChatSheet> {
               // ==================================================
               // HANDLE
               // ==================================================
-
               Container(
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: colorScheme.onSurfaceVariant
-                      .withValues(alpha: 0.3),
+                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(20),
                 ),
               ),
@@ -126,11 +114,8 @@ class _NewChatSheetState extends State<NewChatSheet> {
               // ==================================================
               // HEADER
               // ==================================================
-
               Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
                   children: [
                     Text(
@@ -144,9 +129,7 @@ class _NewChatSheetState extends State<NewChatSheet> {
                       onPressed: () {
                         Navigator.of(context).pop();
                       },
-                      icon: const Icon(
-                        Icons.close_rounded,
-                      ),
+                      icon: const Icon(Icons.close_rounded),
                     ),
                   ],
                 ),
@@ -155,14 +138,8 @@ class _NewChatSheetState extends State<NewChatSheet> {
               // ==================================================
               // SEARCH
               // ==================================================
-
               Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  16,
-                  4,
-                  16,
-                  12,
-                ),
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
                 child: SizedBox(
                   height: 46,
                   child: TextField(
@@ -170,18 +147,14 @@ class _NewChatSheetState extends State<NewChatSheet> {
                     autofocus: true,
                     onChanged: _onSearchChanged,
                     decoration: InputDecoration(
-                      hintText:
-                      'Search username, name or wallet',
-                      prefixIcon: const Icon(
-                        Icons.search_rounded,
-                      ),
+                      hintText: 'Search username, name or wallet',
+                      prefixIcon: const Icon(Icons.search_rounded),
                       filled: true,
-                      fillColor: colorScheme
-                          .surfaceContainerHighest
-                          .withValues(alpha: 0.5),
+                      fillColor: colorScheme.surfaceContainerHighest.withValues(
+                        alpha: 0.5,
+                      ),
                       border: OutlineInputBorder(
-                        borderRadius:
-                        BorderRadius.circular(15),
+                        borderRadius: BorderRadius.circular(15),
                         borderSide: BorderSide.none,
                       ),
                     ),
@@ -192,36 +165,30 @@ class _NewChatSheetState extends State<NewChatSheet> {
               // ==================================================
               // RESULTS
               // ==================================================
-
               Expanded(
                 child: _isSearching
                     ? const Center(child: GriotLoader(size: 32))
                     : _results.isEmpty
-                        ? const _NewChatEmptyState()
-                        : ListView.separated(
-                  padding:
-                  const EdgeInsets.symmetric(
-                    horizontal: 16,
-                  ),
-                  itemCount: _results.length,
-                  separatorBuilder: (_, _) =>
-                  const Divider(height: 1),
-                  itemBuilder:
-                      (context, index) {
-                    final user = _results[index];
+                    ? const _NewChatEmptyState()
+                    : ListView.separated(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: _results.length,
+                        separatorBuilder: (_, _) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final user = _results[index];
 
-                    return _UserSearchItem(
-                      key: ValueKey(user.id),
-                      user: user,
-                      onRequest: () {
-                        widget.onSendRequest(
-                          user.username ?? '',
-                          user.walletAddress,
-                        );
-                      },
-                    );
-                  },
-                ),
+                          return _UserSearchItem(
+                            key: ValueKey(user.id),
+                            user: user,
+                            onRequest: () {
+                              widget.onSendRequest(
+                                user.username ?? '',
+                                user.walletAddress,
+                              );
+                            },
+                          );
+                        },
+                      ),
               ),
             ],
           ),
@@ -254,30 +221,20 @@ class _UserSearchItem extends StatelessWidget {
     final avatarUrl = user.avatarUrl;
 
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(
-        vertical: 5,
-      ),
+      contentPadding: const EdgeInsets.symmetric(vertical: 5),
 
       // ======================================================
       // AVATAR
       // ======================================================
-
       leading: CircleAvatar(
         radius: 25,
-        backgroundImage: avatarUrl != null
-            ? NetworkImage(avatarUrl)
-            : null,
-        child: avatarUrl == null
-            ? const Icon(
-          Icons.person_rounded,
-        )
-            : null,
+        backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+        child: avatarUrl == null ? const Icon(Icons.person_rounded) : null,
       ),
 
       // ======================================================
       // USER NAME
       // ======================================================
-
       title: Row(
         children: [
           Flexible(
@@ -285,23 +242,23 @@ class _UserSearchItem extends StatelessWidget {
               user.effectiveName,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: textTheme.bodyLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+              style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
             ),
           ),
+          if (user.isPlus) ...[
+            const SizedBox(width: 6),
+            const GriotPlusBadge(isPlus: true, compact: true),
+          ],
         ],
       ),
 
       // ======================================================
       // USERNAME / WALLET
       // ======================================================
-
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 3),
         child: Column(
-          crossAxisAlignment:
-          CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (user.username != null && user.username!.isNotEmpty)
               Text(
@@ -309,8 +266,7 @@ class _UserSearchItem extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: textTheme.bodySmall?.copyWith(
-                  color:
-                  colorScheme.onSurfaceVariant,
+                  color: colorScheme.onSurfaceVariant,
                 ),
               ),
 
@@ -329,16 +285,12 @@ class _UserSearchItem extends StatelessWidget {
       // ======================================================
       // REQUEST BUTTON
       // ======================================================
-
       trailing: FilledButton(
         onPressed: onRequest,
         style: FilledButton.styleFrom(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 14,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
           minimumSize: const Size(0, 36),
-          tapTargetSize:
-          MaterialTapTargetSize.shrinkWrap,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
         child: const Text('Request'),
       ),
@@ -350,17 +302,14 @@ class _UserSearchItem extends StatelessWidget {
 // EMPTY STATE
 // ==========================================================
 
-class _NewChatEmptyState
-    extends StatelessWidget {
+class _NewChatEmptyState extends StatelessWidget {
   const _NewChatEmptyState();
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme =
-        Theme.of(context).colorScheme;
+    final colorScheme = Theme.of(context).colorScheme;
 
-    final textTheme =
-        Theme.of(context).textTheme;
+    final textTheme = Theme.of(context).textTheme;
 
     return Center(
       child: Padding(
@@ -371,16 +320,14 @@ class _NewChatEmptyState
             Icon(
               Icons.person_search_rounded,
               size: 46,
-              color:
-              colorScheme.onSurfaceVariant,
+              color: colorScheme.onSurfaceVariant,
             ),
 
             const SizedBox(height: 12),
 
             Text(
               'Find someone on Griot',
-              style:
-              textTheme.titleMedium?.copyWith(
+              style: textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -389,12 +336,10 @@ class _NewChatEmptyState
 
             Text(
               'Search by username, display name or '
-                  'wallet address to start a conversation.',
+              'wallet address to start a conversation.',
               textAlign: TextAlign.center,
-              style:
-              textTheme.bodySmall?.copyWith(
-                color:
-                colorScheme.onSurfaceVariant,
+              style: textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
                 height: 1.4,
               ),
             ),

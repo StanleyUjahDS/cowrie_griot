@@ -4,6 +4,7 @@ import '../providers/messaging_provider.dart';
 import '../../users/models/user_model.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
 import '../../../core/ui/widgets/griot_bottom_sheet.dart';
+import '../../../core/ui/widgets/griot_plus_badge.dart';
 
 class FriendSelectorSheet extends StatefulWidget {
   final List<String> initialSelectedIds;
@@ -43,6 +44,7 @@ class FriendSelectorSheet extends StatefulWidget {
 class _FriendSelectorSheetState extends State<FriendSelectorSheet> {
   late List<UserModel> _selectedFriends;
   String _searchQuery = '';
+  bool _initialSelectionApplied = false;
 
   @override
   void initState() {
@@ -139,9 +141,22 @@ class _FriendSelectorSheetState extends State<FriendSelectorSheet> {
                   final filteredFriends = provider.friends.where((f) {
                     final name = (f.displayName ?? '').toLowerCase();
                     final username = (f.username ?? '').toLowerCase();
+                    final wallet = f.walletAddress.toLowerCase();
                     return name.contains(_searchQuery) ||
-                        username.contains(_searchQuery);
+                        username.contains(_searchQuery) ||
+                        wallet.contains(_searchQuery);
                   }).toList();
+
+                  if (!_initialSelectionApplied &&
+                      widget.initialSelectedIds.isNotEmpty) {
+                    _initialSelectionApplied = true;
+                    _selectedFriends = provider.friends
+                        .where(
+                          (friend) =>
+                              widget.initialSelectedIds.contains(friend.id),
+                        )
+                        .toList();
+                  }
 
                   if (filteredFriends.isEmpty) {
                     return Center(
@@ -169,14 +184,24 @@ class _FriendSelectorSheetState extends State<FriendSelectorSheet> {
                         onChanged: isDisabled
                             ? null
                             : (_) => _toggleFriend(friend),
-                        title: Text(
-                          friend.displayName ?? friend.username ?? 'Griot User',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: isDisabled
-                                ? colors.onSurface.withValues(alpha: 0.3)
-                                : null,
-                          ),
+                        title: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                friend.displayName ??
+                                    friend.username ??
+                                    'Griot User',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: isDisabled
+                                      ? colors.onSurface.withValues(alpha: 0.3)
+                                      : null,
+                                ),
+                              ),
+                            ),
+                            if (friend.isPlus)
+                              const GriotPlusBadge(isPlus: true, compact: true),
+                          ],
                         ),
                         subtitle: Text(
                           isDisabled

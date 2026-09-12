@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../../providers/messaging_provider.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/ui/widgets/griot_plus_badge.dart';
 
 class ActiveFriendsBar extends StatelessWidget {
   const ActiveFriendsBar({super.key});
@@ -10,7 +11,7 @@ class ActiveFriendsBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    
+
     // We only want to rebuild when presence or friends change
     return Consumer<MessagingProvider>(
       builder: (context, provider, _) {
@@ -51,12 +52,17 @@ class ActiveFriendsBar extends StatelessWidget {
                           children: [
                             CircleAvatar(
                               radius: 28,
-                              backgroundColor: colors.primary.withValues(alpha: 0.1),
+                              backgroundColor: colors.primary.withValues(
+                                alpha: 0.1,
+                              ),
                               backgroundImage: user.avatarUrl != null
                                   ? NetworkImage(user.avatarUrl!)
                                   : null,
                               child: user.avatarUrl == null
-                                  ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg', width: 32)
+                                  ? SvgPicture.asset(
+                                      'assets/coins_logo/hbadger_logo.svg',
+                                      width: 32,
+                                    )
                                   : null,
                             ),
                             Positioned(
@@ -68,7 +74,10 @@ class ActiveFriendsBar extends StatelessWidget {
                                 decoration: BoxDecoration(
                                   color: AppColors.success,
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: colors.surface, width: 2),
+                                  border: Border.all(
+                                    color: colors.surface,
+                                    width: 2,
+                                  ),
                                 ),
                               ),
                             ),
@@ -77,15 +86,27 @@ class ActiveFriendsBar extends StatelessWidget {
                         const SizedBox(height: 8),
                         SizedBox(
                           width: 60,
-                          child: Text(
-                            user.displayName ?? user.username ?? 'User',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                            ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  user.displayName ?? user.username ?? 'User',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              if (user.isPlus)
+                                const GriotPlusBadge(
+                                  isPlus: true,
+                                  compact: true,
+                                ),
+                            ],
                           ),
                         ),
                       ],

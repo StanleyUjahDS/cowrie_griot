@@ -13,6 +13,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
 import '../../../core/ui/widgets/griot_avatar.dart';
+import '../../../core/ui/widgets/griot_plus_badge.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../widgets/chatting/fullscreen_media_viewer.dart';
 
@@ -453,12 +454,27 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                           _buildPreviewAvatar(context, user),
                           const SizedBox(height: 16),
                           // Name
-                          Text(
-                            user.displayName ?? 'Griot User',
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.w900,
-                              color: colors.onSurface,
-                            ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  user.displayName ?? 'Griot User',
+                                  style: theme.textTheme.headlineSmall
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w900,
+                                        color: colors.onSurface,
+                                      ),
+                                ),
+                              ),
+                              if (user.isPlus) ...[
+                                const SizedBox(width: 8),
+                                const GriotPlusBadge(
+                                  isPlus: true,
+                                  compact: true,
+                                ),
+                              ],
+                            ],
                           ),
                           // Username
                           if (user.username != null)

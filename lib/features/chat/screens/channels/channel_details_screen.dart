@@ -12,6 +12,7 @@ import '../../widgets/chatting/tip_sheet.dart';
 import '../../../users/providers/user_provider.dart';
 import '../../../../core/services/notification_service.dart';
 import '../../../../core/ui/widgets/griot_loader.dart';
+import '../../../../core/ui/widgets/griot_plus_badge.dart';
 
 class ChannelDetailsScreen extends StatefulWidget {
   final Conversation conversation;
@@ -73,7 +74,9 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
         userId,
       );
       await _loadMembers();
-      if (mounted) NotificationService.showSuccess(context, 'Subscriber removed');
+      if (mounted) {
+        NotificationService.showSuccess(context, 'Subscriber removed');
+      }
     } catch (e) {
       if (mounted) {
         NotificationService.showError(context, 'Failed to remove subscriber');
@@ -86,7 +89,8 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
   Future<void> _handleUnsubscribe() async {
     final confirm = await _showConfirmationSheet(
       title: 'Unsubscribe?',
-      message: 'Are you sure you want to stop receiving updates from this channel?',
+      message:
+          'Are you sure you want to stop receiving updates from this channel?',
       confirmLabel: 'Unsubscribe',
       isDestructive: true,
     );
@@ -103,7 +107,9 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
         context.go('/chat');
       }
     } catch (e) {
-      if (mounted) NotificationService.showError(context, 'Failed to unsubscribe');
+      if (mounted) {
+        NotificationService.showError(context, 'Failed to unsubscribe');
+      }
     } finally {
       if (mounted) setState(() => _isActionLoading = false);
     }
@@ -112,7 +118,8 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
   Future<void> _handleDeleteChannel() async {
     final confirm = await _showConfirmationSheet(
       title: 'Delete Channel?',
-      message: 'This action is permanent and will delete the channel for all subscribers.',
+      message:
+          'This action is permanent and will delete the channel for all subscribers.',
       confirmLabel: 'Delete Permanently',
       isDestructive: true,
     );
@@ -129,7 +136,9 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
         context.go('/chat');
       }
     } catch (e) {
-      if (mounted) NotificationService.showError(context, 'Failed to delete channel');
+      if (mounted) {
+        NotificationService.showError(context, 'Failed to delete channel');
+      }
     } finally {
       if (mounted) setState(() => _isActionLoading = false);
     }
@@ -203,8 +212,12 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
                   child: FilledButton(
                     onPressed: () => Navigator.pop(context, true),
                     style: FilledButton.styleFrom(
-                      backgroundColor: isDestructive ? colorScheme.error : colorScheme.primary,
-                      foregroundColor: isDestructive ? colorScheme.onError : colorScheme.onPrimary,
+                      backgroundColor: isDestructive
+                          ? colorScheme.error
+                          : colorScheme.primary,
+                      foregroundColor: isDestructive
+                          ? colorScheme.onError
+                          : colorScheme.onPrimary,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
@@ -291,15 +304,26 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          (member['display_name'] ??
-                                  member['username'] ??
-                                  'Griot User') +
-                              (userId == currentUserId ? ' (You)' : ''),
-                          style: textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.5,
-                          ),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                (member['display_name'] ??
+                                        member['username'] ??
+                                        'Griot User') +
+                                    (userId == currentUserId ? ' (You)' : ''),
+                                style: textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
+                            ),
+                            if (member['is_plus'] == true ||
+                                member['isPlus'] == true) ...[
+                              const SizedBox(width: 6),
+                              const GriotPlusBadge(isPlus: true, compact: true),
+                            ],
+                          ],
                         ),
                         const SizedBox(height: 2),
                         Container(
@@ -349,7 +373,10 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
             if (userId == currentUserId) ...[
               if (!isOwner)
                 ListTile(
-                  leading: Icon(Icons.notifications_off_rounded, color: colors.error),
+                  leading: Icon(
+                    Icons.notifications_off_rounded,
+                    color: colors.error,
+                  ),
                   title: Text(
                     'Unsubscribe',
                     style: TextStyle(
@@ -397,7 +424,10 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
               ],
               if ((iAmOwner || iAmAdmin) && !isOwner && !(iAmAdmin && isAdmin))
                 ListTile(
-                  leading: Icon(Icons.person_remove_rounded, color: colors.error),
+                  leading: Icon(
+                    Icons.person_remove_rounded,
+                    color: colors.error,
+                  ),
                   title: Text(
                     'Remove Subscriber',
                     style: TextStyle(
@@ -428,7 +458,9 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
       await _loadMembers();
       if (mounted) NotificationService.showSuccess(context, 'Admin added');
     } catch (e) {
-      if (mounted) NotificationService.showError(context, 'Failed to add admin');
+      if (mounted) {
+        NotificationService.showError(context, 'Failed to add admin');
+      }
     } finally {
       if (mounted) setState(() => _isActionLoading = false);
     }
@@ -478,8 +510,9 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
             ),
             decoration: BoxDecoration(
               color: colorScheme.surface,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(32)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(32),
+              ),
             ),
             child: SingleChildScrollView(
               child: Column(
@@ -490,7 +523,9 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
                     height: 4,
                     margin: const EdgeInsets.only(bottom: 24),
                     decoration: BoxDecoration(
-                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.2),
+                      color: colorScheme.onSurfaceVariant.withValues(
+                        alpha: 0.2,
+                      ),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -499,7 +534,10 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
                     children: [
                       IconButton(
                         onPressed: () => Navigator.pop(sheetContext),
-                        icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+                        icon: const Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          size: 20,
+                        ),
                         visualDensity: VisualDensity.compact,
                       ),
                       const SizedBox(width: 8),
@@ -524,7 +562,9 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
                           imageQuality: 70,
                         );
                         if (picked != null) {
-                          setSheetState(() => selectedImage = File(picked.path));
+                          setSheetState(
+                            () => selectedImage = File(picked.path),
+                          );
                         }
                       },
                       child: Stack(
@@ -536,19 +576,28 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
                               shape: BoxShape.circle,
                               color: colorScheme.primary.withValues(alpha: 0.1),
                               border: Border.all(
-                                color: colorScheme.primary.withValues(alpha: 0.2),
+                                color: colorScheme.primary.withValues(
+                                  alpha: 0.2,
+                                ),
                                 width: 2,
                               ),
                             ),
                             child: ClipOval(
                               child: selectedImage != null
-                                  ? Image.file(selectedImage!, fit: BoxFit.cover)
+                                  ? Image.file(
+                                      selectedImage!,
+                                      fit: BoxFit.cover,
+                                    )
                                   : (widget.conversation.avatarUrl != null
-                                      ? Image.network(
-                                          widget.conversation.avatarUrl!,
-                                          fit: BoxFit.cover)
-                                      : Icon(Icons.campaign_rounded,
-                                          size: 40, color: colorScheme.primary)),
+                                        ? Image.network(
+                                            widget.conversation.avatarUrl!,
+                                            fit: BoxFit.cover,
+                                          )
+                                        : Icon(
+                                            Icons.campaign_rounded,
+                                            size: 40,
+                                            color: colorScheme.primary,
+                                          )),
                             ),
                           ),
                           Positioned(
@@ -559,10 +608,16 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
                               decoration: BoxDecoration(
                                 color: colorScheme.primary,
                                 shape: BoxShape.circle,
-                                border: Border.all(color: colorScheme.surface, width: 2),
+                                border: Border.all(
+                                  color: colorScheme.surface,
+                                  width: 2,
+                                ),
                               ),
-                              child: const Icon(Icons.camera_alt_rounded,
-                                  size: 16, color: Colors.white),
+                              child: const Icon(
+                                Icons.camera_alt_rounded,
+                                size: 16,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ],
@@ -688,10 +743,13 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
                   const SizedBox(height: 16),
                   SwitchListTile.adaptive(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Lock Comments',
-                        style: TextStyle(fontWeight: FontWeight.w700)),
+                    title: const Text(
+                      'Lock Comments',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
                     subtitle: const Text(
-                        'Prevent subscribers from commenting on posts.'),
+                      'Prevent subscribers from commenting on posts.',
+                    ),
                     value: commentsLocked,
                     onChanged: (value) =>
                         setSheetState(() => commentsLocked = value),
@@ -715,10 +773,12 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
-                      onPressed: _isActionLoading ? null : () {
-                        Navigator.of(context).pop();
-                        _handleDeleteChannel();
-                      },
+                      onPressed: _isActionLoading
+                          ? null
+                          : () {
+                              Navigator.of(context).pop();
+                              _handleDeleteChannel();
+                            },
                       icon: const Icon(Icons.delete_forever_rounded, size: 20),
                       label: const Text(
                         'Delete Channel Permanently',
@@ -766,14 +826,14 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
 
       if (!mounted) return;
       await context.read<MessagingProvider>().updateChannel(
-            widget.conversation.id,
-            name: result['name'],
-            username: result['username'],
-            description: result['description'],
-            visibility: result['visibility'],
-            commentsLocked: result['commentsLocked'] as bool?,
-            imageUrl: imageUrl,
-          );
+        widget.conversation.id,
+        name: result['name'],
+        username: result['username'],
+        description: result['description'],
+        visibility: result['visibility'],
+        commentsLocked: result['commentsLocked'] as bool?,
+        imageUrl: imageUrl,
+      );
       if (mounted) {
         NotificationService.showSuccess(context, 'Channel updated');
       }
@@ -785,7 +845,6 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
       if (mounted) setState(() => _isActionLoading = false);
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -828,259 +887,287 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
                 backgroundColor: theme.scaffoldBackgroundColor,
                 elevation: 0,
                 leading: Center(
-              child: GestureDetector(
-                onTap: () => Navigator.of(context).pop(),
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: colorScheme.surface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: colorScheme.primary.withValues(alpha: 0.2),
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.arrow_back_ios_new_rounded,
-                    size: 18,
-                    color: colorScheme.primary,
-                  ),
-                ),
-              ),
-            ),
-            actions: [
-              if (isOwner)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: Center(
-                    child: GestureDetector(
-                      onTap: _isActionLoading ? null : _editChannelSettings,
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: colorScheme.surface,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: colorScheme.primary.withValues(alpha: 0.2),
-                          ),
-                        ),
-                        child: Icon(
-                          Icons.settings_rounded,
-                          size: 20,
-                          color: colorScheme.primary,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              const SizedBox(width: 8),
-            ],
-            flexibleSpace: FlexibleSpaceBar(
-              centerTitle: true,
-              title: Text(
-                widget.conversation.name ?? 'Channel',
-                style: TextStyle(
-                  color: colorScheme.onSurface,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 18,
-                ),
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Channel Identity
-                  _buildSectionLabel('CHANNEL IDENTITY'),
-                  const SizedBox(height: 12),
-                  _ChannelInfoCard(
-                    conversation: conversation,
-                    colors: colorScheme,
-                    actualSubscriberCount: _members.length,
-                  ),
-                  const SizedBox(height: 32),
-
-                  if (widget.conversation.description != null &&
-                      widget.conversation.description!.isNotEmpty) ...[
-                    _buildSectionLabel('BROADCAST DESCRIPTION'),
-                    const SizedBox(height: 12),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Container(
+                      width: 40,
+                      height: 40,
                       decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border(
-                          top: BorderSide(
-                            color: colorScheme.primary.withValues(alpha: 0.6),
-                            width: 1.5,
-                          ),
-                          bottom: BorderSide(
-                            color: colorScheme.primary.withValues(alpha: 0.6),
-                            width: 1.5,
-                          ),
+                        color: colorScheme.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: colorScheme.primary.withValues(alpha: 0.2),
                         ),
                       ),
-                      child: Text(
-                        widget.conversation.description!,
-                        style: textTheme.bodyLarge?.copyWith(
-                          height: 1.6,
-                          color: colorScheme.onSurface,
-                          fontWeight: FontWeight.w500,
-                        ),
+                      child: Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        size: 18,
+                        color: colorScheme.primary,
                       ),
                     ),
-                    const SizedBox(height: 32),
-                  ],
-
-                  // Channel Actions
-                  _buildSectionLabel('CHANNEL ACTIONS'),
-                  const SizedBox(height: 12),
-                  _ChannelActionsCard(
-                    conversation: widget.conversation,
-                    onTip: () => TipSheet.show(
-                      context,
-                      recipients: [],
-                      conversationId: widget.conversation.id,
-                      conversationType: ConversationType.channel,
-                    ),
-                    onShare: () async {
-                      final link = 'https://griot.network/channel/@${widget.conversation.username ?? widget.conversation.id}';
-                      await SharePlus.instance.share(ShareParams(text: link));
-                    },
-                    colors: colorScheme,
                   ),
-                  const SizedBox(height: 32),
-
-                  _buildSectionLabel('SUBSCRIBER COMMUNITY'),
-                  const SizedBox(height: 12),
-                  if (_isLoadingMembers)
-                    const Center(child: GriotLoader(size: 32))
-                  else if (_members.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 20),
-                      child: Text(
-                        'No subscribers yet.',
-                        style: TextStyle(fontStyle: FontStyle.italic),
-                      ),
-                    )
-                  else
-                    ListView.builder(
-                      shrinkWrap: true,
-                      padding: EdgeInsets.zero,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _members.take(5).length,
-                      itemBuilder: (context, index) {
-                        final member = _members[index];
-                        final isMe = member['user_id'] == currentUserId;
-                        final role = member['role']?.toString() ?? 'member';
-                        final isMemberOwner = role == 'owner';
-                        final isMemberAdmin = role == 'admin';
-
-                        return InkWell(
-                          onTap: () => _showSubscriberOptions(
-                            member,
-                            isOwner,
-                            isAdmin,
-                            currentUserId,
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Row(
-                              children: [
-                                CircleAvatar(
-                                  radius: 22,
-                                  backgroundImage: member['avatar_url'] != null
-                                      ? NetworkImage(member['avatar_url'])
-                                      : null,
-                                  child: member['avatar_url'] == null
-                                      ? const Icon(Icons.person)
-                                      : null,
+                ),
+                actions: [
+                  if (isOwner)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8.0),
+                      child: Center(
+                        child: GestureDetector(
+                          onTap: _isActionLoading ? null : _editChannelSettings,
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: colorScheme.surface,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: colorScheme.primary.withValues(
+                                  alpha: 0.2,
                                 ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        (member['display_name'] ??
-                                                member['username'] ??
-                                                'Griot User') +
-                                            (isMe ? ' (You)' : ''),
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 15,
-                                        ),
-                                      ),
-                                      if (isMemberOwner || isMemberAdmin)
-                                        Text(
-                                          role.toUpperCase(),
-                                          style: TextStyle(
-                                            fontSize: 9,
-                                            color: colorScheme.primary,
-                                            fontWeight: FontWeight.w900,
-                                            letterSpacing: 0.5,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                                if (isOwner ||
-                                    isAdmin ||
-                                    (isMe && !isMemberOwner))
-                                  Icon(
-                                    Icons.more_vert_rounded,
-                                    color: colorScheme.onSurfaceVariant
-                                        .withValues(alpha: 0.4),
-                                    size: 20,
-                                  )
-                                else
-                                  Icon(
-                                    Icons.chevron_right_rounded,
-                                    color: colorScheme.onSurfaceVariant
-                                        .withValues(alpha: 0.4),
-                                    size: 20,
-                                  ),
-                              ],
+                              ),
+                            ),
+                            child: Icon(
+                              Icons.settings_rounded,
+                              size: 20,
+                              color: colorScheme.primary,
                             ),
                           ),
-                        );
-                      },
-                    ),
-
-                  if (_members.length > 5)
-                    Center(
-                      child: TextButton(
-                        onPressed: () {},
-                        child: Text(
-                          'View all ${_members.length} subscribers',
-                          style: const TextStyle(fontWeight: FontWeight.w800),
                         ),
                       ),
                     ),
-
-                  const SizedBox(height: 48),
-
-                  if (!isOwner)
-                    _buildDangerButton(
-                      label: 'Unsubscribe',
-                      icon: Icons.notifications_off_rounded,
-                      onTap: _handleUnsubscribe,
-                    ),
-                  const SizedBox(height: 32),
+                  const SizedBox(width: 8),
                 ],
+                flexibleSpace: FlexibleSpaceBar(
+                  centerTitle: true,
+                  title: Text(
+                    widget.conversation.name ?? 'Channel',
+                    style: TextStyle(
+                      color: colorScheme.onSurface,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
               ),
-            ),
+              SliverToBoxAdapter(
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Channel Identity
+                      _buildSectionLabel('CHANNEL IDENTITY'),
+                      const SizedBox(height: 12),
+                      _ChannelInfoCard(
+                        conversation: conversation,
+                        colors: colorScheme,
+                        actualSubscriberCount: _members.length,
+                      ),
+                      const SizedBox(height: 32),
+
+                      if (widget.conversation.description != null &&
+                          widget.conversation.description!.isNotEmpty) ...[
+                        _buildSectionLabel('BROADCAST DESCRIPTION'),
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border(
+                              top: BorderSide(
+                                color: colorScheme.primary.withValues(
+                                  alpha: 0.6,
+                                ),
+                                width: 1.5,
+                              ),
+                              bottom: BorderSide(
+                                color: colorScheme.primary.withValues(
+                                  alpha: 0.6,
+                                ),
+                                width: 1.5,
+                              ),
+                            ),
+                          ),
+                          child: Text(
+                            widget.conversation.description!,
+                            style: textTheme.bodyLarge?.copyWith(
+                              height: 1.6,
+                              color: colorScheme.onSurface,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                      ],
+
+                      // Channel Actions
+                      _buildSectionLabel('CHANNEL ACTIONS'),
+                      const SizedBox(height: 12),
+                      _ChannelActionsCard(
+                        conversation: widget.conversation,
+                        onTip: () => TipSheet.show(
+                          context,
+                          recipients: [],
+                          conversationId: widget.conversation.id,
+                          conversationType: ConversationType.channel,
+                        ),
+                        onShare: () async {
+                          final link =
+                              'https://griot.network/channel/@${widget.conversation.username ?? widget.conversation.id}';
+                          await SharePlus.instance.share(
+                            ShareParams(text: link),
+                          );
+                        },
+                        colors: colorScheme,
+                      ),
+                      const SizedBox(height: 32),
+
+                      _buildSectionLabel('SUBSCRIBER COMMUNITY'),
+                      const SizedBox(height: 12),
+                      if (_isLoadingMembers)
+                        const Center(child: GriotLoader(size: 32))
+                      else if (_members.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 20),
+                          child: Text(
+                            'No subscribers yet.',
+                            style: TextStyle(fontStyle: FontStyle.italic),
+                          ),
+                        )
+                      else
+                        ListView.builder(
+                          shrinkWrap: true,
+                          padding: EdgeInsets.zero,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _members.take(5).length,
+                          itemBuilder: (context, index) {
+                            final member = _members[index];
+                            final isMe = member['user_id'] == currentUserId;
+                            final role = member['role']?.toString() ?? 'member';
+                            final isMemberOwner = role == 'owner';
+                            final isMemberAdmin = role == 'admin';
+
+                            return InkWell(
+                              onTap: () => _showSubscriberOptions(
+                                member,
+                                isOwner,
+                                isAdmin,
+                                currentUserId,
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
+                                child: Row(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 22,
+                                      backgroundImage:
+                                          member['avatar_url'] != null
+                                          ? NetworkImage(member['avatar_url'])
+                                          : null,
+                                      child: member['avatar_url'] == null
+                                          ? const Icon(Icons.person)
+                                          : null,
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Flexible(
+                                                child: Text(
+                                                  (member['display_name'] ??
+                                                          member['username'] ??
+                                                          'Griot User') +
+                                                      (isMe ? ' (You)' : ''),
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 15,
+                                                  ),
+                                                ),
+                                              ),
+                                              if (member['is_plus'] == true ||
+                                                  member['isPlus'] == true) ...[
+                                                const SizedBox(width: 6),
+                                                const GriotPlusBadge(
+                                                  isPlus: true,
+                                                  compact: true,
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                          if (isMemberOwner || isMemberAdmin)
+                                            Text(
+                                              role.toUpperCase(),
+                                              style: TextStyle(
+                                                fontSize: 9,
+                                                color: colorScheme.primary,
+                                                fontWeight: FontWeight.w900,
+                                                letterSpacing: 0.5,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (isOwner ||
+                                        isAdmin ||
+                                        (isMe && !isMemberOwner))
+                                      Icon(
+                                        Icons.more_vert_rounded,
+                                        color: colorScheme.onSurfaceVariant
+                                            .withValues(alpha: 0.4),
+                                        size: 20,
+                                      )
+                                    else
+                                      Icon(
+                                        Icons.chevron_right_rounded,
+                                        color: colorScheme.onSurfaceVariant
+                                            .withValues(alpha: 0.4),
+                                        size: 20,
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+
+                      if (_members.length > 5)
+                        Center(
+                          child: TextButton(
+                            onPressed: () {},
+                            child: Text(
+                              'View all ${_members.length} subscribers',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                      const SizedBox(height: 48),
+
+                      if (!isOwner)
+                        _buildDangerButton(
+                          label: 'Unsubscribe',
+                          icon: Icons.notifications_off_rounded,
+                          onTap: _handleUnsubscribe,
+                        ),
+                      const SizedBox(height: 32),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
+        );
       },
     );
   }
@@ -1171,13 +1258,25 @@ class _ChannelInfoCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _infoRow(Icons.alternate_email_rounded, 'Handle',
-            conversation.username != null ? '@${conversation.username}' : 'NO HANDLE'),
+          _infoRow(
+            Icons.alternate_email_rounded,
+            'Handle',
+            conversation.username != null
+                ? '@${conversation.username}'
+                : 'NO HANDLE',
+          ),
           _divider(),
-          _infoRow(Icons.sensors_rounded, 'Broadcasts', '${conversation.postCount} posts'),
+          _infoRow(
+            Icons.sensors_rounded,
+            'Broadcasts',
+            '${conversation.postCount} posts',
+          ),
           _divider(),
-          _infoRow(Icons.groups_3_outlined, 'Followers',
-            '${(actualSubscriberCount != null && actualSubscriberCount! > 0) ? actualSubscriberCount : conversation.subscriberCount} subscribers'),
+          _infoRow(
+            Icons.groups_3_outlined,
+            'Followers',
+            '${(actualSubscriberCount != null && actualSubscriberCount! > 0) ? actualSubscriberCount : conversation.subscriberCount} subscribers',
+          ),
         ],
       ),
     );
@@ -1188,9 +1287,19 @@ class _ChannelInfoCard extends StatelessWidget {
       children: [
         Icon(icon, size: 16, color: colors.primary.withValues(alpha: 0.6)),
         const SizedBox(width: 16),
-        Text(label, style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.7), fontWeight: FontWeight.w600, fontSize: 13)),
+        Text(
+          label,
+          style: TextStyle(
+            color: colors.onSurfaceVariant.withValues(alpha: 0.7),
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+          ),
+        ),
         const Spacer(),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+        Text(
+          value,
+          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+        ),
       ],
     );
   }
@@ -1277,11 +1386,17 @@ class _ActionButton extends StatelessWidget {
           decoration: BoxDecoration(
             color: isPrimary ? colors.primary : colors.surface,
             borderRadius: BorderRadius.circular(18),
-            border: isPrimary ? null : Border.all(color: colors.outline.withValues(alpha: 0.1)),
+            border: isPrimary
+                ? null
+                : Border.all(color: colors.outline.withValues(alpha: 0.1)),
           ),
           child: Column(
             children: [
-              Icon(icon, color: isPrimary ? colors.onPrimary : colors.primary, size: 20),
+              Icon(
+                icon,
+                color: isPrimary ? colors.onPrimary : colors.primary,
+                size: 20,
+              ),
               const SizedBox(height: 8),
               Text(
                 label,

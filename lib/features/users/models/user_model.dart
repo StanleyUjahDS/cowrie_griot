@@ -37,6 +37,7 @@ class UserModel {
   final UserReputationBadge? reputation;
   final String? relationshipStatus;
   final bool isOnline;
+  final bool isPlus;
 
   const UserModel({
     required this.id,
@@ -50,11 +51,16 @@ class UserModel {
     this.reputation,
     this.relationshipStatus,
     this.isOnline = false,
+    this.isPlus = false,
   });
 
   String get effectiveName {
-    if (displayName != null && displayName!.trim().isNotEmpty) return displayName!.trim();
-    if (username != null && username!.trim().isNotEmpty) return username!.trim();
+    if (displayName != null && displayName!.trim().isNotEmpty) {
+      return displayName!.trim();
+    }
+    if (username != null && username!.trim().isNotEmpty) {
+      return username!.trim();
+    }
     return shortWalletAddress;
   }
 
@@ -72,21 +78,32 @@ class UserModel {
   }
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
-    final String? rawAvatarUrl = (json['avatarUrl'] ??
-            json['avatar_url'] ??
-            json['profileUrl'] ??
-            json['profile_url'] ??
-            json['other_avatar_url'])
-        ?.toString();
+    final String? rawAvatarUrl =
+        (json['avatarUrl'] ??
+                json['avatar_url'] ??
+                json['profileUrl'] ??
+                json['profile_url'] ??
+                json['other_avatar_url'])
+            ?.toString();
+    final parsedAvatarUrl = rawAvatarUrl?.trim();
+    final parsedAvatarUri = parsedAvatarUrl == null
+        ? null
+        : Uri.tryParse(parsedAvatarUrl);
     final String? avatarUrl =
-        (rawAvatarUrl != null && rawAvatarUrl.trim().isNotEmpty)
-            ? rawAvatarUrl.trim()
-            : null;
+        parsedAvatarUrl != null &&
+            parsedAvatarUrl.isNotEmpty &&
+            parsedAvatarUri != null &&
+            parsedAvatarUri.hasScheme &&
+            parsedAvatarUri.host.isNotEmpty &&
+            (parsedAvatarUri.scheme == 'http' ||
+                parsedAvatarUri.scheme == 'https')
+        ? parsedAvatarUrl
+        : null;
 
     return UserModel(
       id: (json['id'] ?? json['userId'] ?? json['user_id'] ?? '').toString(),
-      walletAddress:
-          (json['walletAddress'] ?? json['wallet_address'] ?? '').toString(),
+      walletAddress: (json['walletAddress'] ?? json['wallet_address'] ?? '')
+          .toString(),
       createdAt: (json['createdAt'] ?? json['created_at']) != null
           ? DateTime.tryParse(
               (json['createdAt'] ?? json['created_at']).toString(),
@@ -98,10 +115,11 @@ class UserModel {
             )
           : null,
       username: (json['username'] ?? json['other_username'])?.toString(),
-      displayName: (json['displayName'] ??
-              json['display_name'] ??
-              json['other_display_name'])
-          ?.toString(),
+      displayName:
+          (json['displayName'] ??
+                  json['display_name'] ??
+                  json['other_display_name'])
+              ?.toString(),
       avatarUrl: avatarUrl,
       bio: (json['bio'] ?? json['userBio'] ?? json['user_bio'])?.toString(),
       reputation: json['reputation'] is Map
@@ -113,6 +131,10 @@ class UserModel {
           (json['relationshipStatus'] ?? json['relationship_status'])
               ?.toString(),
       isOnline: json['isOnline'] == true || json['is_online'] == true,
+      isPlus:
+          json['isPlus'] == true ||
+          json['is_plus'] == true ||
+          json['other_is_plus'] == true,
     );
   }
 
@@ -129,6 +151,7 @@ class UserModel {
       'reputation': reputation?.toJson(),
       'relationshipStatus': relationshipStatus,
       'isOnline': isOnline,
+      'isPlus': isPlus,
     };
   }
 
@@ -144,6 +167,7 @@ class UserModel {
     UserReputationBadge? reputation,
     String? relationshipStatus,
     bool? isOnline,
+    bool? isPlus,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -157,6 +181,7 @@ class UserModel {
       reputation: reputation ?? this.reputation,
       relationshipStatus: relationshipStatus ?? this.relationshipStatus,
       isOnline: isOnline ?? this.isOnline,
+      isPlus: isPlus ?? this.isPlus,
     );
   }
 }

@@ -10,9 +10,11 @@ class LocalProfilesTable {
   static const String columnReputationTier = 'reputation_tier';
   static const String columnReputationColor = 'reputation_color';
   static const String columnRelationshipStatus = 'relationship_status';
+  static const String columnIsPlus = 'is_plus';
   static const String columnLastSeenAt = 'last_seen_at';
 
-  static const String createTable = '''
+  static const String createTable =
+      '''
     CREATE TABLE $tableName (
       $columnId TEXT PRIMARY KEY,
       $columnWalletAddress TEXT NOT NULL,
@@ -23,6 +25,7 @@ class LocalProfilesTable {
       $columnReputationTier TEXT,
       $columnReputationColor TEXT,
       $columnRelationshipStatus TEXT,
+      $columnIsPlus INTEGER NOT NULL DEFAULT 0,
       $columnLastSeenAt TEXT
     )
   ''';

@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:griot_cowrie/features/users/providers/user_provider.dart';
 import 'package:image_picker/image_picker.dart';
@@ -11,6 +11,8 @@ import 'package:provider/provider.dart';
 import '../../../../core/services/notification_service.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
+import '../../../core/ui/widgets/griot_avatar.dart';
+import '../../../core/ui/widgets/griot_plus_badge.dart';
 import '../models/chat_message.dart';
 import '../models/chat_user.dart';
 import '../models/conversation_model.dart';
@@ -86,7 +88,13 @@ class _DMChatScreenState extends State<DMChatScreen> {
       try {
         final conversation = await apiService.getConversation(conversationId);
         if (mounted) {
-          setState(() => _conversation = conversation);
+          final existingOtherUser = _conversation?.otherUser;
+          setState(() {
+            _conversation =
+                conversation.otherUser == null && existingOtherUser != null
+                ? conversation.copyWith(otherUser: existingOtherUser)
+                : conversation;
+          });
         }
       } catch (e) {
         debugPrint('Failed to load conversation details: $e');
@@ -110,11 +118,17 @@ class _DMChatScreenState extends State<DMChatScreen> {
 
     try {
       final provider = Provider.of<MessagingProvider>(context, listen: false);
-      final conversation = await provider.startDirectChat(widget.userId!);
+      final conversation = await provider.startDirectChat(
+        widget.userId!,
+        otherUser: widget.initialUser,
+      );
       if (mounted) {
         setState(() {
           _conversationId = conversation.id;
-          _conversation = conversation;
+          _conversation =
+              conversation.otherUser == null && widget.initialUser != null
+              ? conversation.copyWith(otherUser: widget.initialUser)
+              : conversation;
         });
         provider.joinConversation(conversation.id);
         provider.loadMessages(conversation.id, refresh: true);
@@ -218,9 +232,12 @@ class _DMChatScreenState extends State<DMChatScreen> {
           final conv = await provider.startDirectChat(widget.userId!);
           conversationId = conv.id;
           if (mounted) {
+            final participant = _conversation?.otherUser ?? widget.initialUser;
             setState(() {
               _conversationId = conv.id;
-              _conversation = conv;
+              _conversation = conv.otherUser == null && participant != null
+                  ? conv.copyWith(otherUser: participant)
+                  : conv;
             });
           }
         }
@@ -403,13 +420,10 @@ class _DMChatScreenState extends State<DMChatScreen> {
               color: colorScheme.primary.withValues(alpha: 0.20),
             ),
           ),
-          child: ClipOval(
-            child: (otherUser?.profileUrl != null)
-                ? Image.network(otherUser!.profileUrl!, fit: BoxFit.cover)
-                : SvgPicture.asset(
-                    'assets/coins_logo/hbadger_logo.svg',
-                    fit: BoxFit.cover,
-                  ),
+          child: GriotAvatar(
+            avatarUrl: otherUser?.profileUrl,
+            radius: 22,
+            backgroundColor: Colors.transparent,
           ),
         ),
         if (isOnline)
@@ -439,13 +453,27 @@ class _DMChatScreenState extends State<DMChatScreen> {
     return Consumer<MessagingProvider>(
       builder: (context, provider, child) {
         final cid = _conversationId;
-        final currentConversation = cid != null
+        final baseConversation = cid != null
             ? provider.conversations.firstWhere(
                 (c) => c.id == cid,
                 orElse: () => _conversation!,
               )
             : _conversation;
-        final otherUser = currentConversation?.otherUser;
+        final providerOtherUser = baseConversation?.otherUser;
+        final fallbackOtherUser = _conversation?.otherUser;
+        final otherUser = providerOtherUser == null
+            ? fallbackOtherUser
+            : ((providerOtherUser.profileUrl == null ||
+                      providerOtherUser.profileUrl!.trim().isEmpty) &&
+                  fallbackOtherUser?.profileUrl != null &&
+                  fallbackOtherUser!.profileUrl!.trim().isNotEmpty)
+            ? providerOtherUser.copyWith(
+                profileUrl: fallbackOtherUser.profileUrl,
+              )
+            : providerOtherUser;
+        final currentConversation = baseConversation?.copyWith(
+          otherUser: otherUser,
+        );
         final bool isOnline =
             (otherUser != null && provider.presenceMap[otherUser.id] == true) ||
             (otherUser?.isOnline ?? false);
@@ -499,12 +527,27 @@ class _DMChatScreenState extends State<DMChatScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            otherUser?.effectiveDisplayName ?? 'Chat',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -0.5,
-                            ),
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  otherUser?.effectiveDisplayName ?? 'Chat',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
+                              ),
+                              if (otherUser?.isPlus == true) ...[
+                                const SizedBox(width: 6),
+                                const GriotPlusBadge(
+                                  isPlus: true,
+                                  compact: true,
+                                ),
+                              ],
+                            ],
                           ),
                           Text(
                             isOtherUserTyping
@@ -813,6 +856,10 @@ class _DMChatScreenState extends State<DMChatScreen> {
           Navigator.pop(sheetContext);
           _pickFile();
         },
+        onContact: () {
+          Navigator.pop(sheetContext);
+          _pickContact();
+        },
         onTip: () {
           Navigator.pop(sheetContext);
           TipSheet.show(
@@ -826,6 +873,57 @@ class _DMChatScreenState extends State<DMChatScreen> {
         },
       ),
     );
+  }
+
+  Future<void> _pickContact() async {
+    final conversationId = _conversationId;
+    if (conversationId == null) {
+      if (mounted) {
+        NotificationService.showInfo(context, 'Waiting for chat session...');
+      }
+      return;
+    }
+
+    try {
+      final contact = await FlutterContacts.native.showPicker(
+        properties: {ContactProperty.name, ContactProperty.phone},
+      );
+      if (!mounted || contact == null) return;
+
+      final name = contact.displayName?.trim().isNotEmpty == true
+          ? contact.displayName!.trim()
+          : 'Contact';
+      final phone = contact.phones.isNotEmpty
+          ? contact.phones.first.number.trim()
+          : '';
+
+      if (phone.isEmpty) {
+        NotificationService.showError(
+          context,
+          'This contact does not have a phone number.',
+        );
+        return;
+      }
+
+      await context.read<MessagingProvider>().sendContactMessage(
+        conversationId: conversationId,
+        contactName: name,
+        contactPhone: phone,
+        replyToMessageId: _replyingTo?.id,
+      );
+      if (mounted) {
+        setState(() => _replyingTo = null);
+        _scrollToBottom();
+      }
+    } catch (error) {
+      if (mounted) {
+        NotificationService.showError(
+          context,
+          'Could not share contact. Please try again.',
+        );
+      }
+      debugPrint('Contact sharing failed: $error');
+    }
   }
 
   Future<void> _pickImage(ImageSource source) async {

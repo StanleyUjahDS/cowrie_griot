@@ -16,6 +16,7 @@ class ChatUser {
   final String? phoneNumber;
   final bool phoneDiscoveryEnabled;
   final UserReputationBadge? reputation;
+  final bool isPlus;
 
   const ChatUser({
     required this.id,
@@ -33,7 +34,17 @@ class ChatUser {
     this.phoneNumber,
     this.phoneDiscoveryEnabled = false,
     this.reputation,
+    this.isPlus = false,
   });
+
+  static String? _normaliseAvatarUrl(dynamic value) {
+    final url = value?.toString().trim();
+    if (url == null || url.isEmpty || url == 'null') return null;
+    final uri = Uri.tryParse(url);
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) return null;
+    if (uri.scheme != 'http' && uri.scheme != 'https') return null;
+    return url;
+  }
 
   String get effectiveDisplayName {
     if (displayName != null && displayName!.isNotEmpty) return displayName!;
@@ -59,6 +70,7 @@ class ChatUser {
       bio: bio,
       reputation: reputation,
       relationshipStatus: relationshipStatus,
+      isPlus: isPlus,
     );
   }
 
@@ -73,30 +85,74 @@ class ChatUser {
       reputation: user.reputation,
       relationshipStatus: user.relationshipStatus,
       timestamp: DateTime.now(),
+      isPlus: user.isPlus,
     );
   }
 
   factory ChatUser.fromJson(Map<String, dynamic> json) {
     return ChatUser(
       id: (json['id'] ?? json['userId'] ?? json['user_id'])?.toString() ?? '',
-      walletAddress: (json['walletAddress'] ?? json['wallet_address'] ?? '').toString(),
+      walletAddress: (json['walletAddress'] ?? json['wallet_address'] ?? '')
+          .toString(),
       username: (json['username'] ?? json['other_username'])?.toString(),
-      displayName: (json['displayName'] ?? json['display_name'] ?? json['other_display_name'])?.toString(),
-      profileUrl: (json['profileUrl'] ?? json['avatarUrl'] ?? json['profile_url'] ?? json['other_avatar_url'])?.toString(),
-      bio: (json['bio'] ?? json['userBio'] ?? json['user_bio'] ?? json['other_bio'])?.toString(),
+      displayName:
+          (json['displayName'] ??
+                  json['display_name'] ??
+                  json['other_display_name'])
+              ?.toString(),
+      profileUrl: _normaliseAvatarUrl(
+        json['profileUrl'] ??
+            json['avatarUrl'] ??
+            json['profile_url'] ??
+            json['avatar_url'] ??
+            json['other_avatar_url'] ??
+            json['otherAvatarUrl'] ??
+            json['other_profile_url'] ??
+            json['otherProfileUrl'] ??
+            json['author_avatar_url'] ??
+            json['authorAvatarUrl'] ??
+            json['sender_avatar_url'] ??
+            json['senderProfileUrl'] ??
+            json['receiver_avatar_url'] ??
+            json['receiverProfileUrl'],
+      ),
+      bio:
+          (json['bio'] ??
+                  json['userBio'] ??
+                  json['user_bio'] ??
+                  json['other_bio'])
+              ?.toString(),
       isOnline: json['isOnline'] == true || json['is_online'] == true,
-      lastMessage: (json['lastMessage'] ?? json['last_message'] ?? '')?.toString() ?? '',
+      lastMessage:
+          (json['lastMessage'] ?? json['last_message'] ?? '')?.toString() ?? '',
       timestamp: json['timestamp'] != null
           ? DateTime.parse(json['timestamp'].toString())
-          : (json['last_message_at'] != null ? DateTime.parse(json['last_message_at'].toString()) : DateTime.now()),
+          : (json['last_message_at'] != null
+                ? DateTime.parse(json['last_message_at'].toString())
+                : DateTime.now()),
       unreadCount: (json['unreadCount'] ?? json['unread_count'] ?? 0) as int,
-      relationshipStatus: (json['relationshipStatus'] ?? json['relationship_status'])?.toString(),
-      isDiscoverableByPhone: json['isDiscoverableByPhone'] == true || json['is_discoverable_by_phone'] == true,
+      relationshipStatus:
+          (json['relationshipStatus'] ?? json['relationship_status'])
+              ?.toString(),
+      isDiscoverableByPhone:
+          json['isDiscoverableByPhone'] == true ||
+          json['is_discoverable_by_phone'] == true,
       phoneNumber: (json['phoneNumber'] ?? json['phone_number'])?.toString(),
-      phoneDiscoveryEnabled: json['phoneDiscoveryEnabled'] == true || json['phone_discovery_enabled'] == true,
+      phoneDiscoveryEnabled:
+          json['phoneDiscoveryEnabled'] == true ||
+          json['phone_discovery_enabled'] == true,
       reputation: json['reputation'] != null
-          ? UserReputationBadge.fromJson(Map<String, dynamic>.from(json['reputation']))
+          ? UserReputationBadge.fromJson(
+              Map<String, dynamic>.from(json['reputation']),
+            )
           : null,
+      isPlus:
+          json['isPlus'] == true ||
+          json['is_plus'] == true ||
+          json['other_is_plus'] == true ||
+          json['author_is_plus'] == true ||
+          json['sender_is_plus'] == true ||
+          json['receiver_is_plus'] == true,
     );
   }
 
@@ -117,6 +173,7 @@ class ChatUser {
       'phoneNumber': phoneNumber,
       'phoneDiscoveryEnabled': phoneDiscoveryEnabled,
       'reputation': reputation?.toJson(),
+      'isPlus': isPlus,
     };
   }
 
@@ -136,6 +193,7 @@ class ChatUser {
     String? phoneNumber,
     bool? phoneDiscoveryEnabled,
     UserReputationBadge? reputation,
+    bool? isPlus,
   }) {
     return ChatUser(
       id: id ?? this.id,
@@ -149,10 +207,13 @@ class ChatUser {
       timestamp: timestamp ?? this.timestamp,
       unreadCount: unreadCount ?? this.unreadCount,
       relationshipStatus: relationshipStatus ?? this.relationshipStatus,
-      isDiscoverableByPhone: isDiscoverableByPhone ?? this.isDiscoverableByPhone,
+      isDiscoverableByPhone:
+          isDiscoverableByPhone ?? this.isDiscoverableByPhone,
       phoneNumber: phoneNumber ?? this.phoneNumber,
-      phoneDiscoveryEnabled: phoneDiscoveryEnabled ?? this.phoneDiscoveryEnabled,
+      phoneDiscoveryEnabled:
+          phoneDiscoveryEnabled ?? this.phoneDiscoveryEnabled,
       reputation: reputation ?? this.reputation,
+      isPlus: isPlus ?? this.isPlus,
     );
   }
 }

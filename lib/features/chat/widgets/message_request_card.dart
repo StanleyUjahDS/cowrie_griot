@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../models/message_request.dart';
 import '../../users/models/user_model.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/ui/widgets/griot_plus_badge.dart';
 
 class MessageRequestCard extends StatelessWidget {
   final MessageRequest request;
@@ -51,6 +52,7 @@ class MessageRequestCard extends StatelessWidget {
               displayName: request.senderDisplayName,
               avatarUrl: request.senderProfileUrl,
               relationshipStatus: 'request_received',
+              isPlus: request.senderIsPlus,
             );
             context.push('/user/profile', extra: user);
           },
@@ -81,14 +83,27 @@ class MessageRequestCard extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            request.displayName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 16,
-                            ),
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  request.displayName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                              if (request.senderIsPlus) ...[
+                                const SizedBox(width: 6),
+                                const GriotPlusBadge(
+                                  isPlus: true,
+                                  compact: true,
+                                ),
+                              ],
+                            ],
                           ),
                           Text(
                             request.formattedUsername ?? 'Griot User',

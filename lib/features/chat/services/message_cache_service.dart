@@ -26,8 +26,8 @@ class MessageCacheService {
   MessageCacheService({
     ChatDatabase? chatDb,
     FlutterSecureStorage? secureStorage,
-  })  : _chatDb = chatDb ?? ChatDatabase(),
-        _secureStorage = secureStorage ?? const FlutterSecureStorage();
+  }) : _chatDb = chatDb ?? ChatDatabase(),
+       _secureStorage = secureStorage ?? const FlutterSecureStorage();
 
   // ==========================================================
   // INITIALIZATION
@@ -56,7 +56,10 @@ class MessageCacheService {
     } else {
       final newKey = await _algorithm.newSecretKey();
       final keyBytes = await newKey.extractBytes();
-      await _secureStorage.write(key: _storageKey, value: base64Encode(keyBytes));
+      await _secureStorage.write(
+        key: _storageKey,
+        value: base64Encode(keyBytes),
+      );
       _encryptionKey = newKey;
     }
   }
@@ -67,7 +70,9 @@ class MessageCacheService {
 
   Future<Map<String, String?>> _encryptFixed(String? text) async {
     if (text == null || text.isEmpty) return {'encrypted': null, 'nonce': null};
-    if (_encryptionKey == null) throw Exception('Encryption key not initialized');
+    if (_encryptionKey == null) {
+      throw Exception('Encryption key not initialized');
+    }
 
     final secretBox = await _algorithm.encrypt(
       utf8.encode(text),
@@ -85,15 +90,22 @@ class MessageCacheService {
 
   Future<String?> _decryptFixed(String? encrypted, String? nonce) async {
     if (encrypted == null || nonce == null) return null;
-    if (_encryptionKey == null) throw Exception('Encryption key not initialized');
+    if (_encryptionKey == null) {
+      throw Exception('Encryption key not initialized');
+    }
 
     try {
       final encryptedBytes = base64Decode(encrypted);
       final nonceBytes = base64Decode(nonce);
 
       final macLength = 16; // AES-GCM tag is 16 bytes
-      final cipherText = encryptedBytes.sublist(0, encryptedBytes.length - macLength);
-      final macBytes = encryptedBytes.sublist(encryptedBytes.length - macLength);
+      final cipherText = encryptedBytes.sublist(
+        0,
+        encryptedBytes.length - macLength,
+      );
+      final macBytes = encryptedBytes.sublist(
+        encryptedBytes.length - macLength,
+      );
 
       final secretBox = SecretBox(
         cipherText,
@@ -128,27 +140,23 @@ class MessageCacheService {
     for (final message in messages) {
       final encryptionData = await _encryptFixed(message.text);
 
-      batch.insert(
-        _tableName,
-        {
-          'id': message.id,
-          'conversation_id': message.conversationId,
-          'sender_id': message.senderId,
-          'content': null, // We store in encrypted_content
-          'encrypted_content': encryptionData['encrypted'],
-          'nonce': encryptionData['nonce'],
-          'message_type': message.type.name,
-          'created_at': message.createdAt.toIso8601String(),
-          'status': message.status.name,
-          'is_deleted': message.isDeleted ? 1 : 0,
-          'server_synced': 1, // Messages from API are synced
-          'last_synced_at': DateTime.now().toIso8601String(),
-          'media_url': message.mediaUrl,
-          'thumbnail_url': message.thumbnailUrl,
-          'reply_to_message_id': message.replyToMessageId,
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      batch.insert(_tableName, {
+        'id': message.id,
+        'conversation_id': message.conversationId,
+        'sender_id': message.senderId,
+        'content': null, // We store in encrypted_content
+        'encrypted_content': encryptionData['encrypted'],
+        'nonce': encryptionData['nonce'],
+        'message_type': message.type.name,
+        'created_at': message.createdAt.toIso8601String(),
+        'status': message.status.name,
+        'is_deleted': message.isDeleted ? 1 : 0,
+        'server_synced': 1, // Messages from API are synced
+        'last_synced_at': DateTime.now().toIso8601String(),
+        'media_url': message.mediaUrl,
+        'thumbnail_url': message.thumbnailUrl,
+        'reply_to_message_id': message.replyToMessageId,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
     }
     await batch.commit(noResult: true);
   }
@@ -183,19 +191,21 @@ class MessageCacheService {
         row['nonce'] as String?,
       );
 
-      messages.add(ChatMessage(
-        id: row['id'] as String,
-        conversationId: row['conversation_id'] as String,
-        senderId: row['sender_id'] as String,
-        text: decryptedText ?? '',
-        type: _messageTypeFromString(row['message_type'] as String?),
-        status: _messageStatusFromString(row['status'] as String?),
-        createdAt: DateTime.parse(row['created_at'] as String),
-        isDeleted: (row['is_deleted'] as int) == 1,
-        mediaUrl: row['media_url'] as String?,
-        thumbnailUrl: row['thumbnail_url'] as String?,
-        replyToMessageId: row['reply_to_message_id'] as String?,
-      ));
+      messages.add(
+        ChatMessage(
+          id: row['id'] as String,
+          conversationId: row['conversation_id'] as String,
+          senderId: row['sender_id'] as String,
+          text: decryptedText ?? '',
+          type: _messageTypeFromString(row['message_type'] as String?),
+          status: _messageStatusFromString(row['status'] as String?),
+          createdAt: DateTime.parse(row['created_at'] as String),
+          isDeleted: (row['is_deleted'] as int) == 1,
+          mediaUrl: row['media_url'] as String?,
+          thumbnailUrl: row['thumbnail_url'] as String?,
+          replyToMessageId: row['reply_to_message_id'] as String?,
+        ),
+      );
     }
 
     return messages;
@@ -238,7 +248,10 @@ class MessageCacheService {
     await saveMessage(message);
   }
 
-  Future<void> updateMessageStatus(String messageId, MessageStatus status) async {
+  Future<void> updateMessageStatus(
+    String messageId,
+    MessageStatus status,
+  ) async {
     final db = await _chatDb.database;
 
     await db.update(
@@ -254,10 +267,7 @@ class MessageCacheService {
 
     await db.update(
       _tableName,
-      {
-        'server_synced': 1,
-        'last_synced_at': DateTime.now().toIso8601String(),
-      },
+      {'server_synced': 1, 'last_synced_at': DateTime.now().toIso8601String()},
       where: 'id = ?',
       whereArgs: [messageId],
     );
@@ -268,11 +278,7 @@ class MessageCacheService {
 
     await db.update(
       _tableName,
-      {
-        'is_deleted': 1,
-        'encrypted_content': null,
-        'nonce': null,
-      },
+      {'is_deleted': 1, 'encrypted_content': null, 'nonce': null},
       where: 'id = ?',
       whereArgs: [messageId],
     );
@@ -294,19 +300,21 @@ class MessageCacheService {
         row['nonce'] as String?,
       );
 
-      messages.add(ChatMessage(
-        id: row['id'] as String,
-        conversationId: row['conversation_id'] as String,
-        senderId: row['sender_id'] as String,
-        text: decryptedText ?? '',
-        type: _messageTypeFromString(row['message_type'] as String?),
-        status: _messageStatusFromString(row['status'] as String?),
-        createdAt: DateTime.parse(row['created_at'] as String),
-        isDeleted: (row['is_deleted'] as int) == 1,
-        mediaUrl: row['media_url'] as String?,
-        thumbnailUrl: row['thumbnail_url'] as String?,
-        replyToMessageId: row['reply_to_message_id'] as String?,
-      ));
+      messages.add(
+        ChatMessage(
+          id: row['id'] as String,
+          conversationId: row['conversation_id'] as String,
+          senderId: row['sender_id'] as String,
+          text: decryptedText ?? '',
+          type: _messageTypeFromString(row['message_type'] as String?),
+          status: _messageStatusFromString(row['status'] as String?),
+          createdAt: DateTime.parse(row['created_at'] as String),
+          isDeleted: (row['is_deleted'] as int) == 1,
+          mediaUrl: row['media_url'] as String?,
+          thumbnailUrl: row['thumbnail_url'] as String?,
+          replyToMessageId: row['reply_to_message_id'] as String?,
+        ),
+      );
     }
 
     return messages;
@@ -315,11 +323,7 @@ class MessageCacheService {
   Future<void> deleteLocalMessage(String messageId) async {
     final db = await _chatDb.database;
 
-    await db.delete(
-      _tableName,
-      where: 'id = ?',
-      whereArgs: [messageId],
-    );
+    await db.delete(_tableName, where: 'id = ?', whereArgs: [messageId]);
   }
 
   Future<void> clearAllMessages() async {
@@ -366,31 +370,31 @@ class MessageCacheService {
     final batch = db.batch();
 
     for (final conv in conversations) {
-      batch.insert(
-        LocalConversationsTable.tableName,
-        {
-          LocalConversationsTable.columnId: conv.id,
-          LocalConversationsTable.columnType: conv.type.name,
-          LocalConversationsTable.columnTitle: conv.name,
-          LocalConversationsTable.columnAvatarUrl: conv.imageUrl,
-          LocalConversationsTable.columnOtherUserId: conv.otherUser?.id,
-          LocalConversationsTable.columnUnreadCount: conv.unreadCount,
-          LocalConversationsTable.columnLastMessageId: conv.lastMessage?.id,
-          LocalConversationsTable.columnUpdatedAt: conv.updatedAt.toIso8601String(),
-          LocalConversationsTable.columnCreatedAt: conv.createdAt.toIso8601String(),
-          LocalConversationsTable.columnOwnerId: conv.ownerId,
-          LocalConversationsTable.columnVisibility: conv.visibility,
-          LocalConversationsTable.columnRole: conv.role,
-          LocalConversationsTable.columnStatus: conv.status,
-          LocalConversationsTable.columnMemberCount: conv.memberCount,
-          LocalConversationsTable.columnSubscriberCount: conv.subscriberCount,
-          LocalConversationsTable.columnPostCount: conv.postCount,
-          LocalConversationsTable.columnUsername: conv.username,
-          LocalConversationsTable.columnDescription: conv.description,
-          LocalConversationsTable.columnMessagesLocked: conv.messagesLocked ? 1 : 0,
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      batch.insert(LocalConversationsTable.tableName, {
+        LocalConversationsTable.columnId: conv.id,
+        LocalConversationsTable.columnType: conv.type.name,
+        LocalConversationsTable.columnTitle: conv.name,
+        LocalConversationsTable.columnAvatarUrl: conv.imageUrl,
+        LocalConversationsTable.columnOtherUserId: conv.otherUser?.id,
+        LocalConversationsTable.columnUnreadCount: conv.unreadCount,
+        LocalConversationsTable.columnLastMessageId: conv.lastMessage?.id,
+        LocalConversationsTable.columnUpdatedAt: conv.updatedAt
+            .toIso8601String(),
+        LocalConversationsTable.columnCreatedAt: conv.createdAt
+            .toIso8601String(),
+        LocalConversationsTable.columnOwnerId: conv.ownerId,
+        LocalConversationsTable.columnVisibility: conv.visibility,
+        LocalConversationsTable.columnRole: conv.role,
+        LocalConversationsTable.columnStatus: conv.status,
+        LocalConversationsTable.columnMemberCount: conv.memberCount,
+        LocalConversationsTable.columnSubscriberCount: conv.subscriberCount,
+        LocalConversationsTable.columnPostCount: conv.postCount,
+        LocalConversationsTable.columnUsername: conv.username,
+        LocalConversationsTable.columnDescription: conv.description,
+        LocalConversationsTable.columnMessagesLocked: conv.messagesLocked
+            ? 1
+            : 0,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
 
       if (conv.otherUser != null) {
         await saveChatUser(conv.otherUser!);
@@ -408,40 +412,56 @@ class MessageCacheService {
 
     final List<Conversation> conversations = [];
     for (final row in results) {
-      final otherUserId = row[LocalConversationsTable.columnOtherUserId] as String?;
+      final otherUserId =
+          row[LocalConversationsTable.columnOtherUserId] as String?;
       ChatUser? otherUser;
       if (otherUserId != null) {
         otherUser = await getChatUser(otherUserId);
       }
 
-      final lastMessageId = row[LocalConversationsTable.columnLastMessageId] as String?;
+      final lastMessageId =
+          row[LocalConversationsTable.columnLastMessageId] as String?;
       ChatMessage? lastMessage;
       if (lastMessageId != null) {
         lastMessage = await getMessage(lastMessageId);
       }
 
-      conversations.add(Conversation(
-        id: row[LocalConversationsTable.columnId] as String,
-        type: _conversationTypeFromString(row[LocalConversationsTable.columnType] as String?),
-        name: row[LocalConversationsTable.columnTitle] as String?,
-        imageUrl: row[LocalConversationsTable.columnAvatarUrl] as String?,
-        memberIds: [], // We don't store members locally yet
-        otherUser: otherUser,
-        lastMessage: lastMessage,
-        unreadCount: row[LocalConversationsTable.columnUnreadCount] as int,
-        updatedAt: DateTime.parse(row[LocalConversationsTable.columnUpdatedAt] as String),
-        createdAt: DateTime.parse(row[LocalConversationsTable.columnCreatedAt] as String),
-        ownerId: row[LocalConversationsTable.columnOwnerId] as String?,
-        visibility: (row[LocalConversationsTable.columnVisibility] ?? 'public') as String,
-        role: row[LocalConversationsTable.columnRole] as String?,
-        status: row[LocalConversationsTable.columnStatus] as String?,
-        memberCount: (row[LocalConversationsTable.columnMemberCount] ?? 0) as int,
-        subscriberCount: (row[LocalConversationsTable.columnSubscriberCount] ?? 0) as int,
-        postCount: (row[LocalConversationsTable.columnPostCount] ?? 0) as int,
-        username: row[LocalConversationsTable.columnUsername] as String?,
-        description: row[LocalConversationsTable.columnDescription] as String?,
-        messagesLocked: (row[LocalConversationsTable.columnMessagesLocked] ?? 0) == 1,
-      ));
+      conversations.add(
+        Conversation(
+          id: row[LocalConversationsTable.columnId] as String,
+          type: _conversationTypeFromString(
+            row[LocalConversationsTable.columnType] as String?,
+          ),
+          name: row[LocalConversationsTable.columnTitle] as String?,
+          imageUrl: row[LocalConversationsTable.columnAvatarUrl] as String?,
+          memberIds: [], // We don't store members locally yet
+          otherUser: otherUser,
+          lastMessage: lastMessage,
+          unreadCount: row[LocalConversationsTable.columnUnreadCount] as int,
+          updatedAt: DateTime.parse(
+            row[LocalConversationsTable.columnUpdatedAt] as String,
+          ),
+          createdAt: DateTime.parse(
+            row[LocalConversationsTable.columnCreatedAt] as String,
+          ),
+          ownerId: row[LocalConversationsTable.columnOwnerId] as String?,
+          visibility:
+              (row[LocalConversationsTable.columnVisibility] ?? 'public')
+                  as String,
+          role: row[LocalConversationsTable.columnRole] as String?,
+          status: row[LocalConversationsTable.columnStatus] as String?,
+          memberCount:
+              (row[LocalConversationsTable.columnMemberCount] ?? 0) as int,
+          subscriberCount:
+              (row[LocalConversationsTable.columnSubscriberCount] ?? 0) as int,
+          postCount: (row[LocalConversationsTable.columnPostCount] ?? 0) as int,
+          username: row[LocalConversationsTable.columnUsername] as String?,
+          description:
+              row[LocalConversationsTable.columnDescription] as String?,
+          messagesLocked:
+              (row[LocalConversationsTable.columnMessagesLocked] ?? 0) == 1,
+        ),
+      );
     }
     return conversations;
   }
@@ -461,22 +481,19 @@ class MessageCacheService {
 
   Future<void> saveChatUser(ChatUser user) async {
     final db = await _chatDb.database;
-    await db.insert(
-      LocalProfilesTable.tableName,
-      {
-        LocalProfilesTable.columnId: user.id,
-        LocalProfilesTable.columnWalletAddress: user.walletAddress,
-        LocalProfilesTable.columnUsername: user.username,
-        LocalProfilesTable.columnDisplayName: user.displayName,
-        LocalProfilesTable.columnAvatarUrl: user.profileUrl,
-        LocalProfilesTable.columnBio: user.bio,
-        LocalProfilesTable.columnReputationTier: user.reputation?.tierName,
-        LocalProfilesTable.columnReputationColor: user.reputation?.badgeColor,
-        LocalProfilesTable.columnRelationshipStatus: user.relationshipStatus,
-        LocalProfilesTable.columnLastSeenAt: user.timestamp.toIso8601String(),
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await db.insert(LocalProfilesTable.tableName, {
+      LocalProfilesTable.columnId: user.id,
+      LocalProfilesTable.columnWalletAddress: user.walletAddress,
+      LocalProfilesTable.columnUsername: user.username,
+      LocalProfilesTable.columnDisplayName: user.displayName,
+      LocalProfilesTable.columnAvatarUrl: user.profileUrl,
+      LocalProfilesTable.columnBio: user.bio,
+      LocalProfilesTable.columnReputationTier: user.reputation?.tierName,
+      LocalProfilesTable.columnReputationColor: user.reputation?.badgeColor,
+      LocalProfilesTable.columnRelationshipStatus: user.relationshipStatus,
+      LocalProfilesTable.columnIsPlus: user.isPlus ? 1 : 0,
+      LocalProfilesTable.columnLastSeenAt: user.timestamp.toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<ChatUser?> getChatUser(String userId) async {
@@ -505,9 +522,13 @@ class MessageCacheService {
       displayName: row[LocalProfilesTable.columnDisplayName] as String?,
       profileUrl: row[LocalProfilesTable.columnAvatarUrl] as String?,
       bio: row[LocalProfilesTable.columnBio] as String?,
-      timestamp: DateTime.parse(row[LocalProfilesTable.columnLastSeenAt] as String),
+      timestamp: DateTime.parse(
+        row[LocalProfilesTable.columnLastSeenAt] as String,
+      ),
       reputation: reputation,
-      relationshipStatus: row[LocalProfilesTable.columnRelationshipStatus] as String?,
+      relationshipStatus:
+          row[LocalProfilesTable.columnRelationshipStatus] as String?,
+      isPlus: (row[LocalProfilesTable.columnIsPlus] as int? ?? 0) == 1,
     );
   }
 

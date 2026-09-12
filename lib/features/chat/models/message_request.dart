@@ -1,13 +1,8 @@
-enum RequestStatus {
-  pending,
-  accepted,
-  declined,
-  withdrawn,
-}
+enum RequestStatus { pending, accepted, declined, withdrawn }
 
 class MessageRequest {
   final String id;
-  
+
   /// Real UUIDs of the users involved.
   final String? senderId;
   final String? receiverId;
@@ -48,6 +43,7 @@ class MessageRequest {
   // ==========================================================
 
   final bool senderIsOnline;
+  final bool senderIsPlus;
 
   // ==========================================================
   // TIMESTAMP
@@ -82,6 +78,7 @@ class MessageRequest {
     this.requestType,
     this.message = '',
     this.senderIsOnline = false,
+    this.senderIsPlus = false,
     required this.createdAt,
     this.respondedAt,
     this.status = RequestStatus.pending,
@@ -114,13 +111,11 @@ class MessageRequest {
   // ==========================================================
 
   String get displayName {
-    if (senderDisplayName != null &&
-        senderDisplayName!.trim().isNotEmpty) {
+    if (senderDisplayName != null && senderDisplayName!.trim().isNotEmpty) {
       return senderDisplayName!.trim();
     }
 
-    if (senderUsername != null &&
-        senderUsername!.trim().isNotEmpty) {
+    if (senderUsername != null && senderUsername!.trim().isNotEmpty) {
       return senderUsername!.trim();
     }
 
@@ -147,26 +142,20 @@ class MessageRequest {
     }
 
     return '${senderWalletAddress.substring(0, 3)}...'
-        '${senderWalletAddress.substring(
-      senderWalletAddress.length - 3,
-    )}';
+        '${senderWalletAddress.substring(senderWalletAddress.length - 3)}';
   }
 
   // ==========================================================
   // STATUS HELPERS
   // ==========================================================
 
-  bool get isPending =>
-      status == RequestStatus.pending;
+  bool get isPending => status == RequestStatus.pending;
 
-  bool get isAccepted =>
-      status == RequestStatus.accepted;
+  bool get isAccepted => status == RequestStatus.accepted;
 
-  bool get isDeclined =>
-      status == RequestStatus.declined;
+  bool get isDeclined => status == RequestStatus.declined;
 
-  bool get isWithdrawn =>
-      status == RequestStatus.withdrawn;
+  bool get isWithdrawn => status == RequestStatus.withdrawn;
 
   // ==========================================================
   // JSON
@@ -176,29 +165,69 @@ class MessageRequest {
     return MessageRequest(
       id: json['id'] as String,
       senderId: (json['senderId'] ?? json['sender_id'])?.toString(),
-      receiverId: (json['receiverId'] ?? json['receiver_id'] ?? json['recipient_id'])?.toString(),
-      conversationId: (json['conversationId'] ?? json['conversation_id'])?.toString(),
+      receiverId:
+          (json['receiverId'] ?? json['receiver_id'] ?? json['recipient_id'])
+              ?.toString(),
+      conversationId: (json['conversationId'] ?? json['conversation_id'])
+          ?.toString(),
       requestType: (json['requestType'] ?? json['request_type'])?.toString(),
-      
-      senderWalletAddress: (json['senderWalletAddress'] ?? json['sender_wallet_address'] ?? '').toString(),
-      receiverWalletAddress: (json['receiverWalletAddress'] ?? json['receiver_wallet_address'] ?? json['recipient_wallet_address'] ?? '').toString(),
-      
-      senderUsername: (json['senderUsername'] ?? json['sender_username'])?.toString(),
-      senderDisplayName: (json['senderDisplayName'] ?? json['sender_display_name'])?.toString(),
-      senderProfileUrl: (json['senderProfileUrl'] ?? json['sender_avatar_url'])?.toString(),
-      
-      receiverUsername: (json['receiverUsername'] ?? json['receiver_username'] ?? json['recipient_username'])?.toString(),
-      receiverDisplayName: (json['receiverDisplayName'] ?? json['receiver_display_name'] ?? json['recipient_display_name'])?.toString(),
-      receiverProfileUrl: (json['receiverProfileUrl'] ?? json['receiver_avatar_url'] ?? json['recipient_avatar_url'])?.toString(),
+
+      senderWalletAddress:
+          (json['senderWalletAddress'] ?? json['sender_wallet_address'] ?? '')
+              .toString(),
+      receiverWalletAddress:
+          (json['receiverWalletAddress'] ??
+                  json['receiver_wallet_address'] ??
+                  json['recipient_wallet_address'] ??
+                  '')
+              .toString(),
+
+      senderUsername: (json['senderUsername'] ?? json['sender_username'])
+          ?.toString(),
+      senderDisplayName:
+          (json['senderDisplayName'] ?? json['sender_display_name'])
+              ?.toString(),
+      senderProfileUrl: (json['senderProfileUrl'] ?? json['sender_avatar_url'])
+          ?.toString(),
+
+      receiverUsername:
+          (json['receiverUsername'] ??
+                  json['receiver_username'] ??
+                  json['recipient_username'])
+              ?.toString(),
+      receiverDisplayName:
+          (json['receiverDisplayName'] ??
+                  json['receiver_display_name'] ??
+                  json['recipient_display_name'])
+              ?.toString(),
+      receiverProfileUrl:
+          (json['receiverProfileUrl'] ??
+                  json['receiver_avatar_url'] ??
+                  json['recipient_avatar_url'])
+              ?.toString(),
 
       message: json['message']?.toString() ?? '',
-      senderIsOnline: (json['senderIsOnline'] ?? json['sender_is_online']) as bool? ?? false,
+      senderIsOnline:
+          (json['senderIsOnline'] ?? json['sender_is_online']) as bool? ??
+          false,
+      senderIsPlus:
+          json['senderIsPlus'] == true || json['sender_is_plus'] == true,
 
-      createdAt: DateTime.parse((json['createdAt'] ?? json['created_at'] ?? DateTime.now().toIso8601String()).toString()),
-      respondedAt: (json['respondedAt'] ?? json['responded_at']) != null ? DateTime.parse((json['respondedAt'] ?? json['responded_at']).toString()) : null,
+      createdAt: DateTime.parse(
+        (json['createdAt'] ??
+                json['created_at'] ??
+                DateTime.now().toIso8601String())
+            .toString(),
+      ),
+      respondedAt: (json['respondedAt'] ?? json['responded_at']) != null
+          ? DateTime.parse(
+              (json['respondedAt'] ?? json['responded_at']).toString(),
+            )
+          : null,
 
       status: RequestStatus.values.firstWhere(
-        (v) => v.name == (json['status']?.toString().toLowerCase() ?? 'pending'),
+        (v) =>
+            v.name == (json['status']?.toString().toLowerCase() ?? 'pending'),
         orElse: () => RequestStatus.pending,
       ),
     );
@@ -222,13 +251,11 @@ class MessageRequest {
       'receiverUsername': receiverUsername,
       'receiverDisplayName': receiverDisplayName,
       'receiverProfileUrl': receiverProfileUrl,
+      'senderIsPlus': senderIsPlus,
     };
   }
 
-  MessageRequest copyWith({
-    RequestStatus? status,
-    DateTime? respondedAt,
-  }) {
+  MessageRequest copyWith({RequestStatus? status, DateTime? respondedAt}) {
     return MessageRequest(
       id: id,
       senderId: senderId,
@@ -242,6 +269,7 @@ class MessageRequest {
       receiverUsername: receiverUsername,
       receiverDisplayName: receiverDisplayName,
       receiverProfileUrl: receiverProfileUrl,
+      senderIsPlus: senderIsPlus,
       requestType: requestType,
       message: message,
       senderIsOnline: senderIsOnline,
