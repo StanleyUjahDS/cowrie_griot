@@ -268,79 +268,81 @@ class _CommentSheetState extends State<CommentSheet> {
                 );
               }
 
-              return Container(
-                padding: EdgeInsets.fromLTRB(
-                  16,
-                  8,
-                  16,
-                  MediaQuery.of(context).viewInsets.bottom + 16,
-                ),
-                decoration: BoxDecoration(
-                  color: colors.surface,
-                  border: Border(
-                    top: BorderSide(
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                child: Container(
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    8,
+                    16,
+                    MediaQuery.of(context).viewInsets.bottom + 16,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.surface,
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(
                       color: colors.outline.withValues(alpha: 0.1),
                     ),
                   ),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (_replyToId != null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                'Replying to $_replyToName',
-                                style: textTheme.labelSmall?.copyWith(
-                                  color: colors.primary,
-                                  fontWeight: FontWeight.bold,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_replyToId != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Replying to $_replyToName',
+                                  style: textTheme.labelSmall?.copyWith(
+                                    color: colors.primary,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close_rounded, size: 16),
+                                onPressed: () => setState(() {
+                                  _replyToId = null;
+                                  _replyToName = null;
+                                }),
+                              ),
+                            ],
+                          ),
+                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _commentController,
+                              maxLines: null,
+                              decoration: InputDecoration(
+                                hintText: 'Add a comment...',
+                                filled: true,
+                                fillColor: colors.surfaceContainerHighest
+                                    .withValues(alpha: 0.4),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(24),
+                                  borderSide: BorderSide.none,
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 10,
                                 ),
                               ),
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.close_rounded, size: 16),
-                              onPressed: () => setState(() {
-                                _replyToId = null;
-                                _replyToName = null;
-                              }),
-                            ),
-                          ],
-                        ),
-                      ),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _commentController,
-                            maxLines: null,
-                            decoration: InputDecoration(
-                              hintText: 'Add a comment...',
-                              filled: true,
-                              fillColor: colors.surfaceContainerHighest
-                                  .withValues(alpha: 0.4),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(24),
-                                borderSide: BorderSide.none,
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 10,
-                              ),
-                            ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          onPressed: _submitComment,
-                          icon: const Icon(Icons.send_rounded),
-                          color: colors.primary,
-                        ),
-                      ],
-                    ),
-                  ],
+                          const SizedBox(width: 8),
+                          IconButton(
+                            onPressed: _submitComment,
+                            icon: const Icon(Icons.send_rounded),
+                            color: colors.primary,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               );
             },

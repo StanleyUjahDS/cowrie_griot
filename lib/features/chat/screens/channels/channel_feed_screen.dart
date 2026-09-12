@@ -399,66 +399,71 @@ class _ChannelComposerState extends State<_ChannelComposer> {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
-    return Container(
-      padding: EdgeInsets.fromLTRB(
-        16,
-        12,
-        16,
-        MediaQuery.of(context).padding.bottom + 12,
-      ),
-      decoration: BoxDecoration(
-        color: colors.surface.withValues(alpha: 0.96),
-        border: Border(
-          top: BorderSide(color: colors.outline.withValues(alpha: 0.08)),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      child: Container(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          12,
+          16,
+          MediaQuery.of(context).padding.bottom + 12,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 20,
-            offset: const Offset(0, -5),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: _showAttachmentSheet,
-            icon: Icon(Icons.add_circle_outline_rounded, color: colors.primary),
-            visualDensity: VisualDensity.compact,
-          ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: TextField(
-              controller: _controller,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-              decoration: InputDecoration(
-                hintText: 'Broadcast a story...',
-                hintStyle: TextStyle(
-                  color: colors.onSurfaceVariant.withValues(alpha: 0.4),
-                ),
-                filled: true,
-                fillColor: colors.onSurface.withValues(alpha: 0.04),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(28),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
-                ),
-              ),
-              maxLines: null,
+        decoration: BoxDecoration(
+          color: colors.surface.withValues(alpha: 0.96),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: colors.outline.withValues(alpha: 0.08)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 20,
+              offset: const Offset(0, -5),
             ),
-          ),
-          const SizedBox(width: 10),
-          _FloatingComposerButton(
-            icon: Icons.arrow_upward_rounded,
-            background: colors.primary,
-            foreground: colors.onPrimary,
-            onTap: _isPosting ? () {} : _submit,
-            isLoading: _isPosting,
-          ),
-        ],
+          ],
+        ),
+        child: Row(
+          children: [
+            IconButton(
+              onPressed: _showAttachmentSheet,
+              icon: Icon(
+                Icons.add_circle_outline_rounded,
+                color: colors.primary,
+              ),
+              visualDensity: VisualDensity.compact,
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: TextField(
+                controller: _controller,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+                decoration: InputDecoration(
+                  hintText: 'Broadcast a story...',
+                  hintStyle: TextStyle(
+                    color: colors.onSurfaceVariant.withValues(alpha: 0.4),
+                  ),
+                  filled: true,
+                  fillColor: colors.onSurface.withValues(alpha: 0.04),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(28),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                ),
+                maxLines: null,
+              ),
+            ),
+            const SizedBox(width: 10),
+            _FloatingComposerButton(
+              icon: Icons.arrow_upward_rounded,
+              background: colors.primary,
+              foreground: colors.onPrimary,
+              onTap: _isPosting ? () {} : _submit,
+              isLoading: _isPosting,
+            ),
+          ],
+        ),
       ),
     );
   }
