@@ -52,9 +52,15 @@ class MessageInput extends StatelessWidget {
             decoration: BoxDecoration(
               color: theme.scaffoldBackgroundColor.withValues(alpha: 0.9),
               borderRadius: BorderRadius.circular(28),
-              border: Border.all(
-                color: colorScheme.primary.withValues(alpha: 0.6),
-                width: 1.5,
+              border: Border(
+                top: BorderSide(
+                  color: colorScheme.primary.withValues(alpha: 0.6),
+                  width: 1.2,
+                ),
+                bottom: BorderSide(
+                  color: colorScheme.primary.withValues(alpha: 0.6),
+                  width: 1.2,
+                ),
               ),
             ),
             child: Column(

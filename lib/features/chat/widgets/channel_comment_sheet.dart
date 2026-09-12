@@ -280,8 +280,15 @@ class _CommentSheetState extends State<CommentSheet> {
                   decoration: BoxDecoration(
                     color: colors.surface,
                     borderRadius: BorderRadius.circular(28),
-                    border: Border.all(
-                      color: colors.outline.withValues(alpha: 0.1),
+                    border: Border(
+                      top: BorderSide(
+                        color: colors.primary.withValues(alpha: 0.6),
+                        width: 1.2,
+                      ),
+                      bottom: BorderSide(
+                        color: colors.primary.withValues(alpha: 0.6),
+                        width: 1.2,
+                      ),
                     ),
                   ),
                   child: Column(

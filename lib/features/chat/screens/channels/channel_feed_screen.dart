@@ -411,7 +411,16 @@ class _ChannelComposerState extends State<_ChannelComposer> {
         decoration: BoxDecoration(
           color: colors.surface.withValues(alpha: 0.96),
           borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: colors.outline.withValues(alpha: 0.08)),
+          border: Border(
+            top: BorderSide(
+              color: colors.primary.withValues(alpha: 0.6),
+              width: 1.2,
+            ),
+            bottom: BorderSide(
+              color: colors.primary.withValues(alpha: 0.6),
+              width: 1.2,
+            ),
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.05),

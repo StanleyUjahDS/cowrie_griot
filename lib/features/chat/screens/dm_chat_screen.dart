@@ -140,7 +140,9 @@ class _DMChatScreenState extends State<DMChatScreen> {
         isPlus: profile.isPlus || participant.isPlus,
       );
       setState(() {
-        _conversation = _conversation?.copyWith(otherUser: refreshed);
+        final current = _conversation;
+        if (current == null) return;
+        _conversation = current.copyWith(otherUser: refreshed);
       });
     } catch (error) {
       debugPrint('Failed to refresh DM participant profile: $error');
