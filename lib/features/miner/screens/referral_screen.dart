@@ -13,6 +13,7 @@ import '../providers/referral_provider.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/services/share_link_service.dart';
 import '../../users/providers/user_provider.dart';
 import '../models/referral_model.dart';
 
@@ -62,32 +63,35 @@ class _ReferralScreenState extends State<ReferralScreen> {
     try {
       await context.read<ReferralProvider>().claimReferral(code);
       if (mounted) {
-        NotificationService.showSuccess(context, 'Referral claimed successfully!');
+        NotificationService.showSuccess(
+          context,
+          'Referral claimed successfully!',
+        );
         _referralController.clear();
       }
     } catch (e) {
       if (mounted) {
-        NotificationService.showError(context, e.toString().replaceFirst('Exception: ', ''));
+        NotificationService.showError(
+          context,
+          e.toString().replaceFirst('Exception: ', ''),
+        );
       }
     }
   }
 
   Future<void> _shareReferral(String code) async {
-    final link = 'https://griot.network/join?ref=$code';
+    final link = ShareLinkService.referral(code);
     final text = 'Join me on Griot! My code: $code\n\n$link';
 
     await SharePlus.instance.share(
-      ShareParams(
-        text: text,
-        subject: 'Join Griot',
-      ),
+      ShareParams(text: text, subject: 'Join Griot'),
     );
   }
 
   Future<void> _showQRSheet(BuildContext context, String code) async {
     final colors = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
-    final link = 'https://griot.network/join?ref=$code';
+    final link = ShareLinkService.referral(code);
 
     showModalBottomSheet(
       context: context,
@@ -111,9 +115,15 @@ class _ReferralScreenState extends State<ReferralScreen> {
               ),
             ),
             const SizedBox(height: 28),
-            Text('Referral QR Code', style: text.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+            Text(
+              'Referral QR Code',
+              style: text.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+            ),
             const SizedBox(height: 8),
-            Text('Scan to join the Griot community', style: text.bodySmall?.copyWith(color: colors.onSurfaceVariant)),
+            Text(
+              'Scan to join the Griot community',
+              style: text.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+            ),
             const SizedBox(height: 32),
 
             RepaintBoundary(
@@ -154,7 +164,10 @@ class _ReferralScreenState extends State<ReferralScreen> {
             const SizedBox(height: 32),
             Text(
               code.startsWith('0x') ? _shortenAddress(code) : '@$code',
-              style: text.titleLarge?.copyWith(fontWeight: FontWeight.w900, letterSpacing: 1),
+              style: text.titleLarge?.copyWith(
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1,
+              ),
             ),
             const SizedBox(height: 40),
 
@@ -164,9 +177,14 @@ class _ReferralScreenState extends State<ReferralScreen> {
               child: FilledButton.icon(
                 onPressed: () => _shareQRImage(code),
                 icon: const Icon(Icons.share_rounded),
-                label: const Text('Share QR Image', style: TextStyle(fontWeight: FontWeight.bold)),
+                label: const Text(
+                  'Share QR Image',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
                 style: FilledButton.styleFrom(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
               ),
             ),
@@ -175,7 +193,13 @@ class _ReferralScreenState extends State<ReferralScreen> {
               width: double.infinity,
               child: TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: Text('Close', style: text.bodyLarge?.copyWith(fontWeight: FontWeight.bold, color: colors.onSurfaceVariant)),
+                child: Text(
+                  'Close',
+                  style: text.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
               ),
             ),
           ],
@@ -191,7 +215,8 @@ class _ReferralScreenState extends State<ReferralScreen> {
 
   Future<void> _shareQRImage(String code) async {
     try {
-      final boundary = _qrKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      final boundary =
+          _qrKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
       if (boundary == null) return;
 
       final image = await boundary.toImage(pixelRatio: 3.0);
@@ -202,7 +227,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
       final file = await File('${tempDir.path}/griot_referral_qr.png').create();
       await file.writeAsBytes(buffer);
 
-      final link = 'https://griot.network/join?ref=$code';
+      final link = ShareLinkService.referral(code);
       await SharePlus.instance.share(
         ShareParams(
           files: [XFile(file.path)],
@@ -224,7 +249,9 @@ class _ReferralScreenState extends State<ReferralScreen> {
     return Consumer<ReferralProvider>(
       builder: (context, provider, child) {
         final data = provider.data;
-        final displayCode = data != null ? _getPreferredCode(data, username) : '';
+        final displayCode = data != null
+            ? _getPreferredCode(data, username)
+            : '';
 
         return GradientScaffold(
           appBar: AppBar(
@@ -247,12 +274,14 @@ class _ReferralScreenState extends State<ReferralScreen> {
     );
   }
 
-  Widget _buildBody(BuildContext context, ReferralProvider provider, ReferralData? data, String displayCode) {
+  Widget _buildBody(
+    BuildContext context,
+    ReferralProvider provider,
+    ReferralData? data,
+    String displayCode,
+  ) {
     if (data == null && (provider.isLoading || provider.error == null)) {
-      return const Center(
-        key: ValueKey('loading'),
-        child: GriotLoader(),
-      );
+      return const Center(key: ValueKey('loading'), child: GriotLoader());
     }
 
     if (data == null && provider.error != null) {
@@ -264,32 +293,40 @@ class _ReferralScreenState extends State<ReferralScreen> {
       onRefresh: provider.loadReferralStatus,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
-        children: [
-          // Hero Section
-          _buildHero(context, data!, displayCode),
-          const SizedBox(height: 32),
+        children:
+            [
+                  // Hero Section
+                  _buildHero(context, data!, displayCode),
+                  const SizedBox(height: 32),
 
-          // Claim Section
-          if (data.referredBy == null)
-            _buildClaimSection(context, provider)
-          else
-            _buildReferredByCard(context, data.referredBy!),
+                  // Claim Section
+                  if (data.referredBy == null)
+                    _buildClaimSection(context, provider)
+                  else
+                    _buildReferredByCard(context, data.referredBy!),
 
-          const SizedBox(height: 32),
+                  const SizedBox(height: 32),
 
-          // Prominent Total Count
-          _buildTotalCounter(context, data),
+                  // Prominent Total Count
+                  _buildTotalCounter(context, data),
 
-          const SizedBox(height: 32),
+                  const SizedBox(height: 32),
 
-          // How it works
-          _buildGrowthGuide(context),
-        ].animate(interval: 50.ms).fade(duration: 400.ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
+                  // How it works
+                  _buildGrowthGuide(context),
+                ]
+                .animate(interval: 50.ms)
+                .fade(duration: 400.ms)
+                .slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
       ),
     );
   }
 
-  Widget _buildHero(BuildContext context, ReferralData data, String displayCode) {
+  Widget _buildHero(
+    BuildContext context,
+    ReferralData data,
+    String displayCode,
+  ) {
     final colors = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
     final isUsername = !displayCode.startsWith('0x');
@@ -300,10 +337,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            colors.primary,
-            colors.primary.withValues(alpha: 0.8),
-          ],
+          colors: [colors.primary, colors.primary.withValues(alpha: 0.8)],
         ),
         borderRadius: BorderRadius.circular(32),
         boxShadow: [
@@ -344,18 +378,25 @@ class _ReferralScreenState extends State<ReferralScreen> {
                 ),
                 const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.2),
+                    ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Flexible(
                         child: Text(
-                          isUsername ? '@$displayCode' : _shortenAddress(displayCode),
+                          isUsername
+                              ? '@$displayCode'
+                              : _shortenAddress(displayCode),
                           style: text.titleMedium?.copyWith(
                             color: colors.onPrimary,
                             fontWeight: FontWeight.w900,
@@ -368,9 +409,16 @@ class _ReferralScreenState extends State<ReferralScreen> {
                       IconButton(
                         onPressed: () {
                           Clipboard.setData(ClipboardData(text: displayCode));
-                          NotificationService.showSuccess(context, 'Code copied!');
+                          NotificationService.showSuccess(
+                            context,
+                            'Code copied!',
+                          );
                         },
-                        icon: const Icon(Icons.copy_rounded, color: Colors.white, size: 20),
+                        icon: const Icon(
+                          Icons.copy_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                         constraints: const BoxConstraints(),
                         padding: EdgeInsets.zero,
                         tooltip: 'Copy Code',
@@ -378,7 +426,11 @@ class _ReferralScreenState extends State<ReferralScreen> {
                       const SizedBox(width: 16),
                       IconButton(
                         onPressed: () => _showQRSheet(context, displayCode),
-                        icon: const Icon(Icons.qr_code_2_rounded, color: Colors.white, size: 20),
+                        icon: const Icon(
+                          Icons.qr_code_2_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                         constraints: const BoxConstraints(),
                         padding: EdgeInsets.zero,
                         tooltip: 'Show QR Code',
@@ -386,7 +438,11 @@ class _ReferralScreenState extends State<ReferralScreen> {
                       const SizedBox(width: 8),
                       IconButton(
                         onPressed: () => _shareReferral(displayCode),
-                        icon: const Icon(Icons.share_rounded, color: Colors.white, size: 20),
+                        icon: const Icon(
+                          Icons.share_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                         constraints: const BoxConstraints(),
                         padding: EdgeInsets.zero,
                         tooltip: 'Share Link',
@@ -397,8 +453,8 @@ class _ReferralScreenState extends State<ReferralScreen> {
                 const SizedBox(height: 24),
                 Text(
                   isUsername
-                    ? 'Your friends can join using your handle. It’s personalized just for you.'
-                    : 'Share your wallet ID or set a username in settings to get a personal code.',
+                      ? 'Your friends can join using your handle. It’s personalized just for you.'
+                      : 'Share your wallet ID or set a username in settings to get a personal code.',
                   textAlign: TextAlign.center,
                   style: text.bodySmall?.copyWith(
                     color: colors.onPrimary.withValues(alpha: 0.9),
@@ -457,7 +513,10 @@ class _ReferralScreenState extends State<ReferralScreen> {
                     borderRadius: BorderRadius.circular(16),
                     borderSide: BorderSide.none,
                   ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -467,11 +526,23 @@ class _ReferralScreenState extends State<ReferralScreen> {
                 child: FilledButton(
                   onPressed: provider.isClaiming ? null : _handleClaim,
                   style: FilledButton.styleFrom(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
                   child: provider.isClaiming
-                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('Claim Referral', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text(
+                          'Claim Referral',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
                 ),
               ),
             ],
@@ -509,14 +580,23 @@ class _ReferralScreenState extends State<ReferralScreen> {
               color: Colors.green.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.check_circle_rounded, color: Colors.green, size: 20),
+            child: const Icon(
+              Icons.check_circle_rounded,
+              color: Colors.green,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Referred by', style: text.labelSmall?.copyWith(color: colors.onSurfaceVariant)),
+                Text(
+                  'Referred by',
+                  style: text.labelSmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
                 Text(
                   referrer,
                   style: text.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
@@ -574,7 +654,11 @@ class _ReferralScreenState extends State<ReferralScreen> {
                     color: colors.primary.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(Icons.groups_rounded, color: colors.primary, size: 28),
+                  child: Icon(
+                    Icons.groups_rounded,
+                    color: colors.primary,
+                    size: 28,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 Text(
@@ -640,7 +724,11 @@ class _ReferralScreenState extends State<ReferralScreen> {
             children: [
               Row(
                 children: [
-                  Icon(Icons.auto_awesome_rounded, color: colors.primary, size: 20),
+                  Icon(
+                    Icons.auto_awesome_rounded,
+                    color: colors.primary,
+                    size: 20,
+                  ),
                   const SizedBox(width: 12),
                   Text(
                     'GROW THE NETWORK',
@@ -674,9 +762,16 @@ class _ReferralScreenState extends State<ReferralScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded, size: 48, color: Colors.red),
+            const Icon(
+              Icons.error_outline_rounded,
+              size: 48,
+              color: Colors.red,
+            ),
             const SizedBox(height: 16),
-            Text('Unable to load referrals', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              'Unable to load referrals',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: 24),
             FilledButton(
               onPressed: provider.loadReferralStatus,

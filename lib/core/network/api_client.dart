@@ -1,14 +1,17 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../../features/auth/services/auth_storage_service.dart';
+import '../services/connectivity_service.dart';
 
 import 'api_exception.dart';
 import 'api_config.dart';
 
 class ApiClient {
+  static const Duration _requestTimeout = Duration(seconds: 20);
   final http.Client _client;
   final AuthStorageService _authStorageService;
 
@@ -41,11 +44,17 @@ class ApiClient {
     bool forceRefresh = false,
     Duration? cacheTtl,
   }) async {
-    final key = _cacheKey(url, headers);
+    // Most callers let ApiClient attach Authorization. Include that effective
+    // session in the cache key so a session switch can never reuse another
+    // account's cached response.
+    final accessToken = await _authStorageService.getAccessToken();
+    final key = _cacheKey(url, headers, accessToken);
     final now = DateTime.now();
     final cached = _getCache[key];
     final ttl = cacheTtl ?? _getCacheTtl;
-    if (!forceRefresh && cached != null && now.difference(cached.createdAt) < ttl) {
+    if (!forceRefresh &&
+        cached != null &&
+        now.difference(cached.createdAt) < ttl) {
       return cached.value;
     }
     final pending = _getInFlight[key];
@@ -61,8 +70,11 @@ class ApiClient {
     }
   }
 
-  String _cacheKey(String url, Map<String, String>? headers) =>
-      '$url|${headers?['Authorization'] ?? ''}';
+  String _cacheKey(
+    String url,
+    Map<String, String>? headers,
+    String? accessToken,
+  ) => '$url|${headers?['Authorization'] ?? accessToken ?? ''}';
 
   void invalidateGetCache([String? urlPrefix]) {
     if (urlPrefix == null) {
@@ -81,7 +93,12 @@ class ApiClient {
     Map<String, dynamic>? body,
     Map<String, String>? headers,
   }) async {
-    final result = await _request(method: 'POST', url: url, body: body, headers: headers);
+    final result = await _request(
+      method: 'POST',
+      url: url,
+      body: body,
+      headers: headers,
+    );
     invalidateGetCache();
     return result;
   }
@@ -95,7 +112,12 @@ class ApiClient {
     Map<String, dynamic>? body,
     Map<String, String>? headers,
   }) async {
-    final result = await _request(method: 'PUT', url: url, body: body, headers: headers);
+    final result = await _request(
+      method: 'PUT',
+      url: url,
+      body: body,
+      headers: headers,
+    );
     invalidateGetCache();
     return result;
   }
@@ -109,7 +131,12 @@ class ApiClient {
     Map<String, dynamic>? body,
     Map<String, String>? headers,
   }) async {
-    final result = await _request(method: 'PATCH', url: url, body: body, headers: headers);
+    final result = await _request(
+      method: 'PATCH',
+      url: url,
+      body: body,
+      headers: headers,
+    );
     invalidateGetCache();
     return result;
   }
@@ -123,7 +150,12 @@ class ApiClient {
     Map<String, dynamic>? body,
     Map<String, String>? headers,
   }) async {
-    final result = await _request(method: 'DELETE', url: url, body: body, headers: headers);
+    final result = await _request(
+      method: 'DELETE',
+      url: url,
+      body: body,
+      headers: headers,
+    );
     invalidateGetCache();
     return result;
   }
@@ -293,39 +325,49 @@ class ApiClient {
     try {
       switch (method) {
         case 'GET':
-          response = await _client.get(uri, headers: requestHeaders);
+          response = await _client
+              .get(uri, headers: requestHeaders)
+              .timeout(_requestTimeout);
           break;
 
         case 'POST':
-          response = await _client.post(
-            uri,
-            headers: requestHeaders,
-            body: body == null ? null : jsonEncode(body),
-          );
+          response = await _client
+              .post(
+                uri,
+                headers: requestHeaders,
+                body: body == null ? null : jsonEncode(body),
+              )
+              .timeout(_requestTimeout);
           break;
 
         case 'PUT':
-          response = await _client.put(
-            uri,
-            headers: requestHeaders,
-            body: body == null ? null : jsonEncode(body),
-          );
+          response = await _client
+              .put(
+                uri,
+                headers: requestHeaders,
+                body: body == null ? null : jsonEncode(body),
+              )
+              .timeout(_requestTimeout);
           break;
 
         case 'PATCH':
-          response = await _client.patch(
-            uri,
-            headers: requestHeaders,
-            body: body == null ? null : jsonEncode(body),
-          );
+          response = await _client
+              .patch(
+                uri,
+                headers: requestHeaders,
+                body: body == null ? null : jsonEncode(body),
+              )
+              .timeout(_requestTimeout);
           break;
 
         case 'DELETE':
-          response = await _client.delete(
-            uri,
-            headers: requestHeaders,
-            body: body == null ? null : jsonEncode(body),
-          );
+          response = await _client
+              .delete(
+                uri,
+                headers: requestHeaders,
+                body: body == null ? null : jsonEncode(body),
+              )
+              .timeout(_requestTimeout);
           break;
 
         default:
@@ -333,6 +375,11 @@ class ApiClient {
       }
     } on ApiException {
       rethrow;
+    } on TimeoutException catch (error) {
+      throw ApiException(
+        message: 'The request timed out. Check your connection and try again.',
+        originalError: error,
+      );
     } catch (error) {
       throw ApiException(
         message: 'Unable to connect to the server.',
@@ -348,6 +395,11 @@ class ApiClient {
       debugPrint('API RESPONSE STATUS: ${response.statusCode}');
       debugPrint('API RESPONSE URL: $url');
     }
+
+    // Any HTTP response proves that the app reached the backend. This must
+    // happen before success/error handling so valid 4xx responses do not
+    // incorrectly trigger the offline banner.
+    ConnectivityService.instance.markOnline();
 
     // ==========================================================
     // DECODE RESPONSE
@@ -372,6 +424,7 @@ class ApiClient {
     // ==========================================================
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
+      ConnectivityService.instance.markOnline();
       return data;
     }
 

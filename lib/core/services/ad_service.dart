@@ -1,6 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../config/app_config.dart';
+
+enum RewardedAdResult {
+  rewarded,
+  dismissed,
+  failedToShow,
+  unavailable,
+  disabled,
+}
 
 class AdService extends ChangeNotifier {
   AdService._internal();
@@ -8,13 +18,40 @@ class AdService extends ChangeNotifier {
 
   RewardedAd? _rewardedAd;
   bool _isRewardedAdLoading = false;
+  Timer? _retryTimer;
+  int _retryAttempt = 0;
 
   /// Initializes the ads SDK only when ads have been enabled for this build.
   Future<void> initialize() async {
     if (!AppConfig.adsEnabled) return;
 
-    await MobileAds.instance.initialize();
+    late final InitializationStatus status;
+    try {
+      status = await MobileAds.instance.initialize();
+    } catch (error, stackTrace) {
+      debugPrint('Mobile Ads initialization failed: $error\n$stackTrace');
+      return;
+    }
+    // This is intentionally logged in debug builds: it is the quickest way to
+    // confirm that the Unity adapter was bundled and initialized on a device.
+    // A successful adapter initialization does not, by itself, guarantee a
+    // Unity impression; the Ad Inspector/waterfall still has to be checked.
+    for (final entry in status.adapterStatuses.entries) {
+      debugPrint(
+        'Ads adapter ${entry.key}: ${entry.value.state.name} '
+        '(latency ${entry.value.latency}ms, ${entry.value.description})',
+      );
+    }
     loadRewardedAd();
+  }
+
+  /// Opens Google's Ad Inspector on a real test device.  The inspector shows
+  /// the mediation adapters, waterfall, and the adapter that actually filled.
+  void openAdInspector() {
+    if (!AppConfig.adsEnabled) return;
+    MobileAds.instance.openAdInspector((error) {
+      if (error != null) debugPrint('Ad Inspector closed with error: $error');
+    });
   }
 
   /// Loads a rewarded ad.
@@ -30,11 +67,12 @@ class AdService extends ChangeNotifier {
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (ad) {
-          debugPrint('RewardedAd loaded.');
+          _retryAttempt = 0;
+          debugPrint('RewardedAd loaded. Response: ${ad.responseInfo}');
           _rewardedAd = ad;
           _isRewardedAdLoading = false;
           notifyListeners();
-          
+
           _rewardedAd!.fullScreenContentCallback = FullScreenContentCallback(
             onAdDismissedFullScreenContent: (ad) {
               ad.dispose();
@@ -55,31 +93,93 @@ class AdService extends ChangeNotifier {
           _isRewardedAdLoading = false;
           _rewardedAd = null;
           notifyListeners();
+          _scheduleRewardedRetry();
         },
       ),
     );
   }
 
-  /// Shows the rewarded ad if available.
-  /// [onRewardEarned] is called if the user watches the ad to the end.
-  void showRewardedAd({required Function(RewardItem reward) onRewardEarned}) {
+  /// Shows the rewarded ad if available and reports how the flow ended.
+  ///
+  /// The reward callback is deliberately resolved only after the ad is
+  /// dismissed, so callers cannot start mining while the fullscreen ad is
+  /// still active or mistake a dismissal for a completed reward.
+  Future<RewardedAdResult> showRewardedAd() async {
     if (!AppConfig.adsEnabled) {
       debugPrint('Rewarded ads are disabled for this build.');
-      return;
+      return RewardedAdResult.disabled;
     }
 
-    if (_rewardedAd == null) {
-      debugPrint('Warning: Attempted to show rewarded ad before it was loaded.');
+    final ad = _rewardedAd;
+    if (ad == null) {
+      debugPrint(
+        'Warning: Attempted to show rewarded ad before it was loaded.',
+      );
       loadRewardedAd(); // Try loading for next time
-      return;
+      return RewardedAdResult.unavailable;
     }
 
-    _rewardedAd!.show(
-      onUserEarnedReward: (AdWithoutView ad, RewardItem reward) {
-        onRewardEarned(reward);
+    final result = Completer<RewardedAdResult>();
+    var earned = false;
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (dismissedAd) {
+        dismissedAd.dispose();
+        if (identical(_rewardedAd, ad)) _rewardedAd = null;
+        notifyListeners();
+        loadRewardedAd();
+        if (!result.isCompleted) {
+          result.complete(
+            earned ? RewardedAdResult.rewarded : RewardedAdResult.dismissed,
+          );
+        }
+      },
+      onAdFailedToShowFullScreenContent: (failedAd, error) {
+        debugPrint('RewardedAd failed to show: $error');
+        failedAd.dispose();
+        if (identical(_rewardedAd, ad)) _rewardedAd = null;
+        notifyListeners();
+        loadRewardedAd();
+        if (!result.isCompleted) result.complete(RewardedAdResult.failedToShow);
+      },
+      onAdImpression: (ad) {
+        debugPrint('RewardedAd impression. Response: ${ad.responseInfo}');
       },
     );
+
+    try {
+      _rewardedAd = null;
+      notifyListeners();
+      ad.show(
+        onUserEarnedReward: (AdWithoutView adWithoutView, RewardItem reward) {
+          earned = true;
+        },
+      );
+    } catch (error) {
+      debugPrint('RewardedAd could not be shown: $error');
+      ad.dispose();
+      if (!result.isCompleted) result.complete(RewardedAdResult.failedToShow);
+      loadRewardedAd();
+    }
+
+    return result.future;
   }
 
   bool get isRewardedAdAvailable => _rewardedAd != null;
+
+  void _scheduleRewardedRetry() {
+    if (!AppConfig.adsEnabled || _retryTimer?.isActive == true) return;
+    final delay = Duration(seconds: 1 << (_retryAttempt.clamp(0, 5)));
+    _retryAttempt++;
+    _retryTimer = Timer(delay, () {
+      _retryTimer = null;
+      loadRewardedAd();
+    });
+  }
+
+  @override
+  void dispose() {
+    _retryTimer?.cancel();
+    _rewardedAd?.dispose();
+    super.dispose();
+  }
 }

@@ -119,11 +119,10 @@ class _GriotPlusScreenState extends State<GriotPlusScreen>
           _buildBenefitTile(
             context,
             icon: Icons.bolt_rounded,
-            title: 'Mining Multiplier',
-            description:
-                'Gain a premium boost to your daily decentralized rewards.',
-            extra: miningProvider.status != null
-                ? '${miningProvider.status!.multiplier.total}x Active'
+            title: 'Activity Multiplier',
+            description: 'Gain a premium boost to your reputation activity.',
+            extra: miningProvider.status?.multiplier.total != null
+                ? '${miningProvider.status!.multiplier.total.toStringAsFixed(1)}x Active'
                 : 'Boost Active',
             color: Colors.amber,
           ),
@@ -139,8 +138,7 @@ class _GriotPlusScreenState extends State<GriotPlusScreen>
             context,
             icon: Icons.auto_awesome_rounded,
             title: 'Early Access',
-            description:
-                'Be the first to test new decentralized features and tools.',
+            description: 'Be the first to test new Griot features and tools.',
             color: Colors.purple,
           ),
 
@@ -240,7 +238,7 @@ class _GriotPlusScreenState extends State<GriotPlusScreen>
               Text(
                 isPlus
                     ? 'Your account is verified for premium network benefits.'
-                    : 'Join the inner circle of social pioneers and high-tier miners.',
+                    : 'Join the inner circle of social pioneers and community contributors.',
                 style: TextStyle(
                   color: (isPlus ? Colors.white : colors.onSurface).withValues(
                     alpha: 0.7,

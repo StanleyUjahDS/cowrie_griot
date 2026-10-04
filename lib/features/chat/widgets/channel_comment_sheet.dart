@@ -232,10 +232,15 @@ class _CommentSheetState extends State<CommentSheet> {
           // Input Area
           Consumer2<MessagingProvider, UserProvider>(
             builder: (context, provider, userProvider, child) {
-              final conv = provider.conversations.firstWhere(
+              final matching = provider.conversations.where(
                 (c) => c.id == widget.conversationId,
-                orElse: () => provider.conversations.first,
               );
+              // The conversation list can briefly be empty during startup or
+              // reconnect. Never call `.first` on that transient state.
+              if (matching.isEmpty) {
+                return const SizedBox.shrink();
+              }
+              final conv = matching.first;
               final isOwner =
                   conv.ownerId == userProvider.user?.id || conv.role == 'owner';
               final isAdmin = conv.role == 'admin';

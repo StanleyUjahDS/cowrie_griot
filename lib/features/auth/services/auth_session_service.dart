@@ -161,7 +161,7 @@ class AuthSessionService {
 
     try {
       debugPrint('AuthSession: Starting wallet authentication...');
-      await _walletAuthService.authenticateWallet();
+      await _walletAuthService.authenticateWallet(acceptPolicies: true);
       debugPrint('AuthSession: Wallet authentication successful.');
       await PushNotificationService.instance.syncTokenWithBackend();
       return true;

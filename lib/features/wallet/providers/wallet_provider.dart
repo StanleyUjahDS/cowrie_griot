@@ -31,7 +31,14 @@ class WalletProvider extends ChangeNotifier {
   Future<void> _restoreCachedWallet() async {
     try {
       final snapshot = await _walletLocalCacheService.load();
-      if (snapshot == null || snapshot.tokens.isEmpty || _wallet != null) return;
+      final currentAddress = await _walletService.getAddress();
+      if (snapshot == null ||
+          snapshot.tokens.isEmpty ||
+          _wallet != null ||
+          currentAddress == null ||
+          snapshot.address.toLowerCase() != currentAddress.toLowerCase()) {
+        return;
+      }
       _tokens = snapshot.tokens;
       _popularAssets = snapshot.popularAssets;
       _wallet = WalletModel(
@@ -47,8 +54,6 @@ class WalletProvider extends ChangeNotifier {
     }
   }
 
-  static const Set<String> _prioritySymbols = {'HBADG', 'BNB'};
-
   WalletModel? _wallet;
   List<TokenModel> _tokens = [];
   List<NftModel> _nfts = [];
@@ -63,6 +68,7 @@ class WalletProvider extends ChangeNotifier {
   static const Duration _fetchCooldown = Duration(seconds: 30);
   static const Duration _nftFetchCooldown = Duration(seconds: 30);
   bool _hideLowBalance = false;
+  bool _hideBalances = false;
   bool _onlyProfit = false;
   bool _onlyLoss = false;
   List<Map<String, dynamic>> _activities = [];
@@ -82,6 +88,7 @@ class WalletProvider extends ChangeNotifier {
   String? get error => _error;
   String? get nftError => _nftError;
   bool get hideLowBalance => _hideLowBalance;
+  bool get hideBalances => _hideBalances;
   bool get onlyProfit => _onlyProfit;
   bool get onlyLoss => _onlyLoss;
   Set<String> get hiddenTokenKeys => Set.unmodifiable(_hiddenTokenKeys);
@@ -90,10 +97,6 @@ class WalletProvider extends ChangeNotifier {
   String? get activityNextPageKey => _activityNextPageKey;
   bool get isLoadingActivity => _isLoadingActivity;
   bool get isLoadingMoreActivity => _isLoadingMoreActivity;
-
-  bool isPriorityToken(TokenModel token) {
-    return _prioritySymbols.contains(token.symbol.trim().toUpperCase());
-  }
 
   String _getTokenKey(TokenModel token) {
     return token.identity;
@@ -107,12 +110,7 @@ class WalletProvider extends ChangeNotifier {
     return _tokens.where((token) {
       if (_hiddenTokenKeys.contains(_getTokenKey(token))) return false;
 
-      // CONTRACT: always show HBADG; always show native assets with a positive balance.
-      if (token.isEcosystem) return true;
       final balance = num.tryParse(token.balance) ?? 0;
-      if (token.isNative) return balance > 0;
-
-      // Other assets require positive balance
       if (balance <= 0) return false;
 
       // Filter settings
@@ -161,17 +159,8 @@ class WalletProvider extends ChangeNotifier {
         return false;
       }
 
-      // CONTRACT: always show HBADG; always show native assets with a positive balance.
-      if (token.isEcosystem) {
-        // Proceed
-      } else {
-        final balance = num.tryParse(token.balance) ?? 0;
-        if (token.isNative && balance > 0) {
-          // Proceed
-        } else if (balance <= 0) {
-          return false;
-        }
-      }
+      final balance = num.tryParse(token.balance) ?? 0;
+      if (balance <= 0) return false;
 
       final isMajor = token.isNative || token.isEcosystem;
 
@@ -218,17 +207,8 @@ class WalletProvider extends ChangeNotifier {
       if (isTokenBlocked(token)) return false;
 
       // 3. Zero/Negative balances
-      // CONTRACT: always show HBADG; always show native assets with a positive balance.
-      if (token.isEcosystem) {
-        // Proceed
-      } else {
-        final balance = num.tryParse(token.balance) ?? 0;
-        if (token.isNative && balance > 0) {
-          // Proceed
-        } else if (balance <= 0) {
-          return false;
-        }
-      }
+      final balance = num.tryParse(token.balance) ?? 0;
+      if (balance <= 0) return false;
 
       final isMajor = token.isNative || token.isEcosystem;
 
@@ -310,6 +290,7 @@ class WalletProvider extends ChangeNotifier {
 
       final filterSettings = await _walletService.getWalletFilters();
       _hideLowBalance = filterSettings['hideLowBalance'] == true;
+      _hideBalances = filterSettings['hideBalances'] == true;
       _onlyProfit = filterSettings['onlyProfit'] == true;
       _onlyLoss = filterSettings['onlyLoss'] == true;
 
@@ -329,21 +310,27 @@ class WalletProvider extends ChangeNotifier {
       final popularJson = results[1] as List<TokenModel>;
 
       final List assetsJson = responseData['assets'] ?? [];
-      final parsedTokens = assetsJson
-          .map((json) => TokenModel.fromJson(Map<String, dynamic>.from(json)))
-          .toList();
+      final parsedTokens = _deduplicateTokens(
+        assetsJson
+            .map((json) => TokenModel.fromJson(Map<String, dynamic>.from(json)))
+            .toList(),
+      );
 
       _tokens = parsedTokens;
       _popularAssets = popularJson;
 
-      unawaited(_walletLocalCacheService.save(
-        address: responseData['address'] ?? address,
-        tokens: parsedTokens,
-        popularAssets: popularJson,
-      ));
+      unawaited(
+        _walletLocalCacheService.save(
+          address: address,
+          tokens: parsedTokens,
+          popularAssets: popularJson,
+        ),
+      );
 
       _wallet = WalletModel(
-        address: responseData['address'] ?? address,
+        // The locally managed wallet is the signing source of truth. The API
+        // address is response metadata and must not replace it here.
+        address: address,
         displayName: 'Your Griot Account',
         totalBalance: 0,
         changePercent: 0,
@@ -374,6 +361,42 @@ class WalletProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> clearState() async {
+    _wallet = null;
+    _tokens = [];
+    _nfts = [];
+    _popularAssets = [];
+    _activities = [];
+    _activityNextPageKey = null;
+    _lastFetchTime = null;
+    _lastNftFetchTime = null;
+    _error = null;
+    _nftError = null;
+    notifyListeners();
+  }
+
+  /// Collapse aliases returned by different chain providers (for example
+  /// `bnb` and `bsc`) into one native asset card. Prefer the row with a
+  /// positive balance and the richest market data.
+  List<TokenModel> _deduplicateTokens(List<TokenModel> input) {
+    final byIdentity = <String, TokenModel>{};
+    for (final token in input) {
+      final existing = byIdentity[token.identity];
+      if (existing == null) {
+        byIdentity[token.identity] = token;
+        continue;
+      }
+      final existingBalance = num.tryParse(existing.balance) ?? 0;
+      final nextBalance = num.tryParse(token.balance) ?? 0;
+      final existingScore =
+          (existingBalance > 0 ? 2 : 0) + (existing.hasMarketData ? 1 : 0);
+      final nextScore =
+          (nextBalance > 0 ? 2 : 0) + (token.hasMarketData ? 1 : 0);
+      if (nextScore > existingScore) byIdentity[token.identity] = token;
+    }
+    return byIdentity.values.toList();
+  }
+
   Future<void> loadActivity({bool refresh = true}) async {
     if (refresh ? _isLoadingActivity : _isLoadingMoreActivity) return;
     if (!refresh && _activityNextPageKey == null) return;
@@ -392,39 +415,40 @@ class WalletProvider extends ChangeNotifier {
       );
       final raw = response['activity'];
       final page = raw is List
-          ? raw
-                .whereType<Map>()
-                .map((item) {
-                  final map = Map<String, dynamic>.from(item);
-                  final operationType = map['operationType']?.toString();
-                  final fromUser = map['fromUser'];
-                  final toUser = map['toUser'];
-                  final amount = map['transfers']?.isNotEmpty == true ? '${map['transfers'][0]['amount']} ${map['transfers'][0]['symbol']}' : '';
+          ? raw.whereType<Map>().map((item) {
+              final map = Map<String, dynamic>.from(item);
+              final operationType = map['operationType']?.toString();
+              final fromUser = map['fromUser'];
+              final toUser = map['toUser'];
+              final amount = map['transfers']?.isNotEmpty == true
+                  ? '${map['transfers'][0]['amount']} ${map['transfers'][0]['symbol']}'
+                  : '';
 
-                  if (operationType == 'send') {
-                    if (toUser != null) {
-                      map['title'] = 'Tipped ${toUser['displayName'] ?? toUser['username'] ?? 'Griot User'}';
-                      map['subtitle'] = 'Sent $amount via Griot';
-                    } else {
-                      map['title'] = 'Sent Funds';
-                      map['subtitle'] = 'Transaction broadcast';
-                    }
-                  } else if (operationType == 'receive') {
-                    if (fromUser != null) {
-                      map['title'] = 'Tip from ${fromUser['displayName'] ?? fromUser['username'] ?? 'Griot User'}';
-                      map['subtitle'] = 'Received $amount';
-                    } else {
-                      map['title'] = 'Received Funds';
-                      map['subtitle'] = 'Inbound transaction';
-                    }
-                  } else if (operationType == 'trade') {
-                    map['title'] = 'Asset Swap';
-                    map['subtitle'] = 'Token exchange completed';
-                  }
+              if (operationType == 'send') {
+                if (toUser != null) {
+                  map['title'] =
+                      'Tipped ${toUser['displayName'] ?? toUser['username'] ?? 'Griot User'}';
+                  map['subtitle'] = 'Sent $amount via Griot';
+                } else {
+                  map['title'] = 'Sent Funds';
+                  map['subtitle'] = 'Transaction broadcast';
+                }
+              } else if (operationType == 'receive') {
+                if (fromUser != null) {
+                  map['title'] =
+                      'Tip from ${fromUser['displayName'] ?? fromUser['username'] ?? 'Griot User'}';
+                  map['subtitle'] = 'Received $amount';
+                } else {
+                  map['title'] = 'Received Funds';
+                  map['subtitle'] = 'Inbound transaction';
+                }
+              } else if (operationType == 'trade') {
+                map['title'] = 'Asset Swap';
+                map['subtitle'] = 'Token exchange completed';
+              }
 
-                  return map;
-                })
-                .toList()
+              return map;
+            }).toList()
           : <Map<String, dynamic>>[];
       _activityNextPageKey = response['nextPageKey']?.toString();
       if (refresh) {
@@ -454,7 +478,8 @@ class WalletProvider extends ChangeNotifier {
     for (final activity in activities) {
       final hash = activity['hash']?.toString() ?? '';
       final operation = activity['operationType']?.toString() ?? '';
-      final key = hash.isNotEmpty && (operation == 'send' || operation == 'receive')
+      final key =
+          hash.isNotEmpty && (operation == 'send' || operation == 'receive')
           ? '$operation:$hash'
           : '';
 
@@ -572,6 +597,7 @@ class WalletProvider extends ChangeNotifier {
   Future<void> _saveFilters() async {
     await _walletService.saveWalletFilters({
       'hideLowBalance': _hideLowBalance,
+      'hideBalances': _hideBalances,
       'onlyProfit': _onlyProfit,
       'onlyLoss': _onlyLoss,
       'selectedChains': _selectedChains.toList(),
@@ -582,6 +608,12 @@ class WalletProvider extends ChangeNotifier {
     _hideLowBalance = value;
     _saveFilters();
     _recalculateWalletTotals();
+    notifyListeners();
+  }
+
+  void setHideBalances(bool value) {
+    _hideBalances = value;
+    _saveFilters();
     notifyListeners();
   }
 

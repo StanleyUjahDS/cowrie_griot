@@ -9,7 +9,14 @@ import '../providers/app_lock_provider.dart';
 class VerifyPassword extends StatefulWidget {
   final String input;
   final Future<void> Function(BuildContext)? onSuccess;
-  const VerifyPassword({super.key, required this.input, this.onSuccess});
+  final bool setupBiometrics;
+
+  const VerifyPassword({
+    super.key,
+    required this.input,
+    this.onSuccess,
+    this.setupBiometrics = false,
+  });
 
   @override
   State<VerifyPassword> createState() => _VerifyPasswordState();
@@ -21,60 +28,76 @@ class _VerifyPasswordState extends State<VerifyPassword> {
   int? _pressedIndex;
 
   final List<String> keys = [
-    '1', '2', '3',
-    '4', '5', '6',
-    '7', '8', '9',
-    '', '0', '⌫',
+    '1',
+    '2',
+    '3',
+    '4',
+    '5',
+    '6',
+    '7',
+    '8',
+    '9',
+    '',
+    '0',
+    '⌫',
   ];
 
-  void _onKeyTap(String key, int index) async {
+  void _onKeyTap(String key, int index) {
     if (_loading) return;
     setState(() => _pressedIndex = index);
-    await Future.delayed(const Duration(milliseconds: 120));
-    if (!mounted) return;
-    setState(() => _pressedIndex = null);
-
-    setState(() {
-      if (key == '⌫') {
-        if (confirminput.isNotEmpty) {
-          confirminput = confirminput.substring(0, confirminput.length - 1);
-        }
-      } else if (key.isNotEmpty && confirminput.length < 6) {
-        confirminput += key;
+    Future<void>.delayed(const Duration(milliseconds: 120), () {
+      if (mounted && _pressedIndex == index) {
+        setState(() => _pressedIndex = null);
       }
     });
 
-    if (confirminput.length == 6) {
-      _onContinue();
+    var nextInput = confirminput;
+    if (key == '⌫') {
+      if (nextInput.isNotEmpty) {
+        nextInput = nextInput.substring(0, nextInput.length - 1);
+      }
+    } else if (key.isNotEmpty && nextInput.length < 6) {
+      nextInput += key;
+    }
+
+    setState(() {
+      confirminput = nextInput;
+    });
+
+    if (nextInput.length == 6) {
+      _onContinue(nextInput);
     }
   }
 
-  Future<void> _onContinue() async {
+  Future<void> _onContinue([String? value]) async {
     if (_loading) return;
 
-    if (confirminput == widget.input) {
+    final pin = value ?? confirminput;
+    if (pin == widget.input) {
       setState(() => _loading = true);
 
       try {
         final authService = context.read<LocalAuthService>();
         final lockProvider = context.read<AppLockProvider>();
 
-        await authService.savePin(confirminput);
+        await authService.savePin(pin);
         await lockProvider.setEnabled(true);
 
         if (!mounted) return;
-        NotificationService.showSuccess(context, "Password confirmed");
-
-        if (widget.onSuccess != null) {
-          await widget.onSuccess!(context);
+        // Recovery/setup must always pass through the biometric choice before
+        // completing the wallet session. Settings-based PIN changes can still
+        // use their callback directly without reopening setup.
+        if (widget.setupBiometrics || widget.onSuccess == null) {
+          context.pushReplacement(
+            '/enable_biometrics',
+            extra: widget.onSuccess,
+          );
         } else {
-          if (mounted) {
-            context.pushReplacement('/enable_biometrics');
-          }
+          await widget.onSuccess!(context);
         }
       } catch (e) {
         if (mounted) {
-          NotificationService.showError(context, "Failed to save password: $e");
+          NotificationService.showError(context, "Account setup failed: $e");
           setState(() => _loading = false);
         }
       }
@@ -120,25 +143,6 @@ class _VerifyPasswordState extends State<VerifyPassword> {
                       ),
                     ),
 
-                    const SizedBox(height: 24),
-
-                    Text(
-                      'Confirm Password',
-                      style: textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    Text(
-                      'Please re-enter your 6-digit password to confirm it is correct.',
-                      textAlign: TextAlign.center,
-                      style: textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-                        height: 1.4,
-                      ),
-                    ),
                     const SizedBox(height: 40),
 
                     /// ================= PIN DOTS =================
@@ -172,12 +176,13 @@ class _VerifyPasswordState extends State<VerifyPassword> {
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       itemCount: keys.length,
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        mainAxisSpacing: 12,
-                        crossAxisSpacing: 12,
-                        mainAxisExtent: 70,
-                      ),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            mainAxisSpacing: 12,
+                            crossAxisSpacing: 12,
+                            mainAxisExtent: 70,
+                          ),
                       itemBuilder: (context, index) {
                         final key = keys[index];
                         if (key.isEmpty) return const SizedBox.shrink();

@@ -18,7 +18,8 @@ class MessageRequestsScreen extends StatefulWidget {
   State<MessageRequestsScreen> createState() => _MessageRequestsScreenState();
 }
 
-class _MessageRequestsScreenState extends State<MessageRequestsScreen> with SingleTickerProviderStateMixin {
+class _MessageRequestsScreenState extends State<MessageRequestsScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   @override
@@ -47,14 +48,16 @@ class _MessageRequestsScreenState extends State<MessageRequestsScreen> with Sing
         automaticallyImplyLeading: false,
         leading: Center(
           child: GestureDetector(
-            onTap: () => context.pop(),
+            onTap: () => context.go('/chat?tab=direct'),
             child: Container(
               width: 40,
               height: 40,
               decoration: BoxDecoration(
                 color: colors.surface.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: colors.outline.withValues(alpha: 0.1)),
+                border: Border.all(
+                  color: colors.outline.withValues(alpha: 0.1),
+                ),
               ),
               child: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
             ),
@@ -105,7 +108,9 @@ class _ReceivedRequestsList extends StatelessWidget {
           );
         }
 
-        final requests = provider.receivedRequests.where((r) => r.status == RequestStatus.pending).toList();
+        final requests = provider.receivedRequests
+            .where((r) => r.status == RequestStatus.pending)
+            .toList();
 
         if (requests.isEmpty) {
           return const _EmptyRequests(
@@ -122,10 +127,11 @@ class _ReceivedRequestsList extends StatelessWidget {
           child: ListView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: requests.length,
-            itemBuilder: (context, index) => _RequestCard(
-              request: requests[index],
-              isReceived: true,
-            ).animate().fadeIn(duration: 400.ms, delay: (index * 40).ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
+            itemBuilder: (context, index) =>
+                _RequestCard(request: requests[index], isReceived: true)
+                    .animate()
+                    .fadeIn(duration: 400.ms, delay: (index * 40).ms)
+                    .slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
           ),
         );
       },
@@ -145,7 +151,9 @@ class _SentRequestsList extends StatelessWidget {
           );
         }
 
-        final requests = provider.sentRequests.where((r) => r.status == RequestStatus.pending).toList();
+        final requests = provider.sentRequests
+            .where((r) => r.status == RequestStatus.pending)
+            .toList();
 
         if (requests.isEmpty) {
           return const _EmptyRequests(
@@ -162,10 +170,11 @@ class _SentRequestsList extends StatelessWidget {
           child: ListView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: requests.length,
-            itemBuilder: (context, index) => _RequestCard(
-              request: requests[index],
-              isReceived: false,
-            ).animate().fadeIn(duration: 400.ms, delay: (index * 40).ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
+            itemBuilder: (context, index) =>
+                _RequestCard(request: requests[index], isReceived: false)
+                    .animate()
+                    .fadeIn(duration: 400.ms, delay: (index * 40).ms)
+                    .slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
           ),
         );
       },
@@ -186,12 +195,17 @@ class _RequestCard extends StatefulWidget {
 class _RequestCardState extends State<_RequestCard> {
   bool _isLoading = false;
 
-  Future<void> _handleAction(Future<void> Function() action, String successMsg) async {
+  Future<void> _handleAction(
+    Future<void> Function() action,
+    String successMsg,
+  ) async {
     if (_isLoading) return;
     setState(() => _isLoading = true);
     try {
       await action();
-      if (mounted && successMsg.isNotEmpty) NotificationService.showSuccess(context, successMsg);
+      if (mounted && successMsg.isNotEmpty) {
+        NotificationService.showSuccess(context, successMsg);
+      }
     } catch (e) {
       if (mounted) NotificationService.showError(context, 'Action failed');
     } finally {
@@ -206,11 +220,20 @@ class _RequestCardState extends State<_RequestCard> {
     final request = widget.request;
     final isReceived = widget.isReceived;
 
-    final String targetId = (isReceived ? request.senderId : request.receiverId) ?? '';
-    final String targetWallet = isReceived ? request.senderWalletAddress : request.receiverWalletAddress;
-    final String? targetUsername = isReceived ? request.senderUsername : request.receiverUsername;
-    final String? targetDisplayName = isReceived ? request.senderDisplayName : request.receiverDisplayName;
-    final String? targetProfileUrl = isReceived ? request.senderProfileUrl : request.receiverProfileUrl;
+    final String targetId =
+        (isReceived ? request.senderId : request.receiverId) ?? '';
+    final String targetWallet = isReceived
+        ? request.senderWalletAddress
+        : request.receiverWalletAddress;
+    final String? targetUsername = isReceived
+        ? request.senderUsername
+        : request.receiverUsername;
+    final String? targetDisplayName = isReceived
+        ? request.senderDisplayName
+        : request.receiverDisplayName;
+    final String? targetProfileUrl = isReceived
+        ? request.senderProfileUrl
+        : request.receiverProfileUrl;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -251,12 +274,20 @@ class _RequestCardState extends State<_RequestCard> {
                     CircleAvatar(
                       radius: 26,
                       backgroundColor: colors.surfaceContainerHighest,
-                      backgroundImage: targetProfileUrl != null && targetProfileUrl.trim().isNotEmpty
-                        ? NetworkImage(targetProfileUrl)
-                        : null,
-                      child: targetProfileUrl == null || targetProfileUrl.trim().isEmpty
-                        ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg', width: 32, height: 32)
-                        : null,
+                      backgroundImage:
+                          targetProfileUrl != null &&
+                              targetProfileUrl.trim().isNotEmpty
+                          ? NetworkImage(targetProfileUrl)
+                          : null,
+                      child:
+                          targetProfileUrl == null ||
+                              targetProfileUrl.trim().isEmpty
+                          ? SvgPicture.asset(
+                              'assets/coins_logo/hbadger_logo.svg',
+                              width: 32,
+                              height: 32,
+                            )
+                          : null,
                     ),
                     const SizedBox(width: 14),
                     Expanded(
@@ -264,21 +295,35 @@ class _RequestCardState extends State<_RequestCard> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            targetDisplayName ?? targetUsername ?? _formatAddress(targetWallet),
-                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                            targetDisplayName ??
+                                targetUsername ??
+                                _formatAddress(targetWallet),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          if (targetUsername != null && targetUsername.isNotEmpty)
+                          if (targetUsername != null &&
+                              targetUsername.isNotEmpty)
                             Text(
-                              targetUsername.startsWith('@') ? targetUsername : '@$targetUsername',
-                              style: TextStyle(color: colors.primary, fontSize: 13, fontWeight: FontWeight.w700),
+                              targetUsername.startsWith('@')
+                                  ? targetUsername
+                                  : '@$targetUsername',
+                              style: TextStyle(
+                                color: colors.primary,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           const SizedBox(height: 2),
                           Text(
                             _formatAddress(targetWallet),
                             style: TextStyle(
-                              color: colors.onSurfaceVariant.withValues(alpha: 0.4),
+                              color: colors.onSurfaceVariant.withValues(
+                                alpha: 0.4,
+                              ),
                               fontSize: 10,
                               fontFamily: 'monospace',
                               fontWeight: FontWeight.bold,
@@ -289,43 +334,60 @@ class _RequestCardState extends State<_RequestCard> {
                     ),
                     Text(
                       DateFormat('MMM d').format(request.createdAt),
-                      style: text.labelSmall?.copyWith(color: colors.onSurfaceVariant.withValues(alpha: 0.5)),
+                      style: text.labelSmall?.copyWith(
+                        color: colors.onSurfaceVariant.withValues(alpha: 0.5),
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
                 Row(
                   children: isReceived
-                    ? [
-                        Expanded(
-                          child: _ActionButton(
-                            label: 'Decline',
-                            onTap: () => _handleAction(() => context.read<MessagingProvider>().declineRequest(request.id), ''),
-                            color: colors.error,
-                            isLoading: _isLoading,
+                      ? [
+                          Expanded(
+                            child: _ActionButton(
+                              label: 'Decline',
+                              onTap: () => _handleAction(
+                                () => context
+                                    .read<MessagingProvider>()
+                                    .declineRequest(request.id),
+                                '',
+                              ),
+                              color: colors.error,
+                              isLoading: _isLoading,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _ActionButton(
-                            label: 'Accept',
-                            onTap: () => _handleAction(() => context.read<MessagingProvider>().acceptRequest(request.id), 'Connected!'),
-                            color: colors.primary,
-                            isFilled: true,
-                            isLoading: _isLoading,
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _ActionButton(
+                              label: 'Accept',
+                              onTap: () => _handleAction(
+                                () => context
+                                    .read<MessagingProvider>()
+                                    .acceptRequest(request.id),
+                                'Connected!',
+                              ),
+                              color: colors.primary,
+                              isFilled: true,
+                              isLoading: _isLoading,
+                            ),
                           ),
-                        ),
-                      ]
-                    : [
-                        Expanded(
-                          child: _ActionButton(
-                            label: 'Withdraw',
-                            onTap: () => _handleAction(() => context.read<MessagingProvider>().withdrawRequest(request.id), 'Request withdrawn'),
-                            color: colors.error,
-                            isLoading: _isLoading,
+                        ]
+                      : [
+                          Expanded(
+                            child: _ActionButton(
+                              label: 'Withdraw',
+                              onTap: () => _handleAction(
+                                () => context
+                                    .read<MessagingProvider>()
+                                    .withdrawRequest(request.id),
+                                'Request withdrawn',
+                              ),
+                              color: colors.error,
+                              isLoading: _isLoading,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
                 ),
               ],
             ),
@@ -364,20 +426,29 @@ class _ActionButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: isLoading ? color.withValues(alpha: 0.1) : (isFilled ? color : color.withValues(alpha: 0.1)),
+          color: isLoading
+              ? color.withValues(alpha: 0.1)
+              : (isFilled ? color : color.withValues(alpha: 0.1)),
           borderRadius: BorderRadius.circular(16),
         ),
         alignment: Alignment.center,
         child: isLoading
-          ? SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: isFilled ? Colors.white : color))
-          : Text(
-              label,
-              style: TextStyle(
-                color: isFilled ? Colors.white : color,
-                fontWeight: FontWeight.w900,
-                fontSize: 13,
+            ? SizedBox(
+                height: 16,
+                width: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: isFilled ? Colors.white : color,
+                ),
+              )
+            : Text(
+                label,
+                style: TextStyle(
+                  color: isFilled ? Colors.white : color,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                ),
               ),
-            ),
       ),
     );
   }
@@ -388,7 +459,12 @@ class _EmptyRequests extends StatelessWidget {
   final String message;
   final IconData icon;
 
-  const _EmptyRequests({super.key, required this.title, required this.message, required this.icon});
+  const _EmptyRequests({
+    super.key,
+    required this.title,
+    required this.message,
+    required this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -397,9 +473,16 @@ class _EmptyRequests extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 64, color: colors.onSurfaceVariant.withValues(alpha: 0.2)),
+          Icon(
+            icon,
+            size: 64,
+            color: colors.onSurfaceVariant.withValues(alpha: 0.2),
+          ),
           const SizedBox(height: 16),
-          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Text(
+            title,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 8),
           Text(message, style: TextStyle(color: colors.onSurfaceVariant)),
         ],

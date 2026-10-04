@@ -22,7 +22,8 @@ class UserDiscoveryScreen extends StatefulWidget {
   State<UserDiscoveryScreen> createState() => _UserDiscoveryScreenState();
 }
 
-class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> with SingleTickerProviderStateMixin {
+class _UserDiscoveryScreenState extends State<UserDiscoveryScreen>
+    with SingleTickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
   late TabController _tabController;
   Timer? _searchTimer;
@@ -86,7 +87,11 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> with SingleTi
     try {
       if (_tabController.index == 0) {
         final apiService = context.read<UserApiService>();
-        final response = await apiService.searchUsers(query, limit: 20, offset: 0);
+        final response = await apiService.searchUsers(
+          query,
+          limit: 20,
+          offset: 0,
+        );
         if (!mounted) return;
 
         final users = response['users'] as List<UserModel>;
@@ -133,7 +138,11 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> with SingleTi
 
     try {
       final apiService = context.read<UserApiService>();
-      final response = await apiService.searchUsers(_searchController.text.trim(), limit: 20, offset: _usersPage);
+      final response = await apiService.searchUsers(
+        _searchController.text.trim(),
+        limit: 20,
+        offset: _usersPage,
+      );
 
       if (!mounted) return;
 
@@ -161,7 +170,10 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> with SingleTi
 
   Future<void> _handleAction(UserModel user) async {
     final provider = context.read<MessagingProvider>();
-    final status = _getEffectiveStatus(provider.getRelationship(user.id), user.relationshipStatus);
+    final status = _getEffectiveStatus(
+      provider.getRelationship(user.id),
+      user.relationshipStatus,
+    );
 
     try {
       switch (status) {
@@ -173,11 +185,15 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> with SingleTi
           break;
         case 'not_connected':
           await provider.sendConnectionRequest(user.id);
-          if (mounted) NotificationService.showSuccess(context, 'Request sent!');
+          if (mounted) {
+            NotificationService.showSuccess(context, 'Request sent!');
+          }
           break;
         case 'blocked':
           await provider.unblockUser(user.id);
-          if (mounted) NotificationService.showSuccess(context, 'User unblocked');
+          if (mounted) {
+            NotificationService.showSuccess(context, 'User unblocked');
+          }
           break;
         default:
           _showUserProfile(user);
@@ -220,7 +236,7 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> with SingleTi
         toolbarHeight: 50,
         leading: Center(
           child: GestureDetector(
-            onTap: () => context.pop(),
+            onTap: () => context.go('/chat?tab=direct'),
             child: Container(
               width: 36,
               height: 36,
@@ -248,7 +264,10 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> with SingleTi
           labelColor: colors.onSurface,
           unselectedLabelColor: colors.onSurfaceVariant,
           indicatorSize: TabBarIndicatorSize.label,
-          labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+          labelStyle: const TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 13,
+          ),
           tabs: const [
             Tab(text: 'Users'),
             Tab(text: 'Groups'),
@@ -280,41 +299,60 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> with SingleTi
                     controller: _searchController,
                     onChanged: _onSearchChanged,
                     autofocus: true,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                    ),
                     decoration: InputDecoration(
                       hintText: _tabController.index == 0
                           ? 'Search username or wallet...'
-                          : (_tabController.index == 1 ? 'Search circle name...' : 'Search channels...'),
+                          : (_tabController.index == 1
+                                ? 'Search circle name...'
+                                : 'Search channels...'),
                       hintStyle: TextStyle(
                         color: colors.onSurfaceVariant.withValues(alpha: 0.4),
                         fontWeight: FontWeight.w600,
                         fontSize: 14,
                       ),
-                      prefixIcon: Icon(Icons.search_rounded, color: colors.primary, size: 22),
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        color: colors.primary,
+                        size: 22,
+                      ),
                       suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.close_rounded, size: 18),
-                            onPressed: () {
-                              _searchController.clear();
-                              _onSearchChanged('');
-                            },
-                          )
-                        : null,
+                          ? IconButton(
+                              icon: const Icon(Icons.close_rounded, size: 18),
+                              onPressed: () {
+                                _searchController.clear();
+                                _onSearchChanged('');
+                              },
+                            )
+                          : null,
                       filled: true,
                       fillColor: colors.surface.withValues(alpha: 0.7),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(20),
-                        borderSide: BorderSide(color: colors.primary.withValues(alpha: 0.1)),
+                        borderSide: BorderSide(
+                          color: colors.primary.withValues(alpha: 0.1),
+                        ),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(20),
-                        borderSide: BorderSide(color: colors.primary.withValues(alpha: 0.05)),
+                        borderSide: BorderSide(
+                          color: colors.primary.withValues(alpha: 0.05),
+                        ),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(20),
-                        borderSide: BorderSide(color: colors.primary.withValues(alpha: 0.2), width: 1.5),
+                        borderSide: BorderSide(
+                          color: colors.primary.withValues(alpha: 0.2),
+                          width: 1.5,
+                        ),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
                     ),
                   ),
                 ),
@@ -340,8 +378,15 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> with SingleTi
   Widget _buildUserResults() {
     if (_isSearching) return const Center(child: GriotLoader(size: 44));
     if (_error != null) return _ErrorState(message: _error!);
-    if (_searchController.text.isEmpty) return const _InitialState(type: 'Users');
-    if (_userResults.isEmpty) return const _EmptySearch(title: 'No users found', message: 'Try a different username or wallet.');
+    if (_searchController.text.isEmpty) {
+      return const _InitialState(type: 'Users');
+    }
+    if (_userResults.isEmpty) {
+      return const _EmptySearch(
+        title: 'No users found',
+        message: 'Try a different username or wallet.',
+      );
+    }
 
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
@@ -357,22 +402,34 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> with SingleTi
 
         final user = _userResults[index];
         return _UserResultTile(
-          user: user,
-          onTap: () => _showUserProfile(user),
-          onActionPressed: () => _handleAction(user),
-        ).animate().fadeIn(delay: (index * 50).ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOutCubic);
+              user: user,
+              onTap: () => _showUserProfile(user),
+              onActionPressed: () => _handleAction(user),
+            )
+            .animate()
+            .fadeIn(delay: (index * 50).ms)
+            .slideY(begin: 0.1, end: 0, curve: Curves.easeOutCubic);
       },
     );
   }
 
   Widget _buildGroupResults() {
     final provider = context.watch<MessagingProvider>();
-    if (_isSearching || provider.isSearchingGroups) return const Center(child: GriotLoader(size: 44));
+    if (_isSearching || provider.isSearchingGroups) {
+      return const Center(child: GriotLoader(size: 44));
+    }
     if (_error != null) return _ErrorState(message: _error!);
-    if (_searchController.text.isEmpty) return const _InitialState(type: 'Groups');
+    if (_searchController.text.isEmpty) {
+      return const _InitialState(type: 'Groups');
+    }
 
     final results = provider.discoveredGroups;
-    if (results.isEmpty) return const _EmptySearch(title: 'No groups found', message: 'Try a different group name or username.');
+    if (results.isEmpty) {
+      return const _EmptySearch(
+        title: 'No groups found',
+        message: 'Try a different group name or username.',
+      );
+    }
 
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
@@ -382,27 +439,42 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> with SingleTi
         if (index == results.length) {
           return _buildLoadMoreButton(
             isLoading: provider.isLoadingMoreGroups,
-            onPressed: () => provider.discoverGroups(_searchController.text.trim(), refresh: false),
+            onPressed: () => provider.discoverGroups(
+              _searchController.text.trim(),
+              refresh: false,
+            ),
           );
         }
 
         final group = results[index];
         return _ConversationResultTile(
-          conversation: group,
-          onTap: () => _openConversation(group),
-        ).animate().fadeIn(delay: (index * 50).ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOutCubic);
+              conversation: group,
+              onTap: () => _openConversation(group),
+            )
+            .animate()
+            .fadeIn(delay: (index * 50).ms)
+            .slideY(begin: 0.1, end: 0, curve: Curves.easeOutCubic);
       },
     );
   }
 
   Widget _buildChannelResults() {
     final provider = context.watch<MessagingProvider>();
-    if (_isSearching || provider.isSearchingChannels) return const Center(child: GriotLoader(size: 44));
+    if (_isSearching || provider.isSearchingChannels) {
+      return const Center(child: GriotLoader(size: 44));
+    }
     if (_error != null) return _ErrorState(message: _error!);
-    if (_searchController.text.isEmpty) return const _InitialState(type: 'Channels');
+    if (_searchController.text.isEmpty) {
+      return const _InitialState(type: 'Channels');
+    }
 
     final results = provider.discoveredChannels;
-    if (results.isEmpty) return const _EmptySearch(title: 'No channels found', message: 'Try a different channel name or username.');
+    if (results.isEmpty) {
+      return const _EmptySearch(
+        title: 'No channels found',
+        message: 'Try a different channel name or username.',
+      );
+    }
 
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
@@ -412,20 +484,29 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> with SingleTi
         if (index == results.length) {
           return _buildLoadMoreButton(
             isLoading: provider.isLoadingMoreChannels,
-            onPressed: () => provider.discoverChannels(_searchController.text.trim(), refresh: false),
+            onPressed: () => provider.discoverChannels(
+              _searchController.text.trim(),
+              refresh: false,
+            ),
           );
         }
 
         final channel = results[index];
         return _ConversationResultTile(
-          conversation: channel,
-          onTap: () => _openConversation(channel),
-        ).animate().fadeIn(delay: (index * 50).ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOutCubic);
+              conversation: channel,
+              onTap: () => _openConversation(channel),
+            )
+            .animate()
+            .fadeIn(delay: (index * 50).ms)
+            .slideY(begin: 0.1, end: 0, curve: Curves.easeOutCubic);
       },
     );
   }
 
-  Widget _buildLoadMoreButton({required bool isLoading, required VoidCallback onPressed}) {
+  Widget _buildLoadMoreButton({
+    required bool isLoading,
+    required VoidCallback onPressed,
+  }) {
     final colors = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 24),
@@ -437,14 +518,23 @@ class _UserDiscoveryScreenState extends State<UserDiscoveryScreen> with SingleTi
                 icon: const Icon(Icons.add_rounded, size: 20),
                 label: const Text(
                   'LOAD MORE',
-                  style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.0, fontSize: 12),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.0,
+                    fontSize: 12,
+                  ),
                 ),
                 style: TextButton.styleFrom(
                   foregroundColor: colors.primary,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: colors.primary.withValues(alpha: 0.2)),
+                    side: BorderSide(
+                      color: colors.primary.withValues(alpha: 0.2),
+                    ),
                   ),
                 ),
               ),
@@ -470,17 +560,28 @@ class _InitialState extends StatelessWidget {
               color: colors.primary.withValues(alpha: 0.05),
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.person_search_rounded, size: 64, color: colors.primary.withValues(alpha: 0.3)),
+            child: Icon(
+              Icons.person_search_rounded,
+              size: 64,
+              color: colors.primary.withValues(alpha: 0.3),
+            ),
           ),
           const SizedBox(height: 24),
           Text(
             'Discover $type',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: colors.onSurface),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              color: colors.onSurface,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             'Search for others across the network',
-            style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.6), fontWeight: FontWeight.w600),
+            style: TextStyle(
+              color: colors.onSurfaceVariant.withValues(alpha: 0.6),
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
@@ -500,7 +601,11 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.cloud_off_rounded, size: 64, color: Theme.of(context).colorScheme.error.withValues(alpha: 0.3)),
+            Icon(
+              Icons.cloud_off_rounded,
+              size: 64,
+              color: Theme.of(context).colorScheme.error.withValues(alpha: 0.3),
+            ),
             const SizedBox(height: 24),
             const Text(
               'Search Failed',
@@ -510,7 +615,10 @@ class _ErrorState extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                height: 1.5,
+              ),
             ),
           ],
         ),
@@ -523,10 +631,7 @@ class _EmptySearch extends StatelessWidget {
   final String title;
   final String message;
 
-  const _EmptySearch({
-    required this.title,
-    required this.message,
-  });
+  const _EmptySearch({required this.title, required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -537,14 +642,24 @@ class _EmptySearch extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.manage_search_rounded, size: 64, color: colors.onSurfaceVariant.withValues(alpha: 0.2)),
+            Icon(
+              Icons.manage_search_rounded,
+              size: 64,
+              color: colors.onSurfaceVariant.withValues(alpha: 0.2),
+            ),
             const SizedBox(height: 24),
-            Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+            Text(
+              title,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+            ),
             const SizedBox(height: 12),
             Text(
               message,
-              style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.7), height: 1.5),
-              textAlign: TextAlign.center
+              style: TextStyle(
+                color: colors.onSurfaceVariant.withValues(alpha: 0.7),
+                height: 1.5,
+              ),
+              textAlign: TextAlign.center,
             ),
           ],
         ),
@@ -579,7 +694,10 @@ class _UserResultTileState extends State<_UserResultTile> {
     return Consumer<MessagingProvider>(
       builder: (context, messaging, _) {
         final relationship = messaging.getRelationship(widget.user.id);
-        final String effectiveStatus = _getEffectiveStatus(relationship, widget.user.relationshipStatus);
+        final String effectiveStatus = _getEffectiveStatus(
+          relationship,
+          widget.user.relationshipStatus,
+        );
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -614,20 +732,30 @@ class _UserResultTileState extends State<_UserResultTile> {
                         children: [
                           Text(
                             widget.user.effectiveName,
-                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          if (widget.user.username != null && widget.user.username!.isNotEmpty)
+                          if (widget.user.username != null &&
+                              widget.user.username!.isNotEmpty)
                             Text(
                               widget.user.formattedUsername,
-                              style: TextStyle(color: colors.primary, fontSize: 13, fontWeight: FontWeight.w700)
+                              style: TextStyle(
+                                color: colors.primary,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           const SizedBox(height: 2),
                           Text(
                             _shortenAddress(widget.user.walletAddress),
                             style: TextStyle(
-                              color: colors.onSurfaceVariant.withValues(alpha: 0.4),
+                              color: colors.onSurfaceVariant.withValues(
+                                alpha: 0.4,
+                              ),
                               fontSize: 10,
                               fontFamily: 'monospace',
                               fontWeight: FontWeight.bold,
@@ -648,7 +776,7 @@ class _UserResultTileState extends State<_UserResultTile> {
                         } finally {
                           if (mounted) setState(() => _isLoading = false);
                         }
-                      }
+                      },
                     ),
                   ],
                 ),
@@ -689,7 +817,9 @@ class _Avatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final bool isOnline = context.watch<MessagingProvider>().presenceMap[user.id] == true || user.isOnline;
+    final bool isOnline =
+        context.watch<MessagingProvider>().presenceMap[user.id] == true ||
+        user.isOnline;
 
     return Stack(
       alignment: Alignment.bottomRight,
@@ -697,10 +827,16 @@ class _Avatar extends StatelessWidget {
         CircleAvatar(
           radius: 28,
           backgroundColor: colors.surfaceContainerHighest,
-          backgroundImage: user.avatarUrl != null ? NetworkImage(user.avatarUrl!) : null,
+          backgroundImage: user.avatarUrl != null
+              ? NetworkImage(user.avatarUrl!)
+              : null,
           child: user.avatarUrl == null
-            ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg', width: 32, height: 32)
-            : null,
+              ? SvgPicture.asset(
+                  'assets/coins_logo/hbadger_logo.svg',
+                  width: 32,
+                  height: 32,
+                )
+              : null,
         ),
         if (isOnline)
           Positioned(
@@ -795,8 +931,15 @@ class _Action extends StatelessWidget {
           shape: BoxShape.circle,
         ),
         child: isLoading
-          ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: colors.onPrimary))
-          : Icon(icon, size: 20, color: filled ? colors.onPrimary : color),
+            ? SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: colors.onPrimary,
+                ),
+              )
+            : Icon(icon, size: 20, color: filled ? colors.onPrimary : color),
       ),
     );
   }
@@ -849,14 +992,21 @@ class _ConversationResultTile extends StatelessWidget {
                     children: [
                       Text(
                         conversation.name ?? 'Unknown',
-                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                       if (conversation.username != null)
                         Text(
                           '@${conversation.username}',
-                          style: TextStyle(color: colors.primary, fontSize: 13, fontWeight: FontWeight.w700),
+                          style: TextStyle(
+                            color: colors.primary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       const SizedBox(height: 2),
                       Text(
@@ -906,7 +1056,9 @@ class _ConversationAvatar extends StatelessWidget {
     return CircleAvatar(
       radius: 28,
       backgroundColor: colors.surfaceContainerHighest,
-      backgroundImage: conversation.imageUrl != null ? NetworkImage(conversation.imageUrl!) : null,
+      backgroundImage: conversation.imageUrl != null
+          ? NetworkImage(conversation.imageUrl!)
+          : null,
       child: conversation.imageUrl == null
           ? Icon(
               isChannel ? Icons.campaign_rounded : Icons.groups_rounded,

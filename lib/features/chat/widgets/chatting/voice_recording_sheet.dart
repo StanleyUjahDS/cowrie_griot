@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:provider/provider.dart';
 import '../../providers/messaging_provider.dart';
 import '../../models/chat_message.dart';
@@ -11,27 +12,35 @@ import '../../../../core/services/notification_service.dart';
 import 'media_preview_sheet.dart';
 
 class VoiceRecordingSheet extends StatefulWidget {
+  final BuildContext hostContext;
   final String conversationId;
   final String? replyToMessageId;
+  final Future<void> Function(String filePath, String caption)? onSend;
 
   const VoiceRecordingSheet({
     super.key,
+    required this.hostContext,
     required this.conversationId,
     this.replyToMessageId,
+    this.onSend,
   });
 
   static void show(
     BuildContext context, {
     required String conversationId,
     String? replyToMessageId,
+    Future<void> Function(String filePath, String caption)? onSend,
   }) {
+    final hostContext = context;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => VoiceRecordingSheet(
+      builder: (_) => VoiceRecordingSheet(
+        hostContext: hostContext,
         conversationId: conversationId,
         replyToMessageId: replyToMessageId,
+        onSend: onSend,
       ),
     );
   }
@@ -46,8 +55,9 @@ class _VoiceRecordingSheetState extends State<VoiceRecordingSheet>
   late AnimationController _animationController;
   Timer? _timer;
   int _recordDuration = 0;
-  // ignore: unused_field
   bool _isRecording = false;
+  bool _isStarting = true;
+  bool _isStopping = false;
   bool _isClosing = false;
 
   @override
@@ -86,10 +96,21 @@ class _VoiceRecordingSheetState extends State<VoiceRecordingSheet>
         final path =
             '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
 
-        const config = RecordConfig();
+        const config = RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          bitRate: 128000,
+          sampleRate: 44100,
+          numChannels: 1,
+          autoGain: true,
+        );
         await _audioRecorder.start(config, path: path);
 
+        if (!mounted) {
+          await _audioRecorder.stop();
+          return;
+        }
         setState(() {
+          _isStarting = false;
           _isRecording = true;
           _recordDuration = 0;
         });
@@ -111,46 +132,104 @@ class _VoiceRecordingSheetState extends State<VoiceRecordingSheet>
       }
     } catch (e) {
       debugPrint('Error starting recording: $e');
-      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        setState(() => _isStarting = false);
+        NotificationService.showError(
+          context,
+          'Could not start the microphone. Please try again.',
+        );
+        Navigator.pop(context);
+      }
     }
   }
 
   Future<void> _stopAndSend() async {
+    if (_isStarting || !_isRecording || _isStopping) return;
+    setState(() => _isStopping = true);
     _timer?.cancel();
     try {
       final path = await _audioRecorder.stop();
       if (path != null && mounted) {
+        final probe = AudioPlayer();
+        Duration? recordedDuration;
+        try {
+          recordedDuration = await probe.setFilePath(path);
+        } finally {
+          await probe.dispose();
+        }
+
+        if (recordedDuration == null ||
+            recordedDuration < const Duration(milliseconds: 750)) {
+          final file = File(path);
+          if (await file.exists()) await file.delete();
+          if (mounted) {
+            NotificationService.showInfo(
+              context,
+              'That voice note was too short. Please record it again.',
+            );
+            setState(() {
+              _isRecording = false;
+              _isStopping = false;
+            });
+            _isClosing = true;
+            Navigator.pop(context);
+          }
+          return;
+        }
+
+        if (!mounted) return;
+        final hostContext = widget.hostContext;
+        final conversationId = widget.conversationId;
+        final replyToMessageId = widget.replyToMessageId;
+        final onSend = widget.onSend;
         // Dismiss recording sheet first to keep the widget tree clean
         setState(() => _isRecording = false);
         _isClosing = true;
         Navigator.pop(context);
 
-        // Then show the preview sheet
-        if (mounted) {
+        // The recording-sheet context is invalid after pop. Reopen the preview
+        // using the chat screen context that hosted this sheet.
+        await Future<void>.delayed(Duration.zero);
+        if (hostContext.mounted) {
           await MediaPreviewSheet.show(
-            context,
+            hostContext,
             filePath: path,
             type: MessageType.voice,
-            onSend: (caption) =>
-                context.read<MessagingProvider>().sendMediaMessage(
-                  conversationId: widget.conversationId,
-                  filePath: path,
-                  type: MessageType.voice,
-                  content: caption.isEmpty ? null : caption,
-                  replyToMessageId: widget.replyToMessageId,
-                ),
+            onSend: (caption) async {
+              if (onSend != null) {
+                await onSend(path, caption);
+                return;
+              }
+              await hostContext.read<MessagingProvider>().sendMediaMessage(
+                conversationId: conversationId,
+                filePath: path,
+                type: MessageType.voice,
+                content: caption.isEmpty ? null : caption,
+                replyToMessageId: replyToMessageId,
+              );
+            },
           );
         }
       }
     } catch (e) {
       debugPrint('Error stopping recording: $e');
+      if (mounted) {
+        setState(() => _isStopping = false);
+        NotificationService.showError(
+          context,
+          'Could not finish the voice note. Please try again.',
+        );
+      }
     }
   }
 
   Future<void> _cancelRecording() async {
+    if (_isClosing) return;
     _timer?.cancel();
     try {
-      final path = await _audioRecorder.stop();
+      final path = await _audioRecorder.isRecording()
+          ? await _audioRecorder.stop()
+          : null;
       if (path != null) {
         final file = File(path);
         if (await file.exists()) {
@@ -261,7 +340,9 @@ class _VoiceRecordingSheetState extends State<VoiceRecordingSheet>
             ),
             const SizedBox(height: 12),
             Text(
-              'Recording in progress...',
+              _isStarting
+                  ? 'Starting microphone...'
+                  : 'Recording in progress...',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
@@ -293,16 +374,18 @@ class _VoiceRecordingSheetState extends State<VoiceRecordingSheet>
                 const SizedBox(width: 16),
                 Expanded(
                   child: FilledButton(
-                    onPressed: _stopAndSend,
+                    onPressed: _isStarting || !_isRecording || _isStopping
+                        ? null
+                        : _stopAndSend,
                     style: FilledButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    child: const Text(
-                      'Stop & Send',
-                      style: TextStyle(fontWeight: FontWeight.w700),
+                    child: Text(
+                      _isStopping ? 'Preparing...' : 'Stop & Send',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                   ),
                 ),

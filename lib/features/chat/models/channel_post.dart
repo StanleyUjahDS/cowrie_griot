@@ -29,10 +29,10 @@ class ChannelPost {
       conversationId: json['conversationId'] as String,
       content: json['content'] as String,
       authorId: json['authorId'] as String,
-      author: json['author'] != null 
-          ? ChatUser.fromJson(Map<String, dynamic>.from(json['author'])) 
+      author: json['author'] != null
+          ? ChatUser.fromJson(Map<String, dynamic>.from(json['author']))
           : null,
-      createdAt: DateTime.parse(json['createdAt'] as String),
+      createdAt: DateTime.parse(json['createdAt'] as String).toLocal(),
       commentCount: json['commentCount'] as int? ?? 0,
       reactions: Map<String, int>.from(json['reactions'] ?? {}),
       isDeleted: json['isDeleted'] as bool? ?? false,

@@ -66,7 +66,7 @@ class UserProvider extends ChangeNotifier {
   // GET /api/users/me
   // ============================================================
 
-  Future<void> loadUser() async {
+  Future<void> loadUser({bool useCachedFallback = true}) async {
     if (_isLoading) {
       return;
     }
@@ -75,7 +75,7 @@ class UserProvider extends ChangeNotifier {
     _errorMessage = null;
 
     // Load from local storage first for immediate display
-    if (_user == null) {
+    if (_user == null && useCachedFallback) {
       await loadLocalUser();
     }
 

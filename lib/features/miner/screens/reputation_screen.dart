@@ -15,6 +15,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/services/share_link_service.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 class ReputationScreen extends StatefulWidget {
@@ -41,7 +42,7 @@ class _ReputationScreenState extends State<ReputationScreen> {
   Future<void> _shareShowcase(
     ReputationData reputation,
     String? displayName,
-    String? referralCode,
+    String referralCode,
   ) async {
     setState(() => _isGenerating = true);
 
@@ -61,7 +62,7 @@ class _ReputationScreenState extends State<ReputationScreen> {
       ).create();
       await file.writeAsBytes(buffer);
 
-      final shareLink = 'https://griot.network/join?ref=$referralCode';
+      final shareLink = ShareLinkService.referral(referralCode);
       final shareText =
           'My status on the Griot app: ${reputation.tier.name}! 🦡\n\nJoin the Cowrie Protocol legacy: $shareLink';
 
@@ -219,7 +220,7 @@ class _ReputationScreenState extends State<ReputationScreen> {
                   const SizedBox(height: 40),
                   _buildProgressionCard(reputation, colors, text),
                   const SizedBox(height: 32),
-                  _buildJourneyGuide(context, reputation.tier.name),
+                  _buildJourneyGuide(context, reputation),
                   const SizedBox(height: 24),
                   _buildFooter(colors, text),
                 ]
@@ -575,12 +576,33 @@ class _ReputationScreenState extends State<ReputationScreen> {
     );
   }
 
-  Widget _buildJourneyGuide(BuildContext context, String currentTierName) {
+  String _tierRules(ReputationTier tier) {
+    final multiplier = tier.miningMultiplier.toStringAsFixed(3);
+    return 'Mining activity: complete one eligible session every 3 hours. '
+        'This tier weights your base mining reward at $multiplier× '
+        '(${tier.reputationBonusLabel}).';
+  }
+
+  Widget _buildJourneyGuide(BuildContext context, ReputationData reputation) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final text = theme.textTheme;
 
-    final tiers = [
+    final configuredTiers = reputation.tiers;
+    final tiers = configuredTiers.isNotEmpty
+        ? configuredTiers
+              .map(
+                (tier) => {
+                  'name': tier.name,
+                  'desc': _tierRules(tier),
+                  'color': tier.badgeColor,
+                  'min': tier.minPoints.toString(),
+                  'max': tier.maxPoints?.toString() ?? '∞',
+                  'bonus': tier.reputationBonusLabel,
+                },
+              )
+              .toList()
+        : [
       {
         'name': 'Initiate Badger',
         'desc': 'Your journey begins here.',
@@ -631,7 +653,7 @@ class _ReputationScreenState extends State<ReputationScreen> {
         'desc': 'The highest level of Griot recognition.',
         'color': '#67E8F9',
       },
-    ];
+          ];
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -675,7 +697,7 @@ class _ReputationScreenState extends State<ReputationScreen> {
             final index = entry.key;
             final tier = entry.value;
             final isCurrent =
-                tier['name']!.toLowerCase() == currentTierName.toLowerCase();
+                tier['name']!.toLowerCase() == reputation.tier.name.toLowerCase();
             final tierColor = AppColors.parseHexColor(tier['color']);
             return IntrinsicHeight(
               child: Row(
@@ -750,14 +772,26 @@ class _ReputationScreenState extends State<ReputationScreen> {
                                   : colors.onSurface.withValues(alpha: 0.6),
                             ),
                           ),
-                          if (isCurrent) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            tier['desc']!,
+                            style: text.bodySmall?.copyWith(
+                              color: colors.onSurfaceVariant,
+                              height: 1.35,
+                              fontStyle: isCurrent
+                                  ? FontStyle.normal
+                                  : FontStyle.italic,
+                              fontWeight: isCurrent ? FontWeight.w600 : null,
+                            ),
+                          ),
+                          if (tier['min'] != null) ...[
                             const SizedBox(height: 4),
                             Text(
-                              tier['desc']!,
-                              style: text.bodySmall?.copyWith(
-                                color: colors.onSurfaceVariant,
-                                height: 1.4,
-                                fontStyle: FontStyle.italic,
+                              '${tier['min']}–${tier['max']} reputation points  •  ${tier['bonus'] ?? ''}',
+                              style: text.labelSmall?.copyWith(
+                                color: isCurrent
+                                    ? tierColor
+                                    : colors.onSurfaceVariant.withValues(alpha: 0.75),
                               ),
                             ),
                           ],
@@ -801,7 +835,7 @@ class _PrestigePassport extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     final tierColor = AppColors.parseHexColor(reputation.tier.badgeColor);
-    final link = 'https://griot.network/join?ref=$referralCode';
+    final link = ShareLinkService.referral(referralCode);
 
     // Use the actual theme surface colors instead of hardcoded ones
     final cardBg = isDark ? colors.surface : Colors.white;
@@ -1015,20 +1049,19 @@ class _PrestigePassport extends StatelessWidget {
                               width: 2,
                             ),
                           ),
-                          child: CircleAvatar(
-                            radius: 30,
-                            backgroundColor: tierColor.withValues(alpha: 0.1),
-                            backgroundImage:
-                                (avatarUrl != null && avatarUrl!.isNotEmpty)
-                                ? NetworkImage(avatarUrl!)
-                                : null,
-                            child: (avatarUrl == null || avatarUrl!.isEmpty)
-                                ? Icon(
-                                    Icons.person_rounded,
-                                    color: textSub,
-                                    size: 36,
+                          child: ClipOval(
+                            child:
+                                (avatarUrl != null &&
+                                    avatarUrl!.trim().isNotEmpty)
+                                ? Image.network(
+                                    avatarUrl!.trim(),
+                                    width: 60,
+                                    height: 60,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) =>
+                                        _passportAvatarFallback(tierColor),
                                   )
-                                : null,
+                                : _passportAvatarFallback(tierColor),
                           ),
                         ),
                         const SizedBox(width: 20),
@@ -1146,6 +1179,19 @@ class _PrestigePassport extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _passportAvatarFallback(Color tierColor) {
+    return Container(
+      width: 60,
+      height: 60,
+      color: tierColor.withValues(alpha: 0.1),
+      padding: const EdgeInsets.all(10),
+      child: SvgPicture.asset(
+        'assets/coins_logo/hbadger_logo.svg',
+        fit: BoxFit.contain,
       ),
     );
   }

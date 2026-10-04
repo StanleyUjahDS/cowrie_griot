@@ -15,7 +15,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../providers/messaging_provider.dart';
 import '../../models/chat_message.dart';
+import '../../models/chat_user.dart';
 import '../../models/conversation_model.dart';
+import '../../utils/tip_display.dart';
 import '../../../users/models/user_model.dart';
 import '../../../users/providers/user_provider.dart';
 import '../../../../core/services/notification_service.dart';
@@ -27,6 +29,7 @@ import 'video_player_widget.dart';
 import 'fullscreen_media_viewer.dart';
 import 'link_preview_widget.dart';
 import 'message_status.dart';
+import 'report_content_sheet.dart';
 
 class MessageBubble extends StatelessWidget {
   final ChatMessage message;
@@ -35,6 +38,10 @@ class MessageBubble extends StatelessWidget {
   final ColorScheme colorScheme;
   final Function(ChatMessage) onReply;
   final Conversation? conversation;
+  final ChatUser? sender;
+  final VoidCallback? onSenderTap;
+  final VoidCallback? onReplyTap;
+  final bool isHighlighted;
   final bool isFirstInGroup;
   final bool isLastInGroup;
 
@@ -46,6 +53,10 @@ class MessageBubble extends StatelessWidget {
     required this.colorScheme,
     required this.onReply,
     this.conversation,
+    this.sender,
+    this.onSenderTap,
+    this.onReplyTap,
+    this.isHighlighted = false,
     this.isFirstInGroup = true,
     this.isLastInGroup = true,
   });
@@ -65,13 +76,13 @@ class MessageBubble extends StatelessWidget {
       bottomRight: Radius.circular(isMe ? bottomRadius : 22),
     );
 
-    final theme = Theme.of(context);
-
     return GestureDetector(
       onLongPress: () => _showMessageOptions(context),
       child: Padding(
         padding: EdgeInsets.only(
-          bottom: isLastInGroup ? 10 : 2.5,
+          bottom: isLastInGroup
+              ? (message.reactions.isNotEmpty ? 15.0 : 10.0)
+              : (message.reactions.isNotEmpty ? 10.0 : 2.5),
           top: isFirstInGroup ? 4 : 0,
         ),
         child: Align(
@@ -86,64 +97,90 @@ class MessageBubble extends StatelessWidget {
                   conversation?.type == ConversationType.group)
                 _buildGroupSenderInfo(context),
 
-              Container(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width * 0.78,
-                  minWidth: 60,
-                ),
-                decoration: BoxDecoration(
-                  color: isMe
-                      ? colorScheme.primary
-                      : colorScheme.surfaceContainerLow,
-                  borderRadius: borderRadius,
-                  boxShadow: [
-                    if (isLastInGroup)
-                      BoxShadow(
-                        color: theme.shadowColor,
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
-                      ),
-                  ],
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (message.hasReply) _buildReplyHeader(context),
-                    _buildMessageText(context),
-                    if (message.reactions.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      _buildReactions(context),
-                    ],
-                    const SizedBox(height: 4),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Text(
-                          DateFormat('HH:mm').format(message.createdAt),
-                          style: TextStyle(
-                            color: isMe
-                                ? colorScheme.onPrimary.withValues(alpha: 0.7)
-                                : colorScheme.onSurfaceVariant.withValues(
-                                    alpha: 0.6,
-                                  ),
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.78,
+                      minWidth: 60,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isMe
+                          ? colorScheme.primary
+                          : colorScheme.surfaceContainerLow,
+                      borderRadius: borderRadius,
+                      border: isHighlighted
+                          ? Border.all(color: colorScheme.secondary, width: 2)
+                          : Border.all(
+                              color: isMe
+                                  ? colorScheme.primary.withValues(alpha: 0.18)
+                                  : colorScheme.outline.withValues(
+                                      alpha: isDark ? 0.16 : 0.24,
+                                    ),
+                              width: 0.7,
+                            ),
+                      boxShadow: [
+                        // Keep every bubble lifted from the wallpaper. The
+                        // old treatment only shadowed the last bubble in a
+                        // group, which made earlier bubbles disappear into
+                        // patterned/light backgrounds.
+                        BoxShadow(
+                          color: Colors.black.withValues(
+                            alpha: isDark ? 0.30 : 0.14,
                           ),
+                          blurRadius: isLastInGroup ? 9 : 6,
+                          spreadRadius: isLastInGroup ? 0.4 : 0,
+                          offset: Offset(0, isLastInGroup ? 3 : 2),
                         ),
-                        if (isMe) ...[
-                          const SizedBox(width: 4),
-                          _buildStatusIcon(),
-                        ],
                       ],
                     ),
-                  ],
-                ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (message.hasReply) _buildReplyHeader(context),
+                        _buildMessageText(context),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            Text(
+                              DateFormat('HH:mm').format(message.createdAt),
+                              style: TextStyle(
+                                color: isMe
+                                    ? colorScheme.onPrimary.withValues(
+                                        alpha: 0.7,
+                                      )
+                                    : colorScheme.onSurfaceVariant.withValues(
+                                        alpha: 0.6,
+                                      ),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            if (isMe) ...[
+                              const SizedBox(width: 4),
+                              _buildStatusIcon(),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (message.reactions.isNotEmpty)
+                    Positioned(
+                      bottom: -11,
+                      right: isMe ? 12 : null,
+                      left: isMe ? null : 12,
+                      child: _buildReactions(context),
+                    ),
+                ],
               ),
             ],
           ),
@@ -187,6 +224,10 @@ class MessageBubble extends StatelessWidget {
   }
 
   void _showMessageOptions(BuildContext context) {
+    // Keep the parent chat context. The bottom-sheet builder context is
+    // disposed as soon as an option closes the sheet and must not be reused
+    // for the confirmation dialog or provider actions.
+    final parentContext = context;
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final currentUserId = context.read<UserProvider>().user?.id;
@@ -270,13 +311,25 @@ class MessageBubble extends StatelessWidget {
               _buildOptionTile(
                 context,
                 icon: Icons.delete_outline_rounded,
-                label: 'Delete Message',
+                label: conversation?.type == ConversationType.dm
+                    ? 'Delete for both of us'
+                    : 'Delete for everyone',
                 color: colors.error,
                 onTap: () {
                   Navigator.pop(context);
-                  _confirmDelete(context);
+                  _confirmDelete(parentContext, forEveryone: true);
                 },
               ),
+            _buildOptionTile(
+              context,
+              icon: Icons.remove_circle_outline_rounded,
+              label: 'Delete for me',
+              color: colors.error,
+              onTap: () {
+                Navigator.pop(context);
+                _confirmDelete(parentContext, forEveryone: false);
+              },
+            ),
             _buildOptionTile(
               context,
               icon: Icons.copy_rounded,
@@ -287,6 +340,22 @@ class MessageBubble extends StatelessWidget {
                 NotificationService.showSuccess(context, 'Copied to clipboard');
               },
             ),
+            if (!isMe)
+              _buildOptionTile(
+                context,
+                icon: Icons.flag_outlined,
+                label: 'Report Message',
+                color: colors.error,
+                onTap: () {
+                  Navigator.pop(context);
+                  ReportContentSheet.show(
+                    context: context,
+                    targetType: 'message',
+                    targetId: message.id,
+                    subjectLabel: 'message',
+                  );
+                },
+              ),
             if (message.mediaUrl != null &&
                 !message.mediaUrl!.startsWith('file')) ...[
               _buildOptionTile(
@@ -393,12 +462,24 @@ class MessageBubble extends StatelessWidget {
     }
   }
 
-  void _confirmDelete(BuildContext context) async {
+  void _confirmDelete(BuildContext context, {required bool forEveryone}) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Message?'),
-        content: const Text('This action cannot be undone.'),
+        title: Text(
+          forEveryone
+              ? (conversation?.type == ConversationType.dm
+                    ? 'Delete for both of us?'
+                    : 'Delete for everyone?')
+              : 'Delete for me?',
+        ),
+        content: Text(
+          forEveryone
+              ? (conversation?.type == ConversationType.dm
+                    ? 'This removes the message from both sides of this chat.'
+                    : 'This removes the message for everyone in the group.')
+              : 'This removes the message only from your chat.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -419,7 +500,18 @@ class MessageBubble extends StatelessWidget {
 
     if (confirm == true) {
       try {
-        await context.read<MessagingProvider>().deleteMessage(message.id);
+        final provider = context.read<MessagingProvider>();
+        if (forEveryone) {
+          await provider.deleteMessage(message.id);
+        } else {
+          await provider.deleteMessageForMe(message.id);
+        }
+        if (context.mounted) {
+          NotificationService.showSuccess(
+            context,
+            forEveryone ? 'Message deleted' : 'Message deleted for you',
+          );
+        }
       } catch (e) {
         if (context.mounted) {
           NotificationService.showError(context, 'Failed to delete message');
@@ -446,26 +538,78 @@ class MessageBubble extends StatelessWidget {
       orElse: () => const UserModel(id: '', walletAddress: ''),
     );
 
-    String? name = friend.id.isNotEmpty
+    String? name = sender?.effectiveDisplayName;
+    if (name == 'Griot User') name = null;
+    name ??= friend.id.isNotEmpty
         ? (friend.displayName ?? friend.username)
         : null;
 
-    // 2. TODO: In the future, fetch from a member cache if not a friend.
-    name ??= 'User ${message.senderId.substring(0, 4)}';
+    name ??= message.senderId.length >= 4
+        ? 'User ${message.senderId.substring(0, 4)}'
+        : 'Group member';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 4, left: 2),
-      child: Text(
-        name,
-        style: TextStyle(
-          color: colorScheme.primary.computeLuminance() > 0.4
-              ? colorScheme.onSurface
-              : colorScheme.primary,
-          fontWeight: FontWeight.w900,
-          fontSize: 11,
+      child: Semantics(
+        button: onSenderTap != null,
+        label: 'Open $name profile',
+        child: InkWell(
+          onTap: onSenderTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+            child: Text(
+              name,
+              style: TextStyle(
+                color: _groupSenderColor(context),
+                fontWeight: FontWeight.w900,
+                fontSize: 11,
+              ),
+            ),
+          ),
         ),
       ),
     );
+  }
+
+  /// Gives each group member a stable, readable name color. The conversation's
+  /// member order is preferred so members receive different palette entries;
+  /// the sender ID is the fallback when that list is incomplete. This is only
+  /// used for group sender labels; DMs and channels keep their presentation.
+  Color _groupSenderColor(BuildContext context) {
+    const lightPalette = <Color>[
+      Color(0xFFC62828),
+      Color(0xFFAD1457),
+      Color(0xFF6A1B9A),
+      Color(0xFF283593),
+      Color(0xFF1565C0),
+      Color(0xFF00695C),
+      Color(0xFF2E7D32),
+      Color(0xFFEF6C00),
+      Color(0xFF6D4C41),
+    ];
+    const darkPalette = <Color>[
+      Color(0xFFFF8A80),
+      Color(0xFFFF80AB),
+      Color(0xFFEA80FC),
+      Color(0xFF8C9EFF),
+      Color(0xFF82B1FF),
+      Color(0xFF84FFFF),
+      Color(0xFFB9F6CA),
+      Color(0xFFFFD180),
+      Color(0xFFFF9E80),
+    ];
+
+    final hash = message.senderId.codeUnits.fold<int>(
+      0,
+      (value, unit) => (value * 31 + unit) & 0x7fffffff,
+    );
+    final palette = Theme.of(context).brightness == Brightness.dark
+        ? darkPalette
+        : lightPalette;
+    final memberIndex = conversation?.memberIds.indexOf(message.senderId) ?? -1;
+    final stableIndex = memberIndex >= 0 ? memberIndex : hash;
+    return palette[stableIndex % palette.length];
   }
 
   Widget _buildReplyHeader(BuildContext context) {
@@ -483,105 +627,126 @@ class MessageBubble extends StatelessWidget {
           ),
         );
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: isMe
-            ? colorScheme.onPrimary.withValues(alpha: 0.12)
-            : colorScheme.onSurface.withValues(alpha: 0.06),
+    return Semantics(
+      button: onReplyTap != null,
+      label: 'Go to replied message',
+      child: InkWell(
+        // Keep older, unloaded parents actionable. The screen callback can
+        // page backwards until the referenced message is available.
+        onTap: onReplyTap,
         borderRadius: BorderRadius.circular(12),
-        border: Border(
-          left: BorderSide(
-            color: isMe ? colorScheme.onPrimary : colorScheme.primary,
-            width: 3.5,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: isMe
+                ? colorScheme.onPrimary.withValues(alpha: 0.12)
+                : colorScheme.onSurface.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(12),
+            border: Border(
+              left: BorderSide(
+                color: isMe ? colorScheme.onPrimary : colorScheme.primary,
+                width: 3.5,
+              ),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                parent.senderId == context.read<UserProvider>().user?.id
+                    ? 'You'
+                    : 'Friend',
+                style: TextStyle(
+                  color: isMe
+                      ? colorScheme.onPrimary.withValues(alpha: 0.9)
+                      : colorScheme.primary,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 10,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                parent.text,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: isMe
+                      ? colorScheme.onPrimary.withValues(alpha: 0.75)
+                      : colorScheme.onSurface.withValues(alpha: 0.7),
+                  fontSize: 12,
+                  height: 1.2,
+                ),
+              ),
+            ],
           ),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            parent.senderId == context.read<UserProvider>().user?.id
-                ? 'You'
-                : 'Friend',
-            style: TextStyle(
-              color: isMe
-                  ? colorScheme.onPrimary.withValues(alpha: 0.9)
-                  : colorScheme.primary,
-              fontWeight: FontWeight.w900,
-              fontSize: 10,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            parent.text,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: isMe
-                  ? colorScheme.onPrimary.withValues(alpha: 0.75)
-                  : colorScheme.onSurface.withValues(alpha: 0.7),
-              fontSize: 12,
-              height: 1.2,
-            ),
-          ),
-        ],
       ),
     );
   }
 
   Widget _buildReactions(BuildContext context) {
-    return Wrap(
-      spacing: 4,
-      runSpacing: 4,
-      children: message.reactions.entries.map((entry) {
-        final emoji = entry.key;
-        final users = entry.value;
-        final currentUserId = context.read<UserProvider>().user?.id;
-        final hasReacted = users.contains(currentUserId);
-
-        return GestureDetector(
-          onTap: () => context.read<MessagingProvider>().toggleReaction(
-            message.id,
-            emoji,
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(100),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
           ),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: hasReacted
-                  ? colorScheme.primary.withValues(alpha: 0.2)
-                  : (isMe
-                        ? colorScheme.onPrimary.withValues(alpha: 0.1)
-                        : colorScheme.primary.withValues(alpha: 0.05)),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
+        ],
+        border: Border.all(
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.08),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: message.reactions.entries.map((entry) {
+          final emoji = entry.key;
+          final users = entry.value;
+          final currentUserId = context.read<UserProvider>().user?.id;
+          final hasReacted = users.contains(currentUserId);
+
+          return GestureDetector(
+            onTap: () => context.read<MessagingProvider>().toggleReaction(
+              message.id,
+              emoji,
+            ),
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
                 color: hasReacted
-                    ? colorScheme.primary.withValues(alpha: 0.3)
+                    ? colorScheme.primary.withValues(alpha: 0.12)
                     : Colors.transparent,
-                width: 1,
+                borderRadius: BorderRadius.circular(100),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(emoji, style: const TextStyle(fontSize: 13)),
+                  if (users.length > 1) ...[
+                    const SizedBox(width: 3),
+                    Text(
+                      users.length.toString(),
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(emoji, style: const TextStyle(fontSize: 12)),
-                if (users.length > 1) ...[
-                  const SizedBox(width: 4),
-                  Text(
-                    users.length.toString(),
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: isMe ? colorScheme.onPrimary : colorScheme.primary,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        );
-      }).toList(),
+          );
+        }).toList(),
+      ),
     );
   }
 
@@ -628,6 +793,10 @@ class MessageBubble extends StatelessWidget {
 
     if (message.type == MessageType.contact) {
       return _buildContactContent(context);
+    }
+
+    if (message.type == MessageType.system && _isCallSystemMessage) {
+      return _buildCallSystemContent(context);
     }
 
     // 3. Handle Regular Text
@@ -716,10 +885,16 @@ class MessageBubble extends StatelessWidget {
                     host == 'griot.network' || host == 'www.griot.network';
                 if (isInternal &&
                     (path.startsWith('/join') ||
-                        path.startsWith('/group/@') ||
-                        path.startsWith('/circle/@') ||
-                        path.startsWith('/channel/@'))) {
-                  DeepLinkService.instance.handleUri(uri);
+                        path.startsWith('/plus') ||
+                        path.startsWith('/profile/') ||
+                        path.startsWith('/group/') ||
+                        path.startsWith('/circle/') ||
+                        path.startsWith('/channel/'))) {
+                  // Normalize the legacy www host before handing the link to
+                  // the app router. This keeps every Griot conversation link
+                  // on one canonical in-app destination.
+                  final canonicalUri = uri.replace(host: 'griot.network');
+                  DeepLinkService.instance.handleUri(canonicalUri);
                 } else {
                   launchUrl(uri, mode: LaunchMode.externalApplication);
                 }
@@ -746,6 +921,79 @@ class MessageBubble extends StatelessWidget {
         if (firstUrl != null && !message.isMedia && !message.isFile)
           LinkPreviewWidget(url: firstUrl, isMe: isMe),
       ],
+    );
+  }
+
+  bool get _isCallSystemMessage {
+    final value = message.text.trim().toLowerCase();
+    return value.startsWith('voice call') ||
+        value.startsWith('video call') ||
+        value.startsWith('missed voice call') ||
+        value.startsWith('missed video call');
+  }
+
+  Widget _buildCallSystemContent(BuildContext context) {
+    final value = message.text.trim();
+    final missed = value.toLowerCase().startsWith('missed');
+    final video = value.toLowerCase().contains('video');
+    final accent = missed ? colorScheme.error : colorScheme.primary;
+    return Container(
+      constraints: const BoxConstraints(minWidth: 190, maxWidth: 290),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: .82),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: accent.withValues(alpha: .45)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: accent.withValues(alpha: .14),
+            ),
+            child: Icon(
+              missed
+                  ? Icons.call_missed_rounded
+                  : video
+                      ? Icons.videocam_rounded
+                      : Icons.call_rounded,
+              color: accent,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  value,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: colorScheme.onSurface,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  video ? 'Video call' : 'Voice call',
+                  style: TextStyle(
+                    color: colorScheme.onSurfaceVariant,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -897,7 +1145,7 @@ class MessageBubble extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (message.status == MessageStatus.failed) _buildRetryOverlay(context),
-        AudioPlayerWidget(url: url, isMe: isMe),
+        AudioPlayerWidget(key: ValueKey(url), url: url, isMe: isMe),
         if (message.text.isNotEmpty && !message.text.startsWith('🎤')) ...[
           const SizedBox(height: 4),
           Text(
@@ -921,7 +1169,7 @@ class MessageBubble extends StatelessWidget {
         if (message.status == MessageStatus.failed) _buildRetryOverlay(context),
         GestureDetector(
           onTap: () => FullscreenMediaViewer.show(context, url, isVideo: true),
-          child: ChatVideoPlayer(url: url, isMe: isMe),
+          child: ChatVideoPlayer(key: ValueKey(url), url: url, isMe: isMe),
         ),
         if (message.text.isNotEmpty && !message.text.startsWith('🎬')) ...[
           const SizedBox(height: 8),
@@ -1030,10 +1278,22 @@ class MessageBubble extends StatelessWidget {
     final String status =
         tipData['status']?.toString().toUpperCase() ?? 'CONFIRMED';
     final bool isBatch = tipData['isBatch'] == true;
-
-    // Try to get a human-readable amount if decimals are known (usually 18 for native)
-    // For now, use the text field which should have been populated in _saveLocalTipMessage
-    final String amountText = message.text;
+    final String tokenSymbol =
+        tipData['tokenSymbol']?.toString().trim().isNotEmpty == true
+        ? tipData['tokenSymbol'].toString().toUpperCase()
+        : 'TOKEN';
+    final String tokenName = tipData['tokenName']?.toString().trim() ?? '';
+    final String amountText =
+        tipData['amountDisplay']?.toString().trim().isNotEmpty == true
+        ? TipDisplay.amount(tipData['amountDisplay'].toString())
+        : TipDisplay.amount(message.text);
+    final rawNames = tipData['recipientNames'];
+    final recipientNames = rawNames is List
+        ? rawNames
+              .map((name) => TipDisplay.person(displayName: name.toString()))
+              .where((name) => name != 'Griot user')
+              .toList()
+        : const <String>[];
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -1071,7 +1331,9 @@ class MessageBubble extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      isBatch ? 'Batch Tip' : 'Tip Sent',
+                      isBatch
+                          ? (isMe ? 'Batch Tip Sent' : 'Batch Tip Received')
+                          : (isMe ? 'Tip Sent' : 'Tip Received'),
                       style: textTheme.labelLarge?.copyWith(
                         fontWeight: FontWeight.w900,
                         color: isMe
@@ -1089,6 +1351,17 @@ class MessageBubble extends StatelessWidget {
                             : colorScheme.onSurface.withValues(alpha: 0.9),
                       ),
                     ),
+                    if (tokenName.isNotEmpty)
+                      Text(
+                        '$tokenName · $tokenSymbol',
+                        style: textTheme.bodySmall?.copyWith(
+                          color:
+                              (isMe
+                                      ? colorScheme.onPrimary
+                                      : colorScheme.onSurface)
+                                  .withValues(alpha: 0.7),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -1110,6 +1383,15 @@ class MessageBubble extends StatelessWidget {
             Icons.check_circle_rounded,
             valueColor: AppColors.success,
           ),
+          if (isBatch && recipientNames.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            _buildTipInfoRow(
+              context,
+              'Recipients',
+              '${recipientNames.length} people',
+              Icons.people_outline_rounded,
+            ),
+          ],
           if (tipData['transactionHash'] != null) ...[
             const SizedBox(height: 12),
             SizedBox(
@@ -1117,12 +1399,20 @@ class MessageBubble extends StatelessWidget {
               child: TextButton.icon(
                 onPressed: () {
                   final hash = tipData['transactionHash'].toString();
-                  // TODO: Open explorer
-                  Clipboard.setData(ClipboardData(text: hash));
-                  NotificationService.showSuccess(
-                    context,
-                    'Hash copied to clipboard',
-                  );
+                  final explorerUrl = _transactionExplorerUrl({
+                    'hash': hash,
+                    'network': tipData['network'] ?? tipData['chain'],
+                    'chainId': tipData['chainId'] ?? tipData['chain_id'],
+                    'explorer': tipData['explorer'],
+                  });
+                  if (explorerUrl == null) {
+                    NotificationService.showError(
+                      context,
+                      'No block explorer link is available for this network',
+                    );
+                    return;
+                  }
+                  _openTransactionExplorer(context, explorerUrl);
                 },
                 icon: Icon(
                   Icons.open_in_new_rounded,
@@ -1290,5 +1580,62 @@ class MessageBubble extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String? _transactionExplorerUrl(Map<String, dynamic> item) {
+    final provided = item['explorer']?.toString().trim();
+    if (provided != null && provided.isNotEmpty) return provided;
+    final hash = (item['hash'] ?? item['transactionHash'] ?? item['txHash'])
+        ?.toString()
+        .trim();
+    if (hash == null || hash.isEmpty) return null;
+    final chain = (item['chain'] ?? item['network'] ?? item['chainName'] ?? '')
+        .toString()
+        .toLowerCase()
+        .replaceAll('_', '-')
+        .replaceAll(' ', '-');
+    final chainId = (item['chainId'] ?? item['chain_id'])?.toString();
+    const byId = {
+      '1': 'https://etherscan.io/tx/',
+      '10': 'https://optimistic.etherscan.io/tx/',
+      '56': 'https://bscscan.com/tx/',
+      '137': 'https://polygonscan.com/tx/',
+      '8453': 'https://basescan.org/tx/',
+      '42161': 'https://arbiscan.io/tx/',
+      '43114': 'https://snowtrace.io/tx/',
+    };
+    const byName = {
+      'ethereum': 'https://etherscan.io/tx/',
+      'eth': 'https://etherscan.io/tx/',
+      'polygon': 'https://polygonscan.com/tx/',
+      'matic': 'https://polygonscan.com/tx/',
+      'bsc': 'https://bscscan.com/tx/',
+      'bnb': 'https://bscscan.com/tx/',
+      'base': 'https://basescan.org/tx/',
+      'arbitrum': 'https://arbiscan.io/tx/',
+      'optimism': 'https://optimistic.etherscan.io/tx/',
+      'avalanche': 'https://snowtrace.io/tx/',
+    };
+    final prefix =
+        byId[chainId] ??
+        byName[chain] ??
+        byName.entries
+            .where((entry) => chain.contains(entry.key))
+            .map((entry) => entry.value)
+            .firstOrNull;
+    return prefix == null ? null : '$prefix$hash';
+  }
+
+  Future<void> _openTransactionExplorer(
+    BuildContext context,
+    String url,
+  ) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null ||
+        !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (context.mounted) {
+        NotificationService.showError(context, 'Could not open block explorer');
+      }
+    }
   }
 }

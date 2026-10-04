@@ -7,6 +7,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../models/token_model.dart';
 import '../providers/wallet_provider.dart';
+import '../providers/display_currency_provider.dart';
 import '../services/swap_api_service.dart';
 import '../services/wallet_service.dart';
 import '../services/transaction_api_service.dart';
@@ -77,10 +78,11 @@ class _SwapScreenState extends State<SwapScreen> {
     if (_fromToken == null) return;
     final amount = double.tryParse(value) ?? 0.0;
     final price = _fromToken!.priceUsd?.toDouble() ?? 0.0;
+    final currency = context.read<DisplayCurrencyProvider>();
 
     if (sourceIsUsd) {
       if (price > 0) {
-        final tokenAmount = amount / price;
+        final tokenAmount = (currency.displayToUsd(amount) ?? 0) / price;
         final decimals = _fromToken!.decimals ?? 18;
         _amountController.text = tokenAmount.toStringAsFixed(
           decimals > 6 ? 6 : decimals,
@@ -91,7 +93,9 @@ class _SwapScreenState extends State<SwapScreen> {
     } else {
       if (price > 0) {
         final usdAmount = amount * price;
-        _usdController.text = usdAmount.toStringAsFixed(2);
+        _usdController.text = currency
+            .formatUsd(usdAmount)
+            .replaceFirst(currency.symbol, '');
       } else {
         _usdController.text = '0.00';
       }
@@ -105,7 +109,10 @@ class _SwapScreenState extends State<SwapScreen> {
     if (_isUsdMode) {
       final price = _fromToken!.priceUsd?.toDouble() ?? 0.0;
       final maxUsd = (double.tryParse(maxBalance) ?? 0.0) * price;
-      _usdController.text = maxUsd.toStringAsFixed(2);
+      final currency = context.read<DisplayCurrencyProvider>();
+      _usdController.text = currency
+          .formatUsd(maxUsd)
+          .replaceFirst(currency.symbol, '');
       _syncControllers(_usdController.text, sourceIsUsd: true);
     } else {
       _amountController.text = maxBalance;
@@ -121,9 +128,10 @@ class _SwapScreenState extends State<SwapScreen> {
     if (fromToken == null || toToken == null) return;
 
     final swapApi = context.read<SwapApiService>();
-    final walletProvider = context.read<WalletProvider>();
     final walletService = context.read<WalletService>();
-    final fromAddress = walletProvider.wallet?.address;
+    // Use the locally stored signing address. Do not use API response or
+    // cached provider metadata, which can be stale after wallet restoration.
+    final fromAddress = await walletService.getAddress();
 
     if (fromAddress == null || fromAddress.isEmpty) return;
 
@@ -247,8 +255,10 @@ class _SwapScreenState extends State<SwapScreen> {
   Future<void> _handleSwap() async {
     final quote = _quote;
     final fromToken = _fromToken;
-    final walletProvider = context.read<WalletProvider>();
-    final fromAddress = walletProvider.wallet?.address;
+    final walletService = context.read<WalletService>();
+    final swapApi = context.read<SwapApiService>();
+    final transactionApi = context.read<TransactionApiService>();
+    final fromAddress = await walletService.getAddress();
 
     if (quote == null || fromToken == null || fromAddress == null) {
       if (mounted) {
@@ -257,10 +267,6 @@ class _SwapScreenState extends State<SwapScreen> {
       return;
     }
 
-    final walletService = context.read<WalletService>();
-    final swapApi = context.read<SwapApiService>();
-    final transactionApi = context.read<TransactionApiService>();
-
     final amount = _amountController.text.trim();
 
     final rawTransaction =
@@ -268,7 +274,9 @@ class _SwapScreenState extends State<SwapScreen> {
         quote['transaction_request'] ??
         quote['transaction'];
     if (rawTransaction is! Map) {
-      NotificationService.showError(context, 'Invalid transaction data.');
+      if (mounted) {
+        NotificationService.showError(context, 'Invalid transaction data.');
+      }
       return;
     }
 
@@ -280,8 +288,8 @@ class _SwapScreenState extends State<SwapScreen> {
         .toString();
     final chainIdStr = (transaction['chainId'] ?? transaction['chain_id'] ?? '')
         .toString();
-    final chainId = int.tryParse(chainIdStr);
-    int? nonce = int.tryParse((transaction['nonce'] ?? '').toString());
+    final chainId = _parseIntQuantity(chainIdStr);
+    int? nonce = _parseIntQuantity(transaction['nonce']);
     String? gasLimit =
         (transaction['gasLimit'] ??
                 transaction['gas'] ??
@@ -302,10 +310,13 @@ class _SwapScreenState extends State<SwapScreen> {
         data == null ||
         data.isEmpty ||
         chainId == null) {
-      NotificationService.showError(context, 'Incomplete transaction data.');
+      if (mounted) {
+        NotificationService.showError(context, 'Incomplete transaction data.');
+      }
       return;
     }
 
+    if (!mounted) return;
     final confirmed = await _showConfirmBottomSheet(
       context,
       fromToken: fromToken,
@@ -359,9 +370,7 @@ class _SwapScreenState extends State<SwapScreen> {
       final requestedUnits = _parseQuantity(
         _toBaseUnits(amount, fromToken.decimals ?? 18),
       );
-      final availableUnits = _parseQuantity(
-        _tokenBalanceRaw(fromToken),
-      );
+      final availableUnits = _parseQuantity(_tokenBalanceRaw(fromToken));
       if (requestedUnits == null ||
           availableUnits == null ||
           requestedUnits > availableUnits) {
@@ -446,17 +455,15 @@ class _SwapScreenState extends State<SwapScreen> {
   Future<void> _handleApprove() async {
     final quote = _quote;
     final fromToken = _fromToken;
-    final walletProvider = context.read<WalletProvider>();
-    final fromAddress = walletProvider.wallet?.address;
+    final walletService = context.read<WalletService>();
+    final transactionApi = context.read<TransactionApiService>();
+    final swapApi = context.read<SwapApiService>();
+    final fromAddress = await walletService.getAddress();
 
     if (quote == null || fromToken == null || fromAddress == null) return;
 
     final approvalAddress = quote['approvalAddress']?.toString();
     if (approvalAddress == null || approvalAddress.isEmpty) return;
-
-    final walletService = context.read<WalletService>();
-    final transactionApi = context.read<TransactionApiService>();
-    final swapApi = context.read<SwapApiService>();
 
     final network = fromToken.chain;
 
@@ -491,9 +498,7 @@ class _SwapScreenState extends State<SwapScreen> {
 
       final transactionRequest =
           quote['transactionRequest'] ?? quote['transaction'] ?? {};
-      final chainId = int.tryParse(
-        transactionRequest['chainId']?.toString() ?? '',
-      );
+      final chainId = _parseIntQuantity(transactionRequest['chainId']);
 
       if (chainId == null) {
         throw Exception('Approval chain ID is missing');
@@ -541,7 +546,10 @@ class _SwapScreenState extends State<SwapScreen> {
         }
 
         bool isConfirmed = false;
-        for (int i = 0; i < 30; i++) {
+        // Do not keep the swap sheet blocking for several minutes. The
+        // approval continues on-chain if the provider is slow; the user can
+        // retry/status-check from activity after this bounded wait.
+        for (int i = 0; i < 18; i++) {
           if (mounted) {
             setState(() => _loadingMessage = 'Waiting for confirmation...');
           }
@@ -738,15 +746,16 @@ class _SwapScreenState extends State<SwapScreen> {
     final quote = _quote;
     final fromToken = _fromToken;
     final toToken = _toToken;
-    final fromAddress = context.read<WalletProvider>().wallet?.address;
+    final walletService = context.read<WalletService>();
+    final swapApi = context.read<SwapApiService>();
+    final walletProvider = context.read<WalletProvider>();
+    final fromAddress = await walletService.getAddress();
 
     if (quote == null || fromToken == null || fromAddress == null) {
       if (mounted) setState(() => _isLoading = false);
       return;
     }
 
-    final swapApi = context.read<SwapApiService>();
-    final walletProvider = context.read<WalletProvider>();
     // Backend expects the canonical provider identifiers `lifi` or `0x`.
     final provider = (quote['provider']?.toString().toLowerCase() ?? '')
         .replaceAll('.', '')
@@ -754,8 +763,11 @@ class _SwapScreenState extends State<SwapScreen> {
     final swapType = quote['type']?.toString();
     final quoteId = quote['quoteId']?.toString();
 
-    for (int i = 0; i < 30; i++) {
-      await Future.delayed(const Duration(seconds: 10));
+    // Cross-chain settlement can be slower than the source-chain receipt.
+    // Poll for two minutes, then return control to the user with a pending
+    // message instead of leaving the swap screen spinning for five minutes.
+    for (int i = 0; i < 24; i++) {
+      await Future.delayed(const Duration(seconds: 5));
       if (!mounted) return;
 
       try {
@@ -776,7 +788,9 @@ class _SwapScreenState extends State<SwapScreen> {
             status == 'COMPLETED') {
           if (mounted) {
             NotificationService.showSuccess(context, 'Swap successful!');
-            await walletProvider.loadWallet();
+            // Settlement is confirmed; refresh balances in the background so
+            // a slow market-data request does not delay the success UI.
+            unawaited(walletProvider.loadWallet());
             if (mounted) Navigator.of(context).pop();
           }
           return;
@@ -828,6 +842,12 @@ class _SwapScreenState extends State<SwapScreen> {
       return BigInt.tryParse(normalized.substring(2), radix: 16);
     }
     return BigInt.tryParse(normalized);
+  }
+
+  int? _parseIntQuantity(dynamic value) {
+    final quantity = _parseQuantity(value?.toString());
+    if (quantity == null || quantity > BigInt.from(0x7fffffff)) return null;
+    return quantity.toInt();
   }
 
   String _tokenBalanceRaw(TokenModel token) {
@@ -907,11 +927,20 @@ class _SwapScreenState extends State<SwapScreen> {
       'arbitrum': 42161,
       'optimism': 10,
       'bsc': 56,
+      'avalanche': 43114,
     };
     return expectedChainIds[network.toLowerCase()];
   }
 
   void _swapTokens() {
+    final destination = _toToken;
+    if (destination != null && (num.tryParse(destination.balance) ?? 0) <= 0) {
+      NotificationService.showInfo(
+        context,
+        'Choose a funded asset before swapping the direction.',
+      );
+      return;
+    }
     setState(() {
       final temp = _fromToken;
       _fromToken = _toToken;
@@ -927,9 +956,65 @@ class _SwapScreenState extends State<SwapScreen> {
     BuildContext context, {
     required bool isFrom,
   }) async {
-    final selected = await context.push<TokenModel>(
-      '/wallet/search?mode=select',
-    );
+    TokenModel? selected;
+    if (isFrom) {
+      final funded = context
+          .read<WalletProvider>()
+          .filteredTokens
+          .where((token) => (num.tryParse(token.balance) ?? 0) > 0)
+          .toList();
+      selected = await showModalBottomSheet<TokenModel>(
+        context: context,
+        useRootNavigator: true,
+        showDragHandle: true,
+        builder: (sheetContext) => SafeArea(
+          child: funded.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.all(28),
+                  child: Center(child: Text('No funded assets available')),
+                )
+              : ListView.separated(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  itemCount: funded.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  itemBuilder: (_, index) {
+                    final token = funded[index];
+                    return ListTile(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      tileColor: Theme.of(sheetContext)
+                          .colorScheme
+                          .surfaceContainerHighest
+                          .withValues(alpha: .45),
+                      leading: TokenIcon(
+                        imageUrl: token.imageUrl,
+                        symbol: token.symbol,
+                        name: token.name,
+                        chainName: token.chain,
+                        isNative: token.isNative,
+                        radius: 20,
+                      ),
+                      title: Text(
+                        token.symbol,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      subtitle: Text('${token.name} · ${token.chain}'),
+                      trailing: Text(
+                        token.balance,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      onTap: () => Navigator.pop(sheetContext, token),
+                    );
+                  },
+                ),
+        ),
+      );
+    } else {
+      // Destination assets may be searched, including assets not held yet.
+      selected = await context.push<TokenModel>('/wallet/search?mode=select');
+    }
 
     if (selected != null && mounted) {
       setState(() {
@@ -950,6 +1035,7 @@ class _SwapScreenState extends State<SwapScreen> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
+    final displayCurrency = context.watch<DisplayCurrencyProvider>();
 
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
@@ -995,7 +1081,7 @@ class _SwapScreenState extends State<SwapScreen> {
                           subValue: _isUsdMode
                               ? '${_amountController.text} ${_fromToken?.symbol ?? ""}'
                               : (_usdController.text.isNotEmpty
-                                    ? '\$${_usdController.text}'
+                                    ? '${context.read<DisplayCurrencyProvider>().symbol}${_usdController.text}'
                                     : null),
                           suffix: _buildCurrencyToggle(context),
                         ),
@@ -1057,7 +1143,7 @@ class _SwapScreenState extends State<SwapScreen> {
                               _quote != null &&
                                   _toToken != null &&
                                   (_toToken!.priceUsd ?? 0) > 0
-                              ? WalletFormatters.formatCurrency(
+                              ? displayCurrency.formatUsd(
                                   (double.tryParse(
                                             _fromBaseUnits(
                                               _quote!['toAmount']?.toString(),
@@ -1264,7 +1350,9 @@ class _SwapScreenState extends State<SwapScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              _isUsdMode ? 'USD' : (_fromToken?.symbol ?? ''),
+              _isUsdMode
+                  ? context.read<DisplayCurrencyProvider>().currency
+                  : (_fromToken?.symbol ?? ''),
               style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11),
             ),
             const SizedBox(width: 4),
@@ -1634,7 +1722,9 @@ class _SwapScreenState extends State<SwapScreen> {
                 ? null
                 : (gasUsd < 0.01
                       ? r'< $0.01'
-                      : WalletFormatters.formatCurrency(gasUsd)),
+                      : context.read<DisplayCurrencyProvider>().formatUsd(
+                          gasUsd,
+                        )),
           ),
         ],
       ),

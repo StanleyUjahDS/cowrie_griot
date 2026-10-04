@@ -10,9 +10,7 @@ import '../../wallet/services/wallet_crypto_service.dart';
 import '../../wallet/services/wallet_storage_service.dart';
 
 class CreateAccountScreen extends StatefulWidget {
-  const CreateAccountScreen({
-    super.key,
-  });
+  const CreateAccountScreen({super.key});
 
   @override
   State<CreateAccountScreen> createState() => _CreateAccountScreenState();
@@ -63,7 +61,6 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         // ----------------------------------------------------
         // OPERATION
         // ----------------------------------------------------
-
         operation: () async {
           return await _walletService.createWallet();
         },
@@ -71,11 +68,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         // ----------------------------------------------------
         // SUCCESS
         // ----------------------------------------------------
-
-        onSuccess: (
-          BuildContext context,
-          dynamic result,
-        ) {
+        onSuccess: (BuildContext context, dynamic result) {
           // The generic loading route returns dynamic.
           // We restore the expected type here.
 
@@ -85,10 +78,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
             return;
           }
 
-          context.pushReplacement(
-            '/display_phrase',
-            extra: result,
-          );
+          context.pushReplacement('/display_phrase', extra: result);
         },
       ),
     );
@@ -107,9 +97,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: const Text(
-          'Create Account',
-        ),
+        title: const Text('Create Account'),
         backgroundColor: Colors.transparent,
         foregroundColor: colorScheme.onSurface,
         elevation: 0,
@@ -145,10 +133,10 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                             width: 48,
                             height: 48,
                             decoration: BoxDecoration(
-                              color: colorScheme.primary.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(
-                                14,
+                              color: colorScheme.primary.withValues(
+                                alpha: 0.12,
                               ),
+                              borderRadius: BorderRadius.circular(14),
                             ),
                             child: Icon(
                               Icons.shield_outlined,
@@ -157,9 +145,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                             ),
                           ),
 
-                          const SizedBox(
-                            height: 20,
-                          ),
+                          const SizedBox(height: 20),
 
                           Text(
                             'Write it Down!',
@@ -168,9 +154,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                             ),
                           ),
 
-                          const SizedBox(
-                            height: 10,
-                          ),
+                          const SizedBox(height: 10),
 
                           Text(
                             'There is no way to recover '
@@ -178,8 +162,9 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                             'recovery phrase. Make sure to '
                             'store it in a safe place.',
                             style: textTheme.bodyMedium?.copyWith(
-                              color:
-                                  colorScheme.onSurface.withValues(alpha: 0.70),
+                              color: colorScheme.onSurface.withValues(
+                                alpha: 0.70,
+                              ),
                               height: 1.5,
                             ),
                           ),
@@ -187,14 +172,11 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                       ),
                     ),
 
-                    const SizedBox(
-                      height: 40,
-                    ),
+                    const SizedBox(height: 40),
 
                     // ==========================================
                     // BACKUP MESSAGE
                     // ==========================================
-
                     Text(
                       'Backup your recovery phrase to ensure '
                       'you do not lose access to Griot when the '
@@ -206,14 +188,11 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                       ),
                     ),
 
-                    const SizedBox(
-                      height: 24,
-                    ),
+                    const SizedBox(height: 24),
 
                     // ==========================================
                     // SECURITY MESSAGE
                     // ==========================================
-
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -223,9 +202,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                           color: colorScheme.primary,
                         ),
 
-                        const SizedBox(
-                          width: 10,
-                        ),
+                        const SizedBox(width: 10),
 
                         Expanded(
                           child: Text(
@@ -233,12 +210,14 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                             'to you. Griot will never ask you '
                             'to send it to us.',
                             style: textTheme.bodySmall?.copyWith(
-                              color:
-                                  colorScheme.onSurface.withValues(alpha: 0.60),
+                              color: colorScheme.onSurface.withValues(
+                                alpha: 0.60,
+                              ),
                               height: 1.45,
                             ),
                           ),
                         ),
+
                       ],
                     ),
                   ],
@@ -249,14 +228,8 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
             // ==================================================
             // GENERATE BUTTON
             // ==================================================
-
             Padding(
-              padding: const EdgeInsets.fromLTRB(
-                16,
-                8,
-                16,
-                16,
-              ),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               child: SizedBox(
                 width: double.infinity,
                 height: 52,

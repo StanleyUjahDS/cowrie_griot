@@ -64,4 +64,8 @@ flutter {
 }
 
 dependencies {
+    // The native background call bridge receives FCM messages before Flutter
+    // is running, so this app module must compile against Firebase Messaging
+    // directly (the Flutter plugin dependency is not exposed to Kotlin).
+    implementation("com.google.firebase:firebase-messaging:24.1.2")
 }

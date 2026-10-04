@@ -1,4 +1,6 @@
 // Version: Fixed build errors
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -6,6 +8,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../models/token_model.dart';
 import '../providers/wallet_provider.dart';
+import '../providers/display_currency_provider.dart';
 import '../services/transaction_api_service.dart';
 import '../services/wallet_service.dart';
 import '../utils/wallet_formatters.dart';
@@ -50,8 +53,11 @@ class _SendScreenState extends State<SendScreen> {
   double get _entered {
     final value = double.tryParse(_amount.text.trim()) ?? 0;
     if (!_usdMode) return value;
+    final usdValue = context.read<DisplayCurrencyProvider>().displayToUsd(
+      value,
+    );
     final price = _token?.priceUsd?.toDouble() ?? 0;
-    return price > 0 ? value / price : 0;
+    return price > 0 && usdValue != null ? usdValue / price : 0;
   }
 
   void _useMax() {
@@ -59,8 +65,9 @@ class _SendScreenState extends State<SendScreen> {
     if (token == null) return;
     final balance = num.tryParse(token.balance)?.toDouble() ?? 0.0;
     if (_usdMode) {
-      final price = token.priceUsd?.toDouble() ?? 0.0;
-      _amount.text = (balance * price).toStringAsFixed(2);
+      final usdValue = balance * (token.priceUsd?.toDouble() ?? 0.0);
+      final rate = context.read<DisplayCurrencyProvider>();
+      _amount.text = rate.usdToDisplay(usdValue).toStringAsFixed(2);
     } else {
       _amount.text = balance.toString();
     }
@@ -154,10 +161,10 @@ class _SendScreenState extends State<SendScreen> {
       setState(() => _message = 'Signing...');
       final tx = Map<String, dynamic>.from(unsigned);
       final chainId =
-          int.tryParse(tx['chainId']?.toString() ?? '') ??
-          int.tryParse(tx['chain_id']?.toString() ?? '') ??
-          int.tryParse(prepared['chainId']?.toString() ?? '') ??
-          int.tryParse(prepared['chain_id']?.toString() ?? '');
+          _parseIntQuantity(tx['chainId']) ??
+          _parseIntQuantity(tx['chain_id']) ??
+          _parseIntQuantity(prepared['chainId']) ??
+          _parseIntQuantity(prepared['chain_id']);
 
       if (chainId == null) {
         throw Exception('Transaction chain ID is missing');
@@ -171,7 +178,7 @@ class _SendScreenState extends State<SendScreen> {
       final signed = await walletService.signNativeTransaction(
         to: tx['to']?.toString() ?? '',
         valueRaw: (tx['value'] ?? tx['amount'] ?? '0').toString(),
-        nonce: int.tryParse((tx['nonce'] ?? '0').toString()) ?? 0,
+        nonce: _parseIntQuantity(tx['nonce']) ?? 0,
         gasLimit: (tx['gasLimit'] ?? tx['gas'] ?? '21000').toString(),
         gasPrice: (tx['gasPrice'] ?? tx['gas_price'])?.toString(),
         maxFeePerGas: (tx['maxFeePerGas'] ?? tx['max_fee_per_gas'])?.toString(),
@@ -217,12 +224,20 @@ class _SendScreenState extends State<SendScreen> {
       }
 
       if (!mounted) return;
-      await walletProvider.loadWallet();
+      // Do not hold the success/pending UI open while all wallet networks and
+      // market data refresh. Refresh in the background after the transaction
+      // status has been recorded.
+      unawaited(walletProvider.loadWallet());
 
       if (mounted) {
         if (status == 'CONFIRMED') {
           NotificationService.showSuccess(context, 'Sent successfully!');
           navigator.pop();
+        } else if (status == 'FAILED') {
+          NotificationService.showError(
+            context,
+            'The transaction failed on-chain.',
+          );
         } else {
           NotificationService.showInfo(context, 'Transaction pending.');
           navigator.pop();
@@ -331,7 +346,7 @@ class _SendScreenState extends State<SendScreen> {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
-                  '${recipient.substring(0, 8)}…${recipient.substring(32)}',
+                  _shortAddress(recipient),
                   style: TextStyle(
                     color: colors.onSurfaceVariant.withValues(alpha: 0.8),
                     fontSize: 13,
@@ -350,7 +365,11 @@ class _SendScreenState extends State<SendScreen> {
                     : '${feeNative.toStringAsFixed(6)} ${native?.symbol ?? ''}',
               ),
               if (feeUsd != null)
-                _row(context, 'Value', WalletFormatters.formatCurrency(feeUsd)),
+                _row(
+                  context,
+                  'Value',
+                  context.read<DisplayCurrencyProvider>().formatUsd(feeUsd),
+                ),
               const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,
@@ -416,8 +435,27 @@ class _SendScreenState extends State<SendScreen> {
       'arbitrum': 42161,
       'optimism': 10,
       'bsc': 56,
+      'avalanche': 43114,
     };
     return expectedChainIds[network.toLowerCase()];
+  }
+
+  int? _parseIntQuantity(dynamic value) {
+    final normalized = value?.toString().trim().toLowerCase() ?? '';
+    if (normalized.isEmpty) return null;
+    try {
+      final quantity = normalized.startsWith('0x')
+          ? BigInt.parse(normalized.substring(2), radix: 16)
+          : BigInt.parse(normalized);
+      return quantity <= BigInt.from(0x7fffffff) ? quantity.toInt() : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _shortAddress(String address) {
+    if (address.length <= 14) return address;
+    return '${address.substring(0, 8)}…${address.substring(address.length - 6)}';
   }
 
   bool _isValidAddress(String address, String network) {
@@ -439,54 +477,36 @@ class _SendScreenState extends State<SendScreen> {
         n == 'arbitrum' ||
         n == 'optimism' ||
         n == 'bsc' ||
+        n == 'avalanche' ||
+        n == 'avax' ||
         n == 'binance';
   }
 
   void _pickToken() {
     final tokens = context
         .read<WalletProvider>()
-        .tokens
-        .where((t) => (num.tryParse(t.balance) ?? 0) >= 0)
+        .filteredTokens
+        // Sending is limited to assets the wallet can actually spend.
+        // Do not offer zero-balance or merely discoverable assets here.
+        .where((t) => (num.tryParse(t.balance) ?? 0) > 0)
         .toList();
     showModalBottomSheet(
       context: context,
       useRootNavigator: true,
       showDragHandle: true,
       builder: (_) => ListView.builder(
-        itemCount: tokens.length + 1,
+        itemCount: tokens.isEmpty ? 1 : tokens.length,
         padding: const EdgeInsets.only(bottom: 20),
         itemBuilder: (_, i) {
-          if (i == 0) {
+          if (tokens.isEmpty) {
             return ListTile(
-              leading: CircleAvatar(
-                backgroundColor: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: 0.1),
-                child: Icon(
-                  Icons.search,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-              title: const Text(
-                'Search for more tokens',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              onTap: () async {
-                Navigator.pop(context);
-                final selected = await context.push<TokenModel>(
-                  '/wallet/search?mode=select',
-                );
-                if (selected != null && mounted) {
-                  setState(() {
-                    _token = selected;
-                    _amount.clear();
-                  });
-                }
-              },
+              leading: const Icon(Icons.account_balance_wallet_outlined),
+              title: const Text('No funded assets available'),
+              subtitle: const Text('Receive crypto before sending.'),
             );
           }
 
-          final token = tokens[i - 1];
+          final token = tokens[i];
           return ListTile(
             leading: TokenIcon(
               imageUrl: token.imageUrl,
@@ -592,12 +612,13 @@ class _SendScreenState extends State<SendScreen> {
   Widget build(BuildContext context) {
     // Send form with premium pill action
     final colors = Theme.of(context).colorScheme;
+    final displayCurrency = context.watch<DisplayCurrencyProvider>();
 
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: GradientScaffold(
         useSafeArea: true,
-        resizeToAvoidBottomInset: false,
+        resizeToAvoidBottomInset: true,
         extendBodyBehindAppBar: true,
         appBar: AppBar(
           title: const Text('Send'),
@@ -767,7 +788,7 @@ class _SendScreenState extends State<SendScreen> {
                             child: Text(
                               _usdMode
                                   ? '≈ ${_entered.toStringAsFixed(8)} ${_token!.symbol}'
-                                  : '≈ ${WalletFormatters.formatCurrency(_entered * (_token!.priceUsd?.toDouble() ?? 0))}',
+                                  : '≈ ${displayCurrency.formatUsd(_entered * (_token!.priceUsd?.toDouble() ?? 0))}',
                               style: TextStyle(
                                 color: colors.onSurfaceVariant.withValues(
                                   alpha: 0.4,
@@ -965,7 +986,9 @@ class _SendScreenState extends State<SendScreen> {
         child: Row(
           children: [
             Text(
-              _usdMode ? 'USD' : (_token?.symbol ?? ''),
+              _usdMode
+                  ? context.read<DisplayCurrencyProvider>().currency
+                  : (_token?.symbol ?? ''),
               style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
             ),
             const SizedBox(width: 4),

@@ -2,6 +2,7 @@ import '../../../core/network/api_client.dart';
 import '../../../core/network/api_config.dart';
 import '../models/token_model.dart';
 import '../models/flash_token_result.dart';
+import '../../../core/network/api_exception.dart';
 import 'package:flutter/foundation.dart';
 
 class WalletApiService {
@@ -200,6 +201,26 @@ class WalletApiService {
       if (data is Map<String, dynamic>) {
         return FlashTokenResult.fromJson(data);
       }
+    } on ApiException catch (e) {
+      // A pasted address is often a wallet, or a newly deployed contract
+      // that market providers have not indexed yet. Older API revisions
+      // returned 400/"coin not found" for that normal case. Keep the scan
+      // useful and let the UI show the address as non-tradeable instead of
+      // turning it into a failed request.
+      if (e.statusCode == 400 &&
+          e.message.toLowerCase().contains('coin not found')) {
+        return FlashTokenResult(
+          addressType: 'wallet',
+          trading: TradingAvailability(
+            canBuy: false,
+            canSell: false,
+            reason: 'This address is not a listed token contract.',
+          ),
+          retrievedAt: DateTime.now(),
+        );
+      }
+      debugPrint('Error looking up flash token: $e');
+      rethrow;
     } catch (e) {
       debugPrint('Error looking up flash token: $e');
       rethrow;

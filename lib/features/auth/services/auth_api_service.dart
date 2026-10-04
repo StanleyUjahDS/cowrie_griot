@@ -16,29 +16,22 @@ class AuthApiService {
   AuthApiService({
     required ApiClient apiClient,
     required AuthStorageService authStorageService,
-  })  : _apiClient = apiClient,
-        _authStorageService = authStorageService;
+  }) : _apiClient = apiClient,
+       _authStorageService = authStorageService;
 
   // ============================================================
   // REQUEST NONCE
   // ============================================================
 
-  Future<NonceResponse> requestNonce({
-    required String walletAddress,
-  }) async {
+  Future<NonceResponse> requestNonce({required String walletAddress}) async {
     final response = await _apiClient.post(
       ApiConfig.authNonce,
-      body: {
-        'walletAddress': walletAddress,
-        'wallet_address': walletAddress,
-      },
+      body: {'walletAddress': walletAddress, 'wallet_address': walletAddress},
     );
 
     final data = _getData(response);
 
-    return NonceResponse.fromJson(
-      data as Map<String, dynamic>,
-    );
+    return NonceResponse.fromJson(data as Map<String, dynamic>);
   }
 
   // ============================================================
@@ -49,6 +42,7 @@ class AuthApiService {
     required String walletAddress,
     required String nonce,
     required String signature,
+    bool acceptPolicies = false,
   }) async {
     final response = await _apiClient.post(
       ApiConfig.authVerify,
@@ -57,13 +51,13 @@ class AuthApiService {
         'wallet_address': walletAddress,
         'nonce': nonce,
         'signature': signature,
+        'acceptPolicies': acceptPolicies,
       },
     );
 
     final data = _getData(response);
 
-    final authenticationResponse =
-    AuthenticationResponse.fromJson(
+    final authenticationResponse = AuthenticationResponse.fromJson(
       data as Map<String, dynamic>,
     );
 
@@ -72,10 +66,8 @@ class AuthApiService {
     // ----------------------------------------------------------
 
     await _authStorageService.saveSession(
-      accessToken:
-      authenticationResponse.accessToken,
-      refreshToken:
-      authenticationResponse.refreshToken,
+      accessToken: authenticationResponse.accessToken,
+      refreshToken: authenticationResponse.refreshToken,
     );
 
     return authenticationResponse;
@@ -90,16 +82,12 @@ class AuthApiService {
   }) async {
     final response = await _apiClient.post(
       ApiConfig.authRefresh,
-      body: {
-        'refreshToken': refreshToken,
-        'refresh_token': refreshToken,
-      },
+      body: {'refreshToken': refreshToken, 'refresh_token': refreshToken},
     );
 
     final data = _getData(response);
 
-    final authenticationResponse =
-    AuthenticationResponse.fromJson(
+    final authenticationResponse = AuthenticationResponse.fromJson(
       data as Map<String, dynamic>,
     );
 
@@ -108,10 +96,8 @@ class AuthApiService {
     // ----------------------------------------------------------
 
     await _authStorageService.saveSession(
-      accessToken:
-      authenticationResponse.accessToken,
-      refreshToken:
-      authenticationResponse.refreshToken,
+      accessToken: authenticationResponse.accessToken,
+      refreshToken: authenticationResponse.refreshToken,
     );
 
     return authenticationResponse;
@@ -137,16 +123,11 @@ class AuthApiService {
   // LOGOUT
   // ============================================================
 
-  Future<void> logout({
-    required String refreshToken,
-  }) async {
+  Future<void> logout({required String refreshToken}) async {
     try {
       await _apiClient.post(
         ApiConfig.authLogout,
-        body: {
-          'refreshToken': refreshToken,
-          'refresh_token': refreshToken,
-        },
+        body: {'refreshToken': refreshToken, 'refresh_token': refreshToken},
       );
     } finally {
       // Always remove local session credentials,

@@ -54,6 +54,7 @@ class IapProvider extends ChangeNotifier {
         _status = await _apiService.getStatus();
       } catch (e) {
         debugPrint('IAP: Backend status check failed: $e');
+        _error = 'Unable to confirm your Plus membership.';
       }
 
       // 2. Initialize store
@@ -97,7 +98,7 @@ class IapProvider extends ChangeNotifier {
       _MockProductDetails(
         id: monthlyId,
         title: 'Griot Plus Monthly',
-        description: 'Premium decentralized features monthly',
+        description: 'Premium Griot features monthly',
         price: '\$4.99',
         rawPrice: 4.99,
         currencyCode: 'USD',
@@ -105,7 +106,7 @@ class IapProvider extends ChangeNotifier {
       _MockProductDetails(
         id: yearlyId,
         title: 'Griot Plus Yearly',
-        description: 'Premium decentralized features yearly',
+        description: 'Premium Griot features yearly',
         price: '\$49.99',
         rawPrice: 49.99,
         currencyCode: 'USD',
@@ -201,7 +202,10 @@ class IapProvider extends ChangeNotifier {
       final newStatus = await _apiService.verifyPurchase(
         provider: provider,
         productId: purchase.productID,
-        transactionId: purchase.purchaseID ?? '',
+        // StoreKit can expose the transaction identifier through the native
+        // transaction object while purchaseID is still null during the first
+        // purchase update. Always send a usable identifier to the backend.
+        transactionId: purchase.purchaseID ?? originalTransactionId ?? '',
         originalTransactionId: originalTransactionId,
         receipt: receipt,
         purchaseToken: purchaseToken,

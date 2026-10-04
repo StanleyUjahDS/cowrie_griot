@@ -79,7 +79,12 @@ class _SharedContentScreenState extends State<SharedContentScreen> {
 
       if (mounted) {
         NotificationService.showSuccess(context, 'Shared to Griot');
-        context.pop();
+        final tab = switch (conversation.type) {
+          ConversationType.dm => 'direct',
+          ConversationType.group => 'groups',
+          ConversationType.channel => 'channels',
+        };
+        context.go('/chat?tab=$tab');
       }
     } catch (e) {
       if (mounted) {
@@ -104,6 +109,7 @@ class _SharedContentScreenState extends State<SharedContentScreen> {
     final content = widget.content;
 
     return GradientScaffold(
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: const Text('Share to Griot'),
         backgroundColor: Colors.transparent,

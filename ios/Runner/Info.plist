@@ -34,6 +34,8 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>We need camera access to scan QR codes for wallet addresses and transactions.</string>
 	<key>NSMicrophoneUsageDescription</key>
@@ -42,6 +44,10 @@
 	<string>We use Face ID to securely unlock your wallet</string>
 	<key>NSContactsUsageDescription</key>
 	<string>We need contact access to help you find and connect with your friends on Griot.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Griot uses your location only when you choose to share your location in a chat or use a location-based feature.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Griot may use your location while you use a location-based feature or choose to share your location in a chat.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -75,6 +81,7 @@
 	<array>
 		<string>fetch</string>
 		<string>remote-notification</string>
+		<string>voip</string>
 	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
@@ -90,7 +97,7 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>GADApplicationIdentifier</key>
-	<string>ca-app-pub-8432805167625659~7687795586</string>
+	<string>ca-app-pub-8536613969303259~7689121976</string>
 	<key>SKAdNetworkItems</key>
 	<array>
 		<dict>

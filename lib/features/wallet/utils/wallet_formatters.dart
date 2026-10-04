@@ -1,6 +1,14 @@
 class WalletFormatters {
+  static String normalizeEvmAddress(String address) {
+    final value = address.trim();
+    if (RegExp(r'^[0-9a-fA-F]{40}$').hasMatch(value)) {
+      return '0x$value';
+    }
+    return value;
+  }
+
   static String shortenAddress(String address) {
-    final String cleanAddress = address.trim();
+    final String cleanAddress = normalizeEvmAddress(address);
     if (cleanAddress.length <= 8) {
       return cleanAddress;
     }
@@ -8,8 +16,14 @@ class WalletFormatters {
         '${cleanAddress.substring(cleanAddress.length - 3)}';
   }
 
-  static String formatBalance(dynamic balance, {String? symbol = '', int? decimals}) {
-    final double? parsedVal = balance is num ? balance.toDouble() : double.tryParse(balance?.toString() ?? '0');
+  static String formatBalance(
+    dynamic balance, {
+    String? symbol = '',
+    int? decimals,
+  }) {
+    final double? parsedVal = balance is num
+        ? balance.toDouble()
+        : double.tryParse(balance?.toString() ?? '0');
     final double val = parsedVal ?? 0.0;
     final String cleanSymbol = symbol ?? '';
 
@@ -53,7 +67,7 @@ class WalletFormatters {
     // Add thousands separators for the whole part
     final parts = formatted.split('.');
     String wholePart = parts[0];
-    
+
     // Add commas only if it's a valid integer string
     if (RegExp(r'^\d+$').hasMatch(wholePart)) {
       wholePart = wholePart.replaceAllMapped(
@@ -72,7 +86,7 @@ class WalletFormatters {
   static String formatCurrency(num? amount, {bool isUnitPrice = false}) {
     if (amount == null) return '--';
     final double val = amount.toDouble();
-    
+
     if (val == 0) return '\$0.00';
 
     String formatted;

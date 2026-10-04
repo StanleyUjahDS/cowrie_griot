@@ -1,14 +1,18 @@
 class DAppProviderJs {
   static const String providerJs = '''
 (function() {
-    if (window.ethereum && (window.ethereum.isGriot || window.ethereum.isMetaMask)) return;
+    if (window.ethereum && window.ethereum.isGriot) {
+        window.ethereum._setChainId?.("%CHAIN_ID%");
+        window.dispatchEvent(new Event("eip6963:requestProvider"));
+        return;
+    }
 
     const address = "%ADDRESS%";
     const chainId = "%CHAIN_ID%";
 
     function GriotProvider() {
-        this.isMetaMask = true;
-        this.isTrust = true;
+        this.isMetaMask = false;
+        this.isTrust = false;
         this.isGriot = true;
         
         this._chainId = chainId;
@@ -29,6 +33,11 @@ class DAppProviderJs {
                 this.emit('networkChanged', this.networkVersion);
             }
         });
+
+        this._setChainId = (val) => {
+            const normalized = '0x' + parseInt(String(val), String(val).startsWith('0x') ? 16 : 10).toString(16);
+            this.chainId = normalized;
+        };
 
         const _waitForBridge = () => {
             return new Promise((resolve, reject) => {
@@ -54,25 +63,26 @@ class DAppProviderJs {
             const method = request.method;
             const params = request.params || [];
             
-            // Optimization: respond to static chainId immediately to reduce bridge calls
-            if (method === 'eth_chainId') return this._chainId;
-
-            console.log("Griot DApp Request:", method, params);
-            
             try {
                 await _waitForBridge();
                 
                 const res = await window.flutter_inappwebview.callHandler('GriotWeb3', {
-                    origin: window.location.origin,
                     method: method,
                     params: params
                 });
                 
                 if (res && res.error) {
-                    throw res.error;
+                    const error = new Error(res.error.message || 'Wallet request failed');
+                    error.code = res.error.code;
+                    error.data = res.error.data;
+                    throw error;
                 }
                 
                 const result = res ? res.result : null;
+
+                if (method === 'eth_chainId' && result) {
+                    this._setChainId(result);
+                }
 
                 if (method === 'eth_requestAccounts' || method === 'eth_accounts' || method === 'wallet_requestPermissions') {
                     let newAddress = null;
@@ -111,14 +121,18 @@ class DAppProviderJs {
             return await this.request({ method: 'eth_requestAccounts' });
         };
 
-        this.send = (method, params) => {
+        this.send = (method, paramsOrCallback) => {
+            if (method && typeof method === 'object' &&
+                typeof paramsOrCallback === 'function') {
+                return this.sendAsync(method, paramsOrCallback);
+            }
             if (typeof method === 'string') {
-                return this.request({ method, params });
+                return this.request({ method, params: paramsOrCallback });
             }
             if (method && typeof method === 'object' && method.method) {
                return this.request(method);
             }
-            return this.request({ method: method, params: params });
+            return this.request({ method: method, params: paramsOrCallback });
         };
 
         this.sendAsync = (request, callback) => {
@@ -156,24 +170,40 @@ class DAppProviderJs {
     }
 
     const provider = new GriotProvider();
+    const providerUuid = (window.crypto && typeof window.crypto.randomUUID === 'function')
+        ? window.crypto.randomUUID()
+        : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
+            const random = Math.floor(Math.random() * 16);
+            const value = character === 'x' ? random : ((random & 0x3) | 0x8);
+            return value.toString(16);
+          });
+
+    // Keep a wallet-specific namespace while retaining the legacy provider
+    // globals expected by DApps that do not yet use EIP-6963.
+    window.griotEthereum = provider;
     window.ethereum = provider;
+    window.ethereum.providers = [provider];
     window.web3 = { currentProvider: provider };
-    
+
+    const providerInfo = Object.freeze({
+      uuid: providerUuid,
+      name: "Griot Wallet",
+      icon: "%ICON%",
+      rdns: "network.griot.wallet"
+    });
+    const providerDetail = Object.freeze({ info: providerInfo, provider });
+
     function announceProvider() {
-      const info = {
-        uuid: "6f52e25a-4b2a-45c1-840f-79177a3d1b64",
-        name: "Griot Wallet",
-        icon: "%ICON%",
-        rdns: "network.griot.wallet"
-      };
-      window.dispatchEvent(new CustomEvent("eip6963:announceProvider", { detail: Object.freeze({ info, provider }) }));
+      window.dispatchEvent(new CustomEvent("eip6963:announceProvider", {
+        detail: providerDetail
+      }));
     }
 
     window.addEventListener("eip6963:requestProvider", announceProvider);
     announceProvider();
 
     window.dispatchEvent(new Event('ethereum#initialized'));
-    console.log("Griot Injected v2.3");
+    console.log("Griot Injected v2.4");
 })();
 ''';
 }

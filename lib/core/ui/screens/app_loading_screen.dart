@@ -172,7 +172,7 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
   // ==========================================================
 
   Future<void> _retry() async {
-    if (_hasStarted) {
+    if (_hasStarted && _error == null) {
       return;
     }
 

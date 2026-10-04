@@ -2,8 +2,10 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_nav_bar/google_nav_bar.dart';
+import 'package:provider/provider.dart';
 import '../services/navigation_scroll_service.dart';
 import '../../features/chat/widgets/chat_drawer.dart';
+import '../../features/chat/providers/messaging_provider.dart';
 
 class MainNavigationShell extends StatefulWidget {
   final StatefulNavigationShell navigationShell;
@@ -29,7 +31,10 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
       return;
     }
 
-    widget.navigationShell.goBranch(index, initialLocation: true);
+    // Preserve each tab's existing navigator stack when switching tabs.
+    // Resetting to the branch root on every tap recreates the screen and
+    // produces the visible loading/flicker users see across the main app.
+    widget.navigationShell.goBranch(index, initialLocation: false);
   }
 
   Widget _icon(IconData icon, bool active, Color primary, Color onPrimary) {
@@ -45,9 +50,23 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
       ),
       child: Icon(
         icon,
-        size: 20,
+        size: 22,
         color: active ? onPrimary : primary.withValues(alpha: 0.7),
       ),
+    );
+  }
+
+  Widget _iconWithBadge({
+    required IconData icon,
+    required bool active,
+    required Color primary,
+    required Color onPrimary,
+    required int count,
+  }) {
+    return Badge(
+      isLabelVisible: count > 0,
+      label: Text(count > 99 ? '99+' : '$count'),
+      child: _icon(icon, active, primary, onPrimary),
     );
   }
 
@@ -60,6 +79,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final bool isDark = theme.brightness == Brightness.dark;
+    final messaging = context.watch<MessagingProvider>();
 
     // ============================================================
     // COLORS
@@ -69,23 +89,43 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     final Color onPrimary = colorScheme.onPrimary;
     final Color navigationSurface = colorScheme.surface;
 
-    return Scaffold(
+    final routePath = GoRouterState.of(context).uri.path;
+    final keepDiscoveryChromeDown = routePath == '/chat' ||
+        routePath == '/campfires';
+    final shellMediaQuery = keepDiscoveryChromeDown
+        ? MediaQuery.of(context).copyWith(viewInsets: EdgeInsets.zero)
+        : MediaQuery.of(context);
+    final keyboardInset =
+        View.of(context).viewInsets.bottom / View.of(context).devicePixelRatio;
+
+    return MediaQuery(
+      data: shellMediaQuery,
+      child: Scaffold(
       key: MainNavigationShell.scaffoldKey,
       backgroundColor: theme.scaffoldBackgroundColor,
+      // Keep the bottom navigation anchored when a child search field opens
+      // the keyboard. The child screen owns the search surface; this shell
+      // must not reposition the global navigation controls.
+      resizeToAvoidBottomInset: false,
       extendBody: true,
       drawer: ChatDrawer(),
       body: widget.navigationShell,
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
-        child: Align(
-          alignment: Alignment.bottomCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 380),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(60),
-              child: BackdropFilter(
-                filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                child: Container(
+      bottomNavigationBar: MediaQuery.removeViewInsets(
+        context: context,
+        removeBottom: true,
+          child: Transform.translate(
+            offset: Offset(0, keyboardInset),
+            child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 380),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(60),
+                child: BackdropFilter(
+                  filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                  child: Container(
                   decoration: BoxDecoration(
                     color: navigationSurface.withValues(
                       alpha: isDark ? 0.12 : 0.18,
@@ -120,24 +160,25 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                     textStyle: theme.textTheme.labelMedium?.copyWith(
                       color: primary,
                       fontWeight: FontWeight.w900,
-                      fontSize: 10,
+                      fontSize: 12,
                     ),
                     tabs: [
                       GButton(
                         icon: Icons.chat_bubble_outline_rounded,
                         text: 'Chat',
-                        leading: _icon(
-                          Icons.chat_bubble_rounded,
-                          widget.navigationShell.currentIndex == 0,
-                          primary,
-                          onPrimary,
+                        leading: _iconWithBadge(
+                          icon: Icons.chat_bubble_rounded,
+                          active: widget.navigationShell.currentIndex == 0,
+                          primary: primary,
+                          onPrimary: onPrimary,
+                          count: messaging.unreadMessageCount,
                         ),
                       ),
                       GButton(
-                        icon: Icons.notifications_none_rounded,
-                        text: 'Updates',
+                        icon: Icons.local_fire_department_outlined,
+                        text: 'Campfire',
                         leading: _icon(
-                          Icons.notifications_rounded,
+                          Icons.local_fire_department_rounded,
                           widget.navigationShell.currentIndex == 1,
                           primary,
                           onPrimary,
@@ -175,11 +216,14 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                       ),
                     ],
                   ),
+                  ),
                 ),
               ),
             ),
+            ),
           ),
         ),
+      ),
       ),
     );
   }

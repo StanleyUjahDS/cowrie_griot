@@ -16,7 +16,9 @@ class WalletAuthService {
   // AUTHENTICATE WALLET
   // ============================================================
 
-  Future<AuthenticationResponse> authenticateWallet() async {
+  Future<AuthenticationResponse> authenticateWallet({
+    bool acceptPolicies = true,
+  }) async {
     // ----------------------------------------------------------
     // GET WALLET ADDRESS
     // ----------------------------------------------------------
@@ -65,6 +67,7 @@ class WalletAuthService {
       walletAddress: walletAddress,
       nonce: nonceResponse.nonce,
       signature: signature,
+      acceptPolicies: acceptPolicies,
     );
 
     // ----------------------------------------------------------

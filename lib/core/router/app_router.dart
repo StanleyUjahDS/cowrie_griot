@@ -28,8 +28,17 @@ import '../../features/chat/screens/groups/create_group_screen.dart';
 import '../../features/chat/screens/groups/group_details_screen.dart';
 import '../../features/chat/screens/channels/create_channel_screen.dart';
 import '../../features/chat/screens/channels/channel_details_screen.dart';
+import '../../features/chat/screens/community_overview_screen.dart';
 import '../../features/chat/screens/message_requests_screen.dart';
 import '../../features/chat/screens/notifications_screen.dart';
+import '../../features/chat/screens/spaces_status_screen.dart';
+import '../../features/chat/screens/create_campfire_screen.dart';
+import '../../features/chat/screens/call_entry_screen.dart';
+import '../../features/chat/services/active_call_controller.dart';
+import '../../features/chat/screens/incoming_call_screen.dart';
+import '../../features/chat/screens/join_call_screen.dart';
+import '../../features/chat/screens/create_call_link_screen.dart';
+import '../../features/chat/services/realtime_call_service.dart';
 import '../../features/chat/screens/friends_list_screen.dart';
 import '../../features/chat/screens/shared_content_screen.dart';
 import '../../features/chat/models/shared_content.dart';
@@ -43,8 +52,10 @@ import '../../features/settings/screens/appearance/theme_settings_screen.dart';
 import '../../features/settings/screens/appearance/accent_color_screen.dart';
 import '../../features/settings/screens/account/account_details_screen.dart';
 import '../../features/settings/screens/account/griot_plus_screen.dart';
+import '../../features/settings/screens/account/delete_account_screen.dart';
 import '../../features/settings/screens/preferences_settings_screen.dart';
 import '../../features/settings/screens/general/about_griot_screen.dart';
+import '../../features/settings/screens/general/community_guidelines_screen.dart';
 import '../../features/settings/screens/security/app_security_screen.dart';
 import '../../features/settings/screens/wallet_security/backup_wallet_screen.dart';
 
@@ -57,7 +68,9 @@ import '../../features/wallet/screens/send_screen.dart';
 import '../../features/wallet/screens/receive_screen.dart';
 import '../../features/wallet/screens/swap_screen.dart';
 import '../../features/wallet/screens/flash_exchange_screen.dart';
+import '../../features/wallet/screens/buy_coming_soon_screen.dart';
 import '../../features/wallet/screens/dapp_browser_screen.dart';
+import '../../features/wallet/screens/display_currency_screen.dart';
 import '../../features/wallet/services/wallet_crypto_service.dart';
 import '../../features/wallet/models/token_model.dart';
 import '../../features/wallet/models/nft_model.dart';
@@ -69,6 +82,7 @@ import '../../features/miner/screens/referral_screen.dart';
 
 import '../ui/scaffolds/gradient_scaffold.dart';
 import '../ui/screens/app_loading_screen.dart';
+import '../ui/screens/public_deep_link_recovery_screen.dart';
 
 import 'main_navigation.dart';
 import '../theme/theme_controller.dart';
@@ -95,6 +109,16 @@ class AppRouter {
   static final GoRouter router = GoRouter(
     initialLocation: '/',
 
+    // A public URL can be delivered to Flutter's router before app_links has
+    // emitted it, especially on a cold start or Flutter web. Recover known
+    // public destinations instead of showing GoRouter's red error screen.
+    errorBuilder: (context, state) {
+      if (PublicDeepLinkRecoveryScreen.supports(state.uri)) {
+        return PublicDeepLinkRecoveryScreen(uri: state.uri);
+      }
+      return _InvalidRoute(message: 'Page not found.');
+    },
+
     routes: [
       // ======================================================
       // ROOT
@@ -105,6 +129,45 @@ class AppRouter {
         builder: (context, state) {
           return const SplashScreen();
         },
+      ),
+
+      // Public links may reach GoRouter before app_links emits the platform
+      // link. Register their shapes explicitly so a cold start never falls
+      // through to GoRouter's red "no routes" screen.
+      GoRoute(
+        path: '/join',
+        builder: (context, state) => PublicDeepLinkRecoveryScreen(
+          uri: Uri(path: '/join', queryParameters: state.uri.queryParameters),
+        ),
+      ),
+      GoRoute(
+        path: '/plus',
+        builder: (context, state) =>
+            PublicDeepLinkRecoveryScreen(uri: Uri(path: '/plus')),
+      ),
+      GoRoute(
+        path: '/profile/:identifier',
+        builder: (context, state) => PublicDeepLinkRecoveryScreen(
+          uri: Uri(path: '/profile/${state.pathParameters['identifier']}'),
+        ),
+      ),
+      GoRoute(
+        path: '/group/:username',
+        builder: (context, state) => PublicDeepLinkRecoveryScreen(
+          uri: Uri(path: '/group/${state.pathParameters['username']}'),
+        ),
+      ),
+      GoRoute(
+        path: '/circle/:username',
+        builder: (context, state) => PublicDeepLinkRecoveryScreen(
+          uri: Uri(path: '/circle/${state.pathParameters['username']}'),
+        ),
+      ),
+      GoRoute(
+        path: '/channel/:username',
+        builder: (context, state) => PublicDeepLinkRecoveryScreen(
+          uri: Uri(path: '/channel/${state.pathParameters['username']}'),
+        ),
       ),
 
       // ======================================================
@@ -212,6 +275,17 @@ class AppRouter {
             return const _InvalidRoute(message: 'Conversation data missing.');
           }
           return GroupDetailsScreen(conversation: extra);
+        },
+      ),
+
+      GoRoute(
+        path: '/chat/community/:conversationId',
+        builder: (context, state) {
+          final extra = state.extra;
+          if (extra is! Conversation) {
+            return const _InvalidRoute(message: 'Community data missing.');
+          }
+          return CommunityOverviewScreen(conversation: extra);
         },
       ),
 
@@ -326,7 +400,12 @@ class AppRouter {
               return SetPassword(
                 onSuccess: extra is Future<void> Function(BuildContext)
                     ? extra
+                    : extra is Map<String, dynamic>
+                    ? extra['onSuccess'] as Future<void> Function(BuildContext)?
                     : null,
+                setupBiometrics: extra is Map<String, dynamic>
+                    ? extra['setupBiometrics'] == true
+                    : false,
               );
             },
           ),
@@ -343,6 +422,7 @@ class AppRouter {
                   onSuccess:
                       extra['onSuccess']
                           as Future<void> Function(BuildContext)?,
+                  setupBiometrics: extra['setupBiometrics'] == true,
                 );
               }
               return const _InvalidRoute(message: 'Invalid configuration.');
@@ -357,7 +437,12 @@ class AppRouter {
       GoRoute(
         path: '/enable_biometrics',
         builder: (context, state) {
-          return const BiometricsScreen();
+          final extra = state.extra;
+          return BiometricsScreen(
+            onSuccess: extra is Future<void> Function(BuildContext)
+                ? extra
+                : null,
+          );
         },
       ),
 
@@ -479,6 +564,11 @@ class AppRouter {
       ),
 
       GoRoute(
+        path: '/wallet/buy',
+        builder: (context, state) => const BuyComingSoonScreen(),
+      ),
+
+      GoRoute(
         path: '/wallet/browser',
         builder: (context, state) {
           final url = state.extra as String?;
@@ -540,6 +630,10 @@ class AppRouter {
         builder: (_, _) => const ChatSettingsScreen(),
       ),
       GoRoute(
+        path: '/settings/currency',
+        builder: (_, _) => const DisplayCurrencyScreen(),
+      ),
+      GoRoute(
         path: '/settings/chat-privacy',
         builder: (_, _) => const ChatPrivacyScreen(),
       ),
@@ -555,7 +649,15 @@ class AppRouter {
         path: '/settings/about',
         builder: (_, _) => const AboutGriotScreen(),
       ),
+      GoRoute(
+        path: '/settings/community-guidelines',
+        builder: (_, _) => const CommunityGuidelinesScreen(),
+      ),
 
+      GoRoute(
+        path: '/settings/delete-account',
+        builder: (_, _) => const DeleteAccountScreen(),
+      ),
       GoRoute(
         path: '/settings/griot-plus',
         builder: (context, state) {
@@ -582,6 +684,90 @@ class AppRouter {
         builder: (context, state) => const MiningRulesScreen(),
       ),
 
+      // Notifications are opened from the messaging header rather than the
+      // primary navigation, but remain a top-level route for deep links and
+      // push-notification navigation.
+      GoRoute(
+        path: '/notifications',
+        builder: (context, state) => const NotificationsScreen(),
+      ),
+      GoRoute(
+        path: '/chat/call-link/create',
+        builder: (context, state) => const CreateCallLinkScreen(),
+      ),
+      GoRoute(
+        path: '/calls/incoming',
+        builder: (context, state) {
+          final extra = state.extra is Map
+              ? Map<String, dynamic>.from(state.extra as Map)
+              : <String, dynamic>{};
+          return IncomingCallScreen(
+            conversationId: extra['conversationId']?.toString() ?? '',
+            conversationType: extra['contextType']?.toString() ?? 'direct',
+            mode: extra['mode']?.toString() ?? 'voice',
+            callId: extra['callId']?.toString() ?? '',
+            roomId: extra['roomId']?.toString(),
+            callerName: extra['callerName']?.toString() ?? 'Griot contact',
+            callerAvatarUrl: extra['callerAvatarUrl']?.toString(),
+            callerWalletAddress: extra['callerWalletAddress']?.toString(),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/call/join',
+        builder: (context, state) =>
+            JoinCallScreen(invite: state.uri.queryParameters['invite'] ?? ''),
+      ),
+      GoRoute(
+        path: '/calls/:conversationId',
+        builder: (context, state) {
+          final conversationId = state.pathParameters['conversationId'];
+          final extra = state.extra;
+          final type = extra is Map<String, dynamic>
+              ? extra['type']?.toString() ?? 'direct'
+              : 'direct';
+          final mode = extra is Map<String, dynamic>
+              ? extra['mode']?.toString() ?? 'voice'
+              : 'voice';
+          final session =
+              extra is Map<String, dynamic> &&
+                  extra['session'] is RealtimeCallSession
+              ? extra['session'] as RealtimeCallSession
+              : null;
+          final roomId = extra is Map<String, dynamic>
+              ? extra['roomId']?.toString()
+              : null;
+          final callId = extra is Map<String, dynamic>
+              ? extra['callId']?.toString()
+              : null;
+          final openParticipants =
+              extra is Map<String, dynamic> &&
+              (extra['openParticipants'] == true ||
+                  extra['openParticipants']?.toString() == 'true');
+          if (conversationId == null || conversationId.isEmpty) {
+            return const _InvalidRoute(message: 'Invalid call conversation.');
+          }
+          return CallEntryScreen(
+            request: CallRequest(
+              conversationId: conversationId,
+              conversationType: type,
+              mode: mode,
+              callId: callId,
+              session: session,
+              roomId: roomId,
+              openParticipants: openParticipants,
+            ),
+          );
+        },
+      ),
+
+      // Campfire creation is outside the navigation shell so this is a true
+      // full-screen form and never renders behind Griot's bottom bar.
+      GoRoute(
+        path: '/campfires/create',
+        builder: (context, state) => const CreateCampfireScreen(),
+      ),
+
       // ======================================================
       // MAIN NAVIGATION SHELL
       // ======================================================
@@ -589,6 +775,10 @@ class AppRouter {
         builder: (context, state, navigationShell) {
           return GradientScaffold(
             useSafeArea: false,
+            // Discovery screens keep their FAB and global GNav anchored while
+            // search is active. Child chat screens still resize their own
+            // composer scaffolds when they open the keyboard.
+            resizeToAvoidBottomInset: false,
             child: MainNavigationShell(navigationShell: navigationShell),
           );
         },
@@ -601,19 +791,21 @@ class AppRouter {
             routes: [
               GoRoute(
                 path: '/chat',
-                builder: (context, state) => const ChatHomeScreen(),
+                builder: (context, state) => ChatHomeScreen(
+                  initialTab: state.uri.queryParameters['tab'] ?? 'direct',
+                ),
               ),
             ],
           ),
 
           // ==================================================
-          // NOTIFICATIONS
+          // CAMPFIRES & STATUS
           // ==================================================
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/notifications',
-                builder: (context, state) => const NotificationsScreen(),
+                path: '/campfires',
+                builder: (context, state) => const SpacesStatusScreen(),
               ),
             ],
           ),
@@ -640,7 +832,9 @@ class AppRouter {
               GoRoute(
                 path: '/wallet',
                 builder: (context, state) {
-                  return const WalletScreen();
+                  return WalletScreen(
+                    initialTab: state.uri.queryParameters['tab'] ?? 'tokens',
+                  );
                 },
               ),
             ],

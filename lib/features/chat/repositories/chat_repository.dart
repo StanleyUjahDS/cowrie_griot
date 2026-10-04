@@ -9,8 +9,13 @@ class ChatOperations {
   final ApiClient _apiClient;
 
   ChatOperations({MessagingApiService? apiService, ApiClient? apiClient})
-      : _apiClient = apiClient ?? ApiClient(),
-        _apiService = apiService ?? MessagingApiService(apiClient: apiClient ?? ApiClient());
+    : this._withClient(apiService, apiClient ?? ApiClient());
+
+  ChatOperations._withClient(
+    MessagingApiService? apiService,
+    ApiClient apiClient,
+  ) : _apiClient = apiClient,
+      _apiService = apiService ?? MessagingApiService(apiClient: apiClient);
 
   // ==========================================================
   // GET CHATS
@@ -21,14 +26,14 @@ class ChatOperations {
     // Map Conversation to ChatUser for compatibility with existing UI
     return conversations.map((conv) {
       final otherMember = conv.otherUser;
-      
+
       return ChatUser(
         id: otherMember?.id ?? conv.id,
         walletAddress: otherMember?.walletAddress ?? '',
         username: otherMember?.username,
         displayName: otherMember?.displayName,
         profileUrl: otherMember?.profileUrl,
-        lastMessage: conv.lastMessage?.text ?? '',
+        lastMessage: conv.lastMessage?.previewText ?? '',
         timestamp: conv.lastMessage?.createdAt ?? conv.updatedAt,
         unreadCount: conv.unreadCount,
         isOnline: otherMember?.isOnline ?? false,
@@ -54,7 +59,9 @@ class ChatOperations {
 
   Future<ChatUser?> findUserByWallet(String walletAddress) async {
     try {
-      final response = await _apiClient.get(ApiConfig.usersSearch(walletAddress));
+      final response = await _apiClient.get(
+        ApiConfig.usersSearch(walletAddress),
+      );
       final data = response['data'] as List;
       if (data.isNotEmpty) {
         return ChatUser.fromJson(Map<String, dynamic>.from(data.first));
@@ -70,7 +77,9 @@ class ChatOperations {
   // PHONE DISCOVERY
   // ==========================================================
 
-  Future<List<ChatUser>> findUsersByPhoneNumbers(List<String> phoneNumbers) async {
+  Future<List<ChatUser>> findUsersByPhoneNumbers(
+    List<String> phoneNumbers,
+  ) async {
     // This requires a new endpoint or mapping to an existing one.
     // For now, return empty or implement if backend supports it.
     return [];
@@ -81,9 +90,10 @@ class ChatOperations {
     required bool enabled,
   }) async {
     // This would call usersUpdate or similar
-    await _apiClient.put(ApiConfig.usersUpdate, body: {
-      'phoneDiscoveryEnabled': enabled,
-    });
+    await _apiClient.patch(
+      ApiConfig.userPreferences,
+      body: {'profile_discoverability': enabled},
+    );
   }
 
   // ==========================================================
@@ -92,14 +102,18 @@ class ChatOperations {
 
   Future<List<ChatUser>> getFriends() async {
     final friends = await _apiService.getFriends();
-    return friends.map((f) => ChatUser(
-      id: f.id,
-      walletAddress: f.walletAddress,
-      username: f.username,
-      displayName: f.displayName,
-      profileUrl: f.avatarUrl,
-      timestamp: DateTime.now(),
-    )).toList();
+    return friends
+        .map(
+          (f) => ChatUser(
+            id: f.id,
+            walletAddress: f.walletAddress,
+            username: f.username,
+            displayName: f.displayName,
+            profileUrl: f.avatarUrl,
+            timestamp: DateTime.now(),
+          ),
+        )
+        .toList();
   }
 
   Future<void> blockUser(String userId) async {

@@ -34,20 +34,27 @@ class _DocumentViewerScreenState extends State<DocumentViewerScreen> {
     // For Android, we use Google Docs viewer for remote PDFs as InAppWebView doesn't support them natively.
     // For iOS, native InAppWebView is enough.
     String effectiveUrl = widget.url;
-    final isLocal = widget.url.startsWith('/') || widget.url.startsWith('file://');
-    
+    final isLocal =
+        widget.url.startsWith('/') || widget.url.startsWith('file://');
+
     if (isLocal) {
       final String cleanPath = widget.url.replaceFirst('file://', '');
       effectiveUrl = Uri.file(cleanPath).toString();
-    } else if (Platform.isAndroid && widget.url.startsWith('http') && widget.url.toLowerCase().contains('.pdf')) {
+    } else if (Platform.isAndroid &&
+        widget.url.startsWith('http') &&
+        widget.url.toLowerCase().contains('.pdf')) {
       // Use Google Docs viewer as a fallback for Android remote PDFs
-      effectiveUrl = 'https://docs.google.com/gview?embedded=true&url=${Uri.encodeComponent(widget.url)}';
+      effectiveUrl =
+          'https://docs.google.com/gview?embedded=true&url=${Uri.encodeComponent(widget.url)}';
     }
 
     final bool isDownloadable = !isLocal && widget.url.startsWith('http');
     final bool isPdf = widget.url.toLowerCase().contains('.pdf');
 
     return Scaffold(
+      // Keep the document action anchored when another input/keyboard is
+      // opened over this route.
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: Text(
           widget.title.isEmpty ? 'Document' : widget.title,
@@ -93,11 +100,18 @@ class _DocumentViewerScreenState extends State<DocumentViewerScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.picture_as_pdf_rounded, size: 64, color: colors.primary.withValues(alpha: 0.5)),
+                    Icon(
+                      Icons.picture_as_pdf_rounded,
+                      size: 64,
+                      color: colors.primary.withValues(alpha: 0.5),
+                    ),
                     const SizedBox(height: 24),
                     const Text(
                       'Local PDF Preview',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     const Text(
@@ -128,7 +142,8 @@ class _DocumentViewerScreenState extends State<DocumentViewerScreen> {
                 allowContentAccess: true,
                 allowFileAccessFromFileURLs: true,
                 allowUniversalAccessFromFileURLs: true,
-                userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1',
+                userAgent:
+                    'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1',
               ),
               onProgressChanged: (controller, progress) {
                 setState(() {
@@ -156,10 +171,7 @@ class _DocumentViewerScreenState extends State<DocumentViewerScreen> {
                 children: [
                   const CircularProgressIndicator(),
                   const SizedBox(height: 16),
-                  Text(
-                    'Loading document...',
-                    style: theme.textTheme.bodySmall,
-                  ),
+                  Text('Loading document...', style: theme.textTheme.bodySmall),
                 ],
               ),
             ),
@@ -178,8 +190,9 @@ class _DocumentViewerScreenState extends State<DocumentViewerScreen> {
   Future<void> _openExternally() async {
     try {
       final String rawUrl = widget.url;
-      final bool isLocal = rawUrl.startsWith('/') || rawUrl.startsWith('file://');
-      
+      final bool isLocal =
+          rawUrl.startsWith('/') || rawUrl.startsWith('file://');
+
       Uri? uri;
       if (isLocal) {
         final cleanPath = rawUrl.replaceFirst('file://', '');
@@ -193,7 +206,10 @@ class _DocumentViewerScreenState extends State<DocumentViewerScreen> {
           await launchUrl(uri, mode: LaunchMode.externalApplication);
         } else {
           if (mounted) {
-            NotificationService.showError(context, 'No application found to open this file type.');
+            NotificationService.showError(
+              context,
+              'No application found to open this file type.',
+            );
           }
         }
       }
@@ -215,24 +231,28 @@ class _DocumentViewerScreenState extends State<DocumentViewerScreen> {
 
   Future<void> _downloadDocument() async {
     if (widget.url.startsWith('file')) {
-      NotificationService.showInfo(context, 'Document is already on your device.');
+      NotificationService.showInfo(
+        context,
+        'Document is already on your device.',
+      );
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Downloading...')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Downloading...')));
 
     try {
       final response = await http.get(Uri.parse(widget.url));
       final directory = Platform.isAndroid
-          ? await getExternalStorageDirectory() ?? await getApplicationDocumentsDirectory()
+          ? await getExternalStorageDirectory() ??
+                await getApplicationDocumentsDirectory()
           : await getApplicationDocumentsDirectory();
-      
-      final filename = widget.title.isNotEmpty 
-          ? widget.title 
+
+      final filename = widget.title.isNotEmpty
+          ? widget.title
           : 'document_${DateTime.now().millisecondsSinceEpoch}${path.extension(Uri.parse(widget.url).path)}';
-      
+
       final file = File(path.join(directory.path, filename));
       await file.writeAsBytes(response.bodyBytes);
 

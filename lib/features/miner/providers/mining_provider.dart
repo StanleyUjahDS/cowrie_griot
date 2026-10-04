@@ -1,12 +1,49 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import '../../../core/network/api_exception.dart';
 import '../services/mining_api_service.dart';
+
+double _parseDouble(dynamic v, [double defaultValue = 0.0]) {
+  if (v == null) return defaultValue;
+  if (v is num) return v.toDouble();
+  if (v is String) return double.tryParse(v) ?? defaultValue;
+  return defaultValue;
+}
+
+double? _parseOptionalDouble(dynamic v) {
+  if (v == null) return null;
+  if (v is num) return v.toDouble();
+  if (v is String) return double.tryParse(v);
+  return null;
+}
+
+int _parseInt(dynamic v, [int defaultValue = 0]) {
+  if (v == null) return defaultValue;
+  if (v is num) return v.toInt();
+  if (v is String) return int.tryParse(v) ?? defaultValue;
+  return defaultValue;
+}
+
+bool _parseBool(dynamic v, [bool defaultValue = false]) {
+  if (v == null) return defaultValue;
+  if (v is bool) return v;
+  if (v is num) return v != 0;
+  if (v is String) return v.toLowerCase() == 'true' || v == '1';
+  return defaultValue;
+}
+
+DateTime? _parseDateTime(dynamic v) {
+  if (v == null) return null;
+  if (v is DateTime) return v;
+  if (v is String && v.isNotEmpty) return DateTime.tryParse(v);
+  return null;
+}
 
 class MiningStatus {
   final String dayId;
   final DateTime dayStart;
   final DateTime dayEnd;
-  final double rewardPool;
+  final double? rewardPool;
   final String currency;
   final bool canMine;
   final DateTime? nextAvailableAt;
@@ -44,34 +81,71 @@ class MiningStatus {
   });
 
   factory MiningStatus.fromJson(Map<String, dynamic> json) {
+    if (json.isEmpty) {
+      throw const FormatException('Mining status response was empty');
+    }
+    final dayStart = _parseDateTime(json['dayStart'] ?? json['day_start']);
+    final dayEnd = _parseDateTime(json['dayEnd'] ?? json['day_end']);
     return MiningStatus(
-      dayId: json['dayId'] ?? '',
-      dayStart: DateTime.parse(
-        json['dayStart'] ?? DateTime.now().toIso8601String(),
+      dayId: (json['dayId'] ?? json['day_id'])?.toString() ?? 'today',
+      dayStart:
+          dayStart ?? (throw const FormatException('Mining day start missing')),
+      dayEnd: dayEnd ?? (throw const FormatException('Mining day end missing')),
+      rewardPool: _parseOptionalDouble(
+        json['rewardPool'] ?? json['reward_pool'] ?? json['pool'],
       ),
-      dayEnd: DateTime.parse(
-        json['dayEnd'] ?? DateTime.now().toIso8601String(),
+      currency: (json['currency'])?.toString() ?? 'COWRIE',
+      canMine: _parseBool(json['canMine'] ?? json['can_mine'], true),
+      nextAvailableAt: _parseDateTime(
+        json['nextAvailableAt'] ?? json['next_available_at'],
       ),
-      rewardPool: (json['rewardPool'] ?? 0).toDouble(),
-      currency: json['currency'] ?? 'COWRIE',
-      canMine: json['canMine'] ?? false,
-      nextAvailableAt: json['nextAvailableAt'] != null
-          ? DateTime.parse(json['nextAvailableAt'])
-          : null,
-      pointsToday: (json['pointsToday'] ?? 0).toDouble(),
-      totalPointsToday: (json['totalPointsToday'] ?? 0).toDouble(),
-      currentSharePercent: (json['currentSharePercent'] ?? 0).toDouble(),
-      estimatedReward: (json['estimatedReward'] ?? 0).toDouble(),
-      todayFinalReward: (json['todayFinalReward'] ?? 0).toDouble(),
-      lifetimeEarned: (json['lifetimeEarned'] ?? json['totalEarned'] ?? 0)
-          .toDouble(),
-      availableBalance: (json['availableBalance'] ?? 0).toDouble(),
-      pendingBalance: (json['pendingBalance'] ?? 0).toDouble(),
-      settled: json['settled'] ?? false,
-      multiplier: MiningMultiplier.fromJson(json['multiplier'] ?? {}),
-      reputation: json['reputation'] != null
-          ? MiningReputation.fromJson(json['reputation'])
-          : null,
+      pointsToday: _parseDouble(json['pointsToday'] ?? json['points_today']),
+      totalPointsToday: _parseDouble(
+        json['totalPointsToday'] ?? json['total_points_today'],
+      ),
+      currentSharePercent: _parseDouble(
+        json['currentSharePercent'] ??
+            json['current_share_percent'] ??
+            json['share_percent'],
+      ),
+      estimatedReward: _parseDouble(
+        json['estimatedReward'] ?? json['estimated_reward'],
+      ),
+      todayFinalReward: _parseDouble(
+        json['todayFinalReward'] ??
+            json['today_final_reward'] ??
+            json['final_reward'],
+      ),
+      lifetimeEarned: _parseDouble(
+        json['lifetimeEarned'] ??
+            json['totalEarned'] ??
+            json['lifetime_earned'] ??
+            json['total_earned'],
+      ),
+      availableBalance: _parseDouble(
+        json['availableBalance'] ??
+            json['available_balance'] ??
+            json['balance'],
+      ),
+      pendingBalance: _parseDouble(
+        json['pendingBalance'] ?? json['pending_balance'],
+      ),
+      settled: _parseBool(json['settled']),
+      multiplier: MiningMultiplier.fromJson(
+        json['multiplier'] is Map
+            ? Map<String, dynamic>.from(json['multiplier'])
+            : {},
+      ),
+      reputation: json['reputation'] is Map
+          ? MiningReputation.fromJson(
+              Map<String, dynamic>.from(json['reputation']),
+            )
+          : MiningReputation(
+              tier: 'Initiate Badger',
+              points: 0,
+              bonus: 0.0,
+              badgeColor: '#64748B',
+            ),
     );
   }
 }
@@ -99,14 +173,24 @@ class MiningMultiplier {
 
   factory MiningMultiplier.fromJson(Map<String, dynamic> json) {
     return MiningMultiplier(
-      base: (json['base'] ?? 1.0).toDouble(),
-      plusBonus: (json['plusBonus'] ?? 0.0).toDouble(),
-      referralBonus: (json['referralBonus'] ?? 0.0).toDouble(),
-      reputationBonus: (json['reputationBonus'] ?? 0.0).toDouble(),
-      total: (json['total'] ?? 1.0).toDouble(),
-      maximum: (json['maximum'] ?? 2.0).toDouble(),
-      membershipStatus: json['membershipStatus'] ?? 'basic',
-      validReferralCount: json['validReferralCount'] ?? 0,
+      base: _parseDouble(json['base'], 1.0),
+      plusBonus: _parseDouble(json['plusBonus'] ?? json['plus_bonus']),
+      referralBonus: _parseDouble(
+        json['referralBonus'] ?? json['referral_bonus'],
+      ),
+      reputationBonus: _parseDouble(
+        json['reputationBonus'] ?? json['reputation_bonus'],
+      ),
+      total: _parseDouble(json['total'], 1.0),
+      maximum: _parseDouble(json['maximum'] ?? json['max'], 2.0),
+      membershipStatus:
+          (json['membershipStatus'] ?? json['membership_status'])?.toString() ??
+          'basic',
+      validReferralCount: _parseInt(
+        json['validReferralCount'] ??
+            json['valid_referral_count'] ??
+            json['referrals'],
+      ),
     );
   }
 }
@@ -126,10 +210,15 @@ class MiningReputation {
 
   factory MiningReputation.fromJson(Map<String, dynamic> json) {
     return MiningReputation(
-      tier: json['tier'] ?? 'Initiate Badger',
-      points: json['points'] ?? 0,
-      bonus: (json['bonus'] ?? 0.0).toDouble(),
-      badgeColor: json['badgeColor'] ?? '#64748B',
+      tier:
+          (json['tier'] ?? json['tierName'] ?? json['tier_name'])?.toString() ??
+          'Initiate Badger',
+      points: _parseInt(json['points']),
+      bonus: _parseDouble(json['bonus']),
+      badgeColor:
+          (json['badgeColor'] ?? json['badge_color'] ?? json['color'])
+              ?.toString() ??
+          '#64748B',
     );
   }
 }
@@ -179,19 +268,27 @@ class MiningProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final results = await Future.wait([
-        _apiService.getMiningStatus(),
-        _apiService.getMiningActivities(),
-      ]);
-
-      _status = MiningStatus.fromJson(results[0] as Map<String, dynamic>);
-      _activities = results[1] as List<Map<String, dynamic>>;
+      // The status endpoint is the core screen data. Activities are
+      // supplementary and may be unavailable on older backend revisions;
+      // do not hide the whole Miner screen when that optional request fails.
+      final statusData = await _apiService.getMiningStatus().timeout(
+        const Duration(seconds: 15),
+      );
+      _status = MiningStatus.fromJson(statusData);
+      try {
+        _activities = await _apiService.getMiningActivities().timeout(
+          const Duration(seconds: 10),
+        );
+      } catch (e) {
+        _activities = [];
+        debugPrint('Mining activities unavailable: $e');
+      }
 
       _lastLoadedAt = DateTime.now();
       _isLoading = false;
       notifyListeners();
     } catch (e) {
-      _error = e.toString();
+      _error = e is ApiException ? e.message : e.toString();
       _isLoading = false;
       notifyListeners();
     }
@@ -223,12 +320,19 @@ class MiningProvider extends ChangeNotifier {
 
   Future<bool> startMining() async {
     try {
-      await _apiService.startMining();
+      final res = await _apiService.startMining();
+      if (res.isNotEmpty) {
+        try {
+          _status = MiningStatus.fromJson(res);
+        } catch (_) {}
+      }
       await loadStatus(force: true);
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = e is ApiException ? e.message : e.toString();
       notifyListeners();
+      // Do not synthesize mining points or balances when the backend rejects
+      // or cannot process the request. The backend is the source of truth.
       return false;
     }
   }

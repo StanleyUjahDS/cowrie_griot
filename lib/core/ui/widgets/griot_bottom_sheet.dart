@@ -17,20 +17,24 @@ class GriotBottomSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return Container(
-      width: double.infinity,
-      padding: padding,
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(radius)),
-        border: Border(
-          top: BorderSide(
-            color: colors.primary.withValues(alpha: 0.38),
-            width: 1,
+    return Material(
+      color: colors.surface,
+      borderRadius: BorderRadius.vertical(top: Radius.circular(radius)),
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        width: double.infinity,
+        padding: padding,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(radius)),
+          border: Border(
+            top: BorderSide(
+              color: colors.primary.withValues(alpha: 0.38),
+              width: 1,
+            ),
           ),
         ),
+        child: child,
       ),
-      child: child,
     );
   }
 }

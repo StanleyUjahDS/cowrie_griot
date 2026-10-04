@@ -27,10 +27,10 @@ class WelcomePage3 extends StatelessWidget {
       body: SafeArea(
         child: WelcomePageWidget(
           order: 3,
-          title: "Tap to Earn",
+          title: "Build Your Reputation",
           description:
-              "Gas-free mining system. Earn points that convert into crypto "
-              "tokens by participating and staying active.",
+              "Build non-transferable reputation points by participating "
+              "and staying active in the Griot community.",
           imagePath: "assets/cowrie_images/image4.png",
           bottomAction: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -47,13 +47,13 @@ class WelcomePage3 extends StatelessWidget {
               Expanded(
                 child: AnimatedProgressBar(
                   value: progress,
-                  backgroundColor: colorScheme.onSurface.withValues(alpha: 0.15),
+                  backgroundColor: colorScheme.onSurface.withValues(
+                    alpha: 0.15,
+                  ),
                   valueColor: colorScheme.primary,
                 ),
               ),
-              const SizedBox(
-                width: 12,
-              ),
+              const SizedBox(width: 12),
               ElevatedButton(
                 onPressed: () => context.push('/welcome_four'),
                 style: ElevatedButton.styleFrom(

@@ -14,6 +14,7 @@ import '../../widgets/chatting/tip_sheet.dart';
 import '../../services/media_api_service.dart';
 import '../../../users/providers/user_provider.dart';
 import '../../../../core/services/notification_service.dart';
+import '../../../../core/services/share_link_service.dart';
 import '../../../../core/ui/widgets/griot_loader.dart';
 import '../../../../core/ui/widgets/griot_plus_badge.dart';
 
@@ -67,6 +68,28 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
       debugPrint('Error loading group members: $e');
       if (mounted) setState(() => _isLoadingMembers = false);
     }
+  }
+
+  Future<void> _shareGroupLink({bool copyFirst = false}) async {
+    final link = ShareLinkService.conversation(widget.conversation);
+    if (link == null) {
+      if (mounted) {
+        NotificationService.showError(
+          context,
+          'This circle does not have a username yet. Set one before sharing.',
+        );
+      }
+      return;
+    }
+
+    if (copyFirst) {
+      await Clipboard.setData(ClipboardData(text: link));
+      if (mounted) {
+        NotificationService.showSuccess(context, 'Link copied');
+      }
+    }
+    if (!mounted) return;
+    await SharePlus.instance.share(ShareParams(text: link));
   }
 
   Future<void> _handleLeaveGroup() async {
@@ -210,71 +233,74 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
           color: colorScheme.surface,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 24),
-              decoration: BoxDecoration(
-                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Text(
-              title,
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w900,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 32),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    child: const Text('Cancel'),
-                  ),
+        child: Material(
+          type: MaterialType.transparency,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 24),
+                decoration: BoxDecoration(
+                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: isDestructive
-                          ? colorScheme.error
-                          : colorScheme.primary,
-                      foregroundColor: isDestructive
-                          ? colorScheme.onError
-                          : colorScheme.onPrimary,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    child: Text(confirmLabel),
-                  ),
+              ),
+              Text(
+                title,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.5,
                 ),
-              ],
-            ),
-          ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 32),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: isDestructive
+                            ? colorScheme.error
+                            : colorScheme.primary,
+                        foregroundColor: isDestructive
+                            ? colorScheme.onError
+                            : colorScheme.onPrimary,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: Text(confirmLabel),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -387,6 +413,11 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                                         ? Image.network(
                                             widget.conversation.avatarUrl!,
                                             fit: BoxFit.cover,
+                                            errorBuilder: (_, _, _) => Icon(
+                                              Icons.groups_rounded,
+                                              size: 40,
+                                              color: colorScheme.primary,
+                                            ),
                                           )
                                         : Icon(
                                             Icons.groups_rounded,
@@ -954,7 +985,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
             physics: const BouncingScrollPhysics(),
             slivers: [
               SliverAppBar(
-                expandedHeight: 200,
+                expandedHeight: 232,
                 pinned: true,
                 stretch: false,
                 backgroundColor: theme.scaffoldBackgroundColor,
@@ -1010,19 +1041,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                     padding: const EdgeInsets.only(right: 12.0),
                     child: Center(
                       child: GestureDetector(
-                        onTap: () async {
-                          final link =
-                              'https://griot.network/circle/@${conversation.username ?? conversation.id}';
-                          await Clipboard.setData(ClipboardData(text: link));
-                          if (!context.mounted) return;
-                          NotificationService.showSuccess(
-                            context,
-                            'Link copied',
-                          );
-                          await SharePlus.instance.share(
-                            ShareParams(text: link),
-                          );
-                        },
+                        onTap: () => _shareGroupLink(copyFirst: true),
                         child: Container(
                           width: 40,
                           height: 40,
@@ -1045,6 +1064,44 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                 ],
                 flexibleSpace: FlexibleSpaceBar(
                   centerTitle: true,
+                  background: SafeArea(
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                        child: Padding(
+                        padding: const EdgeInsets.only(bottom: 82),
+                        child: Container(
+                          width: 72,
+                          height: 72,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: colors.surface,
+                            border: Border.all(
+                              color: colors.primary.withValues(alpha: 0.45),
+                              width: 2,
+                            ),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child:
+                              widget.conversation.avatarUrl != null &&
+                                  widget.conversation.avatarUrl!.isNotEmpty
+                              ? Image.network(
+                                  widget.conversation.avatarUrl!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, _, _) => Icon(
+                                    Icons.groups_rounded,
+                                    size: 34,
+                                    color: colors.primary,
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.groups_rounded,
+                                  size: 34,
+                                  color: colors.primary,
+                                ),
+                        ),
+                      ),
+                    ),
+                  ),
                   title: Text(
                     widget.conversation.title ?? 'Circle',
                     style: TextStyle(
@@ -1117,13 +1174,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                           conversationId: widget.conversation.id,
                           conversationType: ConversationType.group,
                         ),
-                        onShare: () async {
-                          final link =
-                              'https://griot.network/circle/@${conversation.username ?? conversation.id}';
-                          await SharePlus.instance.share(
-                            ShareParams(text: link),
-                          );
-                        },
+                        onShare: () => _shareGroupLink(),
                         colors: colors,
                       ),
                       const SizedBox(height: 32),

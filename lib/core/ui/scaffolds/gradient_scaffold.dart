@@ -70,7 +70,9 @@ class GradientScaffold extends StatelessWidget {
             ),
 
             // Content
-            useSafeArea ? SafeArea(child: child) : child,
+            Positioned.fill(
+              child: useSafeArea ? SafeArea(child: child) : child,
+            ),
           ],
         ),
       ),

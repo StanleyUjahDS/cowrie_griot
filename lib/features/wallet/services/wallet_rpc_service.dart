@@ -36,8 +36,11 @@ class WalletRpcService {
     required String signedTransaction,
     String transactionType = 'send',
   }) async {
+    final endpoint = transactionType == 'tip'
+        ? ApiConfig.tipBroadcast
+        : ApiConfig.swapBroadcast;
     final response = await _apiClient.post(
-      ApiConfig.swapBroadcast,
+      endpoint,
       body: {
         'network': network,
         'signedTransaction': signedTransaction,

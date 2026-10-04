@@ -17,23 +17,42 @@ class AppLockProvider extends ChangeNotifier with WidgetsBindingObserver {
   Duration _autoLockDuration = const Duration(minutes: 5);
   DateTime? _backgroundTimestamp;
   bool _enteredBackground = false;
+  bool _initialized = false;
+  AppLifecycleState? _lastLifecycleState;
 
   bool get isLocked => _isLocked;
   bool get isEnabled => _isEnabled;
   bool get biometricEnabled => _biometricEnabled;
   Duration get autoLockDuration => _autoLockDuration;
+  bool get isInitialized => _initialized;
 
   Future<void> _init() async {
-    final hasPin = await _appLockService.hasPin();
-    _isEnabled = hasPin && await _appLockService.isAppLockEnabled();
-    _biometricEnabled = await _appLockService.isBiometricUnlockEnabled();
-    _autoLockDuration = await _appLockService.getAutoLockDuration();
+    try {
+      final hasPin = await _appLockService.hasPin();
+      _isEnabled = hasPin && await _appLockService.isAppLockEnabled();
+      _biometricEnabled = await _appLockService.isBiometricUnlockEnabled();
+      _autoLockDuration = await _appLockService.getAutoLockDuration();
 
-    // Cold start: If app lock is enabled, start in locked state
-    if (_isEnabled) {
-      _isLocked = true;
-    } else {
-      _isLocked = false;
+      // Cold start: If app lock is enabled, start in locked state.
+      _isLocked = _isEnabled;
+      _initialized = true;
+
+      // A lifecycle event can arrive before secure-storage initialization
+      // finishes. Reconcile it so an immediate lock cannot be skipped during
+      // a fast app switch.
+      final state = _lastLifecycleState;
+      if (_isEnabled &&
+          (state == AppLifecycleState.paused ||
+              state == AppLifecycleState.hidden)) {
+        _enteredBackground = true;
+        _backgroundTimestamp ??= DateTime.now();
+        if (_autoLockDuration == Duration.zero) {
+          _isLocked = true;
+        }
+      }
+    } catch (error) {
+      _initialized = true;
+      debugPrint('App lock initialization failed: $error');
     }
 
     notifyListeners();
@@ -41,13 +60,13 @@ class AppLockProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!_isEnabled) return;
+    _lastLifecycleState = state;
 
     // `inactive` is also emitted for Face ID, permission dialogs, keyboards,
     // and other temporary system sheets. It must not count as leaving the
-    // app. A real background transition is represented by paused/hidden.
+    // app. Do not record a timestamp here: otherwise a biometric prompt can
+    // be measured as background time and lock the app as soon as it closes.
     if (state == AppLifecycleState.inactive) {
-      _backgroundTimestamp ??= DateTime.now();
       return;
     }
 
@@ -56,10 +75,11 @@ class AppLockProvider extends ChangeNotifier with WidgetsBindingObserver {
       _enteredBackground = true;
       _backgroundTimestamp ??= DateTime.now();
 
-      // For a real background transition, lock immediately when configured.
-      if (_autoLockDuration == Duration.zero) {
-        lock();
-      }
+      if (!_initialized || !_isEnabled) return;
+
+      // Do not build the lock screen while the app is still paused. Native
+      // biometric prompts need an active/resumed application, so the
+      // immediate-lock case is evaluated in the resumed branch below.
       return;
     }
 
@@ -68,6 +88,8 @@ class AppLockProvider extends ChangeNotifier with WidgetsBindingObserver {
       final enteredBackground = _enteredBackground;
       _backgroundTimestamp = null;
       _enteredBackground = false;
+
+      if (!_initialized || !_isEnabled) return;
 
       if (enteredBackground &&
           backgroundTimestamp != null &&
@@ -99,6 +121,8 @@ class AppLockProvider extends ChangeNotifier with WidgetsBindingObserver {
     _isEnabled = enabled;
     if (!enabled) {
       _isLocked = false;
+      _backgroundTimestamp = null;
+      _enteredBackground = false;
     }
     notifyListeners();
   }

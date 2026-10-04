@@ -3,11 +3,157 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:toastification/toastification.dart';
 
 class NotificationService {
+  static void _replaceActiveToast() {
+    toastification.dismissAll(delayForAnimation: false);
+  }
+
+  /// Shows a consistent, tappable banner for a push received while Griot is
+  /// open. System notifications handle background and terminated states.
+  static void showPush(
+    BuildContext context, {
+    required String title,
+    required String message,
+    required IconData icon,
+    VoidCallback? onTap,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    // Foreground push notifications use one persistent slot. Replacing the
+    // current toast keeps a burst of messages from stacking down the screen.
+    _replaceActiveToast();
+    toastification.showCustom(
+      context: context,
+      alignment: Alignment.topCenter,
+      autoCloseDuration: const Duration(seconds: 7),
+      builder: (context, holder) => SafeArea(
+        bottom: false,
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          child: Material(
+            color: colors.surface,
+            elevation: 12,
+            shadowColor: Colors.black.withValues(alpha: 0.28),
+            borderRadius: BorderRadius.circular(22),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () {
+                toastification.dismiss(holder);
+                onTap?.call();
+              },
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: colors.primary.withValues(alpha: 0.28),
+                  ),
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: colors.primary.withValues(alpha: 0.13),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(icon, color: colors.primary, size: 21),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'GRIOT  •  NOW',
+                                style: TextStyle(
+                                  color: colors.primary,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.1,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1.15,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                message,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: colors.onSurfaceVariant,
+                                  fontSize: 12,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => toastification.dismiss(holder),
+                          tooltip: 'Dismiss',
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 28,
+                            minHeight: 28,
+                          ),
+                          icon: Icon(
+                            Icons.close_rounded,
+                            size: 17,
+                            color: colors.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Text(
+                          'Tap to view',
+                          style: TextStyle(
+                            color: colors.primary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(width: 3),
+                        Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 15,
+                          color: colors.primary,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // ============================================================
   // SUCCESS
   // ============================================================
 
   static void showSuccess(BuildContext context, String message) {
+    _replaceActiveToast();
     final colors = Theme.of(context).colorScheme;
 
     toastification.show(
@@ -15,7 +161,10 @@ class NotificationService {
       type: ToastificationType.success,
       style: ToastificationStyle.flatColored,
       primaryColor: colors.primary,
-      title: Text(message, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+      title: Text(
+        message,
+        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+      ),
       alignment: Alignment.topCenter,
       autoCloseDuration: const Duration(seconds: 3),
       borderRadius: BorderRadius.circular(100),
@@ -37,6 +186,7 @@ class NotificationService {
   // ============================================================
 
   static void showError(BuildContext context, String message) {
+    _replaceActiveToast();
     final colors = Theme.of(context).colorScheme;
     final parsedMessage = _parseErrorMessage(message);
 
@@ -44,8 +194,18 @@ class NotificationService {
       context: context,
       type: ToastificationType.error,
       style: ToastificationStyle.flatColored,
-      title: Text('Action Failed', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: colors.error)),
-      description: Text(parsedMessage, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+      title: Text(
+        'Action Failed',
+        style: TextStyle(
+          fontWeight: FontWeight.w900,
+          fontSize: 11,
+          color: colors.error,
+        ),
+      ),
+      description: Text(
+        parsedMessage,
+        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+      ),
       alignment: Alignment.topCenter,
       autoCloseDuration: const Duration(seconds: 5),
       borderRadius: BorderRadius.circular(24),
@@ -66,6 +226,7 @@ class NotificationService {
   // ============================================================
 
   static void showInfo(BuildContext context, String message) {
+    _replaceActiveToast();
     final colors = Theme.of(context).colorScheme;
 
     toastification.show(
@@ -73,7 +234,10 @@ class NotificationService {
       type: ToastificationType.info,
       style: ToastificationStyle.flatColored,
       primaryColor: colors.secondary,
-      title: Text(message, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+      title: Text(
+        message,
+        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+      ),
       alignment: Alignment.topCenter,
       autoCloseDuration: const Duration(seconds: 3),
       borderRadius: BorderRadius.circular(100),
@@ -86,7 +250,13 @@ class NotificationService {
   // IN-APP NOTIFICATIONS (BRANDED)
   // ==========================================================
 
-  static void showFriendRequest(BuildContext context, {required String name, String? avatarUrl, VoidCallback? onTap}) {
+  static void showFriendRequest(
+    BuildContext context, {
+    required String name,
+    String? avatarUrl,
+    VoidCallback? onTap,
+  }) {
+    _replaceActiveToast();
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
@@ -108,7 +278,11 @@ class NotificationService {
               borderRadius: BorderRadius.circular(24),
               border: Border.all(color: colors.primary.withValues(alpha: 0.2)),
               boxShadow: [
-                BoxShadow(color: colors.primary.withValues(alpha: 0.1), blurRadius: 20, offset: const Offset(0, 8)),
+                BoxShadow(
+                  color: colors.primary.withValues(alpha: 0.1),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
               ],
             ),
             child: Row(
@@ -116,8 +290,12 @@ class NotificationService {
                 CircleAvatar(
                   radius: 20,
                   backgroundColor: colors.primary.withValues(alpha: 0.1),
-                  backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
-                  child: avatarUrl == null ? Icon(Icons.person_rounded, color: colors.primary) : null,
+                  backgroundImage: avatarUrl != null
+                      ? NetworkImage(avatarUrl)
+                      : null,
+                  child: avatarUrl == null
+                      ? Icon(Icons.person_rounded, color: colors.primary)
+                      : null,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -125,13 +303,36 @@ class NotificationService {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text('CHAT REQUEST', style: TextStyle(color: colors.primary, fontWeight: FontWeight.w900, fontSize: 9, letterSpacing: 1)),
-                      Text(name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
-                      Text('Wants to connect on Griot', style: TextStyle(color: colors.onSurfaceVariant, fontSize: 11)),
+                      Text(
+                        'CHAT REQUEST',
+                        style: TextStyle(
+                          color: colors.primary,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 9,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                        ),
+                      ),
+                      Text(
+                        'Wants to connect on Griot',
+                        style: TextStyle(
+                          color: colors.onSurfaceVariant,
+                          fontSize: 11,
+                        ),
+                      ),
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_right_rounded, color: colors.onSurfaceVariant.withValues(alpha: 0.5)),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: colors.onSurfaceVariant.withValues(alpha: 0.5),
+                ),
               ],
             ),
           ),
@@ -140,7 +341,13 @@ class NotificationService {
     );
   }
 
-  static void showTipReceived(BuildContext context, {required String amount, required String symbol, required String fromName}) {
+  static void showTipReceived(
+    BuildContext context, {
+    required String amount,
+    required String symbol,
+    required String fromName,
+  }) {
+    _replaceActiveToast();
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
@@ -157,13 +364,21 @@ class NotificationService {
             borderRadius: BorderRadius.circular(100),
             border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
             boxShadow: [
-              BoxShadow(color: Colors.amber.withValues(alpha: 0.1), blurRadius: 20, offset: const Offset(0, 10)),
+              BoxShadow(
+                color: Colors.amber.withValues(alpha: 0.1),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
             ],
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.volunteer_activism_rounded, color: Colors.amber, size: 20),
+              const Icon(
+                Icons.volunteer_activism_rounded,
+                color: Colors.amber,
+                size: 20,
+              ),
               const SizedBox(width: 12),
               Text(
                 'Received ',
@@ -171,11 +386,18 @@ class NotificationService {
               ),
               Text(
                 '$amount $symbol ',
-                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.amber),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                  color: Colors.amber,
+                ),
               ),
               Text(
                 'from $fromName!',
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
               ),
             ],
           ),
@@ -184,7 +406,12 @@ class NotificationService {
     );
   }
 
-  static void showAnnouncement(BuildContext context, {required String title, required String message}) {
+  static void showAnnouncement(
+    BuildContext context, {
+    required String title,
+    required String message,
+  }) {
+    _replaceActiveToast();
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
@@ -199,9 +426,16 @@ class NotificationService {
           decoration: BoxDecoration(
             color: colors.surface,
             borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: colors.primary.withValues(alpha: 0.4), width: 1.5),
+            border: Border.all(
+              color: colors.primary.withValues(alpha: 0.4),
+              width: 1.5,
+            ),
             boxShadow: [
-              BoxShadow(color: colors.primary.withValues(alpha: 0.2), blurRadius: 25, offset: const Offset(0, 12)),
+              BoxShadow(
+                color: colors.primary.withValues(alpha: 0.2),
+                blurRadius: 25,
+                offset: const Offset(0, 12),
+              ),
             ],
           ),
           child: Column(
@@ -210,26 +444,52 @@ class NotificationService {
             children: [
               Row(
                 children: [
-                  SvgPicture.asset('assets/cowrie_images/cowriesvg.svg', width: 16, height: 16),
+                  SvgPicture.asset(
+                    'assets/cowrie_images/cowriesvg.svg',
+                    width: 16,
+                    height: 16,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     'GRIOT OFFICIAL',
-                    style: TextStyle(color: colors.primary, fontWeight: FontWeight.w900, letterSpacing: 1.5, fontSize: 10),
+                    style: TextStyle(
+                      color: colors.primary,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.5,
+                      fontSize: 10,
+                    ),
                   ),
                   const Spacer(),
                   IconButton(
                     visualDensity: VisualDensity.compact,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
-                    icon: Icon(Icons.close_rounded, size: 16, color: colors.onSurfaceVariant),
+                    icon: Icon(
+                      Icons.close_rounded,
+                      size: 16,
+                      color: colors.onSurfaceVariant,
+                    ),
                     onPressed: () => toastification.dismiss(holder),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 15,
+                ),
+              ),
               const SizedBox(height: 2),
-              Text(message, style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12, height: 1.4)),
+              Text(
+                message,
+                style: TextStyle(
+                  color: colors.onSurfaceVariant,
+                  fontSize: 12,
+                  height: 1.4,
+                ),
+              ),
             ],
           ),
         );
@@ -248,11 +508,19 @@ class NotificationService {
     if (msg.startsWith('Swap failed: ')) msg = msg.substring(13);
 
     final lower = msg.toLowerCase();
-    if (lower.contains('insufficient funds')) return "Insufficient funds for gas fees.";
-    if (lower.contains('insufficient balance')) return "Insufficient wallet balance.";
-    if (lower.contains('user rejected') || lower.contains('canceled')) return "Transaction canceled.";
+    if (lower.contains('insufficient funds')) {
+      return "Insufficient funds for gas fees.";
+    }
+    if (lower.contains('insufficient balance')) {
+      return "Insufficient wallet balance.";
+    }
+    if (lower.contains('user rejected') || lower.contains('canceled')) {
+      return "Transaction canceled.";
+    }
 
-    if (lower.contains('transaction=') || lower.contains('code=') || lower.contains('version=')) {
+    if (lower.contains('transaction=') ||
+        lower.contains('code=') ||
+        lower.contains('version=')) {
       final regExp = RegExp(r'"message"\s*:\s*"([^"]+)"');
       final match = regExp.firstMatch(msg);
       if (match != null && match.groupCount >= 1) {

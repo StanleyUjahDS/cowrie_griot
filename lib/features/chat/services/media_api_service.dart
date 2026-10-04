@@ -45,9 +45,13 @@ class MediaApiService {
     final completeResponse = await _apiClient.post(ApiConfig.mediaComplete(mediaId));
     final completeData = _getData(completeResponse);
 
+    final rawMediaUrl = completeData['mediaUrl'].toString();
+    final mediaUrl = rawMediaUrl.startsWith('/')
+        ? '${ApiConfig.baseUrl.replaceFirst(RegExp(r'/api/?$'), '')}$rawMediaUrl'
+        : rawMediaUrl;
     return {
       'id': mediaId,
-      'mediaUrl': completeData['mediaUrl'].toString(),
+      'mediaUrl': mediaUrl,
     };
   }
 

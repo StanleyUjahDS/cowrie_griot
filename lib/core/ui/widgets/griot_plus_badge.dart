@@ -11,36 +11,15 @@ class GriotPlusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!isPlus) return const SizedBox.shrink();
 
-    const gold = Color(0xFFF5B942);
-    const ink = Color(0xFF8A5A00);
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? 5 : 7,
-        vertical: compact ? 2 : 3,
-      ),
-      decoration: BoxDecoration(
-        color: gold.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: gold.withValues(alpha: 0.65)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.auto_awesome_rounded, size: compact ? 12 : 14, color: ink),
-          if (!compact) ...[
-            const SizedBox(width: 3),
-            const Text(
-              'PLUS',
-              style: TextStyle(
-                color: ink,
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ],
-        ],
-      ),
+    const gold = Color(0xFFFFC247);
+    // Plus is represented by a standalone star so it aligns naturally with
+    // the user's name and never looks like a second status pill.
+    return Icon(
+      Icons.star_rounded,
+      size: compact ? 19 : 23,
+      color: gold,
+      shadows: const [Shadow(color: Color(0x66F5A623), blurRadius: 5)],
+      semanticLabel: 'Griot Plus',
     );
   }
 }

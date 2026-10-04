@@ -9,10 +9,7 @@ import '../utils/wallet_formatters.dart';
 class NftDetailsScreen extends StatelessWidget {
   final NftModel nft;
 
-  const NftDetailsScreen({
-    super.key,
-    required this.nft,
-  });
+  const NftDetailsScreen({super.key, required this.nft});
 
   Future<void> _launchUrl(BuildContext context, String url) async {
     if (url.isEmpty) return;
@@ -69,16 +66,25 @@ class NftDetailsScreen extends StatelessWidget {
                         ? Image.network(
                             nft.imageUrl!,
                             fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => Container(
-                              color: colors.surfaceContainerHighest,
-                              height: 300,
-                              child: Icon(Icons.broken_image, size: 64, color: colors.onSurfaceVariant),
-                            ),
+                            errorBuilder: (context, error, stackTrace) =>
+                                Container(
+                                  color: colors.surfaceContainerHighest,
+                                  height: 300,
+                                  child: Icon(
+                                    Icons.broken_image,
+                                    size: 64,
+                                    color: colors.onSurfaceVariant,
+                                  ),
+                                ),
                           )
                         : Container(
                             color: colors.surfaceContainerHighest,
                             height: 300,
-                            child: Icon(Icons.image, size: 64, color: colors.onSurfaceVariant),
+                            child: Icon(
+                              Icons.image,
+                              size: 64,
+                              color: colors.onSurfaceVariant,
+                            ),
                           ),
                   ),
                 ),
@@ -119,7 +125,10 @@ class NftDetailsScreen extends StatelessWidget {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  _Tag(label: nft.network.toUpperCase(), color: colors.secondary),
+                  _Tag(
+                    label: nft.network.toUpperCase(),
+                    color: colors.secondary,
+                  ),
                   _Tag(label: nft.standard, color: colors.tertiary),
                   if (nft.classification.isTradeable)
                     const _Tag(label: 'Tradeable', color: Colors.green),
@@ -182,33 +191,56 @@ class NftDetailsScreen extends StatelessWidget {
           ),
         ),
       ),
-      child: Column(
-        children: [
-          _infoRow(context, 'Contract Address', WalletFormatters.shortenAddress(nft.contractAddress),
-            onTap: () {
-              Clipboard.setData(ClipboardData(text: nft.contractAddress));
-              NotificationService.showSuccess(context, 'Address copied');
-            },
-            trailing: Icon(Icons.copy_rounded, size: 16, color: colors.primary),
-          ),
-          const Divider(height: 32),
-          _infoRow(context, 'Token ID', nft.tokenId,
-            onTap: () {
-              Clipboard.setData(ClipboardData(text: nft.tokenId));
-              NotificationService.showSuccess(context, 'Token ID copied');
-            },
-            trailing: Icon(Icons.copy_rounded, size: 16, color: colors.primary),
-          ),
-          const Divider(height: 32),
-          _infoRow(context, 'Standard', nft.standard),
-          const Divider(height: 32),
-          _infoRow(context, 'Quantity', nft.quantity),
-        ],
+      child: Material(
+        type: MaterialType.transparency,
+        child: Column(
+          children: [
+            _infoRow(
+              context,
+              'Contract Address',
+              WalletFormatters.shortenAddress(nft.contractAddress),
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: nft.contractAddress));
+                NotificationService.showSuccess(context, 'Address copied');
+              },
+              trailing: Icon(
+                Icons.copy_rounded,
+                size: 16,
+                color: colors.primary,
+              ),
+            ),
+            const Divider(height: 32),
+            _infoRow(
+              context,
+              'Token ID',
+              nft.tokenId,
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: nft.tokenId));
+                NotificationService.showSuccess(context, 'Token ID copied');
+              },
+              trailing: Icon(
+                Icons.copy_rounded,
+                size: 16,
+                color: colors.primary,
+              ),
+            ),
+            const Divider(height: 32),
+            _infoRow(context, 'Standard', nft.standard),
+            const Divider(height: 32),
+            _infoRow(context, 'Quantity', nft.quantity),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _infoRow(BuildContext context, String label, String value, {VoidCallback? onTap, Widget? trailing}) {
+  Widget _infoRow(
+    BuildContext context,
+    String label,
+    String value, {
+    VoidCallback? onTap,
+    Widget? trailing,
+  }) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     return InkWell(
@@ -217,15 +249,22 @@ class NftDetailsScreen extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant)),
+          Text(
+            label,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colors.onSurfaceVariant,
+            ),
+          ),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(value, style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
-              if (trailing != null) ...[
-                const SizedBox(width: 8),
-                trailing,
-              ],
+              Text(
+                value,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (trailing != null) ...[const SizedBox(width: 8), trailing],
             ],
           ),
         ],
@@ -259,18 +298,31 @@ class NftDetailsScreen extends StatelessWidget {
           return Column(
             children: [
               ListTile(
-                title: Text(entry.key.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                title: Text(
+                  entry.key.toUpperCase(),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
                 trailing: const Icon(Icons.open_in_new_rounded, size: 18),
                 onTap: () => _launchUrl(context, entry.value),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.vertical(
                     top: index == 0 ? const Radius.circular(20) : Radius.zero,
-                    bottom: index == links.length - 1 ? const Radius.circular(20) : Radius.zero,
+                    bottom: index == links.length - 1
+                        ? const Radius.circular(20)
+                        : Radius.zero,
                   ),
                 ),
               ),
               if (index < links.length - 1)
-                Divider(height: 1, indent: 16, endIndent: 16, color: colors.outlineVariant.withValues(alpha: 0.2)),
+                Divider(
+                  height: 1,
+                  indent: 16,
+                  endIndent: 16,
+                  color: colors.outlineVariant.withValues(alpha: 0.2),
+                ),
             ],
           );
         }),

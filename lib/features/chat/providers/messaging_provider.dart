@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 import '../../../core/network/api_config.dart';
 import '../models/chat_message.dart';
 import '../models/chat_user.dart';
@@ -26,6 +27,9 @@ import '../../wallet/services/wallet_rpc_service.dart';
 enum RelationshipState { none, pendingSent, pendingReceived, friends, blocked }
 
 class MessagingProvider extends ChangeNotifier {
+  int campfireRevision = 0;
+  String? lastEndedCampfireId;
+  static const Uuid _uuid = Uuid();
   final MessagingApiService _apiService;
   final MediaApiService _mediaApiService;
   UserProvider _userProvider;
@@ -37,11 +41,30 @@ class MessagingProvider extends ChangeNotifier {
   final WalletApiService _walletApi;
   final WalletRpcService _walletRpc;
   final LocalJsonCache _localCache = const LocalJsonCache();
+  void Function(Map<String, dynamic> data)? _incomingCallHandler;
+  final _callStatusController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  final _campfireEventController =
+      StreamController<Map<String, dynamic>>.broadcast();
+
+  /// Emits authoritative call lifecycle changes received from the server.
+  /// Call screens subscribe while mounted so a hang-up on either device
+  /// closes the local room immediately.
+  Stream<Map<String, dynamic>> get callStatusStream =>
+      _callStatusController.stream;
+
+  /// Emits realtime Campfire/Space changes for the app-level foreground
+  /// notification surface. These are deliberately separate from push
+  /// notifications: when the app is open they should appear as one replacing
+  /// Griot toast, just like message and tip events.
+  Stream<Map<String, dynamic>> get campfireEventStream =>
+      _campfireEventController.stream;
 
   static const _friendsCacheKey = 'social_friends_snapshot_v1';
   static const _receivedRequestsCacheKey = 'social_received_requests_v1';
   static const _sentRequestsCacheKey = 'social_sent_requests_v1';
   static const _notificationsCacheKey = 'social_notifications_snapshot_v1';
+  static const _pinnedConversationsKey = 'chat_pinned_conversations_v1';
 
   MessagingProvider({
     required MessagingApiService apiService,
@@ -65,67 +88,21 @@ class MessagingProvider extends ChangeNotifier {
        _walletApi = walletApi,
        _walletRpc = walletRpc {
     _loadNotificationSeenTime();
-    unawaited(_restoreSocialCache());
+    unawaited(_restorePinnedConversations());
+    // Social snapshots are account-specific. They are loaded only from the
+    // authenticated API, never eagerly from a previous account.
   }
 
-  Future<void> _restoreSocialCache() async {
+  Future<void> _restorePinnedConversations() async {
     try {
-      final cached = await Future.wait([
-        _localCache.read(_friendsCacheKey),
-        _localCache.read(_receivedRequestsCacheKey),
-        _localCache.read(_sentRequestsCacheKey),
-        _localCache.read(_notificationsCacheKey),
-      ]);
-
-      final friends = cached[0];
-      final received = cached[1];
-      final sent = cached[2];
-      final notifications = cached[3];
-
-      if (_friends.isEmpty && friends is List) {
-        _friends = friends
-            .whereType<Map>()
-            .map((json) => UserModel.fromJson(Map<String, dynamic>.from(json)))
-            .toList();
-        _friendsTotal = _friends.length;
-        _hasMoreFriends = false;
-      }
-      if (_receivedRequests.isEmpty && received is List) {
-        _receivedRequests = received
-            .whereType<Map>()
-            .map(
-              (json) =>
-                  MessageRequest.fromJson(Map<String, dynamic>.from(json)),
-            )
-            .toList();
-      }
-      if (_sentRequests.isEmpty && sent is List) {
-        _sentRequests = sent
-            .whereType<Map>()
-            .map(
-              (json) =>
-                  MessageRequest.fromJson(Map<String, dynamic>.from(json)),
-            )
-            .toList();
-      }
-      if (_notificationEvents.isEmpty && notifications is List) {
-        _notificationEvents = notifications.whereType<Map>().map((json) {
-          final event = Map<String, dynamic>.from(json);
-          event['timestamp'] =
-              DateTime.tryParse(event['timestamp']?.toString() ?? '') ??
-              DateTime.now();
-          event['icon'] = Icons.notifications_rounded;
-          return event;
-        }).toList();
-      }
-      if (_friends.isNotEmpty ||
-          _receivedRequests.isNotEmpty ||
-          _sentRequests.isNotEmpty ||
-          _notificationEvents.isNotEmpty) {
-        notifyListeners();
-      }
+      final prefs = await SharedPreferences.getInstance();
+      final ids = prefs.getStringList(_pinnedConversationsKey) ?? const [];
+      _pinnedConversationIds
+        ..clear()
+        ..addAll(ids.where((id) => id.trim().isNotEmpty));
+      if (_pinnedConversationIds.isNotEmpty) notifyListeners();
     } catch (e) {
-      debugPrint('MessagingProvider: unable to restore social cache: $e');
+      debugPrint('MessagingProvider: unable to restore pinned chats: $e');
     }
   }
 
@@ -162,8 +139,16 @@ class MessagingProvider extends ChangeNotifier {
     _userProvider = provider;
   }
 
+  void setIncomingCallHandler(
+    void Function(Map<String, dynamic> data)? handler,
+  ) {
+    _incomingCallHandler = handler;
+  }
+
   @override
   void dispose() {
+    _callStatusController.close();
+    _campfireEventController.close();
     disconnectSocket();
     super.dispose();
   }
@@ -176,6 +161,7 @@ class MessagingProvider extends ChangeNotifier {
   final Map<String, bool> _isLoadingMessages = {};
 
   List<Conversation> _conversations = [];
+  final Set<String> _pinnedConversationIds = <String>{};
   bool _isLoadingConversations = false;
   DateTime? _lastConversationsLoadedAt;
   Future<void>? _conversationsLoadFuture;
@@ -224,6 +210,7 @@ class MessagingProvider extends ChangeNotifier {
   bool _isLoadingTipConfig = false;
 
   DateTime? _lastSeenNotificationTime;
+  final List<DateTime> _liveNotificationTimes = <DateTime>[];
   DateTime? get lastSeenNotificationTime => _lastSeenNotificationTime;
 
   // Real-time
@@ -244,6 +231,8 @@ class MessagingProvider extends ChangeNotifier {
   // ==========================================================
 
   List<Conversation> get conversations => _conversations;
+  bool isConversationPinned(String conversationId) =>
+      _pinnedConversationIds.contains(conversationId);
   bool get isLoadingConversations => _isLoadingConversations;
   Map<String, Set<String>> get typingUsers => _typingUsers;
 
@@ -307,6 +296,23 @@ class MessagingProvider extends ChangeNotifier {
   bool get isLoadingMoreNotifications => _isLoadingMoreNotifications;
   bool get hasMoreNotifications => _hasMoreNotifications;
 
+  String _formatBaseUnits(String rawAmount, int decimals) {
+    if (decimals <= 0 || !RegExp(r'^-?\d+$').hasMatch(rawAmount)) {
+      return rawAmount;
+    }
+    final negative = rawAmount.startsWith('-');
+    final digits = negative ? rawAmount.substring(1) : rawAmount;
+    final padded = digits.padLeft(decimals + 1, '0');
+    final split = padded.length - decimals;
+    final whole = padded.substring(0, split);
+    var fraction = padded.substring(split).replaceFirst(RegExp(r'0+$'), '');
+    if (fraction.length > 4) {
+      fraction = fraction.substring(0, 4).replaceFirst(RegExp(r'0+$'), '');
+    }
+    final result = fraction.isEmpty ? whole : '$whole.$fraction';
+    return negative ? '-$result' : result;
+  }
+
   List<Map<String, dynamic>> _miningActivities = [];
   List<Map<String, dynamic>> get miningActivities => _miningActivities;
 
@@ -323,11 +329,26 @@ class MessagingProvider extends ChangeNotifier {
 
     // Social notification events only.
     count += notificationEvents.where((item) {
-      return (item['timestamp'] as DateTime).isAfter(lastSeen);
+      final raw = item['timestamp'];
+      final timestamp = raw is DateTime
+          ? raw
+          : DateTime.tryParse(raw?.toString() ?? '');
+      return timestamp != null && timestamp.isAfter(lastSeen);
     }).length;
+
+    // Socket events arrive before the next activity-feed refresh. Keep them
+    // visible in the Updates badge immediately instead of waiting for REST.
+    count += _liveNotificationTimes
+        .where((time) => time.isAfter(lastSeen))
+        .length;
 
     return count;
   }
+
+  int get unreadMessageCount => _conversations.fold<int>(
+    0,
+    (total, conversation) => total + conversation.unreadCount,
+  );
 
   List<ChatMessage> getMessagesForConversation(String conversationId) =>
       _messagesByConversation[conversationId] ?? [];
@@ -385,16 +406,21 @@ class MessagingProvider extends ChangeNotifier {
         limit: _socialActivityPageSize,
         offset: offset,
       );
-      final mapped = events.map((event) {
+      // Connection requests are rendered from requestNotifications, which is
+      // the authoritative request source. The activity feed also contains
+      // message_request rows, so keeping them here creates duplicate cards
+      // and double-counts unread updates.
+      final activityEvents = events.where((event) {
+        final type = event['eventType']?.toString();
+        return type != 'message_request' &&
+            type != 'request_accepted' &&
+            type != 'request_declined' &&
+            type != 'request_withdrawn';
+      }).toList();
+      final mapped = activityEvents.map((event) {
         final walletAddress = event['counterpartyWalletAddress']?.toString();
-        final shortAddress = walletAddress != null && walletAddress.length > 6
-            ? '${walletAddress.substring(0, 3)}…${walletAddress.substring(walletAddress.length - 3)}'
-            : walletAddress;
         final actorName =
-            event['displayName'] ??
-            event['username'] ??
-            shortAddress ??
-            'Someone';
+            event['username'] ?? event['displayName'] ?? 'Someone';
         final metadata = event['metadata'] is Map
             ? Map<String, dynamic>.from(event['metadata'])
             : <String, dynamic>{};
@@ -423,15 +449,73 @@ class MessagingProvider extends ChangeNotifier {
           icon = Icons.undo_rounded;
         } else if (type == 'tip_received') {
           title = isRecipient ? 'Tip Received!' : 'Tip Sent';
+          final asset = metadata['tokenSymbol']?.toString().trim();
+          final rawAmount = metadata['amountRaw']?.toString();
+          final decimals = int.tryParse(
+            metadata['tokenDecimals']?.toString() ?? '',
+          );
+          final readableAmount = metadata['amountDisplay']?.toString().trim();
+          final summary = readableAmount != null && readableAmount.isNotEmpty
+              ? readableAmount
+              : (rawAmount != null && decimals != null && decimals > 0
+                    ? _formatBaseUnits(rawAmount, decimals)
+                    : null);
+          final assetLabel = asset != null && asset.isNotEmpty ? ' $asset' : '';
+          final readableSummary = summary == null
+              ? 'a tip'
+              : (assetLabel.isNotEmpty &&
+                        summary.toUpperCase().contains(asset!.toUpperCase())
+                    ? summary
+                    : '$summary$assetLabel');
           message = isRecipient
-              ? '$actorName sent you a tip.'
-              : 'You sent a tip to $actorName.';
+              ? '$actorName sent you $readableSummary.'
+              : 'You sent $readableSummary to $actorName.';
           icon = Icons.volunteer_activism_outlined;
+        } else if (type == 'plus_gift_received') {
+          title = 'Griot Plus gift received';
+          message =
+              '$actorName paid for Griot Plus for you. Your membership is now active.';
+          icon = Icons.card_giftcard_rounded;
+        } else if (type == 'plus_activated') {
+          title = 'Griot Plus is active';
+          message = 'Your Griot Plus membership is now active.';
+          icon = Icons.workspace_premium_rounded;
+        } else if (type == 'native_transfer_received' ||
+            type == 'token_transfer_received') {
+          title = 'Payment received';
+          message = 'You received a blockchain payment.';
+          icon = Icons.call_received_rounded;
+        } else if (type == 'call_log') {
+          final status = metadata['status']?.toString().toLowerCase();
+          final mode = metadata['mode']?.toString().toLowerCase() == 'video'
+              ? 'video'
+              : 'voice';
+          final callLabel = mode == 'video' ? 'video call' : 'voice call';
+          title = status == 'missed'
+              ? 'Missed $callLabel'
+              : status == 'declined'
+              ? 'Call declined'
+              : 'Call ended';
+          message = status == 'missed'
+              ? 'You missed a $callLabel.'
+              : status == 'declined'
+              ? '$actorName declined the $callLabel.'
+              : 'Your $callLabel has ended. View call history for details.';
+          icon = mode == 'video'
+              ? Icons.videocam_outlined
+              : Icons.phone_in_talk_outlined;
+        } else if (type == 'mining_settlement') {
+          title = 'Mining rewards settled';
+          message = 'Your mining rewards are ready to view.';
+          icon = Icons.bolt_rounded;
+        } else if (type == 'mining_session_complete') {
+          title = 'Mining session complete';
+          message = 'Your next mining session is ready to start.';
+          icon = Icons.bolt_rounded;
         } else {
-          final reaction = metadata['reaction']?.toString() ?? 'reacted';
-          title = '$actorName reacted to your message';
-          message = '$actorName reacted $reaction to your message';
-          icon = Icons.favorite_rounded;
+          title = 'Griot update';
+          message = 'You have a new update.';
+          icon = Icons.notifications_rounded;
         }
 
         final createdAt =
@@ -1013,7 +1097,7 @@ class MessagingProvider extends ChangeNotifier {
 
     // 7. Store Local Tip Activity (Spec Integration)
     if (conversationId != null) {
-      _saveLocalTipMessage(
+      await _savePersistentTipMessage(
         conversationId: conversationId,
         hash: hash,
         preparedTip: preparedTip,
@@ -1025,44 +1109,67 @@ class MessagingProvider extends ChangeNotifier {
     return hash;
   }
 
-  void _saveLocalTipMessage({
+  Future<void> _savePersistentTipMessage({
     required String conversationId,
     required String hash,
     required Map<String, dynamic> preparedTip,
     required String senderAddress,
     required String text,
-  }) {
+  }) async {
     final tipData = {
       'transactionHash': hash,
       'network': preparedTip['network'],
       'chainId': preparedTip['chainId'],
       'assetType': preparedTip['assetType'],
       'tokenAddress': preparedTip['token'],
+      'tokenName': preparedTip['tokenName'],
+      'tokenSymbol': preparedTip['tokenSymbol'],
+      'tokenDecimals': preparedTip['tokenDecimals'],
+      'isBatch': preparedTip['batch'] == true,
       'senderAddress': senderAddress,
       'recipientAddresses': preparedTip['batch'] == true
           ? preparedTip['recipients']
           : [preparedTip['recipient']],
       'amountRaw': preparedTip['amount'] ?? preparedTip['amounts']?.first,
+      'amountsRaw': preparedTip['batch'] == true
+          ? preparedTip['amounts']
+          : [preparedTip['amount']],
+      'amountDisplay': preparedTip['amountDisplay'],
+      'amountsDisplay': preparedTip['amountsDisplay'],
+      'recipientNames': preparedTip['recipientNames'],
       'status': 'confirmed',
       'timestamp': DateTime.now().toIso8601String(),
     };
 
-    final message = ChatMessage(
-      id: 'tip_${DateTime.now().millisecondsSinceEpoch}_$hash',
-      conversationId: conversationId,
-      senderId: _userProvider.user?.id ?? '',
-      text: text,
-      type: MessageType.tip,
-      status: MessageStatus.sent,
-      createdAt: DateTime.now(),
-      tipData: tipData,
-    );
+    final clientMessageId = 'tip_client_${_uuid.v4()}';
 
-    // Add to local UI and cache
-    final list = _messagesByConversation[conversationId] ?? [];
-    _messagesByConversation[conversationId] = [message, ...list];
-    _messageCache.saveMessage(message);
-    notifyListeners();
+    try {
+      final message = await _apiService.sendMessage(
+        conversationId: conversationId,
+        content: text,
+        messageType: 'tip',
+        clientMessageId: clientMessageId,
+        tipData: tipData,
+      );
+      upsertMessage(message.copyWith(clientMessageId: clientMessageId));
+    } catch (error) {
+      // The blockchain transaction already succeeded. Keep a local fallback
+      // visible if the message API is temporarily unavailable; it can be
+      // reconciled on the next successful conversation refresh.
+      debugPrint('Unable to persist tip message: $error');
+      final fallback = ChatMessage(
+        id: clientMessageId,
+        clientMessageId: clientMessageId,
+        conversationId: conversationId,
+        senderId: _userProvider.user?.id ?? '',
+        text: text,
+        type: MessageType.tip,
+        status: MessageStatus.sent,
+        createdAt: DateTime.now(),
+        tipData: tipData,
+      );
+      upsertMessage(fallback);
+    }
   }
 
   Future<BigInt> _checkAllowance(
@@ -1164,19 +1271,25 @@ class MessagingProvider extends ChangeNotifier {
     String network,
     String hash,
   ) async {
-    for (int i = 0; i < 30; i++) {
+    // Poll promptly after broadcast so the UI does not sit in
+    // "Confirming..." for a full minute on normal blocks. The timeout still
+    // protects the user from an indefinitely pending RPC transaction.
+    for (int i = 0; i < 45; i++) {
       final receipt = await _walletRpc.getTransactionReceipt(
         network: network,
         hash: hash,
       );
       if (receipt != null) return receipt;
-      await Future.delayed(const Duration(seconds: 2));
+      await Future.delayed(const Duration(seconds: 1));
     }
     throw Exception('Transaction confirmation timeout');
   }
 
   void markNotificationsSeen() async {
     _lastSeenNotificationTime = DateTime.now();
+    _liveNotificationTimes.removeWhere(
+      (time) => !time.isAfter(_lastSeenNotificationTime!),
+    );
     notifyListeners();
 
     final prefs = await SharedPreferences.getInstance();
@@ -1231,6 +1344,22 @@ class MessagingProvider extends ChangeNotifier {
   // ==========================================================
   // ACTIONS - CONVERSATIONS
   // ==========================================================
+
+  Future<void> toggleConversationPin(String conversationId) async {
+    final id = conversationId.trim();
+    if (id.isEmpty) return;
+
+    if (!_pinnedConversationIds.add(id)) {
+      _pinnedConversationIds.remove(id);
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      _pinnedConversationsKey,
+      _pinnedConversationIds.toList(),
+    );
+    notifyListeners();
+  }
 
   Future<void> loadConversations({bool force = false}) async {
     if (!force &&
@@ -1690,15 +1819,36 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> reportContent({
+    required String targetType,
+    required String targetId,
+    required String reason,
+    String? details,
+  }) {
+    return _apiService.reportContent(
+      targetType: targetType,
+      targetId: targetId,
+      reason: reason,
+      details: details,
+    );
+  }
+
   // ==========================================================
   // ACTIONS - MESSAGES
   // ==========================================================
+
+  final Set<String> _receiptRequestsInFlight = <String>{};
+  final Map<String, MessageStatus> _pendingMessageStatuses =
+      <String, MessageStatus>{};
 
   // authoritative delivery and deduplication.
   void upsertMessage(ChatMessage incoming) {
     final list = _messagesByConversation[incoming.conversationId] ?? [];
 
     final existingIndex = list.indexWhere((message) {
+      final sameMediaType =
+          message.type == incoming.type ||
+          (message.isAudio && incoming.isAudio);
       if (message.id == incoming.id) {
         return true;
       }
@@ -1706,13 +1856,55 @@ class MessagingProvider extends ChangeNotifier {
           message.clientMessageId == incoming.clientMessageId) {
         return true;
       }
+      if (incoming.mediaId != null && message.mediaId == incoming.mediaId) {
+        return true;
+      }
+
+      // Socket delivery and the HTTP response can arrive in either order.
+      // Some older server payloads omit clientMessageId and server timestamps
+      // may be UTC while an optimistic timestamp is local. If one side is a
+      // client row, reconcile by sender, payload and type within a short
+      // compatibility window. New server rows persist clientMessageId, so a
+      // broad window would risk merging legitimate repeated messages.
+      final hasOptimisticIdentity =
+          message.id.startsWith('client_') || incoming.id.startsWith('client_');
+      final isLegacyPayload =
+          message.clientMessageId == null || incoming.clientMessageId == null;
+      final samePayload = message.text == incoming.text && sameMediaType;
+      final createdDelta = message.createdAt
+          .difference(incoming.createdAt)
+          .abs();
+      if (hasOptimisticIdentity &&
+          isLegacyPayload &&
+          message.senderId == incoming.senderId &&
+          samePayload &&
+          createdDelta <= const Duration(minutes: 2)) {
+        return true;
+      }
 
       // Fallback for deduplication if server doesn't return clientMessageId in socket events
       // We only match 'sending' messages with same content from same sender within 60s
       if (message.status == MessageStatus.sending &&
+          incoming.status != MessageStatus.sending &&
+          incoming.clientMessageId == null &&
           message.senderId == incoming.senderId &&
+          sameMediaType &&
           message.text == incoming.text &&
           DateTime.now().difference(message.createdAt).inSeconds < 60) {
+        return true;
+      }
+      // The socket event can arrive before the HTTP send response. Media
+      // messages do not always echo clientMessageId in socket payloads, so
+      // match the pending local media bubble by sender/type/time as a final
+      // deduplication fallback.
+      if (incoming.mediaId != null &&
+          message.status == MessageStatus.sending &&
+          incoming.status != MessageStatus.sending &&
+          incoming.clientMessageId == null &&
+          message.senderId == incoming.senderId &&
+          message.isMedia &&
+          sameMediaType &&
+          DateTime.now().difference(message.createdAt).inSeconds.abs() < 60) {
         return true;
       }
       return false;
@@ -1748,15 +1940,57 @@ class MessagingProvider extends ChangeNotifier {
       if (shouldUpdate) {
         list[existingIndex] = existing.copyWith(
           id: incoming.id,
+          clientMessageId: incoming.clientMessageId ?? existing.clientMessageId,
+          conversationId: incoming.conversationId,
+          senderId: incoming.senderId,
           status: incoming.status,
           text: incoming.text,
+          type: incoming.type,
+          createdAt: incoming.createdAt,
           mediaUrl: incoming.mediaUrl ?? existing.mediaUrl,
+          thumbnailUrl: incoming.thumbnailUrl ?? existing.thumbnailUrl,
+          mediaId: incoming.mediaId ?? existing.mediaId,
+          replyToMessageId:
+              incoming.replyToMessageId ?? existing.replyToMessageId,
           reactions: incoming.reactions.isNotEmpty
               ? incoming.reactions
               : existing.reactions,
+          tipData: incoming.tipData ?? existing.tipData,
           isDeleted: incoming.isDeleted,
           isEdited: incoming.isEdited,
         );
+        if (existing.id != incoming.id && existing.id.startsWith('client_')) {
+          unawaited(_messageCache.deleteLocalMessage(existing.id));
+        }
+      }
+
+      final authoritative = list[existingIndex];
+      for (var index = list.length - 1; index >= 0; index--) {
+        if (index == existingIndex) continue;
+        final candidate = list[index];
+        final sameIdentity =
+            candidate.id == authoritative.id ||
+            (authoritative.clientMessageId != null &&
+                candidate.clientMessageId == authoritative.clientMessageId) ||
+            (authoritative.mediaId != null &&
+                candidate.mediaId == authoritative.mediaId);
+        final clientDuplicate =
+            (candidate.id.startsWith('client_') ||
+                authoritative.id.startsWith('client_')) &&
+            (candidate.clientMessageId == null ||
+                authoritative.clientMessageId == null) &&
+            candidate.senderId == authoritative.senderId &&
+            candidate.text == authoritative.text &&
+            (candidate.type == authoritative.type ||
+                (candidate.isAudio && authoritative.isAudio)) &&
+            candidate.createdAt.difference(authoritative.createdAt).abs() <=
+                const Duration(minutes: 2);
+        if (sameIdentity || clientDuplicate) {
+          final removed = list.removeAt(index);
+          if (removed.id.startsWith('client_')) {
+            unawaited(_messageCache.deleteLocalMessage(removed.id));
+          }
+        }
       }
     } else {
       list.add(incoming);
@@ -1764,8 +1998,33 @@ class MessagingProvider extends ChangeNotifier {
     }
 
     list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    // The list is sorted after the replacement, so the old index is no
+    // longer reliable. Resolve the authoritative message again before
+    // caching it or using it for the conversation preview.
+    final resolvedIndex = list.indexWhere((message) {
+      if (message.id == incoming.id) return true;
+      if (incoming.clientMessageId != null &&
+          message.clientMessageId == incoming.clientMessageId) {
+        return true;
+      }
+      return incoming.mediaId != null && message.mediaId == incoming.mediaId;
+    });
+    var messageToCache = resolvedIndex >= 0 ? list[resolvedIndex] : incoming;
+
+    // A receipt can arrive before the REST send response that reveals the
+    // server message ID. Apply that buffered status during reconciliation.
+    final pendingStatus = _pendingMessageStatuses.remove(messageToCache.id);
+    if (pendingStatus != null &&
+        messageToCache.status.index < pendingStatus.index &&
+        resolvedIndex >= 0) {
+      final updated = messageToCache.copyWith(status: pendingStatus);
+      list[resolvedIndex] = updated;
+      messageToCache = updated;
+    }
+
     _messagesByConversation[incoming.conversationId] = list;
-    _messageCache.saveMessage(incoming);
+    _messageCache.saveMessage(messageToCache);
 
     // Update conversation list
     final convIndex = _conversations.indexWhere(
@@ -1782,11 +2041,29 @@ class MessagingProvider extends ChangeNotifier {
         unreadIncrement = 1;
       }
 
-      _conversations[convIndex] = conv.copyWith(
-        lastMessage: incoming,
-        updatedAt: incoming.createdAt,
-        unreadCount: conv.unreadCount + unreadIncrement,
-      );
+      // A message received while its conversation is open has already been
+      // seen. Acknowledging it here is important for direct messages,
+      // groups, and channels alike; otherwise leaving the screen can leave a
+      // stale unread badge until the next full conversation refresh.
+      if (isNewMessage &&
+          incoming.senderId != (_userProvider.user?.id ?? '') &&
+          incoming.conversationId == _currentRoomId) {
+        markAsRead(messageToCache.id);
+      }
+
+      // Older history/pagination events must not move the conversation tile
+      // backwards or replace its preview with an older message.
+      if (!incoming.createdAt.isBefore(conv.updatedAt)) {
+        _conversations[convIndex] = conv.copyWith(
+          lastMessage: messageToCache,
+          updatedAt: incoming.createdAt,
+          unreadCount: conv.unreadCount + unreadIncrement,
+        );
+      } else if (unreadIncrement > 0) {
+        _conversations[convIndex] = conv.copyWith(
+          unreadCount: conv.unreadCount + unreadIncrement,
+        );
+      }
 
       // Keep list sorted by recency
       _conversations.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
@@ -1810,6 +2087,12 @@ class MessagingProvider extends ChangeNotifier {
     final cachedMessages = await _messageCache.getMessages(conversationId);
     final currentMessages =
         _messagesByConversation[conversationId] ?? cachedMessages;
+    if (!_messagesByConversation.containsKey(conversationId) &&
+        cachedMessages.isNotEmpty) {
+      _messagesByConversation[conversationId] = [...cachedMessages]
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      notifyListeners();
+    }
     String? before;
 
     if (!refresh && currentMessages.isNotEmpty) {
@@ -1884,25 +2167,47 @@ class MessagingProvider extends ChangeNotifier {
   }
 
   Future<void> markAsDelivered(String messageId) async {
-    try {
-      await _apiService.markMessageReceipt(messageId, 'delivered');
-      _updateMessageStatusLocally(messageId, MessageStatus.delivered);
-    } catch (e) {
-      debugPrint('Failed to mark as delivered: $e');
-    }
+    await _sendReceipt(messageId, 'delivered');
   }
 
   Future<void> markAsRead(String messageId) async {
+    await _sendReceipt(messageId, 'read');
+  }
+
+  Future<void> _sendReceipt(String messageId, String status) async {
+    if (messageId.isEmpty) return;
+
+    final targetStatus = status == 'read'
+        ? MessageStatus.read
+        : MessageStatus.delivered;
+    for (final messages in _messagesByConversation.values) {
+      final existing = messages
+          .where(
+            (message) =>
+                message.id == messageId || message.clientMessageId == messageId,
+          )
+          .firstOrNull;
+      if (existing != null && existing.status.index >= targetStatus.index) {
+        return;
+      }
+    }
+
+    final requestKey = '$messageId:$status';
+    if (!_receiptRequestsInFlight.add(requestKey)) return;
+
     try {
-      await _apiService.markMessageReceipt(messageId, 'read');
-      _updateMessageStatusLocally(messageId, MessageStatus.read);
+      await _apiService.markMessageReceipt(messageId, status);
+      _updateMessageStatusLocally(messageId, targetStatus);
     } catch (e) {
-      debugPrint('Failed to mark as read: $e');
+      debugPrint('Failed to mark message $status: $e');
+    } finally {
+      _receiptRequestsInFlight.remove(requestKey);
     }
   }
 
-  void _updateMessageStatusLocally(String messageId, MessageStatus status) {
-    bool found = false;
+  bool _updateMessageStatusLocally(String messageId, MessageStatus status) {
+    bool matched = false;
+    bool changed = false;
     String? cid;
 
     for (final entry in _messagesByConversation.entries) {
@@ -1911,17 +2216,19 @@ class MessagingProvider extends ChangeNotifier {
         (m) => m.id == messageId || m.clientMessageId == messageId,
       );
       if (index != -1) {
+        matched = true;
         // Only progress status, don't regress
         if (list[index].status.index < status.index) {
           list[index] = list[index].copyWith(status: status);
           cid = entry.key;
-          found = true;
+          changed = true;
         }
         break;
       }
     }
 
-    if (found && cid != null) {
+    if (changed && cid != null) {
+      unawaited(_messageCache.updateMessageStatus(messageId, status));
       // Update last message in conversation list if needed
       final convIndex = _conversations.indexWhere((c) => c.id == cid);
       if (convIndex != -1) {
@@ -1934,6 +2241,8 @@ class MessagingProvider extends ChangeNotifier {
       }
       notifyListeners();
     }
+
+    return matched;
   }
 
   Future<void> deleteMessage(String messageId) async {
@@ -1954,6 +2263,24 @@ class MessagingProvider extends ChangeNotifier {
         rethrow;
       }
     }
+  }
+
+  Future<void> deleteMessageForMe(String messageId) async {
+    await _apiService.deleteMessageForMe(messageId);
+    String? conversationId;
+    for (final entry in _messagesByConversation.entries) {
+      if (entry.value.any((message) => message.id == messageId)) {
+        conversationId = entry.key;
+        break;
+      }
+    }
+    if (conversationId != null) {
+      _messagesByConversation[conversationId]!.removeWhere(
+        (message) => message.id == messageId,
+      );
+    }
+    await _messageCache.deleteLocalMessage(messageId);
+    notifyListeners();
   }
 
   void _applyReactionUpdate(Map<String, dynamic> data) {
@@ -2036,7 +2363,7 @@ class MessagingProvider extends ChangeNotifier {
     }
 
     final currentUserId = _userProvider.user?.id ?? '';
-    final clientMsgId = 'client_${DateTime.now().millisecondsSinceEpoch}';
+    final clientMsgId = 'client_${_uuid.v4()}';
 
     final optimisticMessage = ChatMessage(
       id: clientMsgId, // Use client ID as temp ID
@@ -2081,9 +2408,7 @@ class MessagingProvider extends ChangeNotifier {
     String? clientMessageId, // Optional for retries
   }) async {
     final currentUserId = _userProvider.user?.id ?? '';
-    final clientMsgId =
-        clientMessageId ??
-        'client_media_${DateTime.now().millisecondsSinceEpoch}';
+    final clientMsgId = clientMessageId ?? 'client_media_${_uuid.v4()}';
 
     final String defaultText;
     switch (type) {
@@ -2148,7 +2473,10 @@ class MessagingProvider extends ChangeNotifier {
 
       // Update with server ID and media URL
       upsertMessage(
-        realMessage.copyWith(clientMessageId: clientMsgId, mediaUrl: mediaUrl),
+        realMessage.copyWith(
+          clientMessageId: clientMsgId,
+          mediaUrl: mediaUrl.isNotEmpty ? mediaUrl : realMessage.mediaUrl,
+        ),
       );
     } catch (e) {
       debugPrint('sendMediaMessage error: $e');
@@ -2158,9 +2486,7 @@ class MessagingProvider extends ChangeNotifier {
         list[index] = list[index].copyWith(status: MessageStatus.failed);
         notifyListeners();
       }
-      // Since this is now running in the background, we might want to notify
-      // the user via a global notification service if needed, but the bubble
-      // status change is usually enough.
+      rethrow;
     }
   }
 
@@ -2171,8 +2497,7 @@ class MessagingProvider extends ChangeNotifier {
     String? replyToMessageId,
   }) async {
     final currentUserId = _userProvider.user?.id ?? '';
-    final clientMsgId =
-        'client_contact_${DateTime.now().millisecondsSinceEpoch}';
+    final clientMsgId = 'client_contact_${_uuid.v4()}';
     // Keep the contact payload structured so names and phone numbers remain
     // unambiguous across devices. The message body is encrypted by the
     // messaging backend like every other message.
@@ -2254,6 +2579,61 @@ class MessagingProvider extends ChangeNotifier {
   // REAL-TIME (SOCKET.IO)
   // ==========================================================
 
+  void _handleRealtimeMessage(dynamic data) {
+    if (data is! Map) return;
+
+    final map = Map<String, dynamic>.from(data);
+    if (map['type'] == 'reaction_update') {
+      _applyReactionUpdate(map);
+      return;
+    }
+
+    if (map['isDeleted'] == true || map['is_deleted'] == true) {
+      final messageId = map['messageId'] ?? map['message_id'] ?? map['id'];
+      if (messageId != null) {
+        _markMessageDeletedLocally(messageId.toString());
+      }
+      return;
+    }
+
+    final message = ChatMessage.fromJson(map);
+    if (message.id.isEmpty || message.conversationId.isEmpty) return;
+
+    upsertMessage(message);
+
+    // A message arriving over Socket.IO is now present on this device. If
+    // the conversation is open, it has also been seen; otherwise it is only
+    // delivered. The receipt service notifies the sender in real time.
+    final currentUserId = _userProvider.user?.id;
+    if (currentUserId == null || message.senderId == currentUserId) return;
+
+    if (_currentRoomId == message.conversationId) {
+      unawaited(markAsRead(message.id));
+    } else {
+      unawaited(markAsDelivered(message.id));
+    }
+  }
+
+  void _handleRealtimeStatus(dynamic data) {
+    if (data is! Map) return;
+
+    final messageId = (data['messageId'] ?? data['message_id'])?.toString();
+    final statusStr = (data['status'] ?? data['state'])?.toString();
+    if (messageId == null || messageId.isEmpty || statusStr == null) return;
+
+    final status = _parseMessageStatus(statusStr);
+    final matched = _updateMessageStatusLocally(messageId, status);
+    if (!matched) {
+      final previous = _pendingMessageStatuses[messageId];
+      if (previous == null || status.index > previous.index) {
+        _pendingMessageStatuses[messageId] = status;
+        if (_pendingMessageStatuses.length > 200) {
+          _pendingMessageStatuses.remove(_pendingMessageStatuses.keys.first);
+        }
+      }
+    }
+  }
+
   void initSocket(String accessToken) {
     _initMessageSocket(accessToken);
     _initWalletSocket(accessToken);
@@ -2301,16 +2681,17 @@ class MessagingProvider extends ChangeNotifier {
         _socket?.emit('presence_heartbeat');
       });
 
-      // On reconnect, refresh data as per instructions
-      await loadConversations(force: true);
-      await loadFriends();
-
-      // Spec: Reload the currently open conversation
-      if (_currentRoomId != null) {
-        // The screen can open before the socket handshake completes. Rejoin
-        // here so incoming messages and receipts are delivered in that case.
-        _socket?.emit('join_conversation', {'conversationId': _currentRoomId});
-        loadMessages(_currentRoomId!, refresh: true);
+      // Capture the room before refreshes. A failed refresh must not prevent
+      // rejoining the open conversation after a reconnect.
+      final roomId = _currentRoomId;
+      try {
+        await loadConversations(force: true);
+        await loadFriends();
+      } finally {
+        if (roomId != null && _socket?.connected == true) {
+          _joinSocketConversation(roomId);
+          unawaited(loadMessages(roomId, refresh: true));
+        }
       }
     });
 
@@ -2349,6 +2730,48 @@ class MessagingProvider extends ChangeNotifier {
       notifyListeners();
     });
 
+    _socket?.on('incoming_call', (data) {
+      if (data is Map) {
+        debugPrint('Socket: incoming_call');
+        _incomingCallHandler?.call(Map<String, dynamic>.from(data));
+      }
+    });
+
+    void emitCampfireEvent(String type, dynamic raw) {
+      final payload = raw is Map
+          ? Map<String, dynamic>.from(raw)
+          : <String, dynamic>{};
+      payload['type'] = type;
+      if (!_campfireEventController.isClosed) {
+        _campfireEventController.add(payload);
+      }
+    }
+
+    _socket?.on('campfire_created', (data) {
+      emitCampfireEvent('campfire_created', data);
+      campfireRevision++;
+      notifyListeners();
+    });
+    _socket?.on('campfire_participants_changed', (data) {
+      emitCampfireEvent('campfire_participants_changed', data);
+      campfireRevision++;
+      notifyListeners();
+    });
+    _socket?.on('campfire_speaker_requested', (data) {
+      emitCampfireEvent('campfire_speaker_requested', data);
+      campfireRevision++;
+      notifyListeners();
+    });
+    _socket?.on('campfire_ended', (data) {
+      emitCampfireEvent('campfire_ended', data);
+      if (data is Map) {
+        lastEndedCampfireId =
+            (data['spaceId'] ?? data['space_id'] ?? data['campfireId'])?.toString();
+      }
+      campfireRevision++;
+      notifyListeners();
+    });
+
     _socket?.on('presence_updated', (data) {
       if (data is! Map) {
         return;
@@ -2366,31 +2789,17 @@ class MessagingProvider extends ChangeNotifier {
 
     _socket?.on('message_received', (data) {
       debugPrint('Socket: message_received');
-      if (data is Map && data['type'] == 'reaction_update') {
-        _applyReactionUpdate(Map<String, dynamic>.from(data));
-        return;
-      }
-      if (data is Map && data['isDeleted'] == true) {
-        final messageId = data['messageId'] ?? data['message_id'] ?? data['id'];
-        if (messageId != null) {
-          _markMessageDeletedLocally(messageId.toString());
-        }
-        return;
-      }
-      final message = ChatMessage.fromJson(Map<String, dynamic>.from(data));
-      upsertMessage(message);
+      _handleRealtimeMessage(data);
     });
 
     _socket?.on('new_message', (data) {
       debugPrint('Socket: new_message');
-      final message = ChatMessage.fromJson(Map<String, dynamic>.from(data));
-      upsertMessage(message);
+      _handleRealtimeMessage(data);
     });
 
     _socket?.on('message', (data) {
       debugPrint('Socket: message');
-      final message = ChatMessage.fromJson(Map<String, dynamic>.from(data));
-      upsertMessage(message);
+      _handleRealtimeMessage(data);
     });
 
     _socket?.on('conversation_updated', (data) {
@@ -2407,46 +2816,41 @@ class MessagingProvider extends ChangeNotifier {
       }
     });
 
+    _socket?.on('conversation_settings_updated', (data) {
+      debugPrint('Socket: conversation_settings_updated');
+      // Metadata changes (lock state, title, avatar, visibility) are pushed
+      // immediately by the server. Refresh the lightweight conversation list
+      // so every open list/header reflects the authoritative value without
+      // requiring a screen reopen.
+      unawaited(loadConversations(force: true));
+      notifyListeners();
+    });
+
     _socket?.on('message_sent', (data) {
       debugPrint('Socket: message_sent');
-      final message = ChatMessage.fromJson(Map<String, dynamic>.from(data));
-      upsertMessage(message);
+      _handleRealtimeMessage(data);
     });
 
     _socket?.on('message_status_updated', (data) {
       debugPrint('Socket: message_status_updated');
-      final String? messageId = (data['messageId'] ?? data['message_id'])
-          ?.toString();
-      final String? statusStr = (data['status'] ?? data['state'])?.toString();
-
-      if (messageId != null && statusStr != null) {
-        final status = _parseMessageStatus(statusStr);
-        _updateMessageStatusLocally(messageId, status);
-      }
+      _handleRealtimeStatus(data);
     });
 
     _socket?.on('status_updated', (data) {
       debugPrint('Socket: status_updated');
-      final String? messageId = (data['messageId'] ?? data['message_id'])
-          ?.toString();
-      final String? statusStr = (data['status'] ?? data['state'])?.toString();
+      _handleRealtimeStatus(data);
+    });
 
-      if (messageId != null && statusStr != null) {
-        final status = _parseMessageStatus(statusStr);
-        _updateMessageStatusLocally(messageId, status);
+    _socket?.on('call_status_updated', (data) {
+      if (data is Map && !_callStatusController.isClosed) {
+        debugPrint('Socket: call_status_updated');
+        _callStatusController.add(Map<String, dynamic>.from(data));
       }
     });
 
     _socket?.on('message_receipt_updated', (data) {
       debugPrint('Socket: message_receipt_updated');
-      final String? messageId = (data['messageId'] ?? data['message_id'])
-          ?.toString();
-      final String? statusStr = data['status']?.toString();
-
-      if (messageId != null && statusStr != null) {
-        final status = _parseMessageStatus(statusStr);
-        _updateMessageStatusLocally(messageId, status);
-      }
+      _handleRealtimeStatus(data);
     });
 
     _socket?.on('user_typing', (data) {
@@ -2501,11 +2905,16 @@ class MessagingProvider extends ChangeNotifier {
 
     _socket?.on('channel_comment_created', (data) {
       debugPrint('Socket: channel_comment_created');
-      final postId = data['postId']?.toString();
+      if (data is! Map) return;
+      final comment = Map<String, dynamic>.from(data);
+      final postId = (comment['postId'] ?? comment['post_id'])?.toString();
       if (postId != null) {
         final list = _postComments[postId] ?? [];
-        if (!list.any((c) => c['id'] == data['id'])) {
-          _postComments[postId] = [...list, data];
+        final commentId = (comment['id'] ?? comment['comment_id'])?.toString();
+        if (commentId != null &&
+            !list.any((c) => c['id']?.toString() == commentId)) {
+          comment['postId'] = postId;
+          _postComments[postId] = [...list, comment];
           notifyListeners();
         }
       }
@@ -2739,6 +3148,16 @@ class MessagingProvider extends ChangeNotifier {
 
     await _messageCache.wipe();
 
+    final prefs = await SharedPreferences.getInstance();
+    await Future.wait([
+      _localCache.remove(_friendsCacheKey),
+      _localCache.remove(_receivedRequestsCacheKey),
+      _localCache.remove(_sentRequestsCacheKey),
+      _localCache.remove(_notificationsCacheKey),
+      prefs.remove(_pinnedConversationsKey),
+      prefs.remove('last_seen_notification_time'),
+    ]);
+
     notifyListeners();
   }
 
@@ -2750,6 +3169,22 @@ class MessagingProvider extends ChangeNotifier {
     } else {
       _receivedRequests[index] = request;
     }
+    _recordLiveNotification();
+    unawaited(loadGenericNotifications(refresh: true));
+    notifyListeners();
+  }
+
+  void _recordLiveNotification() {
+    _liveNotificationTimes.add(DateTime.now());
+    if (_liveNotificationTimes.length > 200) {
+      _liveNotificationTimes.removeRange(
+        0,
+        _liveNotificationTimes.length - 200,
+      );
+    }
+    // The chat-home bell listens to this provider.  Realtime events can land
+    // before the activity-feed refresh completes, so publish the badge change
+    // immediately instead of waiting for the REST response.
     notifyListeners();
   }
 
@@ -2774,6 +3209,9 @@ class MessagingProvider extends ChangeNotifier {
     loadFriends();
     loadConversations();
 
+    _recordLiveNotification();
+    unawaited(loadGenericNotifications(refresh: true));
+
     notifyListeners();
   }
 
@@ -2792,6 +3230,8 @@ class MessagingProvider extends ChangeNotifier {
         respondedAt: DateTime.now(),
       );
     }
+    _recordLiveNotification();
+    unawaited(loadGenericNotifications(refresh: true));
     notifyListeners();
   }
 
@@ -2810,6 +3250,8 @@ class MessagingProvider extends ChangeNotifier {
         respondedAt: DateTime.now(),
       );
     }
+    _recordLiveNotification();
+    unawaited(loadGenericNotifications(refresh: true));
     notifyListeners();
   }
 
@@ -2853,8 +3295,8 @@ class MessagingProvider extends ChangeNotifier {
   void joinConversation(String conversationId) {
     _currentRoomId = conversationId;
 
-    if (_socket != null) {
-      _socket?.emit('join_conversation', {'conversationId': conversationId});
+    if (_socket?.connected == true) {
+      _joinSocketConversation(conversationId);
     }
 
     // Reset unread count locally
@@ -2870,12 +3312,37 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
+  /// The conversation currently open in the chat UI, if any.
+  String? get activeConversationId => _currentRoomId;
+
   void leaveConversation(String conversationId) {
-    if (_socket == null) {
-      return;
+    if (_socket?.connected == true) {
+      _socket?.emit('leave_conversation', {'conversationId': conversationId});
     }
-    _socket?.emit('leave_conversation', {'conversationId': conversationId});
     _currentRoomId = null;
+  }
+
+  void _joinSocketConversation(String conversationId) {
+    final socket = _socket;
+    if (socket?.connected != true || conversationId.trim().isEmpty) return;
+
+    socket!.emitWithAck(
+      'join_conversation',
+      {'conversationId': conversationId},
+      ack: (response, [extra]) {
+        final result = response is Map
+            ? Map<String, dynamic>.from(response)
+            : <String, dynamic>{};
+        if (result['success'] == true) {
+          debugPrint('Socket: Joined conversation $conversationId');
+        } else {
+          debugPrint(
+            'Socket: Conversation join rejected for $conversationId: '
+            '${result['message'] ?? 'unknown error'}',
+          );
+        }
+      },
+    );
   }
 
   void clearSearchResults() {
@@ -3197,11 +3664,36 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> joinPublicGroup(String conversationId) async {
+    try {
+      await _apiService.joinPublicGroup(conversationId);
+      _updateConversationStatus(conversationId, 'active', 'member');
+      await loadConversations(force: true);
+    } catch (e) {
+      debugPrint('Failed to join group: $e');
+      rethrow;
+    }
+  }
+
+  Future<MessageRequest> requestToJoinConversation({
+    required String ownerId,
+    required String conversationId,
+    required String requestType,
+  }) {
+    return _apiService.requestToJoinConversation(
+      ownerId: ownerId,
+      conversationId: conversationId,
+      requestType: requestType,
+    );
+  }
+
   Future<void> unsubscribeFromChannel(String conversationId) async {
     try {
       await _apiService.unsubscribeFromChannel(conversationId);
-      _updateConversationStatus(conversationId, 'left', null);
-      await loadConversations(force: true);
+      _conversations.removeWhere(
+        (conversation) => conversation.id == conversationId,
+      );
+      notifyListeners();
     } catch (e) {
       debugPrint('Failed to unsubscribe: $e');
       rethrow;

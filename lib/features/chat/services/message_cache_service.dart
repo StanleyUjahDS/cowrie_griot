@@ -12,10 +12,12 @@ import '../data/local/chat_database.dart';
 import '../data/local/tables/local_conversations_table.dart';
 import '../data/local/tables/local_profiles_table.dart';
 import '../../users/models/user_model.dart';
+import '../../../core/network/api_config.dart';
 
 class MessageCacheService {
   static const String _tableName = 'cached_messages';
-  static const String _storageKey = 'message_cache_encryption_key';
+  String get _storageKey =>
+      'message_cache_encryption_key_${ApiConfig.cacheNamespace}';
 
   final ChatDatabase _chatDb;
   final FlutterSecureStorage _secureStorage;
@@ -34,12 +36,25 @@ class MessageCacheService {
   // ==========================================================
 
   Future<void> initialize() async {
-    if (_initializationFuture != null) return _initializationFuture!;
-    _initializationFuture = _initializeInternal();
-    try {
-      await _initializationFuture!;
-    } catch (_) {
+    if (_encryptionKey != null) return;
+
+    final existing = _initializationFuture;
+    if (existing != null) {
+      await existing;
+      if (_encryptionKey != null) return;
+      // A previous initialization completed without producing a key (for
+      // example after logout wiped the key). Allow a fresh initialization.
       _initializationFuture = null;
+    }
+
+    final future = _initializeInternal();
+    _initializationFuture = future;
+    try {
+      await future;
+    } catch (_) {
+      if (identical(_initializationFuture, future)) {
+        _initializationFuture = null;
+      }
       rethrow;
     }
   }
@@ -71,7 +86,10 @@ class MessageCacheService {
   Future<Map<String, String?>> _encryptFixed(String? text) async {
     if (text == null || text.isEmpty) return {'encrypted': null, 'nonce': null};
     if (_encryptionKey == null) {
-      throw Exception('Encryption key not initialized');
+      await initialize();
+    }
+    if (_encryptionKey == null) {
+      throw Exception('Encryption key could not be initialized');
     }
 
     final secretBox = await _algorithm.encrypt(
@@ -91,7 +109,10 @@ class MessageCacheService {
   Future<String?> _decryptFixed(String? encrypted, String? nonce) async {
     if (encrypted == null || nonce == null) return null;
     if (_encryptionKey == null) {
-      throw Exception('Encryption key not initialized');
+      await initialize();
+    }
+    if (_encryptionKey == null) {
+      throw Exception('Encryption key could not be initialized');
     }
 
     try {
@@ -150,6 +171,10 @@ class MessageCacheService {
         'message_type': message.type.name,
         'created_at': message.createdAt.toIso8601String(),
         'status': message.status.name,
+        'client_message_id': message.clientMessageId,
+        'tip_data': message.tipData == null
+            ? null
+            : jsonEncode(message.tipData),
         'is_deleted': message.isDeleted ? 1 : 0,
         'server_synced': 1, // Messages from API are synced
         'last_synced_at': DateTime.now().toIso8601String(),
@@ -194,6 +219,7 @@ class MessageCacheService {
       messages.add(
         ChatMessage(
           id: row['id'] as String,
+          clientMessageId: row['client_message_id'] as String?,
           conversationId: row['conversation_id'] as String,
           senderId: row['sender_id'] as String,
           text: decryptedText ?? '',
@@ -204,6 +230,7 @@ class MessageCacheService {
           mediaUrl: row['media_url'] as String?,
           thumbnailUrl: row['thumbnail_url'] as String?,
           replyToMessageId: row['reply_to_message_id'] as String?,
+          tipData: _decodeTipData(row['tip_data']),
         ),
       );
     }
@@ -231,6 +258,7 @@ class MessageCacheService {
 
     return ChatMessage(
       id: row['id'] as String,
+      clientMessageId: row['client_message_id'] as String?,
       conversationId: row['conversation_id'] as String,
       senderId: row['sender_id'] as String,
       text: decryptedText ?? '',
@@ -241,7 +269,19 @@ class MessageCacheService {
       mediaUrl: row['media_url'] as String?,
       thumbnailUrl: row['thumbnail_url'] as String?,
       replyToMessageId: row['reply_to_message_id'] as String?,
+      tipData: _decodeTipData(row['tip_data']),
     );
+  }
+
+  Map<String, dynamic>? _decodeTipData(dynamic value) {
+    if (value is Map) return Map<String, dynamic>.from(value);
+    if (value is! String || value.trim().isEmpty) return null;
+    try {
+      final decoded = jsonDecode(value);
+      return decoded is Map ? Map<String, dynamic>.from(decoded) : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> updateMessage(ChatMessage message) async {
@@ -257,8 +297,8 @@ class MessageCacheService {
     await db.update(
       _tableName,
       {'status': status.name},
-      where: 'id = ?',
-      whereArgs: [messageId],
+      where: 'id = ? OR client_message_id = ?',
+      whereArgs: [messageId, messageId],
     );
   }
 
@@ -303,6 +343,7 @@ class MessageCacheService {
       messages.add(
         ChatMessage(
           id: row['id'] as String,
+          clientMessageId: row['client_message_id'] as String?,
           conversationId: row['conversation_id'] as String,
           senderId: row['sender_id'] as String,
           text: decryptedText ?? '',
@@ -313,6 +354,7 @@ class MessageCacheService {
           mediaUrl: row['media_url'] as String?,
           thumbnailUrl: row['thumbnail_url'] as String?,
           replyToMessageId: row['reply_to_message_id'] as String?,
+          tipData: _decodeTipData(row['tip_data']),
         ),
       );
     }
@@ -355,6 +397,7 @@ class MessageCacheService {
 
       await _secureStorage.delete(key: _storageKey);
       _encryptionKey = null;
+      _initializationFuture = null;
       debugPrint('MessageCacheService: All data and keys wiped.');
     } catch (e) {
       debugPrint('MessageCacheService: Error during wipe: $e');
@@ -398,6 +441,9 @@ class MessageCacheService {
 
       if (conv.otherUser != null) {
         await saveChatUser(conv.otherUser!);
+      }
+      if (conv.lastMessage != null) {
+        await saveMessage(conv.lastMessage!);
       }
     }
     await batch.commit(noResult: true);

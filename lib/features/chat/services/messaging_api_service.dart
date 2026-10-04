@@ -5,6 +5,7 @@ import '../models/chat_message.dart';
 import '../models/chat_user.dart';
 import '../models/conversation_model.dart';
 import '../models/message_request.dart';
+import '../models/space_model.dart';
 import '../../users/models/user_model.dart';
 
 class MessagingApiService {
@@ -77,6 +78,145 @@ class MessagingApiService {
     return _conversationList(_getData(response), fallbackType: 'group');
   }
 
+  Future<Map<String, dynamic>> getActiveCampfires({
+    int limit = 20,
+    int offset = 0,
+    String region = 'GLOBAL',
+    bool forceRefresh = false,
+  }) async {
+    final response = await _apiClient.get(
+      ApiConfig.messagingCampfires(
+        limit: limit,
+        offset: offset,
+        region: region,
+      ),
+      forceRefresh: forceRefresh,
+    );
+    var data = _getData(response);
+    for (var depth = 0; depth < 3 && data is Map; depth++) {
+      final map = Map<String, dynamic>.from(data);
+      if (map['items'] is List ||
+          map['spaces'] is List ||
+          map['campfires'] is List) {
+        return {
+          ...map,
+          'items': map['items'] ?? map['spaces'] ?? map['campfires'],
+        };
+      }
+      data = map['data'];
+    }
+    if (data is List) return {'items': data, 'hasMore': false};
+    if (response is Map && response['items'] is List) {
+      return Map<String, dynamic>.from(response);
+    }
+    return {'items': <dynamic>[], 'hasMore': false};
+  }
+
+  Future<Map<String, dynamic>> getUpcomingCampfires({
+    int limit = 10,
+    int offset = 0,
+    String region = 'GLOBAL',
+    bool forceRefresh = false,
+  }) async {
+    final response = await _apiClient.get(
+      ApiConfig.messagingCampfiresUpcoming(
+        limit: limit,
+        offset: offset,
+        region: region,
+      ),
+      forceRefresh: forceRefresh,
+    );
+    var data = _getData(response);
+    for (var depth = 0; depth < 3 && data is Map; depth++) {
+      final map = Map<String, dynamic>.from(data);
+      if (map['items'] is List ||
+          map['spaces'] is List ||
+          map['campfires'] is List) {
+        return {
+          ...map,
+          'items': map['items'] ?? map['spaces'] ?? map['campfires'],
+        };
+      }
+      data = map['data'];
+    }
+    if (data is List) return {'items': data, 'hasMore': false};
+    return {'items': <dynamic>[], 'hasMore': false};
+  }
+
+  Future<Map<String, dynamic>> createCampfire({
+    required String title,
+    String? description,
+    String mode = 'voice',
+    String regionCode = 'GLOBAL',
+    bool recordingEnabled = false,
+    DateTime? scheduledAt,
+  }) async {
+    final response = await _apiClient.post(
+      ApiConfig.messagingCampfiresCreate,
+      body: {
+        'title': title,
+        if (description != null && description.trim().isNotEmpty)
+          'description': description.trim(),
+        'mode': mode,
+        'regionCode': regionCode,
+        'recordingEnabled': recordingEnabled,
+        if (scheduledAt != null)
+          'scheduledAt': scheduledAt.toUtc().toIso8601String(),
+      },
+    );
+    return Map<String, dynamic>.from(_getData(response));
+  }
+
+  Future<void> joinCampfire(String id) async {
+    await _apiClient.post(ApiConfig.messagingCampfireJoin(id));
+  }
+
+  Future<void> leaveCampfire(String id) async {
+    await _apiClient.post(ApiConfig.messagingCampfireLeave(id));
+  }
+
+  Future<List<SpaceParticipant>> getCampfireParticipants(String id) async {
+    final response = await _apiClient.get(
+      ApiConfig.messagingCampfireParticipants(id),
+      forceRefresh: true,
+    );
+    final data = _getData(response);
+    final raw = data is Map
+        ? (data['items'] ?? data['participants'] ?? [])
+        : data;
+    return raw is List
+        ? raw
+              .whereType<Map>()
+              .map(
+                (item) =>
+                    SpaceParticipant.fromJson(Map<String, dynamic>.from(item)),
+              )
+              .toList()
+        : <SpaceParticipant>[];
+  }
+
+  Future<void> requestCampfireSpeaker(String id, {bool raised = true}) async {
+    await _apiClient.post(
+      ApiConfig.messagingCampfireRequestSpeaker(id),
+      body: {'raised': raised},
+    );
+  }
+
+  Future<void> moderateCampfireParticipant({
+    required String campfireId,
+    required String userId,
+    required String action,
+  }) async {
+    await _apiClient.patch(
+      ApiConfig.messagingCampfireModerateParticipant(campfireId, userId),
+      body: {'action': action},
+    );
+  }
+
+  Future<void> endCampfire(String id) async {
+    await _apiClient.post(ApiConfig.messagingCampfireEnd(id));
+  }
+
   Future<Conversation> getGroup(String conversationId) async {
     final response = await _apiClient.get(
       ApiConfig.messagingGroupById(conversationId),
@@ -89,6 +229,13 @@ class MessagingApiService {
       ApiConfig.messagingGroupByUsername(username),
     );
     return Conversation.fromJson(Map<String, dynamic>.from(_getData(response)));
+  }
+
+  Future<void> joinPublicGroup(String conversationId) async {
+    final response = await _apiClient.post(
+      ApiConfig.messagingGroupJoin(conversationId),
+    );
+    _checkSuccess(response);
   }
 
   Future<List<Conversation>> discoverGroups(
@@ -197,7 +344,7 @@ class MessagingApiService {
   Future<void> addGroupMember(String conversationId, String userId) async {
     final response = await _apiClient.post(
       ApiConfig.messagingGroupMembers(conversationId),
-      body: {'userId': userId},
+      body: {'memberId': userId},
     );
     _checkSuccess(response);
   }
@@ -392,6 +539,7 @@ class MessagingApiService {
     String? replyToMessageId,
     String? mediaId,
     String? clientMessageId,
+    Map<String, dynamic>? tipData,
   }) async {
     final response = await _apiClient.post(
       ApiConfig.messagingMessages,
@@ -410,6 +558,7 @@ class MessagingApiService {
           'reply_to_message_id': replyToMessageId,
         },
         if (mediaId != null) ...{'mediaId': mediaId, 'media_id': mediaId},
+        if (tipData != null) ...{'tipData': tipData, 'tip_data': tipData},
       },
     );
     final data = _getData(response);
@@ -419,6 +568,15 @@ class MessagingApiService {
   Future<void> deleteMessage(String messageId) async {
     final response = await _apiClient.delete(
       ApiConfig.messagingMessageById(messageId),
+      body: {'scope': 'everyone'},
+    );
+    _checkSuccess(response);
+  }
+
+  Future<void> deleteMessageForMe(String messageId) async {
+    final response = await _apiClient.delete(
+      ApiConfig.messagingMessageById(messageId),
+      body: {'scope': 'me'},
     );
     _checkSuccess(response);
   }
@@ -441,6 +599,7 @@ class MessagingApiService {
 
     final response = await _apiClient.get(
       '${ApiConfig.messagingMessages}/conversation/$conversationId?limit=$effectiveLimit${before != null ? '&before=$before' : ''}',
+      forceRefresh: true,
     );
     final data = _getData(response);
     if (data is List) {
@@ -566,6 +725,30 @@ class MessagingApiService {
     return MessageRequest.fromJson(Map<String, dynamic>.from(data));
   }
 
+  Future<MessageRequest> requestToJoinConversation({
+    required String ownerId,
+    required String conversationId,
+    required String requestType,
+  }) async {
+    if (requestType != 'group' && requestType != 'channel') {
+      throw ArgumentError('requestType must be group or channel');
+    }
+    final response = await _apiClient.post(
+      ApiConfig.messagingRequests,
+      body: {
+        'recipientId': ownerId,
+        'recipient_id': ownerId,
+        'conversationId': conversationId,
+        'conversation_id': conversationId,
+        'requestType': requestType,
+        'request_type': requestType,
+      },
+    );
+    return MessageRequest.fromJson(
+      Map<String, dynamic>.from(_getData(response)),
+    );
+  }
+
   Future<Map<String, dynamic>> acceptRequest(String requestId) async {
     final response = await _apiClient.post(
       ApiConfig.messagingRequestAccept(requestId),
@@ -611,6 +794,25 @@ class MessagingApiService {
   Future<void> unblockUser(String userId) async {
     final response = await _apiClient.delete(
       ApiConfig.messagingBlockUser(userId),
+    );
+    _checkSuccess(response);
+  }
+
+  Future<void> reportContent({
+    required String targetType,
+    required String targetId,
+    required String reason,
+    String? details,
+  }) async {
+    final response = await _apiClient.post(
+      ApiConfig.messagingReports,
+      body: {
+        'targetType': targetType,
+        'targetId': targetId,
+        'reason': reason,
+        if (details != null && details.trim().isNotEmpty)
+          'details': details.trim(),
+      },
     );
     _checkSuccess(response);
   }
@@ -771,19 +973,31 @@ class MessagingApiService {
     dynamic data, {
     required String fallbackType,
   }) {
-    // Accept both the current array response and wrapped list responses from
-    // older/backend deployments (for example {groups: [...]}).
-    if (data is Map) {
-      data =
-          data['groups'] ??
-          data['channels'] ??
-          data['conversations'] ??
-          data['items'];
+    // Accept the current array response and all list wrappers used by older
+    // backend deployments. Some deployments return {data: {items: [...]}}
+    // while others return {data: [...]} after the API client's unwrapping.
+    for (var depth = 0; depth < 3 && data is Map; depth++) {
+      final map = Map<String, dynamic>.from(data);
+      final next =
+          map['groups'] ??
+          map['channels'] ??
+          map['conversations'] ??
+          map['items'] ??
+          map['results'] ??
+          map['data'];
+      if (next == null || identical(next, data)) break;
+      data = next;
     }
     if (data is! List) return [];
     return data.map((item) {
       final json = Map<String, dynamic>.from(item);
-      json['type'] ??= fallbackType;
+      // The endpoint itself is authoritative. This also protects the UI from
+      // older values such as `group_chat`/`broadcast` being treated as DMs.
+      final rawType = json['type']?.toString().trim().toLowerCase();
+      final isExpectedType = fallbackType == 'group'
+          ? rawType == 'group' || rawType == 'group_chat'
+          : rawType == 'channel' || rawType == 'broadcast';
+      if (!isExpectedType) json['type'] = fallbackType;
       json['title'] ??= json['name'];
       json['avatarUrl'] ??= json['image_url'] ?? json['imageUrl'];
       json['memberIds'] ??= <String>[];

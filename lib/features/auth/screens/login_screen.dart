@@ -2,20 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/ui/widgets/griot_branded_container.dart';
 import '../services/auth_session_service.dart';
+import '../auth_controller.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({
-    super.key,
-  });
+  const LoginScreen({super.key});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  static final Uri _termsUri = Uri.parse('https://griot.network/terms');
   bool _hasWallet = false;
   bool _checkingWallet = true;
 
@@ -33,6 +34,18 @@ class _LoginScreenState extends State<LoginScreen> {
         _hasWallet = hasWallet;
         _checkingWallet = false;
       });
+    }
+  }
+
+  Future<void> _openTerms() async {
+    final opened = await launchUrl(
+      _termsUri,
+      mode: LaunchMode.externalApplication,
+    );
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to open Terms and Conditions.')),
+      );
     }
   }
 
@@ -58,8 +71,9 @@ class _LoginScreenState extends State<LoginScreen> {
     final Color primaryColor = colorScheme.primary;
     final Color primaryTextColor = colorScheme.onPrimary;
     final Color secondaryText = colorScheme.onSurfaceVariant;
-    final Color borderColor =
-        colorScheme.outline.withValues(alpha: isDark ? 0.22 : 0.18);
+    final Color borderColor = colorScheme.outline.withValues(
+      alpha: isDark ? 0.22 : 0.18,
+    );
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -109,7 +123,6 @@ class _LoginScreenState extends State<LoginScreen> {
             // ======================================================
             // CONTENT
             // ======================================================
-
             Expanded(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
@@ -121,7 +134,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     // ==================================================
                     // COWRIE ILLUSTRATION
                     // ==================================================
-
                     GriotBrandedContainer(
                       padding: const EdgeInsets.all(28),
                       borderRadius: 48,
@@ -138,7 +150,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 32),
 
                     Text(
-                      _hasWallet ? 'Welcome back' : 'Your wallet. Your identity.',
+                      _hasWallet
+                          ? 'Welcome back'
+                          : 'Your wallet. Your identity.',
                       textAlign: TextAlign.center,
                       style: textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.w900,
@@ -151,11 +165,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     // ==================================================
                     // DESCRIPTION
                     // ==================================================
-
                     ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxWidth: 390,
-                      ),
+                      constraints: const BoxConstraints(maxWidth: 390),
                       child: Text(
                         _hasWallet
                             ? 'Unlock your wallet to continue to your stories and circles.'
@@ -173,13 +184,29 @@ class _LoginScreenState extends State<LoginScreen> {
                     // ==================================================
                     // PRIMARY ACTION
                     // ==================================================
-
                     if (_hasWallet)
                       SizedBox(
                         width: double.infinity,
                         height: 56,
                         child: ElevatedButton(
-                          onPressed: () => context.push('/verify_pin'),
+                          onPressed: () => context.push(
+                            '/verify_pin',
+                            extra: (BuildContext ctx) async {
+                              final authController = ctx.read<AuthController>();
+                              // Staging may not yet have an account for a
+                              // locally stored wallet. Wallet verification
+                              // therefore also completes registration and
+                              // policy acceptance when required.
+                              await authController.authenticateWallet(
+                                acceptPolicies: true,
+                              );
+                              if (!ctx.mounted) return;
+                              // Re-run normal startup so pending profile,
+                              // group, and channel links are replayed after
+                              // the backend session has been restored.
+                              ctx.go('/');
+                            },
+                          ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: primaryColor,
                             foregroundColor: primaryTextColor,
@@ -224,7 +251,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     // ==================================================
                     // SECONDARY ACTION
                     // ==================================================
-
                     SizedBox(
                       width: double.infinity,
                       height: 56,
@@ -232,16 +258,15 @@ class _LoginScreenState extends State<LoginScreen> {
                         onPressed: () => context.push('/recover_account'),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: colorScheme.onSurface,
-                          side: BorderSide(
-                            color: borderColor,
-                            width: 1.5,
-                          ),
+                          side: BorderSide(color: borderColor, width: 1.5),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
                         child: Text(
-                          _hasWallet ? 'Import Different Wallet' : 'Import Existing Wallet',
+                          _hasWallet
+                              ? 'Import Different Wallet'
+                              : 'Import Existing Wallet',
                           style: textTheme.labelLarge?.copyWith(
                             color: colorScheme.onSurface,
                             fontWeight: FontWeight.w600,
@@ -257,15 +282,36 @@ class _LoginScreenState extends State<LoginScreen> {
             // ======================================================
             // TERMS
             // ======================================================
-
             Padding(
               padding: const EdgeInsets.fromLTRB(22, 4, 22, 12),
-              child: Text(
-                'By proceeding you agree to our Terms and Conditions',
+              child: RichText(
                 textAlign: TextAlign.center,
-                style: textTheme.labelSmall?.copyWith(
-                  color: secondaryText,
-                  height: 1.35,
+                text: TextSpan(
+                  style: textTheme.labelSmall?.copyWith(
+                    color: secondaryText,
+                    height: 1.35,
+                  ),
+                  children: [
+                    const TextSpan(text: 'By proceeding you agree to our '),
+                    WidgetSpan(
+                      alignment: PlaceholderAlignment.baseline,
+                      baseline: TextBaseline.alphabetic,
+                      child: InkWell(
+                        onTap: _openTerms,
+                        child: Text(
+                          'Terms and Conditions',
+                          style: textTheme.labelSmall?.copyWith(
+                            color: primaryColor,
+                            height: 1.35,
+                            fontWeight: FontWeight.w700,
+                            decoration: TextDecoration.underline,
+                            decorationColor: primaryColor,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const TextSpan(text: '.'),
+                  ],
                 ),
               ),
             ),

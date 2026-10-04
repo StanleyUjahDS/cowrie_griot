@@ -28,6 +28,7 @@ class _GriotBannerAdState extends State<GriotBannerAd> {
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (ad) {
+          debugPrint('BannerAd loaded. Response: ${ad.responseInfo}');
           if (!mounted) {
             ad.dispose();
             return;
@@ -39,6 +40,9 @@ class _GriotBannerAdState extends State<GriotBannerAd> {
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
           debugPrint('BannerAd failed to load: $error');
+        },
+        onAdImpression: (ad) {
+          debugPrint('BannerAd impression. Response: ${ad.responseInfo}');
         },
       ),
     )..load();

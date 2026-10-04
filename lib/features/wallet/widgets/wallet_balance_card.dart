@@ -5,12 +5,14 @@ class WalletBalanceCard extends StatelessWidget {
   final String balance;
   final String change;
   final bool isProfit;
+  final bool isHidden;
 
   const WalletBalanceCard({
     super.key,
     required this.balance,
     required this.change,
     this.isProfit = true,
+    this.isHidden = false,
   });
 
   @override
@@ -69,16 +71,22 @@ class WalletBalanceCard extends StatelessWidget {
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 5,
+                        ),
                         decoration: BoxDecoration(
-                          color: (isProfit ? colors.tertiary : colors.error).withValues(alpha: 0.10),
+                          color: (isProfit ? colors.tertiary : colors.error)
+                              .withValues(alpha: 0.10),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              isProfit ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+                              isProfit
+                                  ? Icons.trending_up_rounded
+                                  : Icons.trending_down_rounded,
                               size: 14,
                               color: isProfit ? colors.tertiary : colors.error,
                             ),
@@ -86,7 +94,9 @@ class WalletBalanceCard extends StatelessWidget {
                             Text(
                               change,
                               style: text.labelMedium?.copyWith(
-                                color: isProfit ? colors.tertiary : colors.error,
+                                color: isProfit
+                                    ? colors.tertiary
+                                    : colors.error,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -100,7 +110,7 @@ class WalletBalanceCard extends StatelessWidget {
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      balance,
+                      isHidden ? '••••••' : balance,
                       style: text.displaySmall?.copyWith(
                         fontWeight: FontWeight.w800,
                         letterSpacing: -1.3,

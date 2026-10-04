@@ -15,9 +15,7 @@ import '../../wallet/services/wallet_service.dart';
 import '/core/ui/screens/app_loading_screen.dart';
 
 class RecoverAccountScreen extends StatefulWidget {
-  const RecoverAccountScreen({
-    super.key,
-  });
+  const RecoverAccountScreen({super.key});
 
   @override
   State<RecoverAccountScreen> createState() => _RecoverAccountScreenState();
@@ -46,10 +44,7 @@ class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
   // WORD VALIDATION STATE
   // ============================================================
 
-  final List<bool> _validWords = List.generate(
-    12,
-    (_) => false,
-  );
+  final List<bool> _validWords = List.generate(12, (_) => false);
 
   // ============================================================
   // INIT
@@ -82,10 +77,7 @@ class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
   // WORD CHANGED
   // ============================================================
 
-  void _onWordChanged(
-    int index,
-    String value,
-  ) {
+  void _onWordChanged(int index, String value) {
     final normalized = value.trim().toLowerCase();
 
     // ----------------------------------------------------------
@@ -94,11 +86,9 @@ class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
 
     if (value != normalized) {
       _controllers[index].value = _controllers[index].value.copyWith(
-            text: normalized,
-            selection: TextSelection.collapsed(
-              offset: normalized.length,
-            ),
-          );
+        text: normalized,
+        selection: TextSelection.collapsed(offset: normalized.length),
+      );
     }
 
     // ----------------------------------------------------------
@@ -119,9 +109,7 @@ class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
     // VALIDATE WORD
     // ----------------------------------------------------------
 
-    final isValid = _mnemonicService.isValidWord(
-      normalized,
-    );
+    final isValid = _mnemonicService.isValidWord(normalized);
 
     if (_validWords[index] == isValid) {
       return;
@@ -137,9 +125,7 @@ class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
   // ============================================================
 
   Future<void> _pasteFromClipboard() async {
-    final data = await Clipboard.getData(
-      Clipboard.kTextPlain,
-    );
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
 
     final text = data?.text?.trim() ?? '';
 
@@ -167,9 +153,7 @@ class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
     // ----------------------------------------------------------
 
     final normalizedWords = words
-        .map(
-          (word) => word.trim().toLowerCase(),
-        )
+        .map((word) => word.trim().toLowerCase())
         .toList();
 
     // ----------------------------------------------------------
@@ -180,9 +164,7 @@ class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
       for (int i = 0; i < 12; i++) {
         _controllers[i].text = normalizedWords[i];
 
-        _validWords[i] = _mnemonicService.isValidWord(
-          normalizedWords[i],
-        );
+        _validWords[i] = _mnemonicService.isValidWord(normalizedWords[i]);
       }
     });
 
@@ -191,9 +173,7 @@ class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
     // ----------------------------------------------------------
 
     final invalidIndex = normalizedWords.indexWhere(
-      (word) => !_mnemonicService.isValidWord(
-        word,
-      ),
+      (word) => !_mnemonicService.isValidWord(word),
     );
 
     if (invalidIndex != -1) {
@@ -209,9 +189,7 @@ class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
     // CHECK COMPLETE PHRASE
     // ----------------------------------------------------------
 
-    final isValidPhrase = _mnemonicService.isValidPhrase(
-      normalizedWords,
-    );
+    final isValidPhrase = _mnemonicService.isValidPhrase(normalizedWords);
 
     if (!isValidPhrase) {
       NotificationService.showError(
@@ -226,10 +204,7 @@ class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
     // SUCCESS
     // ----------------------------------------------------------
 
-    NotificationService.showSuccess(
-      context,
-      'Valid recovery phrase.',
-    );
+    NotificationService.showSuccess(context, 'Valid recovery phrase.');
   }
 
   // ============================================================
@@ -244,10 +219,7 @@ class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
       }
     });
 
-    NotificationService.showInfo(
-      context,
-      'All fields cleared.',
-    );
+    NotificationService.showInfo(context, 'All fields cleared.');
   }
 
   // ============================================================
@@ -256,9 +228,7 @@ class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
 
   List<String> _getWords() {
     return _controllers
-        .map(
-          (controller) => controller.text.trim().toLowerCase(),
-        )
+        .map((controller) => controller.text.trim().toLowerCase())
         .toList();
   }
 
@@ -273,9 +243,7 @@ class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
     // CHECK EMPTY WORD
     // ----------------------------------------------------------
 
-    final emptyIndex = words.indexWhere(
-      (word) => word.isEmpty,
-    );
+    final emptyIndex = words.indexWhere((word) => word.isEmpty);
 
     if (emptyIndex != -1) {
       NotificationService.showError(
@@ -291,9 +259,7 @@ class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
     // ----------------------------------------------------------
 
     final invalidIndex = words.indexWhere(
-      (word) => !_mnemonicService.isValidWord(
-        word,
-      ),
+      (word) => !_mnemonicService.isValidWord(word),
     );
 
     if (invalidIndex != -1) {
@@ -313,9 +279,7 @@ class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
     // VALIDATE COMPLETE PHRASE
     // ----------------------------------------------------------
 
-    final isValidPhrase = _mnemonicService.isValidPhrase(
-      words,
-    );
+    final isValidPhrase = _mnemonicService.isValidPhrase(words);
 
     if (!isValidPhrase) {
       NotificationService.showError(
@@ -346,30 +310,29 @@ class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
         // ----------------------------------------------------
         // OPERATION
         // ----------------------------------------------------
-
         operation: () async {
-          return await _walletService.restoreWallet(
-            mnemonic,
-          );
+          return await _walletService.restoreWallet(mnemonic);
         },
 
         // ----------------------------------------------------
         // SUCCESS
         // ----------------------------------------------------
-
-        onSuccess: (
-          BuildContext context,
-          dynamic result,
-        ) {
+        onSuccess: (BuildContext context, dynamic result) {
           if (!context.mounted) {
             return;
           }
 
           context.pushReplacement(
             '/set_password',
-            extra: (BuildContext ctx) async {
-              final authController = ctx.read<AuthController>();
-              await authController.authenticateWallet();
+            extra: {
+              'setupBiometrics': true,
+              'onSuccess': (BuildContext ctx) async {
+                final authController = ctx.read<AuthController>();
+                // Completing wallet recovery is account creation/access setup.
+                // The backend requires explicit policy acceptance for this
+                // first authenticated session.
+                await authController.authenticateWallet(acceptPolicies: true);
+              },
             },
           );
         },
@@ -382,9 +345,7 @@ class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
   // ============================================================
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final text = theme.textTheme;
@@ -395,11 +356,13 @@ class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
     // THEME COLORS
     // ==========================================================
 
-    final Color fieldColor =
-        colors.onSurface.withValues(alpha: isDark ? 0.05 : 0.03);
+    final Color fieldColor = colors.onSurface.withValues(
+      alpha: isDark ? 0.05 : 0.03,
+    );
 
-    final Color borderColor =
-        colors.outline.withValues(alpha: isDark ? 0.25 : 0.15);
+    final Color borderColor = colors.outline.withValues(
+      alpha: isDark ? 0.25 : 0.15,
+    );
 
     final Color mutedColor = colors.onSurfaceVariant.withValues(alpha: 0.75);
 
@@ -413,9 +376,7 @@ class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
       appBar: AppBar(
         title: Text(
           'Recover Account',
-          style: text.titleLarge?.copyWith(
-            fontWeight: FontWeight.w900,
-          ),
+          style: text.titleLarge?.copyWith(fontWeight: FontWeight.w900),
         ),
         backgroundColor: Colors.transparent,
         foregroundColor: colors.onSurface,
@@ -483,21 +444,25 @@ class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
                       padding: const EdgeInsets.all(12),
                       child: LayoutBuilder(
                         builder: (context, constraints) {
-                          final crossAxisCount = constraints.maxWidth > 600 ? 3 : 2;
-                          final childAspectRatio =
-                              constraints.maxWidth > 600 ? 4.0 : 2.6;
+                          final crossAxisCount = constraints.maxWidth > 600
+                              ? 3
+                              : 2;
+                          final childAspectRatio = constraints.maxWidth > 600
+                              ? 4.0
+                              : 2.6;
 
                           return GridView.builder(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
                             padding: const EdgeInsets.all(2),
                             itemCount: 12,
-                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: crossAxisCount,
-                              mainAxisSpacing: 10,
-                              crossAxisSpacing: 10,
-                              childAspectRatio: childAspectRatio,
-                            ),
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: crossAxisCount,
+                                  mainAxisSpacing: 10,
+                                  crossAxisSpacing: 10,
+                                  childAspectRatio: childAspectRatio,
+                                ),
                             itemBuilder: (context, index) {
                               return _SeedWordField(
                                 controller: _controllers[index],
@@ -552,7 +517,10 @@ class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: _pasteFromClipboard,
-                          icon: const Icon(Icons.content_paste_rounded, size: 18),
+                          icon: const Icon(
+                            Icons.content_paste_rounded,
+                            size: 18,
+                          ),
                           label: const Text('Paste'),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: colors.onSurface,
@@ -631,9 +599,7 @@ class _SeedWordField extends StatelessWidget {
   });
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     final bool hasText = controller.text.trim().isNotEmpty;
 
     // ==========================================================
@@ -657,7 +623,9 @@ class _SeedWordField extends StatelessWidget {
     return TextField(
       controller: controller,
       onChanged: onChanged,
-      textInputAction: index == 11 ? TextInputAction.done : TextInputAction.next,
+      textInputAction: index == 11
+          ? TextInputAction.done
+          : TextInputAction.next,
       autocorrect: false,
       enableSuggestions: false,
       textCapitalization: TextCapitalization.none,
@@ -673,7 +641,6 @@ class _SeedWordField extends StatelessWidget {
         // ======================================================
         // NUMBER
         // ======================================================
-
         prefixText: '${index + 1}. ',
 
         prefixStyle: textTheme.bodySmall?.copyWith(
@@ -685,7 +652,6 @@ class _SeedWordField extends StatelessWidget {
         // ======================================================
         // HINT
         // ======================================================
-
         hintText: 'Word',
 
         hintStyle: textTheme.bodySmall?.copyWith(
@@ -696,11 +662,12 @@ class _SeedWordField extends StatelessWidget {
         // ======================================================
         // VALIDATION ICON
         // ======================================================
-
         suffixIcon: !hasText
             ? null
             : Icon(
-                isValid ? Icons.check_circle_rounded : Icons.error_outline_rounded,
+                isValid
+                    ? Icons.check_circle_rounded
+                    : Icons.error_outline_rounded,
                 size: 16,
                 color: isValid ? Colors.green : colorScheme.error,
               ),
@@ -708,7 +675,6 @@ class _SeedWordField extends StatelessWidget {
         // ======================================================
         // PADDING
         // ======================================================
-
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 10,
           vertical: 10,
@@ -717,31 +683,18 @@ class _SeedWordField extends StatelessWidget {
         // ======================================================
         // BORDER
         // ======================================================
-
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(
-            14,
-          ),
-          borderSide: BorderSide(
-            color: effectiveBorderColor,
-            width: 1.2,
-          ),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: effectiveBorderColor, width: 1.2),
         ),
 
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(
-            14,
-          ),
-          borderSide: BorderSide(
-            color: effectiveBorderColor,
-            width: 1.2,
-          ),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: effectiveBorderColor, width: 1.2),
         ),
 
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(
-            14,
-          ),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(
             color: hasText ? effectiveBorderColor : colorScheme.primary,
             width: 1.5,

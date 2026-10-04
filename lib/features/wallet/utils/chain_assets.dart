@@ -8,14 +8,20 @@ class ChainAssets {
     'ethereum': '$_chainPath/Ethereum.svg',
     'bsc': '$_chainPath/Binance.svg',
     'polygon': '$_chainPath/Polygon.svg',
-    'arbitrum': '$_chainPath/Arbitrum.svg',
+    'arbitrum': '$_chainPath/arbitrum.png',
     'optimism': '$_chainPath/Optimism.svg',
-    'base': '$_chainPath/Base.svg',
+    'base': '$_chainPath/base.png',
     'avalanche': '$_chainPath/Avalanche_AvaxToken 1.svg',
   };
 
   static String normalize(String chainName) {
-    final value = chainName.trim().toLowerCase();
+    // API responses may identify an asset as `chain:symbol` (for example
+    // `ethereum:ETH`) or use a display label.  Resolve the chain portion
+    // before looking up the canonical Cowrie chain artwork.
+    var value = chainName.trim().toLowerCase();
+    if (value.contains(':')) value = value.split(':').first.trim();
+    if (value.contains('/')) value = value.split('/').first.trim();
+    value = value.replaceAll('_', '-');
 
     if (value == 'bsc' ||
         value == 'bnb' ||
@@ -26,8 +32,12 @@ class ChainAssets {
       return 'bsc';
     }
 
-    if (value == 'eth' || value == 'ethereum mainnet') return 'ethereum';
-    if (value == 'matic' || value == 'matic/polygon') return 'polygon';
+    if (value == 'eth' ||
+        value == 'ethereum mainnet' ||
+        value == 'ethereum-mainnet') {
+      return 'ethereum';
+    }
+    if (value == 'matic' || value == 'polygon-mainnet') return 'polygon';
     if (value == 'arb' || value == 'arbitrum-one') return 'arbitrum';
     if (value == 'op' || value == 'optimistic-ethereum') return 'optimism';
     if (value == 'avax' || value == 'avalanche-c-chain') return 'avalanche';
@@ -51,15 +61,23 @@ class ChainAssets {
       return Icon(Icons.link_rounded, size: size);
     }
 
-    return SvgPicture.asset(
+    if (assetPath.endsWith('.svg')) {
+      return SvgPicture.asset(
+        assetPath,
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) =>
+            Icon(Icons.link_rounded, size: size),
+      );
+    }
+    return Image.asset(
       assetPath,
       width: size,
       height: size,
       fit: BoxFit.contain,
-      errorBuilder: (context, error, stackTrace) => Icon(
-        Icons.link_rounded,
-        size: size,
-      ),
+      errorBuilder: (context, error, stackTrace) =>
+          Icon(Icons.link_rounded, size: size),
     );
   }
 }

@@ -38,10 +38,11 @@ class GriotAdCarousel extends StatefulWidget {
 }
 
 class _GriotAdCarouselState extends State<GriotAdCarousel> {
-  final PageController _pageController = PageController(viewportFraction: 0.86);
+  final PageController _pageController = PageController(viewportFraction: 1);
   final Map<int, NativeAd> _loadedAds = {};
   final Set<int> _loadingIndices = {};
   Timer? _autoSwipeTimer;
+  int _currentPage = 0;
 
   // Track theme properties to detect changes
   Brightness? _lastBrightness;
@@ -98,7 +99,7 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
     _autoSwipeTimer = Timer.periodic(widget.autoSwipeDuration, (timer) {
       final items = _displayItems;
       if (_pageController.hasClients && items.isNotEmpty) {
-        final nextPage = (_pageController.page?.toInt() ?? 0) + 1;
+        final nextPage = (_pageController.page?.round() ?? _currentPage) + 1;
         _pageController.animateToPage(
           nextPage % items.length,
           duration: const Duration(milliseconds: 800),
@@ -113,9 +114,14 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
   }
 
   void _loadAd(int index) {
-    if (!AppConfig.adsEnabled) return;
-    if (_loadedAds.containsKey(index) || _loadingIndices.contains(index)) return;
+    if (!AppConfig.adsEnabled) {
+      return;
+    }
+    if (_loadedAds.containsKey(index) || _loadingIndices.contains(index)) {
+      return;
+    }
 
+    _loadingIndices.add(index);
     final colorScheme = Theme.of(context).colorScheme;
 
     NativeAd(
@@ -139,11 +145,15 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
             _loadedAds[index] = ad as NativeAd;
             _loadingIndices.remove(index);
           });
+          debugPrint('Carousel NativeAd[$index] loaded. Response: ${ad.responseInfo}');
         },
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
           _loadingIndices.remove(index);
           debugPrint('Carousel NativeAd at index $index failed: $error');
+        },
+        onAdImpression: (ad) {
+          debugPrint('Carousel NativeAd[$index] impression. Response: ${ad.responseInfo}');
         },
       ),
     ).load();
@@ -156,25 +166,61 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
 
     return SizedBox(
       height: widget.height,
-      child: GestureDetector(
-        onPanDown: (_) => _stopAutoSwipe(),
-        onPanCancel: () => _startAutoSwipe(),
-        onPanEnd: (_) => _startAutoSwipe(),
-        child: PageView.builder(
-          controller: _pageController,
-          itemCount: items.length,
-          physics: const BouncingScrollPhysics(),
-          itemBuilder: (context, index) {
-            final item = items[index];
+      child: Column(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onPanDown: (_) => _stopAutoSwipe(),
+              onPanCancel: () => _startAutoSwipe(),
+              onPanEnd: (_) => _startAutoSwipe(),
+              child: PageView.builder(
+                controller: _pageController,
+                itemCount: items.length,
+                physics: const BouncingScrollPhysics(),
+                onPageChanged: (index) {
+                  if (mounted) setState(() => _currentPage = index);
+                },
+                itemBuilder: (context, index) {
+                  final item = items[index];
 
-            if (item.type == CarouselItemType.ad) {
-              _loadAd(index);
-              return _buildAdSlide(index);
-            }
+                  if (item.type == CarouselItemType.ad) {
+                    _loadAd(index);
+                    return _buildAdSlide(index);
+                  }
 
-            return _buildFeatureSlide(item);
-          },
-        ),
+                  return _buildFeatureSlide(item);
+                },
+              ),
+            ),
+          ),
+          _buildPageIndicator(items.length),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPageIndicator(int count) {
+    final colors = Theme.of(context).colorScheme;
+    return SizedBox(
+      height: 24,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: List.generate(count, (index) {
+          final selected = index == _currentPage;
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOut,
+            width: selected ? 18 : 6,
+            height: 6,
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            decoration: BoxDecoration(
+              color: selected
+                  ? colors.primary
+                  : colors.onSurfaceVariant.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(10),
+            ),
+          );
+        }),
       ),
     );
   }
@@ -200,9 +246,7 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
           padding: const EdgeInsets.all(16),
           child: ad != null
               ? AdWidget(ad: ad)
-              : const Center(
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
+              : const Center(child: CircularProgressIndicator(strokeWidth: 2)),
         ),
       ),
     );
@@ -215,9 +259,7 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-      ),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(24)),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -253,7 +295,10 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
 
                 // Content
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 20,
+                  ),
                   child: Row(
                     children: [
                       Expanded(
@@ -262,7 +307,10 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: Colors.white.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(20),

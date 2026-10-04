@@ -8,15 +8,11 @@ class PlusApiService {
   PlusApiService({required this.apiClient});
 
   Future<PlusStatus> getStatus() async {
-    try {
-      final response = await apiClient.get(ApiConfig.plusStatus);
-      if (response['success'] == true) {
-        return PlusStatus.fromJson(response['data']);
-      }
-      return PlusStatus.none();
-    } catch (e) {
-      return PlusStatus.none();
+    final response = await apiClient.get(ApiConfig.plusStatus);
+    if (response['success'] == true) {
+      return PlusStatus.fromJson(response['data']);
     }
+    throw Exception(response['message'] ?? 'Unable to load Plus status');
   }
 
   Future<PlusStatus> verifyPurchase({
@@ -41,7 +37,7 @@ class PlusApiService {
     }
 
     final response = await apiClient.post(ApiConfig.plusVerify, body: body);
-    
+
     if (response['success'] == true) {
       return PlusStatus.fromJson(response['data']);
     } else {

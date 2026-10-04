@@ -3,13 +3,20 @@ class ReputationTier {
   final int minPoints;
   final int? maxPoints;
   final String badgeColor;
+  final double miningMultiplier;
 
-  ReputationTier({
+  const ReputationTier({
     required this.name,
     required this.minPoints,
     this.maxPoints,
     required this.badgeColor,
+    this.miningMultiplier = 1,
   });
+
+  String get reputationBonusLabel {
+    final bonus = ((miningMultiplier - 1) * 100).round();
+    return bonus == 0 ? 'No tier bonus yet' : '+$bonus% mining bonus';
+  }
 
   factory ReputationTier.fromJson(Map<String, dynamic> json) {
     return ReputationTier(
@@ -27,7 +34,12 @@ class ReputationTier {
       badgeColor:
           (json['badgeColor'] ?? json['badge_color'] ?? json['color'])
               ?.toString() ??
-          '#64748B',
+              '#64748B',
+      miningMultiplier: double.tryParse(
+            (json['miningMultiplier'] ?? json['mining_multiplier'] ?? '1')
+                .toString(),
+          ) ??
+          1,
     );
   }
 }
@@ -36,8 +48,14 @@ class ReputationData {
   final int points;
   final ReputationTier tier;
   final ReputationTier? nextTier;
+  final List<ReputationTier> tiers;
 
-  ReputationData({required this.points, required this.tier, this.nextTier});
+  ReputationData({
+    required this.points,
+    required this.tier,
+    this.nextTier,
+    this.tiers = const [],
+  });
 
   factory ReputationData.fromJson(Map<String, dynamic> json) {
     final rawTier = json['tier'];
@@ -56,6 +74,14 @@ class ReputationData {
           : ReputationTier.fromJson(
               Map<String, dynamic>.from(json['nextTier']),
             ),
+      tiers: json['tiers'] is List
+          ? (json['tiers'] as List)
+                .whereType<Map>()
+                .map((item) => ReputationTier.fromJson(
+                      Map<String, dynamic>.from(item),
+                    ))
+                .toList()
+          : const [],
     );
   }
 

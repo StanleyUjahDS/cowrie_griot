@@ -1,12 +1,27 @@
 import 'package:flutter/material.dart';
 import '../models/conversation_model.dart';
+import 'conversation_actions_sheet.dart';
 
 // Group list item component for the chat home screen.
 class GroupListItem extends StatelessWidget {
   final Conversation conversation;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+  final VoidCallback? onPinToggle;
+  final VoidCallback? onRemove;
+  final bool isPinned;
+  final String removeLabel;
 
-  const GroupListItem({super.key, required this.conversation, this.onTap});
+  const GroupListItem({
+    super.key,
+    required this.conversation,
+    this.onTap,
+    this.onLongPress,
+    this.onPinToggle,
+    this.onRemove,
+    this.isPinned = false,
+    this.removeLabel = 'Leave circle',
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -48,6 +63,7 @@ class GroupListItem extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
+          onLongPress: onLongPress,
           borderRadius: BorderRadius.circular(24),
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -74,6 +90,11 @@ class GroupListItem extends StatelessWidget {
                         ? Image.network(
                             conversation.imageUrl!,
                             fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Icon(
+                              Icons.groups_rounded,
+                              size: 30,
+                              color: colorScheme.primary,
+                            ),
                           )
                         : Icon(
                             Icons.groups_rounded,
@@ -92,14 +113,28 @@ class GroupListItem extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        conversation.name ?? 'Unknown Group',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 16,
-                        ),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              conversation.name ?? 'Unknown Group',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                          if (isPinned) ...[
+                            const SizedBox(width: 6),
+                            Icon(
+                              Icons.push_pin_rounded,
+                              size: 13,
+                              color: colorScheme.primary,
+                            ),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -163,21 +198,69 @@ class GroupListItem extends StatelessWidget {
                           ],
                         ),
                       ),
-                    const SizedBox(height: 8),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      size: 20,
-                      color: colorScheme.onSurfaceVariant.withValues(
-                        alpha: 0.2,
+                    if (conversation.unreadCount > 0) ...[
+                      const SizedBox(height: 6),
+                      _UnreadBadge(count: conversation.unreadCount),
+                    ],
+                    const SizedBox(height: 6),
+                    Text(
+                      _formatTime(conversation.updatedAt),
+                      style: textTheme.labelSmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant.withValues(
+                          alpha: 0.45,
+                        ),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 10,
                       ),
                     ),
                   ],
                 ),
+                if (onPinToggle != null || onRemove != null) ...[
+                  const SizedBox(width: 4),
+                  IconButton(
+                    tooltip: 'Circle actions',
+                    padding: EdgeInsets.zero,
+                    onPressed: () => showConversationActionsSheet(
+                      context: context,
+                      isPinned: isPinned,
+                      onPinToggle: onPinToggle,
+                      onRemove: onRemove,
+                      removeLabel: removeLabel,
+                    ),
+                    icon: Icon(
+                      Icons.more_vert_rounded,
+                      size: 20,
+                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.55),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  String _formatTime(DateTime time) {
+    final diff = DateTime.now().difference(time);
+    if (diff.inMinutes < 1) return 'now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m';
+    if (diff.inHours < 24) return '${diff.inHours}h';
+    return '${time.day}/${time.month}';
+  }
+}
+
+class _UnreadBadge extends StatelessWidget {
+  final int count;
+  const _UnreadBadge({required this.count});
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(color: colors.primary, borderRadius: BorderRadius.circular(10)),
+      child: Text(count > 99 ? '99+' : '$count', style: TextStyle(color: colors.onPrimary, fontSize: 10, fontWeight: FontWeight.w900)),
     );
   }
 }

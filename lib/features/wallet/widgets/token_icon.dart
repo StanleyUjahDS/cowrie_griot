@@ -103,6 +103,36 @@ class TokenIcon extends StatelessWidget {
         );
       }
     }
+    // Native assets use the chain registry as a deterministic local fallback.
+    // This keeps BNB/ETH/POL/etc. branded when market metadata is delayed or
+    // a provider is rate-limited; the small chain badge remains separate.
+    if (isNative && chainName != null && chainName!.trim().isNotEmpty) {
+      final chainLogo = ChainAssets.getLogo(chainName!);
+      if (chainLogo != null) {
+        if (chainLogo.endsWith('.png')) {
+          return ClipOval(
+            child: Image.asset(
+              chainLogo,
+              width: radius * 2,
+              height: radius * 2,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) =>
+                  _remoteTokenImage(context),
+            ),
+          );
+        }
+        return ClipOval(
+          child: SvgPicture.asset(
+            chainLogo,
+            width: radius * 2,
+            height: radius * 2,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) =>
+                _remoteTokenImage(context),
+          ),
+        );
+      }
+    }
     return _remoteTokenImage(context);
   }
 
@@ -128,10 +158,7 @@ class TokenIcon extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: colors.surface,
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: colors.outlineVariant,
-                    width: 1.0,
-                  ),
+                  border: Border.all(color: colors.outlineVariant, width: 1.0),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.1),
@@ -141,10 +168,7 @@ class TokenIcon extends StatelessWidget {
                   ],
                 ),
                 child: Center(
-                  child: ChainAssets.getIcon(
-                    chainName!,
-                    size: radius * 0.62,
-                  ),
+                  child: ChainAssets.getIcon(chainName!, size: radius * 0.62),
                 ),
               ),
             ),

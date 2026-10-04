@@ -136,22 +136,38 @@ class WalletCryptoService {
       throw Exception('Legacy transaction requires gasPrice.');
     }
 
+    final value = _parseQuantity(valueRaw, 'transaction value');
+    final gasLimitValue = _parseQuantity(gasLimit, 'gas limit');
+    final gasPriceValue = gasPrice == null
+        ? null
+        : _parseQuantity(gasPrice, 'gas price');
+    final maxFeeValue = maxFeePerGas == null
+        ? null
+        : _parseQuantity(maxFeePerGas, 'max fee per gas');
+    final maxPriorityValue = maxPriorityFeePerGas == null
+        ? null
+        : _parseQuantity(maxPriorityFeePerGas, 'max priority fee per gas');
+
+    if (gasLimitValue > BigInt.from(0x7fffffff)) {
+      throw Exception('Gas limit is too large.');
+    }
+
     final transaction = web3.Transaction(
       to: legacy_wallet.EthereumAddress.fromHex(to),
       value: legacy_wallet.EtherAmount.inWei(
-        BigInt.parse(valueRaw),
+        value,
       ),
       nonce: nonce,
-      gasPrice: gasPrice != null
-          ? legacy_wallet.EtherAmount.inWei(BigInt.parse(gasPrice))
+      gasPrice: gasPriceValue != null
+          ? legacy_wallet.EtherAmount.inWei(gasPriceValue)
           : null,
-      maxFeePerGas: maxFeePerGas != null
-          ? legacy_wallet.EtherAmount.inWei(BigInt.parse(maxFeePerGas))
+      maxFeePerGas: maxFeeValue != null
+          ? legacy_wallet.EtherAmount.inWei(maxFeeValue)
           : null,
-      maxPriorityFeePerGas: maxPriorityFeePerGas != null
-          ? legacy_wallet.EtherAmount.inWei(BigInt.parse(maxPriorityFeePerGas))
+      maxPriorityFeePerGas: maxPriorityValue != null
+          ? legacy_wallet.EtherAmount.inWei(maxPriorityValue)
           : null,
-      maxGas: int.parse(gasLimit),
+      maxGas: gasLimitValue.toInt(),
       data: transactionData,
     );
 
@@ -162,6 +178,21 @@ class WalletCryptoService {
     );
 
     return '0x${_bytesToHex(signed)}';
+  }
+
+  static BigInt _parseQuantity(String value, String label) {
+    final normalized = value.trim().toLowerCase();
+    if (normalized.isEmpty) throw Exception('$label is missing.');
+    try {
+      if (normalized.startsWith('0x')) {
+        final hex = normalized.substring(2);
+        if (hex.isEmpty) return BigInt.zero;
+        return BigInt.parse(hex, radix: 16);
+      }
+      return BigInt.parse(normalized);
+    } catch (_) {
+      throw Exception('Invalid $label.');
+    }
   }
 
   // ============================================================

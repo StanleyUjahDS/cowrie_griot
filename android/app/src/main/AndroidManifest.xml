@@ -5,6 +5,24 @@
     <!-- Internet and Network -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Android 13+ requires this runtime permission for FCM alerts. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Required by Android 14+ for full-screen incoming-call UI. The app
+         requests the user-facing permission at runtime through CallKit. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <!-- CallKit Incoming uses a foreground phone-call service on Android 14+
+         so ringing and the full-screen call UI work while Griot is paused or
+         backgrounded. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.TURN_SCREEN_ON" />
+    <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
 
     <!-- Biometric authentication -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
@@ -12,10 +30,10 @@
 
     <!-- Audio Recording -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.CAMERA" />
 
     <!-- Contacts -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
-    <uses-permission android:name="android.permission.WRITE_CONTACTS" />
 
     <application
         android:label="Griot"
@@ -24,10 +42,18 @@
         android:usesCleartextTraffic="false"
         android:networkSecurityConfig="@xml/network_security_config">
 
+        <service
+            android:name=".GriotFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTask"
+            android:launchMode="singleInstance"
             android:taskAffinity=""
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
@@ -41,6 +67,20 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Custom-scheme fallback for browsers where HTTPS App Links
+                 have not yet been verified. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="griot" android:host="join" />
+                <data android:scheme="griot" android:host="plus" />
+                <data android:scheme="griot" android:host="profile" />
+                <data android:scheme="griot" android:host="group" />
+                <data android:scheme="griot" android:host="circle" />
+                <data android:scheme="griot" android:host="channel" />
             </intent-filter>
 
             <!-- Griot referral links: https://griot.network/join?ref=... -->
@@ -88,7 +128,7 @@
                 <data android:scheme="https" android:host="www.griot.network" android:path="/plus" />
             </intent-filter>
 
-            <!-- Griot Social Links: /group/@, /circle/@, /channel/@ -->
+            <!-- Griot Social Links: groups, channels, and profiles -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -99,6 +139,8 @@
                 <data android:scheme="https" android:host="www.griot.network" android:pathPrefix="/group/" />
                 <data android:scheme="https" android:host="www.griot.network" android:pathPrefix="/circle/" />
                 <data android:scheme="https" android:host="www.griot.network" android:pathPrefix="/channel/" />
+                <data android:scheme="https" android:host="griot.network" android:pathPrefix="/profile/" />
+                <data android:scheme="https" android:host="www.griot.network" android:pathPrefix="/profile/" />
             </intent-filter>
 
         </activity>
@@ -114,7 +156,7 @@
 
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-8432805167625659~8945820754"/>
+            android:value="ca-app-pub-8536613969303259~8291757202"/>
 
         <!-- FCM Notification Metadata -->
         <meta-data

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/ui/dialogs/griot_confirm_dialog.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -7,6 +8,7 @@ import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../auth/services/auth_session_service.dart';
 import '../../users/providers/user_provider.dart';
 import '../../wallet/providers/wallet_provider.dart';
+import '../../wallet/providers/display_currency_provider.dart';
 import '../../chat/providers/messaging_provider.dart';
 import '../../miner/providers/mining_provider.dart';
 import '../../miner/providers/referral_provider.dart';
@@ -19,9 +21,7 @@ import '../../../core/services/notification_service.dart';
 import '../../../core/ui/widgets/griot_branded_container.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({
-    super.key,
-  });
+  const SettingsScreen({super.key});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -56,24 +56,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _handleLogout(BuildContext context) async {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Log Out'),
-        content: const Text('Are you sure you want to log out of your account?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: TextStyle(color: colorScheme.onSurfaceVariant)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text('Log Out', style: TextStyle(color: colorScheme.error, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
+    final confirmed = await showGriotConfirmDialog(
+      context,
+      title: 'Log out',
+      message: 'Are you sure you want to log out of your account?',
+      confirmLabel: 'Log out',
+      destructive: true,
     );
 
     if (confirmed != true) return;
@@ -115,71 +103,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!context.mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
       NotificationService.showError(context, 'Logout failed: $e');
-    }
-  }
-
-  Future<void> _handleWipeData(BuildContext context) async {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Wipe All Data?'),
-        content: const Text(
-          'CRITICAL: This will permanently delete your wallet, mnemonic, and all local data from this device.\n\nEnsure you have backed up your recovery phrase first!',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: TextStyle(color: colorScheme.onSurfaceVariant)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text('Wipe Data', style: TextStyle(color: colorScheme.error, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-    if (!context.mounted) return;
-
-    showDialog(
-      context: context,
-      useRootNavigator: true,
-      barrierDismissible: false,
-      builder: (context) => const GriotOverlayLoader(message: 'Wiping data...'),
-    );
-
-    try {
-      final authSessionService = context.read<AuthSessionService>();
-      final userProvider = context.read<UserProvider>();
-      final walletProvider = context.read<WalletProvider>();
-      final messagingProvider = context.read<MessagingProvider>();
-      final miningProvider = context.read<MiningProvider>();
-      final referralProvider = context.read<ReferralProvider>();
-      final reputationProvider = context.read<ReputationProvider>();
-      final appLockProvider = context.read<AppLockProvider>();
-
-      // 1. Clear in-memory state and close database connections first
-      await messagingProvider.clearState();
-      userProvider.clearUser();
-      walletProvider.reset();
-      miningProvider.reset();
-      referralProvider.reset();
-      reputationProvider.reset();
-      appLockProvider.reset();
-
-      // 2. Full wipe of all local data including identity
-      await authSessionService.wipeData();
-
-      if (!context.mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
-      context.go('/welcome_one');
-    } catch (e) {
-      if (!context.mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
-      NotificationService.showError(context, 'Reset failed: $e');
     }
   }
 
@@ -240,7 +163,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600, color: titleColor),
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: titleColor,
+                      ),
                     ),
                     if (subtitle != null) ...[
                       const SizedBox(height: 2),
@@ -248,14 +174,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         subtitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant.withValues(alpha: 0.6), height: 1.2),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant.withValues(alpha: 0.6),
+                          height: 1.2,
+                        ),
                       ),
                     ],
                   ],
                 ),
               ),
               const SizedBox(width: 10),
-              trailing ?? Icon(Icons.chevron_right_rounded, size: 21, color: colors.onSurfaceVariant.withValues(alpha: 0.5)),
+              trailing ??
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 21,
+                    color: colors.onSurfaceVariant.withValues(alpha: 0.5),
+                  ),
             ],
           ),
         ),
@@ -267,11 +201,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final colors = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(left: 70, right: 14),
-      child: Divider(height: 1, thickness: 0.6, color: colors.onSurface.withValues(alpha: 0.065)),
+      child: Divider(
+        height: 1,
+        thickness: 0.6,
+        color: colors.onSurface.withValues(alpha: 0.065),
+      ),
     );
   }
 
-  Widget _sectionContainer({required BuildContext context, required List<Widget> children}) {
+  Widget _sectionContainer({
+    required BuildContext context,
+    required List<Widget> children,
+  }) {
     return GriotBrandedContainer(
       padding: EdgeInsets.zero,
       borderRadius: 20,
@@ -308,10 +249,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
-                          colors: [colors.primary.withValues(alpha: 0.20), colors.primary.withValues(alpha: 0.08)],
+                          colors: [
+                            colors.primary.withValues(alpha: 0.20),
+                            colors.primary.withValues(alpha: 0.08),
+                          ],
                         ),
                       ),
-                      child: Icon(Icons.person_outline_rounded, size: 29, color: colors.primary),
+                      child: Icon(
+                        Icons.person_outline_rounded,
+                        size: 29,
+                        color: colors.primary,
+                      ),
                     ),
                     const SizedBox(width: 14),
                     Expanded(
@@ -332,13 +280,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 Icon(
                                   Icons.workspace_premium_rounded,
                                   size: 16,
-                                  color: AppColors.parseHexColor(reputation.badgeColor),
+                                  color: AppColors.parseHexColor(
+                                    reputation.badgeColor,
+                                  ),
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
                                   reputation.tierName,
                                   style: theme.textTheme.labelSmall?.copyWith(
-                                    color: AppColors.parseHexColor(reputation.badgeColor),
+                                    color: AppColors.parseHexColor(
+                                      reputation.badgeColor,
+                                    ),
                                     fontWeight: FontWeight.w900,
                                     letterSpacing: 0.3,
                                     fontSize: 11,
@@ -352,7 +304,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             'Manage your profile and identity',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant.withValues(alpha: 0.6)),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colors.onSurfaceVariant.withValues(
+                                alpha: 0.6,
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -361,8 +317,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Container(
                       width: 32,
                       height: 32,
-                      decoration: BoxDecoration(color: colors.onSurface.withValues(alpha: 0.055), shape: BoxShape.circle),
-                      child: Icon(Icons.chevron_right_rounded, size: 19, color: colors.onSurfaceVariant.withValues(alpha: 0.5)),
+                      decoration: BoxDecoration(
+                        color: colors.onSurface.withValues(alpha: 0.055),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.chevron_right_rounded,
+                        size: 19,
+                        color: colors.onSurfaceVariant.withValues(alpha: 0.5),
+                      ),
                     ),
                   ],
                 ),
@@ -393,8 +356,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Container(
                   width: 48,
                   height: 48,
-                  decoration: BoxDecoration(color: colors.primary.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(15)),
-                  child: Icon(Icons.auto_awesome_rounded, color: colors.primary, size: 24),
+                  decoration: BoxDecoration(
+                    color: colors.primary.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Icon(
+                    Icons.auto_awesome_rounded,
+                    color: colors.primary,
+                    size: 24,
+                  ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -408,16 +378,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               'Griot Plus',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 7),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                            decoration: BoxDecoration(color: colors.primary, borderRadius: BorderRadius.circular(7)),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: colors.primary,
+                              borderRadius: BorderRadius.circular(7),
+                            ),
                             child: Text(
                               'PLUS',
-                              style: theme.textTheme.labelSmall?.copyWith(color: colors.onPrimary, fontWeight: FontWeight.w800, fontSize: 9, letterSpacing: 0.5),
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: colors.onPrimary,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 9,
+                                letterSpacing: 0.5,
+                              ),
                             ),
                           ),
                         ],
@@ -427,13 +410,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         'Enhanced mining and premium benefits',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant.withValues(alpha: 0.6)),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant.withValues(alpha: 0.6),
+                        ),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(width: 8),
-                Icon(Icons.arrow_forward_ios_rounded, size: 15, color: colors.primary),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 15,
+                  color: colors.primary,
+                ),
               ],
             ),
           ),
@@ -445,6 +434,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final displayCurrency = context.watch<DisplayCurrencyProvider>();
     return GradientScaffold(
       useSafeArea: false,
       extendBodyBehindAppBar: false,
@@ -465,173 +455,195 @@ class _SettingsScreenState extends State<SettingsScreen> {
         onRefresh: () => context.read<UserProvider>().refreshUser(),
         child: ListView(
           controller: _scrollController,
-          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          ),
           padding: const EdgeInsets.fromLTRB(18, 12, 18, 120),
           children: [
-              _profileHeader(context),
-              const SizedBox(height: 13),
-              _griotPlusCard(context),
-              _sectionLabel(context, 'Messaging'),
-              _sectionContainer(
-                context: context,
-                children: [
-                  _settingTile(
-                    context: context,
-                    icon: Icons.chat_bubble_outline_rounded,
-                    title: 'Chat Settings',
-                    subtitle: 'Manage your messaging preferences',
-                    onTap: () => context.push('/settings/chat-settings'),
-                  ),
-                  _divider(context),
-                  _settingTile(
-                    context: context,
-                    icon: Icons.lock_outline_rounded,
-                    title: 'Chat Privacy',
-                    subtitle: 'Control privacy for your conversations',
-                    onTap: () => context.push('/settings/chat-privacy'),
-                  ),
-                ],
-              ),
-              _sectionLabel(context, 'Security'),
-              _sectionContainer(
-                context: context,
-                children: [
-                  _settingTile(
-                    context: context,
-                    icon: Icons.fingerprint_rounded,
-                    title: 'App Security',
-                    subtitle: 'Biometrics, PIN and automatic app lock',
-                    onTap: () => context.push('/settings/app-security'),
-                  ),
-                  _divider(context),
-                  _settingTile(
-                    context: context,
-                    icon: Icons.key_rounded,
-                    title: 'Backup Seed Phrase',
-                    subtitle: 'Securely back up your recovery phrase',
-                    onTap: () {
-                      context.push('/verify_pin', extra: (BuildContext ctx) async {
+            _profileHeader(context),
+            const SizedBox(height: 13),
+            _griotPlusCard(context),
+            _sectionLabel(context, 'Wallet & currency'),
+            _sectionContainer(
+              context: context,
+              children: [
+                _settingTile(
+                  context: context,
+                  icon: Icons.currency_exchange_rounded,
+                  title: 'Display currency',
+                  subtitle:
+                      '${displayCurrency.currency} · ${displayCurrency.label}',
+                  onTap: () => context.push('/settings/currency'),
+                ),
+              ],
+            ),
+            _sectionLabel(context, 'Messaging'),
+            _sectionContainer(
+              context: context,
+              children: [
+                _settingTile(
+                  context: context,
+                  icon: Icons.chat_bubble_outline_rounded,
+                  title: 'Chat Settings',
+                  subtitle: 'Manage your messaging preferences',
+                  onTap: () => context.push('/settings/chat-settings'),
+                ),
+                _divider(context),
+                _settingTile(
+                  context: context,
+                  icon: Icons.lock_outline_rounded,
+                  title: 'Chat Privacy',
+                  subtitle: 'Control privacy for your conversations',
+                  onTap: () => context.push('/settings/chat-privacy'),
+                ),
+              ],
+            ),
+            _sectionLabel(context, 'Security'),
+            _sectionContainer(
+              context: context,
+              children: [
+                _settingTile(
+                  context: context,
+                  icon: Icons.fingerprint_rounded,
+                  title: 'App Security',
+                  subtitle: 'Biometrics, PIN and automatic app lock',
+                  onTap: () => context.push('/settings/app-security'),
+                ),
+                _divider(context),
+                _settingTile(
+                  context: context,
+                  icon: Icons.key_rounded,
+                  title: 'Backup Seed Phrase',
+                  subtitle: 'Securely back up your recovery phrase',
+                  onTap: () {
+                    context.push(
+                      '/verify_pin',
+                      extra: (BuildContext ctx) async {
                         if (ctx.mounted) {
                           ctx.pushReplacement('/settings/backup-wallet');
                         }
-                      });
-                    },
-                  ),
-                ],
-              ),
-              _sectionLabel(context, 'Miner'),
-              _sectionContainer(
-                context: context,
-                children: [
-                  _settingTile(
-                    context: context,
-                    icon: Icons.stars_rounded,
-                    title: 'Reputation',
-                    subtitle: 'View your network tier and points',
-                    onTap: () => context.push('/settings/reputation'),
-                  ),
-                  _divider(context),
-                  _settingTile(
-                    context: context,
-                    icon: Icons.people_outline_rounded,
-                    title: 'Referrals',
-                    subtitle: 'Manage referrals and rewards',
-                    onTap: () => context.push('/settings/referrals'),
-                  ),
-                ],
-              ),
-              _sectionLabel(context, 'Privacy'),
-              _sectionContainer(
-                context: context,
-                children: [
-                  _settingTile(
-                    context: context,
-                    icon: Icons.visibility_off_outlined,
-                    title: 'Privacy',
-                    subtitle: 'Manage profile and discovery privacy',
-                    onTap: () => context.push('/settings/privacy'),
-                  ),
-                ],
-              ),
-              _sectionLabel(context, 'Appearance'),
-              _sectionContainer(
-                context: context,
-                children: [
-                  _settingTile(
-                    context: context,
-                    icon: Icons.dark_mode_outlined,
-                    title: 'Theme',
-                    subtitle: 'Light, dark or follow system',
-                    onTap: () => context.push('/settings/theme'),
-                  ),
-                  _divider(context),
-                  _settingTile(
-                    context: context,
-                    icon: Icons.palette_outlined,
-                    title: 'Accent Color',
-                    subtitle: 'Choose your app accent color',
-                    onTap: () => context.push('/settings/accent-color'),
-                  ),
-                ],
-              ),
-              _sectionLabel(context, 'General'),
-              _sectionContainer(
-                context: context,
-                children: [
-                  _settingTile(
-                    context: context,
-                    icon: Icons.notifications_none_rounded,
-                    title: 'Notifications',
-                    subtitle: 'Manage app notifications',
-                    onTap: () => context.push('/settings/notifications'),
-                  ),
-                  _divider(context),
-                  _settingTile(
-                    context: context,
-                    icon: Icons.info_outline_rounded,
-                    title: 'About Griot',
-                    subtitle: 'App information and policies',
-                    onTap: () => context.push('/settings/about'),
-                  ),
-                ],
-              ),
-              _sectionLabel(context, 'Account Actions'),
-              _sectionContainer(
-                context: context,
-                children: [
-                  _settingTile(
-                    context: context,
-                    icon: Icons.logout_rounded,
-                    title: 'Log Out',
-                    subtitle: 'Sign out of your Griot account',
-                    onTap: () => _handleLogout(context),
-                  ),
-                  _divider(context),
-                  _settingTile(
-                    context: context,
-                    icon: Icons.delete_forever_outlined,
-                    title: 'Wipe All Data',
-                    subtitle: 'Delete wallet and all local data',
-                    iconColor: Theme.of(context).colorScheme.error,
-                    titleColor: Theme.of(context).colorScheme.error,
-                    onTap: () => _handleWipeData(context),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              const GriotBannerAd(),
-              const SizedBox(height: 16),
-              Center(
-                child: Text(
-                  'Your wallet. Your identity. Your network.',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      },
+                    );
+                  },
+                ),
+              ],
+            ),
+            _sectionLabel(context, 'Miner'),
+            _sectionContainer(
+              context: context,
+              children: [
+                _settingTile(
+                  context: context,
+                  icon: Icons.stars_rounded,
+                  title: 'Reputation',
+                  subtitle: 'View your network tier and points',
+                  onTap: () => context.push('/settings/reputation'),
+                ),
+                _divider(context),
+                _settingTile(
+                  context: context,
+                  icon: Icons.people_outline_rounded,
+                  title: 'Referrals',
+                  subtitle: 'Manage referrals and rewards',
+                  onTap: () => context.push('/settings/referrals'),
+                ),
+              ],
+            ),
+            _sectionLabel(context, 'Privacy'),
+            _sectionContainer(
+              context: context,
+              children: [
+                _settingTile(
+                  context: context,
+                  icon: Icons.visibility_off_outlined,
+                  title: 'Privacy',
+                  subtitle: 'Manage profile and discovery privacy',
+                  onTap: () => context.push('/settings/privacy'),
+                ),
+              ],
+            ),
+            _sectionLabel(context, 'Appearance'),
+            _sectionContainer(
+              context: context,
+              children: [
+                _settingTile(
+                  context: context,
+                  icon: Icons.dark_mode_outlined,
+                  title: 'Theme',
+                  subtitle: 'Light, dark or follow system',
+                  onTap: () => context.push('/settings/theme'),
+                ),
+                _divider(context),
+                _settingTile(
+                  context: context,
+                  icon: Icons.palette_outlined,
+                  title: 'Accent Color',
+                  subtitle: 'Choose your app accent color',
+                  onTap: () => context.push('/settings/accent-color'),
+                ),
+              ],
+            ),
+            _sectionLabel(context, 'General'),
+            _sectionContainer(
+              context: context,
+              children: [
+                _settingTile(
+                  context: context,
+                  icon: Icons.notifications_none_rounded,
+                  title: 'Notifications',
+                  subtitle: 'Manage app notifications',
+                  onTap: () => context.push('/settings/notifications'),
+                ),
+                _divider(context),
+                _settingTile(
+                  context: context,
+                  icon: Icons.info_outline_rounded,
+                  title: 'About Griot',
+                  subtitle: 'App information and policies',
+                  onTap: () => context.push('/settings/about'),
+                ),
+              ],
+            ),
+            _sectionLabel(context, 'Account Actions'),
+            _sectionContainer(
+              context: context,
+              children: [
+                _settingTile(
+                  context: context,
+                  icon: Icons.logout_rounded,
+                  title: 'Log Out',
+                  subtitle: 'Sign out of your Griot account',
+                  onTap: () => _handleLogout(context),
+                ),
+                _divider(context),
+                _settingTile(
+                  context: context,
+                  icon: Icons.delete_forever_outlined,
+                  title: 'Delete Griot Account',
+                  subtitle:
+                      'Permanently delete your cloud account and device data',
+                  iconColor: Theme.of(context).colorScheme.error,
+                  titleColor: Theme.of(context).colorScheme.error,
+                  onTap: () => context.push('/settings/delete-account'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            const GriotBannerAd(),
+            const SizedBox(height: 16),
+            Center(
+              child: Text(
+                'Your wallet. Your identity. Your network.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
-              const SizedBox(height: 12),
-            ],
-          ),
+            ),
+            const SizedBox(height: 12),
+          ],
         ),
+      ),
     );
   }
 }

@@ -15,6 +15,15 @@ class ChatDrawer extends StatelessWidget {
 
   void _openRequests(BuildContext context) => context.push('/chat/requests');
 
+  void _closeAndNavigate(BuildContext context, VoidCallback navigate) {
+    // Push the destination while the drawer still covers the shell, then
+    // close the drawer through ScaffoldState. Using Navigator.pop() here is
+    // unsafe: after the push it can pop the newly pushed page instead of the
+    // drawer's LocalHistoryEntry, briefly exposing the chat home.
+    navigate();
+    Scaffold.of(context).closeDrawer();
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -150,40 +159,54 @@ class ChatDrawer extends StatelessWidget {
                   ),
                   physics: const BouncingScrollPhysics(),
                   children: [
-                    _sectionLabel(context, 'Connections'),
-                    _tile(context, Icons.search_rounded, 'Discover Users', () {
-                      Navigator.pop(context);
-                      _openNewChat(context);
-                    }),
-                    _tile(context, Icons.people_rounded, 'My Friends', () {
-                      Navigator.pop(context);
-                      _openFriends(context);
-                    }),
+                    const _DrawerSectionLabel(title: 'Connections'),
+                    _DrawerTile(
+                      icon: Icons.search_rounded,
+                      label: 'Discover Users',
+                      onTap: () {
+                        _closeAndNavigate(context, () => _openNewChat(context));
+                      },
+                    ),
+                    _DrawerTile(
+                      icon: Icons.people_rounded,
+                      label: 'My Friends',
+                      onTap: () {
+                        _closeAndNavigate(context, () => _openFriends(context));
+                      },
+                    ),
                     Consumer<MessagingProvider>(
                       builder: (context, provider, _) {
                         final count = provider.pendingRequestCount;
-                        return _tile(
-                          context,
-                          Icons.mail_rounded,
-                          'Message Requests',
-                          () {
-                            Navigator.pop(context);
-                            _openRequests(context);
+                        return _DrawerTile(
+                          icon: Icons.mail_rounded,
+                          label: 'Message Requests',
+                          onTap: () {
+                            _closeAndNavigate(
+                              context,
+                              () => _openRequests(context),
+                            );
                           },
                           badge: count > 0 ? count.toString() : null,
                         );
                       },
                     ),
-
+                    _DrawerTile(
+                      icon: Icons.link_rounded,
+                      label: 'Create call link',
+                      onTap: () => _closeAndNavigate(
+                        context,
+                        () => context.push('/chat/call-link/create'),
+                      ),
+                    ),
                     const SizedBox(height: 24),
-                    _sectionLabel(context, 'Tools'),
-                    _tile(
-                      context,
-                      null,
-                      'Tip Jar',
-                      () {
-                        Navigator.pop(context);
-                        TipSheet.show(context, recipients: []);
+                    const _DrawerSectionLabel(title: 'Tools'),
+                    _DrawerTile(
+                      label: 'Tip Jar',
+                      onTap: () {
+                        _closeAndNavigate(
+                          context,
+                          () => TipSheet.show(context, recipients: []),
+                        );
                       },
                       customLeading: Icon(
                         Icons.volunteer_activism_outlined,
@@ -193,21 +216,29 @@ class ChatDrawer extends StatelessWidget {
                     ),
 
                     const SizedBox(height: 24),
-                    _sectionLabel(context, 'Creation'),
-                    _tile(
-                      context,
-                      Icons.add_circle_outline_rounded,
-                      'Create Private Circle',
-                      () {
-                        Navigator.pop(context);
-                        context.push('/chat/groups/create');
+                    const _DrawerSectionLabel(title: 'Creation'),
+                    _DrawerTile(
+                      icon: Icons.add_circle_outline_rounded,
+                      label: 'Create Private Circle',
+                      onTap: () {
+                        _closeAndNavigate(
+                          context,
+                          () => context.push('/chat/groups/create'),
+                        );
                       },
                       isAction: true,
                     ),
-                    _tile(context, Icons.sensors_rounded, 'Launch Channel', () {
-                      Navigator.pop(context);
-                      context.push('/chat/channels/create');
-                    }, isAction: true),
+                    _DrawerTile(
+                      icon: Icons.sensors_rounded,
+                      label: 'Launch Channel',
+                      onTap: () {
+                        _closeAndNavigate(
+                          context,
+                          () => context.push('/chat/channels/create'),
+                        );
+                      },
+                      isAction: true,
+                    ),
                   ],
                 ),
               ),
@@ -230,8 +261,15 @@ class ChatDrawer extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _sectionLabel(BuildContext context, String title) {
+class _DrawerSectionLabel extends StatelessWidget {
+  final String title;
+
+  const _DrawerSectionLabel({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -246,16 +284,27 @@ class ChatDrawer extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _tile(
-    BuildContext context,
-    IconData? icon,
-    String label,
-    VoidCallback onTap, {
-    String? badge,
-    Widget? customLeading,
-    bool isAction = false,
-  }) {
+class _DrawerTile extends StatelessWidget {
+  final IconData? icon;
+  final String label;
+  final VoidCallback onTap;
+  final String? badge;
+  final Widget? customLeading;
+  final bool isAction;
+
+  const _DrawerTile({
+    this.icon,
+    required this.label,
+    required this.onTap,
+    this.badge,
+    this.customLeading,
+    this.isAction = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
@@ -312,7 +361,7 @@ class ChatDrawer extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
-                  badge,
+                  badge!,
                   style: TextStyle(
                     color: colors.onPrimary,
                     fontSize: 10,

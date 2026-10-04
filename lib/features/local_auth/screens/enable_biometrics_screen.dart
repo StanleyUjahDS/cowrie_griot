@@ -11,23 +11,20 @@ import '../../../core/services/notification_service.dart';
 import '../providers/app_lock_provider.dart';
 
 class BiometricsScreen extends StatefulWidget {
-  const BiometricsScreen({
-    super.key,
-  });
+  final Future<void> Function(BuildContext)? onSuccess;
+
+  const BiometricsScreen({super.key, this.onSuccess});
 
   @override
-  State<BiometricsScreen> createState() =>
-      _BiometricsScreenState();
+  State<BiometricsScreen> createState() => _BiometricsScreenState();
 }
 
-class _BiometricsScreenState
-    extends State<BiometricsScreen> {
+class _BiometricsScreenState extends State<BiometricsScreen> {
   // ============================================================
   // SERVICES
   // ============================================================
 
-  final LocalAuthentication _auth =
-  LocalAuthentication();
+  final LocalAuthentication _auth = LocalAuthentication();
 
   // ============================================================
   // STATE
@@ -56,19 +53,14 @@ class _BiometricsScreenState
 
   Future<void> _checkBiometricsAvailability() async {
     try {
-      final canCheck =
-      await _auth.canCheckBiometrics;
+      final canCheck = await _auth.canCheckBiometrics;
 
-      final isSupported =
-      await _auth.isDeviceSupported();
+      final isSupported = await _auth.isDeviceSupported();
 
-      final availableBiometrics =
-      await _auth.getAvailableBiometrics();
+      final availableBiometrics = await _auth.getAvailableBiometrics();
 
       final available =
-          canCheck &&
-              isSupported &&
-              availableBiometrics.isNotEmpty;
+          canCheck && isSupported && availableBiometrics.isNotEmpty;
 
       if (!mounted) {
         return;
@@ -126,10 +118,8 @@ class _BiometricsScreenState
       // DEVICE BIOMETRIC VERIFICATION
       // ========================================================
 
-      final authenticated =
-      await _auth.authenticate(
-        localizedReason:
-        'Use biometrics to unlock your wallet',
+      final authenticated = await _auth.authenticate(
+        localizedReason: 'Use biometrics to unlock your wallet',
         biometricOnly: true,
         persistAcrossBackgrounding: true,
       );
@@ -147,9 +137,7 @@ class _BiometricsScreenState
           _authenticating = false;
         });
 
-        _showInfo(
-          'Biometric authentication was cancelled.',
-        );
+        _showInfo('Biometric authentication was cancelled.');
 
         return;
       }
@@ -173,6 +161,14 @@ class _BiometricsScreenState
         return;
       }
 
+      if (widget.onSuccess != null) {
+        await widget.onSuccess!(context);
+      }
+
+      if (!mounted) {
+        return;
+      }
+
       context.go('/');
     } catch (e) {
       if (!mounted) {
@@ -183,9 +179,7 @@ class _BiometricsScreenState
         _authenticating = false;
       });
 
-      _showError(
-        _getAuthenticationErrorMessage(e),
-      );
+      _showError(_getAuthenticationErrorMessage(e));
     }
   }
 
@@ -233,6 +227,14 @@ class _BiometricsScreenState
         return;
       }
 
+      if (widget.onSuccess != null) {
+        await widget.onSuccess!(context);
+      }
+
+      if (!mounted) {
+        return;
+      }
+
       context.go('/');
     } catch (e) {
       if (!mounted) {
@@ -243,9 +245,7 @@ class _BiometricsScreenState
         _authenticating = false;
       });
 
-      _showError(
-        _getAuthenticationErrorMessage(e),
-      );
+      _showError(_getAuthenticationErrorMessage(e));
     }
   }
 
@@ -253,16 +253,8 @@ class _BiometricsScreenState
   // AUTHENTICATION ERROR
   // ============================================================
 
-  String _getAuthenticationErrorMessage(
-      Object error,
-      ) {
-    final message = error
-        .toString()
-        .replaceFirst(
-      'Exception: ',
-      '',
-    )
-        .trim();
+  String _getAuthenticationErrorMessage(Object error) {
+    final message = error.toString().replaceFirst('Exception: ', '').trim();
 
     if (message.isEmpty) {
       return 'Authentication failed.';
@@ -275,9 +267,7 @@ class _BiometricsScreenState
   // INFO MESSAGE
   // ============================================================
 
-  void _showInfo(
-      String message,
-      ) {
+  void _showInfo(String message) {
     NotificationService.showInfo(context, message);
   }
 
@@ -285,9 +275,7 @@ class _BiometricsScreenState
   // ERROR MESSAGE
   // ============================================================
 
-  void _showError(
-      String message,
-      ) {
+  void _showError(String message) {
     NotificationService.showError(context, message);
   }
 
@@ -296,26 +284,16 @@ class _BiometricsScreenState
   // ============================================================
 
   @override
-  Widget build(
-      BuildContext context,
-      ) {
-    final theme =
-    Theme.of(context);
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
 
-    final colorScheme =
-        theme.colorScheme;
+    final colorScheme = theme.colorScheme;
 
-    final textTheme =
-        theme.textTheme;
+    final textTheme = theme.textTheme;
 
-    final isDark =
-        theme.brightness ==
-            Brightness.dark;
+    final isDark = theme.brightness == Brightness.dark;
 
-    final screenWidth =
-        MediaQuery.of(context)
-            .size
-            .width;
+    final screenWidth = MediaQuery.of(context).size.width;
 
     return GradientScaffold(
       // ========================================================
@@ -323,24 +301,18 @@ class _BiometricsScreenState
       // ========================================================
 
       appBar: AppBar(
-        title: const Text(
-          'Enable Biometrics',
-        ),
+        title: const Text('Enable Biometrics'),
         centerTitle: true,
-        backgroundColor:
-        Colors.transparent,
-        foregroundColor:
-        colorScheme.onSurface,
+        backgroundColor: Colors.transparent,
+        foregroundColor: colorScheme.onSurface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        surfaceTintColor:
-        Colors.transparent,
+        surfaceTintColor: Colors.transparent,
       ),
 
       // ========================================================
       // BODY
       // ========================================================
-
       child: Column(
         children: [
           // ======================================================
@@ -348,21 +320,12 @@ class _BiometricsScreenState
           // ======================================================
 
           Expanded(
-            child:
-            SingleChildScrollView(
-              padding:
-              const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 24,
-              ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
               child: ConstrainedBox(
-                constraints:
-                const BoxConstraints(
-                  minHeight: 520,
-                ),
+                constraints: const BoxConstraints(minHeight: 520),
                 child: Column(
-                  mainAxisAlignment:
-                  MainAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     // ==================================================
                     // INITIAL LOADING
@@ -370,161 +333,104 @@ class _BiometricsScreenState
 
                     if (_loading)
                       const Padding(
-                        padding:
-                        EdgeInsets.only(
-                          top: 100,
-                        ),
-                        child:
-                        GriotLoader(),
+                        padding: EdgeInsets.only(top: 100),
+                        child: GriotLoader(),
                       )
-
                     // ==================================================
                     // CONTENT
                     // ==================================================
-
                     else ...[
                       // ================================================
                       // FINGERPRINT ICON
                       // ================================================
 
                       Container(
-                        width:
-                        screenWidth *
-                            0.45,
-                        height:
-                        screenWidth *
-                            0.45,
-                        decoration:
-                        BoxDecoration(
-                          shape:
-                          BoxShape.circle,
-                          color: colorScheme
-                              .primary
-                              .withValues(alpha: isDark ? 0.14 : 0.08),
-                          border:
-                          Border.all(
-                            color: colorScheme
-                                .primary
-                                .withValues(alpha: isDark ? 0.35 : 0.25),
+                        width: screenWidth * 0.45,
+                        height: screenWidth * 0.45,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: colorScheme.primary.withValues(
+                            alpha: isDark ? 0.14 : 0.08,
+                          ),
+                          border: Border.all(
+                            color: colorScheme.primary.withValues(
+                              alpha: isDark ? 0.35 : 0.25,
+                            ),
                             width: 1.5,
                           ),
                         ),
                         child: Icon(
-                          Icons
-                              .fingerprint_rounded,
+                          Icons.fingerprint_rounded,
                           size: 80,
-                          color:
-                          colorScheme
-                              .primary,
+                          color: colorScheme.primary,
                         ),
                       ),
 
-                      const SizedBox(
-                        height: 28,
-                      ),
+                      const SizedBox(height: 28),
 
                       // ================================================
                       // TITLE
                       // ================================================
-
                       Text(
                         'Enable Biometrics',
-                        textAlign:
-                        TextAlign.center,
-                        style: textTheme
-                            .headlineSmall
-                            ?.copyWith(
-                          fontWeight:
-                          FontWeight.w700,
+                        textAlign: TextAlign.center,
+                        style: textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
 
-                      const SizedBox(
-                        height: 12,
-                      ),
+                      const SizedBox(height: 12),
 
                       // ================================================
                       // DESCRIPTION
                       // ================================================
-
                       ConstrainedBox(
-                        constraints:
-                        const BoxConstraints(
-                          maxWidth: 420,
-                        ),
+                        constraints: const BoxConstraints(maxWidth: 420),
                         child: Text(
                           'Use Face ID or Fingerprint '
-                              'to unlock your wallet quickly '
-                              'and securely.',
-                          textAlign:
-                          TextAlign.center,
-                          style: textTheme
-                              .bodyMedium
-                              ?.copyWith(
-                            color: colorScheme
-                                .onSurfaceVariant,
+                          'to unlock your wallet quickly '
+                          'and securely.',
+                          textAlign: TextAlign.center,
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
                             height: 1.45,
                           ),
                         ),
                       ),
 
-                      const SizedBox(
-                        height: 28,
-                      ),
+                      const SizedBox(height: 28),
 
                       // ================================================
                       // AVAILABILITY
                       // ================================================
-
                       if (!_biometricsAvailable)
                         Container(
-                          padding:
-                          const EdgeInsets
-                              .symmetric(
+                          padding: const EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 12,
                           ),
-                          decoration:
-                          BoxDecoration(
-                            color: colorScheme
-                                .error
-                                .withValues(alpha: 0.08),
-                            borderRadius:
-                            BorderRadius
-                                .circular(
-                              12,
-                            ),
-                            border:
-                            Border.all(
-                              color: colorScheme
-                                  .error
-                                  .withValues(alpha: 0.20),
+                          decoration: BoxDecoration(
+                            color: colorScheme.error.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: colorScheme.error.withValues(alpha: 0.20),
                             ),
                           ),
                           child: Row(
                             children: [
                               Icon(
-                                Icons
-                                    .fingerprint_outlined,
-                                color:
-                                colorScheme
-                                    .error,
+                                Icons.fingerprint_outlined,
+                                color: colorScheme.error,
                                 size: 20,
                               ),
-                              const SizedBox(
-                                width: 10,
-                              ),
+                              const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
                                   'Biometric authentication '
-                                      'is not available on this device. '
-                                      'You can continue without it.',
-                                  style: textTheme
-                                      .bodySmall
-                                      ?.copyWith(
-                                    color:
-                                    colorScheme
-                                        .error,
+                                  'is not available on this device. '
+                                  'You can continue without it.',
+                                  style: textTheme.bodySmall?.copyWith(
+                                    color: colorScheme.error,
                                     height: 1.4,
                                   ),
                                 ),
@@ -535,14 +441,10 @@ class _BiometricsScreenState
                       else
                         Text(
                           'You can enable biometrics now, '
-                              'or continue without it.',
-                          textAlign:
-                          TextAlign.center,
-                          style: textTheme
-                              .bodySmall
-                              ?.copyWith(
-                            color: colorScheme
-                                .onSurfaceVariant,
+                          'or continue without it.',
+                          textAlign: TextAlign.center,
+                          style: textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
                           ),
                         ),
                     ],
@@ -555,15 +457,8 @@ class _BiometricsScreenState
           // ========================================================
           // BOTTOM ACTIONS
           // ========================================================
-
           Padding(
-            padding:
-            const EdgeInsets.fromLTRB(
-              20,
-              8,
-              20,
-              20,
-            ),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
             child: Column(
               children: [
                 // ==================================================
@@ -571,108 +466,60 @@ class _BiometricsScreenState
                 // ==================================================
 
                 SizedBox(
-                  width:
-                  double.infinity,
+                  width: double.infinity,
                   height: 52,
-                  child:
-                  ElevatedButton(
+                  child: ElevatedButton(
                     onPressed:
-                    _loading ||
-                        _authenticating ||
-                        !_biometricsAvailable
+                        _loading || _authenticating || !_biometricsAvailable
                         ? null
                         : _enableBiometrics,
-                    style:
-                    ElevatedButton
-                        .styleFrom(
-                      backgroundColor:
-                      colorScheme
-                          .primary,
-                      foregroundColor:
-                      colorScheme
-                          .onPrimary,
-                      disabledBackgroundColor:
-                      colorScheme
-                          .primary
-                          .withValues(alpha: 0.65),
-                      disabledForegroundColor:
-                      colorScheme
-                          .onPrimary,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: colorScheme.primary,
+                      foregroundColor: colorScheme.onPrimary,
+                      disabledBackgroundColor: colorScheme.primary.withValues(
+                        alpha: 0.65,
+                      ),
+                      disabledForegroundColor: colorScheme.onPrimary,
                       elevation: 0,
-                      shape:
-                      RoundedRectangleBorder(
-                        borderRadius:
-                        BorderRadius
-                            .circular(
-                          16,
-                        ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
                       ),
                     ),
                     child: Text(
-                      _authenticating
-                          ? 'Continuing...'
-                          : 'Enable',
-                      style: textTheme
-                          .labelLarge
-                          ?.copyWith(
-                        color:
-                        colorScheme
-                            .onPrimary,
-                        fontWeight:
-                        FontWeight.w600,
+                      _authenticating ? 'Continuing...' : 'Enable',
+                      style: textTheme.labelLarge?.copyWith(
+                        color: colorScheme.onPrimary,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
                 ),
 
-                const SizedBox(
-                  height: 10,
-                ),
+                const SizedBox(height: 10),
 
                 // ==================================================
                 // CONTINUE WITHOUT BIOMETRICS
                 // ==================================================
-
                 SizedBox(
-                  width:
-                  double.infinity,
+                  width: double.infinity,
                   height: 52,
-                  child:
-                  OutlinedButton(
-                    onPressed:
-                    _loading ||
-                        _authenticating
+                  child: OutlinedButton(
+                    onPressed: _loading || _authenticating
                         ? null
                         : _continueWithoutBiometrics,
-                    style:
-                    OutlinedButton
-                        .styleFrom(
-                      foregroundColor:
-                      colorScheme
-                          .onSurface,
-                      disabledForegroundColor:
-                      colorScheme
-                          .onSurfaceVariant,
-                      side:
-                      BorderSide(
-                        color: colorScheme
-                            .outline
-                            .withValues(alpha: 0.35),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: colorScheme.onSurface,
+                      disabledForegroundColor: colorScheme.onSurfaceVariant,
+                      side: BorderSide(
+                        color: colorScheme.outline.withValues(alpha: 0.35),
                       ),
-                      shape:
-                      RoundedRectangleBorder(
-                        borderRadius:
-                        BorderRadius
-                            .circular(
-                          16,
-                        ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    child:
-                    const Text(
+                    child: const Text(
                       'Continue without biometrics',
-                      textAlign:
-                      TextAlign.center,
+                      textAlign: TextAlign.center,
                     ),
                   ),
                 ),

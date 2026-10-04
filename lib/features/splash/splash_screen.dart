@@ -90,6 +90,9 @@ class _SplashScreenState extends State<SplashScreen> {
           DeepLinkService.instance.openPendingReferralIfAuthenticated(),
         );
         unawaited(DeepLinkService.instance.openPendingPlusIfAuthenticated());
+        unawaited(
+          DeepLinkService.instance.openPendingDestinationIfAuthenticated(),
+        );
       } else {
         debugPrint('Splash: Startup failed or no wallet found.');
         context.go('/login');

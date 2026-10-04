@@ -26,6 +26,8 @@ import '../widgets/chatting/message_bubble.dart';
 import '../widgets/chatting/message_input.dart';
 import '../widgets/chatting/tip_sheet.dart';
 import '../widgets/chatting/voice_recording_sheet.dart';
+import '../widgets/conversation_call_button.dart';
+import '../widgets/chat_wallpaper.dart';
 
 class DMChatScreen extends StatefulWidget {
   final String? userId;
@@ -48,15 +50,28 @@ class DMChatScreen extends StatefulWidget {
 class _DMChatScreenState extends State<DMChatScreen> {
   final TextEditingController controller = TextEditingController();
   final ScrollController scrollController = ScrollController();
+  final Map<String, GlobalKey> _messageKeys = <String, GlobalKey>{};
 
   String? _conversationId;
   Conversation? _conversation;
   ChatMessage? _replyingTo;
   Timer? _typingTimer;
+  Timer? _highlightTimer;
+  String? _highlightedMessageId;
   bool _lastTypingState = false;
   bool _showScrollToBottom = false;
   bool _loading = false;
   String _message = '';
+  MessagingProvider? _messagingProvider;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Keep the provider reference before teardown. Looking it up from
+    // `context` in dispose() is unsafe because the element is already being
+    // removed from the widget tree at that point.
+    _messagingProvider ??= context.read<MessagingProvider>();
+  }
 
   @override
   void initState() {
@@ -195,11 +210,12 @@ class _DMChatScreenState extends State<DMChatScreen> {
   @override
   void dispose() {
     _typingTimer?.cancel();
+    _highlightTimer?.cancel();
     if (_conversationId != null) {
       try {
-        final provider = context.read<MessagingProvider>();
-        provider.setTyping(_conversationId!, false);
-        provider.leaveConversation(_conversationId!);
+        final provider = _messagingProvider;
+        provider?.setTyping(_conversationId!, false);
+        provider?.leaveConversation(_conversationId!);
       } catch (e) {
         debugPrint('MessagingProvider was already disposed: $e');
       }
@@ -208,6 +224,67 @@ class _DMChatScreenState extends State<DMChatScreen> {
     controller.dispose();
     scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _jumpToMessage(String messageId) async {
+    final conversationId = _conversationId;
+    if (conversationId == null) return;
+    final provider = context.read<MessagingProvider>();
+
+    for (var attempt = 0; attempt < 3; attempt++) {
+      final messages = provider.getMessagesForConversation(conversationId);
+      final index = messages.indexWhere((item) => item.id == messageId);
+      if (index >= 0) {
+        _highlightTimer?.cancel();
+        if (mounted) setState(() => _highlightedMessageId = messageId);
+
+        final targetContext = _messageKeys[messageId]?.currentContext;
+        if (targetContext != null && targetContext.mounted) {
+          await Scrollable.ensureVisible(
+            targetContext,
+            duration: const Duration(milliseconds: 320),
+            curve: Curves.easeOutCubic,
+            alignment: 0.45,
+          );
+        } else if (scrollController.hasClients) {
+          final estimated = (index * 96.0)
+              .clamp(
+                scrollController.position.minScrollExtent,
+                scrollController.position.maxScrollExtent,
+              )
+              .toDouble();
+          await scrollController.animateTo(
+            estimated,
+            duration: const Duration(milliseconds: 320),
+            curve: Curves.easeOutCubic,
+          );
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+          final builtContext = _messageKeys[messageId]?.currentContext;
+          if (builtContext != null && builtContext.mounted) {
+            await Scrollable.ensureVisible(
+              builtContext,
+              duration: const Duration(milliseconds: 180),
+              alignment: 0.45,
+            );
+          }
+        }
+
+        _highlightTimer = Timer(const Duration(seconds: 2), () {
+          if (mounted && _highlightedMessageId == messageId) {
+            setState(() => _highlightedMessageId = null);
+          }
+        });
+        return;
+      }
+      await provider.loadMessages(conversationId);
+    }
+
+    if (mounted) {
+      NotificationService.showInfo(
+        context,
+        'The original message is no longer available.',
+      );
+    }
   }
 
   void _onComposerChanged() {
@@ -355,52 +432,58 @@ class _DMChatScreenState extends State<DMChatScreen> {
             ),
           ),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 24),
-              decoration: BoxDecoration(
-                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(2),
+        child: Material(
+          type: MaterialType.transparency,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 24),
+                decoration: BoxDecoration(
+                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            _buildOptionTile(
-              icon: Icons.person_outline_rounded,
-              label: 'View Profile',
-              onTap: () {
-                Navigator.pop(context);
-                if (otherUser != null) {
-                  context.push('/user/profile', extra: otherUser.toUserModel());
-                }
-              },
-            ),
-            _buildOptionTile(
-              icon: Icons.volunteer_activism_outlined,
-              label: 'Tip User',
-              onTap: () {
-                Navigator.pop(context);
-                TipSheet.show(
-                  context,
-                  recipients: otherUser != null ? [otherUser] : [],
-                  conversationId: _conversationId,
-                  conversationType: ConversationType.dm,
-                );
-              },
-            ),
-            _buildOptionTile(
-              icon: isBlocked ? Icons.block_flipped : Icons.block_rounded,
-              label: isBlocked ? 'Unblock User' : 'Block User',
-              color: colorScheme.error,
-              onTap: () {
-                Navigator.pop(context);
-                _handleBlockUser(otherUser, provider);
-              },
-            ),
-            const SizedBox(height: 12),
-          ],
+              _buildOptionTile(
+                icon: Icons.person_outline_rounded,
+                label: 'View Profile',
+                onTap: () {
+                  Navigator.pop(context);
+                  if (otherUser != null) {
+                    context.push(
+                      '/user/profile',
+                      extra: otherUser.toUserModel(),
+                    );
+                  }
+                },
+              ),
+              _buildOptionTile(
+                icon: Icons.volunteer_activism_outlined,
+                label: 'Tip User',
+                onTap: () {
+                  Navigator.pop(context);
+                  TipSheet.show(
+                    context,
+                    recipients: otherUser != null ? [otherUser] : [],
+                    conversationId: _conversationId,
+                    conversationType: ConversationType.dm,
+                  );
+                },
+              ),
+              _buildOptionTile(
+                icon: isBlocked ? Icons.block_flipped : Icons.block_rounded,
+                label: isBlocked ? 'Unblock User' : 'Block User',
+                color: colorScheme.error,
+                onTap: () {
+                  Navigator.pop(context);
+                  _handleBlockUser(otherUser, provider);
+                },
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
         ),
       ),
     );
@@ -501,233 +584,276 @@ class _DMChatScreenState extends State<DMChatScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
+    final canPopRoute = context.canPop();
 
-    return Consumer<MessagingProvider>(
-      builder: (context, provider, child) {
-        final cid = _conversationId;
-        final baseConversation = cid != null
-            ? provider.conversations.firstWhere(
-                (c) => c.id == cid,
-                orElse: () => _conversation!,
-              )
-            : _conversation;
-        final providerOtherUser = baseConversation?.otherUser;
-        final fallbackOtherUser = _conversation?.otherUser;
-        final knownFriend = providerOtherUser == null
-            ? null
-            : provider.friends.cast<UserModel?>().firstWhere(
-                (friend) => friend?.id == providerOtherUser.id,
-                orElse: () => null,
-              );
-        final friendFallback = knownFriend == null
-            ? null
-            : ChatUser.fromUserModel(knownFriend);
-        final freshOtherUser = fallbackOtherUser ?? friendFallback;
-        final otherUser = providerOtherUser == null
-            ? freshOtherUser
-            : providerOtherUser.copyWith(
-                username: freshOtherUser?.username,
-                displayName: freshOtherUser?.displayName,
-                profileUrl: freshOtherUser?.profileUrl,
-                bio: freshOtherUser?.bio,
-                relationshipStatus: freshOtherUser?.relationshipStatus,
-                reputation: freshOtherUser?.reputation,
-                isPlus:
-                    providerOtherUser.isPlus ||
-                    (freshOtherUser?.isPlus ?? false),
-              );
-        final currentConversation = baseConversation?.copyWith(
-          otherUser: otherUser,
-        );
-        final bool isOnline =
-            (otherUser != null && provider.presenceMap[otherUser.id] == true) ||
-            (otherUser?.isOnline ?? false);
-        final bool isOtherUserTyping =
-            otherUser != null &&
-            (provider.typingUsers[cid ?? '']?.contains(otherUser.id) ?? false);
+    return PopScope(
+      canPop: canPopRoute,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && context.mounted) context.go('/chat?tab=direct');
+      },
+      child: Consumer<MessagingProvider>(
+        builder: (context, provider, child) {
+          final cid = _conversationId;
+          // Conversations are loaded asynchronously. During a provider
+          // refresh there may be no matching item yet, so never force-unwrap
+          // the initial conversation from inside firstWhere's fallback.
+          Conversation? baseConversation = _conversation;
+          if (cid != null) {
+            for (final conversation in provider.conversations) {
+              if (conversation.id == cid) {
+                baseConversation = conversation;
+                break;
+              }
+            }
+          }
+          final providerOtherUser = baseConversation?.otherUser;
+          final fallbackOtherUser = _conversation?.otherUser;
+          final knownFriend = providerOtherUser == null
+              ? null
+              : provider.friends.cast<UserModel?>().firstWhere(
+                  (friend) => friend?.id == providerOtherUser.id,
+                  orElse: () => null,
+                );
+          final friendFallback = knownFriend == null
+              ? null
+              : ChatUser.fromUserModel(knownFriend);
+          final freshOtherUser = fallbackOtherUser ?? friendFallback;
+          final otherUser = providerOtherUser == null
+              ? freshOtherUser
+              : providerOtherUser.copyWith(
+                  username: freshOtherUser?.username,
+                  displayName: freshOtherUser?.displayName,
+                  profileUrl: freshOtherUser?.profileUrl,
+                  bio: freshOtherUser?.bio,
+                  relationshipStatus: freshOtherUser?.relationshipStatus,
+                  reputation: freshOtherUser?.reputation,
+                  isPlus:
+                      providerOtherUser.isPlus ||
+                      (freshOtherUser?.isPlus ?? false),
+                );
+          final currentConversation = baseConversation?.copyWith(
+            otherUser: otherUser,
+          );
+          final bool isOnline =
+              (otherUser != null &&
+                  provider.presenceMap[otherUser.id] == true) ||
+              (otherUser?.isOnline ?? false);
+          final bool isOtherUserTyping =
+              otherUser != null &&
+              (provider.typingUsers[cid ?? '']?.contains(otherUser.id) ??
+                  false);
 
-        return GestureDetector(
-          onTap: _dismissKeyboard,
-          child: GradientScaffold(
-            useSafeArea: true,
-            floatingActionButton: _showScrollToBottom
-                ? Padding(
-                    padding: const EdgeInsets.only(bottom: 60),
-                    child: FloatingActionButton.small(
-                      onPressed: _scrollToBottom,
-                      backgroundColor: colorScheme.surface.withValues(
-                        alpha: 0.9,
+          return GestureDetector(
+            onTap: _dismissKeyboard,
+            child: GradientScaffold(
+              useSafeArea: true,
+              resizeToAvoidBottomInset: true,
+              floatingActionButton: _showScrollToBottom
+                  ? Padding(
+                      padding: const EdgeInsets.only(bottom: 60),
+                      child: FloatingActionButton.small(
+                        heroTag: 'dm-scroll-to-bottom-fab',
+                        onPressed: _scrollToBottom,
+                        backgroundColor: colorScheme.surface.withValues(
+                          alpha: 0.9,
+                        ),
+                        foregroundColor: colorScheme.primary,
+                        elevation: 4,
+                        shape: const CircleBorder(),
+                        child: const Icon(
+                          Icons.arrow_downward_rounded,
+                          size: 18,
+                        ),
                       ),
-                      foregroundColor: colorScheme.primary,
-                      elevation: 4,
-                      shape: const CircleBorder(),
-                      child: const Icon(Icons.arrow_downward_rounded, size: 18),
-                    ),
-                  )
-                : null,
-            appBar: AppBar(
-              automaticallyImplyLeading: false,
-              backgroundColor: colorScheme.surface,
-              elevation: 0,
-              scrolledUnderElevation: 0,
-              leading: IconButton(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-              ),
-              title: InkWell(
-                onTap: () {
-                  if (otherUser != null) {
-                    context.push(
-                      '/user/profile',
-                      extra: otherUser.toUserModel(),
-                    );
-                  }
-                },
-                borderRadius: BorderRadius.circular(20),
-                child: Row(
-                  children: [
-                    _buildAvatar(currentConversation, provider),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  otherUser?.effectiveDisplayName ?? 'Chat',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: -0.5,
+                    )
+                  : null,
+              appBar: AppBar(
+                automaticallyImplyLeading: false,
+                backgroundColor: colorScheme.surface,
+                elevation: 0,
+                scrolledUnderElevation: 0,
+                leading: IconButton(
+                  onPressed: () => context.go('/chat?tab=direct'),
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+                ),
+                title: InkWell(
+                  onTap: () {
+                    if (otherUser != null) {
+                      context.push(
+                        '/user/profile',
+                        extra: otherUser.toUserModel(),
+                      );
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(20),
+                  child: Row(
+                    children: [
+                      _buildAvatar(currentConversation, provider),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    otherUser?.effectiveDisplayName ?? 'Chat',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.titleMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: -0.5,
+                                        ),
                                   ),
                                 ),
-                              ),
-                              if (otherUser?.isPlus == true) ...[
-                                const SizedBox(width: 6),
-                                const GriotPlusBadge(
-                                  isPlus: true,
-                                  compact: true,
-                                ),
+                                if (otherUser?.isPlus == true) ...[
+                                  const SizedBox(width: 6),
+                                  const GriotPlusBadge(
+                                    isPlus: true,
+                                    compact: true,
+                                  ),
+                                ],
                               ],
-                            ],
-                          ),
-                          Text(
-                            isOtherUserTyping
-                                ? 'typing...'
-                                : (isOnline ? 'online' : 'offline'),
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: isOtherUserTyping || isOnline
-                                  ? (colorScheme.primary.computeLuminance() >
-                                            0.4
-                                        ? colorScheme.onSurfaceVariant
-                                        : colorScheme.primary)
-                                  : colorScheme.onSurfaceVariant.withValues(
-                                      alpha: 0.6,
-                                    ),
-                              fontWeight: isOnline
-                                  ? FontWeight.w700
-                                  : FontWeight.normal,
                             ),
-                          ),
-                        ],
+                            Text(
+                              isOtherUserTyping
+                                  ? 'typing...'
+                                  : (isOnline ? 'online' : 'offline'),
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: isOtherUserTyping || isOnline
+                                    ? (colorScheme.primary.computeLuminance() >
+                                              0.4
+                                          ? colorScheme.onSurfaceVariant
+                                          : colorScheme.primary)
+                                    : colorScheme.onSurfaceVariant.withValues(
+                                        alpha: 0.6,
+                                      ),
+                                fontWeight: isOnline
+                                    ? FontWeight.w700
+                                    : FontWeight.normal,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  if (currentConversation != null) ...[
+                    if (_conversationId != null)
+                      ConversationCallButton(
+                        conversationId: _conversationId!,
+                        conversationType: 'dm',
+                      ),
+                    IconButton(
+                      onPressed: () => TipSheet.show(
+                        context,
+                        recipients: otherUser != null ? [otherUser] : [],
+                        conversationId: _conversationId,
+                        conversationType: ConversationType.dm,
+                      ),
+                      icon: const Icon(Icons.volunteer_activism_outlined),
+                      color: colorScheme.primary,
+                    ),
+                    IconButton(
+                      onPressed: () =>
+                          _showChatOptionsSheet(currentConversation, provider),
+                      icon: const Icon(Icons.more_vert_rounded),
                     ),
                   ],
+                  const SizedBox(width: 8),
+                ],
+              ),
+              child: ChatWallpaper(
+                child: Column(
+                children: [
+                  Expanded(
+                    child: (cid == null && otherUser == null)
+                        ? const Center(child: GriotLoader())
+                        : ListView.builder(
+                            controller: scrollController,
+                            reverse: true,
+                            padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
+                            itemCount: provider
+                                .getMessagesForConversation(cid ?? '')
+                                .length,
+                            itemBuilder: (context, index) {
+                              final messages = provider
+                                  .getMessagesForConversation(cid ?? '');
+                              final message = messages[index];
+                              final isMe =
+                                  message.senderId ==
+                                  context.read<UserProvider>().user?.id;
+                              final nextMessage = index > 0
+                                  ? messages[index - 1]
+                                  : null;
+                              final prevMessage = index < messages.length - 1
+                                  ? messages[index + 1]
+                                  : null;
+
+                              final bool isLastInGroup =
+                                  nextMessage == null ||
+                                  nextMessage.senderId != message.senderId;
+                              final bool isFirstInGroup =
+                                  prevMessage == null ||
+                                  prevMessage.senderId != message.senderId;
+                              final startsNewDay =
+                                  index == messages.length - 1 ||
+                                  !_isSameCalendarDay(
+                                    message.createdAt,
+                                    messages[index + 1].createdAt,
+                                  );
+
+                              final messageKey = _messageKeys.putIfAbsent(
+                                message.id,
+                                GlobalKey.new,
+                              );
+                              return KeyedSubtree(
+                                key: messageKey,
+                                child: Column(
+                                  children: [
+                                    if (startsNewDay)
+                                      DaySeparator(
+                                        date: message.createdAt,
+                                        colorScheme: colorScheme,
+                                      ),
+                                    MessageBubble(
+                                      key: ValueKey(message.id),
+                                      message: message,
+                                      isMe: isMe,
+                                      isDark: isDark,
+                                      colorScheme: colorScheme,
+                                      onReply: (m) =>
+                                          setState(() => _replyingTo = m),
+                                      onReplyTap:
+                                          message.replyToMessageId == null
+                                          ? null
+                                          : () => _jumpToMessage(
+                                              message.replyToMessageId!,
+                                            ),
+                                      isHighlighted:
+                                          _highlightedMessageId == message.id,
+                                      conversation: currentConversation,
+                                      isFirstInGroup: isFirstInGroup,
+                                      isLastInGroup: isLastInGroup,
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                  _buildComposer(provider, cid, otherUser),
+                ],
                 ),
               ),
-              actions: [
-                if (currentConversation != null) ...[
-                  IconButton(
-                    onPressed: () => TipSheet.show(
-                      context,
-                      recipients: otherUser != null ? [otherUser] : [],
-                      conversationId: _conversationId,
-                      conversationType: ConversationType.dm,
-                    ),
-                    icon: const Icon(Icons.volunteer_activism_outlined),
-                    color: colorScheme.primary,
-                  ),
-                  IconButton(
-                    onPressed: () =>
-                        _showChatOptionsSheet(currentConversation, provider),
-                    icon: const Icon(Icons.more_vert_rounded),
-                  ),
-                ],
-                const SizedBox(width: 8),
-              ],
             ),
-            child: Column(
-              children: [
-                Expanded(
-                  child: (cid == null && otherUser == null)
-                      ? const Center(child: GriotLoader())
-                      : ListView.builder(
-                          controller: scrollController,
-                          reverse: true,
-                          padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
-                          itemCount: provider
-                              .getMessagesForConversation(cid ?? '')
-                              .length,
-                          itemBuilder: (context, index) {
-                            final messages = provider
-                                .getMessagesForConversation(cid ?? '');
-                            final message = messages[index];
-                            final isMe =
-                                message.senderId ==
-                                context.read<UserProvider>().user?.id;
-                            final nextMessage = index > 0
-                                ? messages[index - 1]
-                                : null;
-                            final prevMessage = index < messages.length - 1
-                                ? messages[index + 1]
-                                : null;
-
-                            final bool isLastInGroup =
-                                nextMessage == null ||
-                                nextMessage.senderId != message.senderId;
-                            final bool isFirstInGroup =
-                                prevMessage == null ||
-                                prevMessage.senderId != message.senderId;
-                            final startsNewDay =
-                                index == messages.length - 1 ||
-                                !_isSameCalendarDay(
-                                  message.createdAt,
-                                  messages[index + 1].createdAt,
-                                );
-
-                            return Column(
-                              children: [
-                                if (startsNewDay)
-                                  DaySeparator(
-                                    date: message.createdAt,
-                                    colorScheme: colorScheme,
-                                  ),
-                                MessageBubble(
-                                  key: ValueKey(message.id),
-                                  message: message,
-                                  isMe: isMe,
-                                  isDark: isDark,
-                                  colorScheme: colorScheme,
-                                  onReply: (m) =>
-                                      setState(() => _replyingTo = m),
-                                  conversation: currentConversation,
-                                  isFirstInGroup: isFirstInGroup,
-                                  isLastInGroup: isLastInGroup,
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                ),
-                _buildComposer(provider, cid, otherUser),
-              ],
-            ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
@@ -948,6 +1074,27 @@ class _DMChatScreenState extends State<DMChatScreen> {
       }
       return;
     }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Share a contact?'),
+        content: const Text(
+          'Choose one contact to share in this chat. Griot will send only the name and phone number you select.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Choose Contact'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
 
     try {
       final contact = await FlutterContacts.native.showPicker(

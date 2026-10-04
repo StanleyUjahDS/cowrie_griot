@@ -6,11 +6,7 @@ class ChatVideoPlayer extends StatefulWidget {
   final String url;
   final bool isMe;
 
-  const ChatVideoPlayer({
-    super.key,
-    required this.url,
-    required this.isMe,
-  });
+  const ChatVideoPlayer({super.key, required this.url, required this.isMe});
 
   @override
   State<ChatVideoPlayer> createState() => _ChatVideoPlayerState();
@@ -19,23 +15,52 @@ class ChatVideoPlayer extends StatefulWidget {
 class _ChatVideoPlayerState extends State<ChatVideoPlayer> {
   late VideoPlayerController _controller;
   bool _initialized = false;
+  bool _hasError = false;
 
   @override
   void initState() {
     super.initState();
+    _loadController();
+  }
+
+  Future<void> _loadController() async {
     if (widget.url.startsWith('http')) {
       _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url));
     } else {
       final String cleanPath = widget.url.replaceFirst('file://', '');
       _controller = VideoPlayerController.file(File(cleanPath));
     }
-    _controller.initialize().then((_) {
+    try {
+      await _controller.initialize();
       if (mounted) {
         setState(() {
           _initialized = true;
+          _hasError = false;
         });
       }
-    });
+    } catch (e) {
+      debugPrint('Error loading video: $e');
+      if (mounted) {
+        setState(() {
+          _initialized = false;
+          _hasError = true;
+        });
+      }
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant ChatVideoPlayer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) {
+      final oldController = _controller;
+      setState(() {
+        _initialized = false;
+        _hasError = false;
+      });
+      oldController.dispose();
+      _loadController();
+    }
   }
 
   @override
@@ -46,6 +71,17 @@ class _ChatVideoPlayerState extends State<ChatVideoPlayer> {
 
   @override
   Widget build(BuildContext context) {
+    if (_hasError) {
+      return Container(
+        height: 200,
+        decoration: BoxDecoration(
+          color: Colors.black12,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Center(child: Icon(Icons.broken_image_outlined)),
+      );
+    }
+
     if (!_initialized) {
       return Container(
         height: 200,

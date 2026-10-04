@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 class AppText {
-  static const String fontFamily = 'Poppins';
+  /// Bundled in pubspec.yaml so typography is identical on Android and iOS.
+  static const String fontFamily = 'Inter';
 
   // ============================================================
   // DISPLAY

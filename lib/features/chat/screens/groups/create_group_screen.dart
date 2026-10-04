@@ -91,7 +91,13 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       );
 
       if (imageUrl != null) {
-        await provider.updateGroup(conversation.id, imageUrl: imageUrl);
+        try {
+          await provider.updateGroup(conversation.id, imageUrl: imageUrl);
+        } catch (error) {
+          // The group already exists; do not make creation look like it
+          // failed just because the optional image update did not complete.
+          debugPrint('Group image update failed: $error');
+        }
       }
 
       if (mounted) {
@@ -135,7 +141,9 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
               decoration: BoxDecoration(
                 color: colors.surface.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: colors.primary.withValues(alpha: 0.1)),
+                border: Border.all(
+                  color: colors.primary.withValues(alpha: 0.1),
+                ),
               ),
               child: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
             ),
@@ -173,7 +181,9 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       width: 110,
                       height: 110,
                       decoration: BoxDecoration(
-                        color: colors.surfaceContainerHighest.withValues(alpha: 0.3),
+                        color: colors.surfaceContainerHighest.withValues(
+                          alpha: 0.3,
+                        ),
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: colors.primary.withValues(alpha: 0.15),
@@ -207,7 +217,11 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                         child: CircleAvatar(
                           radius: 16,
                           backgroundColor: colors.primary,
-                          child: Icon(Icons.edit_rounded, size: 16, color: colors.onPrimary),
+                          child: Icon(
+                            Icons.edit_rounded,
+                            size: 16,
+                            color: colors.onPrimary,
+                          ),
                         ),
                       ),
                     ),
@@ -244,7 +258,9 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       labelText: 'Name',
                       hintText: 'Enter circle name...',
                       filled: true,
-                      fillColor: colors.surfaceContainerHighest.withValues(alpha: 0.3),
+                      fillColor: colors.surfaceContainerHighest.withValues(
+                        alpha: 0.3,
+                      ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
                         borderSide: BorderSide.none,
@@ -260,7 +276,9 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       hintText: 'e.g. my-awesome-circle',
                       prefixText: '@',
                       filled: true,
-                      fillColor: colors.surfaceContainerHighest.withValues(alpha: 0.3),
+                      fillColor: colors.surfaceContainerHighest.withValues(
+                        alpha: 0.3,
+                      ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
                         borderSide: BorderSide.none,
@@ -276,7 +294,9 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       labelText: 'Description (Optional)',
                       hintText: 'What is this circle about?',
                       filled: true,
-                      fillColor: colors.surfaceContainerHighest.withValues(alpha: 0.3),
+                      fillColor: colors.surfaceContainerHighest.withValues(
+                        alpha: 0.3,
+                      ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
                         borderSide: BorderSide.none,
@@ -313,14 +333,19 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     decoration: BoxDecoration(
-                      color: colors.surfaceContainerHighest.withValues(alpha: 0.3),
+                      color: colors.surfaceContainerHighest.withValues(
+                        alpha: 0.3,
+                      ),
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
                         value: _visibility,
                         isExpanded: true,
-                        icon: Icon(Icons.keyboard_arrow_down_rounded, color: colors.primary),
+                        icon: Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: colors.primary,
+                        ),
                         style: textTheme.bodyLarge?.copyWith(
                           fontWeight: FontWeight.w700,
                           color: colors.onSurface,
@@ -366,18 +391,27 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildSectionHeader(context, 'MEMBERS (${_selectedMembers.length})', colors.primary),
+                _buildSectionHeader(
+                  context,
+                  'MEMBERS (${_selectedMembers.length})',
+                  colors.primary,
+                ),
                 TextButton.icon(
                   onPressed: _selectMembers,
                   icon: const Icon(Icons.person_add_rounded, size: 18),
-                  label: const Text('Add Friends', style: TextStyle(fontWeight: FontWeight.w900)),
+                  label: const Text(
+                    'Add Friends',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
             Container(
               width: double.infinity,
-              padding: _selectedMembers.isEmpty ? const EdgeInsets.all(0) : const EdgeInsets.symmetric(vertical: 8),
+              padding: _selectedMembers.isEmpty
+                  ? const EdgeInsets.all(0)
+                  : const EdgeInsets.symmetric(vertical: 8),
               decoration: BoxDecoration(
                 color: colors.surfaceContainerLow.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(28),
@@ -393,67 +427,80 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                 ),
               ),
               child: _selectedMembers.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 40),
-                    child: Column(
-                      children: [
-                        Icon(
-                          Icons.group_add_outlined,
-                          color: colors.primary.withValues(alpha: 0.3),
-                          size: 54,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No members yet',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: colors.onSurfaceVariant.withValues(alpha: 0.5),
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 40),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.group_add_outlined,
+                            color: colors.primary.withValues(alpha: 0.3),
+                            size: 54,
                           ),
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _selectedMembers.length,
-                    itemBuilder: (context, index) {
-                      final user = _selectedMembers[index];
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        decoration: BoxDecoration(
-                          color: colors.surface.withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                          leading: CircleAvatar(
-                            radius: 20,
-                            backgroundImage: user.avatarUrl != null
-                                ? NetworkImage(user.avatarUrl!)
-                                : null,
-                            child: user.avatarUrl == null
-                                ? const Icon(Icons.person)
-                                : null,
-                          ),
-                          title: Text(
-                            user.displayName ?? user.username ?? 'Griot User',
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                          ),
-                          trailing: IconButton(
-                            icon: Icon(
-                              Icons.remove_circle_outline_rounded,
-                              color: colors.error.withValues(alpha: 0.7),
-                              size: 20,
+                          const SizedBox(height: 16),
+                          Text(
+                            'No members yet',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: colors.onSurfaceVariant.withValues(
+                                alpha: 0.5,
+                              ),
                             ),
-                            onPressed: () =>
-                                setState(() => _selectedMembers.removeAt(index)),
                           ),
-                        ),
-                      );
-                    },
-                  ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _selectedMembers.length,
+                      itemBuilder: (context, index) {
+                        final user = _selectedMembers[index];
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          decoration: BoxDecoration(
+                            color: colors.surface.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Material(
+                            type: MaterialType.transparency,
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              leading: CircleAvatar(
+                                radius: 20,
+                                backgroundImage: user.avatarUrl != null
+                                    ? NetworkImage(user.avatarUrl!)
+                                    : null,
+                                child: user.avatarUrl == null
+                                    ? const Icon(Icons.person)
+                                    : null,
+                              ),
+                              title: Text(
+                                user.displayName ??
+                                    user.username ??
+                                    'Griot User',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              trailing: IconButton(
+                                icon: Icon(
+                                  Icons.remove_circle_outline_rounded,
+                                  color: colors.error.withValues(alpha: 0.7),
+                                  size: 20,
+                                ),
+                                onPressed: () => setState(
+                                  () => _selectedMembers.removeAt(index),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),

@@ -47,17 +47,32 @@ class ChatUser {
   }
 
   String get effectiveDisplayName {
-    if (displayName != null && displayName!.isNotEmpty) return displayName!;
-    if (username != null && username!.isNotEmpty) return username!;
-    return 'Griot User';
+    bool usable(String? value) {
+      final normalized = value?.trim() ?? '';
+      return normalized.isNotEmpty &&
+          !{
+            'griot user',
+            'griot contact',
+            'participant',
+            'caller',
+            'user',
+          }.contains(normalized.toLowerCase());
+    }
+
+    if (usable(displayName)) return displayName!.trim();
+    if (usable(username)) {
+      final value = username!.trim();
+      return value.startsWith('@') ? value : '@$value';
+    }
+    return shortWalletAddress.isEmpty ? 'Griot User' : shortWalletAddress;
   }
 
   String? get formattedUsername => username != null ? '@$username' : null;
 
   String get shortWalletAddress {
-    if (walletAddress.length <= 8) return walletAddress;
-    return '${walletAddress.substring(0, 3)}...'
-        '${walletAddress.substring(walletAddress.length - 3)}';
+    final value = walletAddress.trim();
+    if (value.length <= 6) return value;
+    return '${value.substring(0, 3)}…${value.substring(value.length - 3)}';
   }
 
   UserModel toUserModel() {
@@ -91,9 +106,18 @@ class ChatUser {
 
   factory ChatUser.fromJson(Map<String, dynamic> json) {
     return ChatUser(
-      id: (json['id'] ?? json['userId'] ?? json['user_id'])?.toString() ?? '',
-      walletAddress: (json['walletAddress'] ?? json['wallet_address'] ?? '')
-          .toString(),
+      // Conversation member responses contain both the membership row id and
+      // the actual user id. Tipping must use the user id, not the membership
+      // id, when deduplicating and preserving selected recipients.
+      id: (json['userId'] ?? json['user_id'] ?? json['id'])?.toString() ?? '',
+      walletAddress:
+          (json['walletAddress'] ??
+                  json['wallet_address'] ??
+                  json['other_wallet_address'] ??
+                  json['otherWalletAddress'] ??
+                  json['other_user_wallet_address'] ??
+                  '')
+              .toString(),
       username: (json['username'] ?? json['other_username'])?.toString(),
       displayName:
           (json['displayName'] ??
@@ -126,9 +150,9 @@ class ChatUser {
       lastMessage:
           (json['lastMessage'] ?? json['last_message'] ?? '')?.toString() ?? '',
       timestamp: json['timestamp'] != null
-          ? DateTime.parse(json['timestamp'].toString())
+          ? DateTime.parse(json['timestamp'].toString()).toLocal()
           : (json['last_message_at'] != null
-                ? DateTime.parse(json['last_message_at'].toString())
+                ? DateTime.parse(json['last_message_at'].toString()).toLocal()
                 : DateTime.now()),
       unreadCount: (json['unreadCount'] ?? json['unread_count'] ?? 0) as int,
       relationshipStatus:

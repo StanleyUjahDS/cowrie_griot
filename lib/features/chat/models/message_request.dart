@@ -187,7 +187,11 @@ class MessageRequest {
       senderDisplayName:
           (json['senderDisplayName'] ?? json['sender_display_name'])
               ?.toString(),
-      senderProfileUrl: (json['senderProfileUrl'] ?? json['sender_avatar_url'])
+      senderProfileUrl: (json['senderProfileUrl'] ??
+              json['sender_avatar_url'] ??
+              json['senderAvatarUrl'] ??
+              json['avatarUrl'] ??
+              json['avatar_url'])
           ?.toString(),
 
       receiverUsername:

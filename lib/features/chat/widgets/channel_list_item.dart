@@ -2,11 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/conversation_model.dart';
+import 'conversation_actions_sheet.dart';
 
 class ChannelListItem extends StatelessWidget {
   final Conversation conversation;
+  final VoidCallback? onLongPress;
+  final VoidCallback? onPinToggle;
+  final VoidCallback? onRemove;
+  final bool isPinned;
+  final String removeLabel;
 
-  const ChannelListItem({super.key, required this.conversation});
+  const ChannelListItem({
+    super.key,
+    required this.conversation,
+    this.onLongPress,
+    this.onPinToggle,
+    this.onRemove,
+    this.isPinned = false,
+    this.removeLabel = 'Leave channel',
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -51,6 +65,7 @@ class ChannelListItem extends StatelessWidget {
               extra: conversation,
             );
           },
+          onLongPress: onLongPress,
           borderRadius: BorderRadius.circular(24),
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -74,7 +89,15 @@ class ChannelListItem extends StatelessWidget {
                   ),
                   child: ClipOval(
                     child: hasImage
-                        ? Image.network(imageUrl, fit: BoxFit.cover)
+                        ? Image.network(
+                            imageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Icon(
+                              Icons.sensors_rounded,
+                              color: colorScheme.primary,
+                              size: 30,
+                            ),
+                          )
                         : Icon(
                             Icons.sensors_rounded,
                             color: colorScheme.primary,
@@ -106,6 +129,13 @@ class ChannelListItem extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 6),
+                          if (isPinned)
+                            Icon(
+                              Icons.push_pin_rounded,
+                              size: 13,
+                              color: colorScheme.primary,
+                            ),
+                          if (isPinned) const SizedBox(width: 6),
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 6,
@@ -128,7 +158,8 @@ class ChannelListItem extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${conversation.subscriberCount} subscribers${conversation.lastMessage != null ? ' • ${conversation.lastMessage!.previewText}' : ''}',
+                        conversation.lastMessage?.previewText ??
+                            '${conversation.subscriberCount} subscribers',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: textTheme.bodySmall?.copyWith(
@@ -163,15 +194,31 @@ class ChannelListItem extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      size: 20,
-                      color: colorScheme.onSurfaceVariant.withValues(
-                        alpha: 0.2,
-                      ),
-                    ),
+                    if (conversation.unreadCount > 0) ...[
+                      _UnreadBadge(count: conversation.unreadCount),
+                      const SizedBox(height: 8),
+                    ],
                   ],
                 ),
+                if (onPinToggle != null || onRemove != null) ...[
+                  const SizedBox(width: 4),
+                  IconButton(
+                    tooltip: 'Channel actions',
+                    padding: EdgeInsets.zero,
+                    onPressed: () => showConversationActionsSheet(
+                      context: context,
+                      isPinned: isPinned,
+                      onPinToggle: onPinToggle,
+                      onRemove: onRemove,
+                      removeLabel: removeLabel,
+                    ),
+                    icon: Icon(
+                      Icons.more_vert_rounded,
+                      size: 20,
+                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.55),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -186,5 +233,19 @@ class ChannelListItem extends StatelessWidget {
     if (diff.inMinutes < 60) return '${diff.inMinutes}m';
     if (diff.inHours < 24) return '${diff.inHours}h';
     return '${time.day}/${time.month}';
+  }
+}
+
+class _UnreadBadge extends StatelessWidget {
+  final int count;
+  const _UnreadBadge({required this.count});
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(color: colors.primary, borderRadius: BorderRadius.circular(10)),
+      child: Text(count > 99 ? '99+' : '$count', style: TextStyle(color: colors.onPrimary, fontSize: 10, fontWeight: FontWeight.w900)),
+    );
   }
 }

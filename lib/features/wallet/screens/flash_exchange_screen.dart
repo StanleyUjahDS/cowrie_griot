@@ -140,11 +140,14 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
 
     if (_isDetected) {
       try {
-        final result = await context.read<WalletApiService>().lookupFlashToken(_detectedAddress);
+        final result = await context.read<WalletApiService>().lookupFlashToken(
+          _detectedAddress,
+        );
         if (!mounted) return;
         setState(() {
           _flashResult = result;
-          _addressKind = result?.addressType ?? (evmMatch != null ? 'wallet' : 'unknown');
+          _addressKind =
+              result?.addressType ?? (evmMatch != null ? 'wallet' : 'unknown');
           _isResolving = false;
         });
       } catch (_) {
@@ -203,7 +206,8 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
         (t) =>
             _normalizeForExternalLinks(
                   t.rawNetwork.isNotEmpty ? t.rawNetwork : t.chain,
-                ) == chain &&
+                ) ==
+                chain &&
             (t.isNative ||
                 t.symbol.toUpperCase() == 'USDT' ||
                 t.symbol.toUpperCase() == 'USDC' ||
@@ -227,15 +231,9 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
     }
 
     if (isBuy) {
-      context.push(
-        '/wallet/swap',
-        extra: {'from': baseToken, 'to': token},
-      );
+      context.push('/wallet/swap', extra: {'from': baseToken, 'to': token});
     } else {
-      context.push(
-        '/wallet/swap',
-        extra: {'from': token, 'to': baseToken},
-      );
+      context.push('/wallet/swap', extra: {'from': token, 'to': baseToken});
     }
   }
 
@@ -388,8 +386,8 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
                   _isResolving
                       ? "Looking up address..."
                       : (_addressKind == 'contract'
-                          ? "Token contract detected"
-                          : "Wallet address detected"),
+                            ? "Token contract detected"
+                            : "Wallet address detected"),
                   style: text.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -446,15 +444,15 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
                           color: colors.primary.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
-                        child: Center(
-                          child: Text(
-                            (token.symbol).substring(0, 1),
-                            style: TextStyle(
-                              color: colors.primary,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: token.imageUrl.trim().isNotEmpty
+                            ? Image.network(
+                                token.imageUrl,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    _tokenInitial(context, token.symbol),
+                              )
+                            : _tokenInitial(context, token.symbol),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -479,14 +477,26 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  _marketDataRow("Price",
-                      WalletFormatters.formatCurrency(token.priceUsd)),
-                  _marketDataRow("Market cap",
-                      _formatMarketValue(token.marketCapUsd)),
-                  _marketDataRow("Liquidity",
-                      _formatMarketValue(token.liquidityUsd)),
-                  _marketDataRow("24h volume",
-                      _formatMarketValue(token.volume24hUsd)),
+                  _marketDataRow(
+                    "Price",
+                    WalletFormatters.formatCurrency(token.priceUsd),
+                  ),
+                  _marketDataRow(
+                    token.marketCapUsd != null
+                        ? "Market cap"
+                        : "FDV (estimated)",
+                    _formatMarketValue(
+                      token.marketCapUsd ?? token.fullyDilutedValuationUsd,
+                    ),
+                  ),
+                  _marketDataRow(
+                    "Liquidity",
+                    _formatMarketValue(token.liquidityUsd),
+                  ),
+                  _marketDataRow(
+                    "24h volume",
+                    _formatMarketValue(token.volume24hUsd),
+                  ),
                   _marketDataRow(
                     "24h change",
                     _formatChange(token.changePercent),
@@ -539,11 +549,15 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
                       ),
                     ],
                   ),
-                  if (!canBuy && !canSell && !_isResolving && _flashResult != null)
+                  if (!canBuy &&
+                      !canSell &&
+                      !_isResolving &&
+                      _flashResult != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: Text(
-                        _flashResult?.trading.reason ?? "Trading unavailable for this contract.",
+                        _flashResult?.trading.reason ??
+                            "Trading unavailable for this contract.",
                         style: text.labelSmall?.copyWith(
                           color: colors.error,
                           fontStyle: FontStyle.italic,
@@ -618,24 +632,43 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label,
-              style: TextStyle(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurfaceVariant
-                      .withValues(alpha: 0.7),
-                  fontSize: 13)),
-          Text(value,
-              style: TextStyle(
-                  fontWeight: FontWeight.bold, fontSize: 13, color: valueColor)),
+          Text(
+            label,
+            style: TextStyle(
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+              fontSize: 13,
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+              color: valueColor,
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _tokenInitial(BuildContext context, String symbol) {
+    final colors = Theme.of(context).colorScheme;
+    return Center(
+      child: Text(
+        symbol.trim().isNotEmpty ? symbol.trim().substring(0, 1) : '?',
+        style: TextStyle(color: colors.primary, fontWeight: FontWeight.w900),
       ),
     );
   }
 
   String _formatMarketValue(dynamic value) {
     if (value == null || value == 0) return "—";
-    final num val = value is num ? value : (num.tryParse(value.toString()) ?? 0);
+    final num val = value is num
+        ? value
+        : (num.tryParse(value.toString()) ?? 0);
     if (val == 0) return "—";
 
     if (val >= 1000000000) return "\$${(val / 1000000000).toStringAsFixed(2)}B";
@@ -646,13 +679,17 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
 
   String _formatChange(dynamic value) {
     if (value == null) return "—";
-    final num val = value is num ? value : (num.tryParse(value.toString()) ?? 0);
+    final num val = value is num
+        ? value
+        : (num.tryParse(value.toString()) ?? 0);
     return "${val >= 0 ? '+' : ''}${val.toStringAsFixed(2)}%";
   }
 
   String _formatTax(dynamic value) {
     if (value == null) return "—";
-    final num tax = value is num ? value : (num.tryParse(value.toString()) ?? 0);
+    final num tax = value is num
+        ? value
+        : (num.tryParse(value.toString()) ?? 0);
     return tax == 0
         ? '0%'
         : '${tax.toStringAsFixed(tax == tax.roundToDouble() ? 0 : 2)}%';
@@ -678,28 +715,40 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
             onPressed: onTap,
             style: OutlinedButton.styleFrom(
               padding: EdgeInsets.zero,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             child: Icon(icon, size: 18),
           )
         : primary
-            ? ElevatedButton.icon(
-                onPressed: onTap,
-                icon: Icon(icon, size: 18),
-                label: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              )
-            : OutlinedButton.icon(
-                onPressed: onTap,
-                icon: Icon(icon, size: 18),
-                label: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
-                style: OutlinedButton.styleFrom(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              );
+        ? ElevatedButton.icon(
+            onPressed: onTap,
+            icon: Icon(icon, size: 18),
+            label: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            style: ElevatedButton.styleFrom(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          )
+        : OutlinedButton.icon(
+            onPressed: onTap,
+            icon: Icon(icon, size: 18),
+            label: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            style: OutlinedButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          );
 
     return Expanded(
       child: SizedBox(

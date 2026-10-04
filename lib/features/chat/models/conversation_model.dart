@@ -20,6 +20,7 @@ class Conversation {
   final int postCount;
   final String? username;
   final String? description;
+  final bool joinRequestPending;
 
   /// For DMs, this is the other user's info if available.
   final ChatUser? otherUser;
@@ -46,6 +47,7 @@ class Conversation {
     this.postCount = 0,
     this.username,
     this.description,
+    this.joinRequestPending = false,
     this.otherUser,
     this.lastMessage,
     this.unreadCount = 0,
@@ -70,9 +72,9 @@ class Conversation {
                 'dm')
             .trim()
             .toLowerCase();
-    final type = typeString == 'group'
+    final type = typeString == 'group' || typeString == 'group_chat'
         ? ConversationType.group
-        : typeString == 'channel'
+        : typeString == 'channel' || typeString == 'broadcast'
         ? ConversationType.channel
         : ConversationType.dm;
 
@@ -113,7 +115,7 @@ class Conversation {
                         json['updated_at'] ??
                         json['updatedAt'])
                     .toString(),
-              )
+              ).toLocal()
             : DateTime.now(),
       );
     }
@@ -156,6 +158,9 @@ class Conversation {
       postCount: _intValue(json['post_count'] ?? json['postCount']),
       username: json['username']?.toString(),
       description: (json['description'] ?? json['bio'])?.toString(),
+      joinRequestPending:
+          json['join_request_pending'] == true ||
+          json['joinRequestPending'] == true,
       otherUser: otherUser,
       lastMessage: json['last_message'] != null || json['lastMessage'] != null
           ? ChatMessage.fromJson(
@@ -177,10 +182,12 @@ class Conversation {
                       json['updated_at'] ??
                       json['updatedAt'])
                   .toString(),
-            )
+            ).toLocal()
           : DateTime.now(),
       createdAt: (json['created_at'] ?? json['createdAt']) != null
-          ? DateTime.parse((json['created_at'] ?? json['createdAt']).toString())
+          ? DateTime.parse(
+              (json['created_at'] ?? json['createdAt']).toString(),
+            ).toLocal()
           : DateTime.now(),
     );
   }
@@ -202,6 +209,7 @@ class Conversation {
       'post_count': postCount,
       'username': username,
       'description': description,
+      'join_request_pending': joinRequestPending,
       'otherUser': otherUser?.toJson(),
       'lastMessage': lastMessage?.toJson(),
       'unread_count': unreadCount,
@@ -226,6 +234,7 @@ class Conversation {
     int? postCount,
     String? username,
     String? description,
+    bool? joinRequestPending,
     ChatUser? otherUser,
     ChatMessage? lastMessage,
     int? unreadCount,
@@ -248,6 +257,7 @@ class Conversation {
       postCount: postCount ?? this.postCount,
       username: username ?? this.username,
       description: description ?? this.description,
+      joinRequestPending: joinRequestPending ?? this.joinRequestPending,
       otherUser: otherUser ?? this.otherUser,
       lastMessage: lastMessage ?? this.lastMessage,
       unreadCount: unreadCount ?? this.unreadCount,

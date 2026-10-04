@@ -6,9 +6,11 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/services/navigation_scroll_service.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/ui/widgets/griot_avatar.dart';
 import '../providers/messaging_provider.dart';
 import '../models/message_request.dart';
 import '../models/chat_user.dart';
+import '../utils/tip_display.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -18,16 +20,79 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
+  static const int _maxTipFractionDigits = 4;
   DateTime? _visitTime;
   final ScrollController _scrollController = ScrollController();
   final Set<String> _expandedTipIds = <String>{};
 
-  void _openRequestChat(MessageRequest request, {required bool received}) {
-    final userId = received ? request.senderId : request.receiverId;
-    if (userId == null || userId.isEmpty) return;
+  String _formatRawTokenAmount(dynamic rawAmount, dynamic rawDecimals) {
+    final raw = rawAmount?.toString().trim() ?? '';
+    final decimals = int.tryParse(rawDecimals?.toString() ?? '') ?? 0;
+    if (raw.isEmpty) return '';
 
-    final user = ChatUser(
-      id: userId,
+    // Activity metadata stores integer base units. Format them without using
+    // double so small tips retain their meaningful decimal places.
+    if (!RegExp(r'^-?\d+$').hasMatch(raw) || decimals <= 0) {
+      return raw;
+    }
+
+    final negative = raw.startsWith('-');
+    final digits = negative ? raw.substring(1) : raw;
+    final padded = digits.padLeft(decimals + 1, '0');
+    final split = padded.length - decimals;
+    final whole = padded.substring(0, split);
+    var fraction = padded.substring(split).replaceFirst(RegExp(r'0+$'), '');
+    if (fraction.length > _maxTipFractionDigits) {
+      fraction = fraction.substring(0, _maxTipFractionDigits);
+      fraction = fraction.replaceFirst(RegExp(r'0+$'), '');
+    }
+    final formatted = fraction.isEmpty ? whole : '$whole.$fraction';
+    return negative ? '-$formatted' : formatted;
+  }
+
+  String _tipAssetLabel(Map<String, dynamic> metadata) {
+    final symbol = metadata['tokenSymbol']?.toString().trim();
+    final name = metadata['tokenName']?.toString().trim();
+    final assetType = metadata['assetType']?.toString().toLowerCase();
+    if (symbol != null && symbol.isNotEmpty) return symbol;
+    if (name != null && name.isNotEmpty) return name;
+    if (assetType == 'native') return 'Native token';
+    return 'Token';
+  }
+
+  String _tipAmountText(Map<String, dynamic> metadata) {
+    final displayAmount = metadata['amountDisplay']?.toString().trim();
+    if (displayAmount != null && displayAmount.isNotEmpty) {
+      return TipDisplay.amount(displayAmount);
+    }
+
+    final amount = metadata['amountRaw'];
+    final decimals = metadata['tokenDecimals'];
+    final asset = _tipAssetLabel(metadata);
+    final displayAmounts = metadata['amountsDisplay'];
+    if (displayAmounts is List && displayAmounts.isNotEmpty) {
+      return displayAmounts
+          .map((value) => '${TipDisplay.amount(value.toString())} $asset')
+          .join(', ');
+    }
+
+    if (amount is List) {
+      return amount
+          .map(
+            (value) =>
+                '${TipDisplay.amount(_formatRawTokenAmount(value, decimals))} $asset',
+          )
+          .join(', ');
+    }
+    final formatted = _formatRawTokenAmount(amount, decimals);
+    return formatted.isEmpty ? '' : '${TipDisplay.amount(formatted)} $asset';
+  }
+
+  ChatUser _requestUser(MessageRequest request, {required bool received}) {
+    final userId = received ? request.senderId : request.receiverId;
+
+    return ChatUser(
+      id: userId ?? '',
       walletAddress: received
           ? request.senderWalletAddress
           : request.receiverWalletAddress,
@@ -41,7 +106,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       isOnline: received && request.senderIsOnline,
       timestamp: DateTime.now(),
     );
-    context.push('/chat/user/$userId', extra: user);
+  }
+
+  void _openRequestProfile(MessageRequest request, {required bool received}) {
+    final user = _requestUser(request, received: received);
+    if (user.id.isEmpty) return;
+    context.push('/user/profile', extra: user);
+  }
+
+  void _openRequestChat(MessageRequest request, {required bool received}) {
+    final user = _requestUser(request, received: received);
+    if (user.id.isEmpty) return;
+    context.push('/chat/user/${user.id}', extra: user);
   }
 
   @override
@@ -107,6 +183,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         elevation: 0,
         toolbarHeight: 56,
         automaticallyImplyLeading: false,
+        leading: IconButton(
+          tooltip: 'Back',
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => context.go('/chat'),
+        ),
       ),
       child: Consumer<MessagingProvider>(
         builder: (context, provider, child) {
@@ -206,7 +287,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     subtitle =
                         '${rawItem.displayName} wants to connect with you.';
                     icon = Icons.person_add_rounded;
-                    onTap = () => context.push('/chat/requests');
+                    onTap = () => _openRequestProfile(rawItem, received: true);
                     break;
                   case RequestStatus.accepted:
                     title = 'Request Accepted';
@@ -269,7 +350,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               subtitle = rawItem['message'];
               timestamp = rawItem['timestamp'];
               icon = rawItem['icon'] ?? Icons.notifications_rounded;
-              avatarUrl = rawItem['avatarUrl']?.toString();
+              avatarUrl =
+                  (rawItem['avatarUrl'] ??
+                          rawItem['avatar_url'] ??
+                          rawItem['actorAvatarUrl'] ??
+                          rawItem['actor_avatar_url'])
+                      ?.toString();
 
               final colorName = rawItem['color'];
               if (colorName == 'amber') color = colors.primary;
@@ -281,27 +367,26 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     ? Map<String, dynamic>.from(rawItem['metadata'])
                     : <String, dynamic>{};
                 final isRecipient = rawItem['isRecipient'] != false;
-                final counterpartyWallet = rawItem['counterpartyWalletAddress']
-                    ?.toString();
                 final transactionHash = metadata['hash']?.toString();
                 final network = metadata['network']?.toString();
-                final assetType = metadata['assetType']?.toString();
-                final tokenAddress = metadata['tokenAddress']?.toString();
-                final amount = metadata['amountRaw'];
-                final amountText = amount is List
-                    ? amount.map((value) => value.toString()).join(', ')
-                    : amount?.toString();
-                final counterpartyName =
-                    rawItem['displayName']?.toString() ?? 'Griot user';
+                final amountText = _tipAmountText(metadata);
+                final counterpartyName = TipDisplay.person(
+                  username: rawItem['username']?.toString(),
+                  displayName: rawItem['displayName']?.toString(),
+                );
 
                 final groupedItems = rawItem['tipItems'] is List
                     ? (rawItem['tipItems'] as List).whereType<Map>().toList()
                     : const <Map>[];
                 final isGrouped = groupedItems.length > 1;
                 final people = groupedItems
-                    .map((item) => item['displayName']?.toString())
-                    .whereType<String>()
-                    .where((name) => name.trim().isNotEmpty)
+                    .map(
+                      (item) => TipDisplay.person(
+                        username: item['username']?.toString(),
+                        displayName: item['displayName']?.toString(),
+                      ),
+                    )
+                    .where((name) => name != 'Griot user')
                     .toSet()
                     .toList();
 
@@ -312,15 +397,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   isRecipient ? 'Sent by' : 'Sent to': counterpartyName,
                   if (isGrouped && people.isNotEmpty)
                     'Participants': people.join(', '),
-                  if (counterpartyWallet != null &&
-                      counterpartyWallet.isNotEmpty)
-                    'Wallet': _shortAddress(counterpartyWallet),
-                  if (amountText != null && amountText.isNotEmpty)
-                    'Amount': amountText,
-                  if (assetType != null && assetType.isNotEmpty)
-                    'Asset': assetType,
-                  if (tokenAddress != null && tokenAddress.isNotEmpty)
-                    'Token': _shortAddress(tokenAddress),
+                  if (amountText.isNotEmpty) 'Amount': amountText,
+                  if (_tipAssetLabel(metadata).isNotEmpty)
+                    'Asset': _tipAssetLabel(metadata),
                   if (network != null && network.isNotEmpty) 'Network': network,
                   if (transactionHash != null && transactionHash.isNotEmpty)
                     'Transaction': _shortAddress(transactionHash),
@@ -332,16 +411,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     final itemMetadata = item['metadata'] is Map
                         ? Map<String, dynamic>.from(item['metadata'])
                         : <String, dynamic>{};
-                    final itemAmount = itemMetadata['amountRaw'];
-                    final itemAsset = itemMetadata['assetType']?.toString();
-                    final itemName =
-                        item['displayName']?.toString() ?? 'Griot user';
-                    final amount = itemAmount is List
-                        ? itemAmount.map((value) => value.toString()).join(', ')
-                        : itemAmount?.toString();
+                    final itemAmount = _tipAmountText(itemMetadata);
+                    final itemName = TipDisplay.person(
+                      username: item['username']?.toString(),
+                      displayName: item['displayName']?.toString(),
+                    );
                     details['${index + 1}. $itemName'] = [
-                      if (amount != null && amount.isNotEmpty) amount,
-                      if (itemAsset != null && itemAsset.isNotEmpty) itemAsset,
+                      if (itemAmount.isNotEmpty) itemAmount,
                     ].join(' ');
                   }
                 }
@@ -363,6 +439,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 onTap = () => context.push('/miner');
               } else if (rawItem['type'] == 'subscription') {
                 onTap = () => context.push('/settings/griot-plus');
+              } else if (rawItem['type'] == 'message_request') {
+                final userId = rawItem['counterpartyUserId']?.toString();
+                if (userId != null && userId.isNotEmpty) {
+                  final user = ChatUser(
+                    id: userId,
+                    walletAddress:
+                        rawItem['counterpartyWalletAddress']?.toString() ?? '',
+                    username: rawItem['username']?.toString(),
+                    displayName: rawItem['displayName']?.toString(),
+                    profileUrl: avatarUrl,
+                    timestamp: timestamp,
+                  );
+                  onTap = () => context.push('/user/profile', extra: user);
+                }
               }
             }
 
@@ -458,9 +548,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     Stack(
                       children: [
                         if (avatarUrl != null && avatarUrl.isNotEmpty)
-                          CircleAvatar(
+                          GriotAvatar(
+                            avatarUrl: avatarUrl,
                             radius: 22,
-                            backgroundImage: NetworkImage(avatarUrl),
+                            backgroundColor: color.withValues(alpha: 0.1),
+                            iconColor: color,
                           )
                         else
                           Container(
@@ -629,8 +721,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   String _shortAddress(String value) {
-    if (value.length <= 14) return value;
-    return '${value.substring(0, 6)}…${value.substring(value.length - 6)}';
+    if (value.length <= 6) return value;
+    return '${value.substring(0, 3)}…${value.substring(value.length - 3)}';
   }
 
   String _formatTime(DateTime time) {

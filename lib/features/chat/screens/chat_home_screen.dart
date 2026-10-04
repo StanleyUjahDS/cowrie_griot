@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:griot_cowrie/core/services/navigation_scroll_service.dart';
 import 'package:griot_cowrie/features/chat/providers/messaging_provider.dart';
 import 'package:griot_cowrie/core/ui/scaffolds/gradient_scaffold.dart';
@@ -15,20 +14,31 @@ import 'package:griot_cowrie/features/chat/widgets/group_list_item.dart'
 import 'package:griot_cowrie/features/chat/widgets/channel_list_item.dart';
 import 'package:griot_cowrie/core/router/main_navigation.dart';
 import '../../../core/ui/widgets/griot_branded_container.dart';
+import '../../../core/services/notification_service.dart';
 
 enum HubSection { direct, groups, channels }
 
 class ChatHomeScreen extends StatelessWidget {
-  const ChatHomeScreen({super.key});
+  final String initialTab;
+
+  const ChatHomeScreen({super.key, this.initialTab = 'direct'});
 
   @override
   Widget build(BuildContext context) {
-    return const _ChatHomeView();
+    return _ChatHomeView(initialSection: _sectionFromTab(initialTab));
   }
+
+  static HubSection _sectionFromTab(String tab) => switch (tab.toLowerCase()) {
+    'group' || 'groups' => HubSection.groups,
+    'channel' || 'channels' => HubSection.channels,
+    _ => HubSection.direct,
+  };
 }
 
 class _ChatHomeView extends StatefulWidget {
-  const _ChatHomeView();
+  final HubSection initialSection;
+
+  const _ChatHomeView({required this.initialSection});
 
   @override
   State<_ChatHomeView> createState() => _ChatHomeViewState();
@@ -36,17 +46,22 @@ class _ChatHomeView extends StatefulWidget {
 
 class _ChatHomeViewState extends State<_ChatHomeView> {
   String searchQuery = '';
+  late final TextEditingController _searchController;
+  late final FocusNode _searchFocusNode;
   final Map<HubSection, ScrollController> _scrollControllers = {
     HubSection.direct: ScrollController(),
     HubSection.groups: ScrollController(),
     HubSection.channels: ScrollController(),
   };
   late final PageController _pageController;
-  HubSection selectedHub = HubSection.direct;
+  late HubSection selectedHub;
 
   @override
   void initState() {
     super.initState();
+    _searchController = TextEditingController();
+    _searchFocusNode = FocusNode();
+    selectedHub = widget.initialSection;
     _pageController = PageController(initialPage: selectedHub.index);
     NavigationScrollService.instance.addListener(_onNavTap);
 
@@ -68,7 +83,29 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
   }
 
   @override
+  void didUpdateWidget(covariant _ChatHomeView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialSection == widget.initialSection ||
+        selectedHub == widget.initialSection) {
+      return;
+    }
+
+    selectedHub = widget.initialSection;
+    if (_pageController.hasClients) {
+      _pageController.jumpToPage(selectedHub.index);
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _pageController.hasClients) {
+          _pageController.jumpToPage(selectedHub.index);
+        }
+      });
+    }
+  }
+
+  @override
   void dispose() {
+    _searchController.dispose();
+    _searchFocusNode.dispose();
     NavigationScrollService.instance.removeListener(_onNavTap);
     for (final controller in _scrollControllers.values) {
       controller.dispose();
@@ -99,10 +136,9 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
 
     final sectionFiltered = conversations.where((conv) {
       if (section == HubSection.direct) {
-        // A DM conversation can be created before the first message is sent.
-        // Keep those conversations out of the inbox; friends remain available
-        // through the Friends/Discover views and can still start the chat.
-        return conv.type == ConversationType.dm && conv.lastMessage != null;
+        // Keep every direct conversation in the inbox, including a newly
+        // created DM that has not received its first message yet.
+        return conv.type == ConversationType.dm;
       }
       if (section == HubSection.groups) {
         return conv.type == ConversationType.group;
@@ -113,28 +149,108 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
       return true;
     }).toList();
 
-    if (query.isEmpty) return sectionFiltered;
+    if (query.isEmpty) return _sortConversations(provider, sectionFiltered);
 
-    return sectionFiltered.where((conv) {
-      final title = conv.title?.toLowerCase() ?? '';
-      final user = conv.otherUser?.effectiveDisplayName.toLowerCase() ?? '';
-      final lastMsg = conv.lastMessage?.text.toLowerCase() ?? '';
+    return _sortConversations(
+      provider,
+      sectionFiltered.where((conv) {
+        final title = conv.title?.toLowerCase() ?? '';
+        final user = conv.otherUser?.effectiveDisplayName.toLowerCase() ?? '';
+        final lastMsg = conv.lastMessage?.previewText.toLowerCase() ?? '';
 
-      return title.contains(query) ||
-          user.contains(query) ||
-          lastMsg.contains(query);
-    }).toList();
+        return title.contains(query) ||
+            user.contains(query) ||
+            lastMsg.contains(query);
+      }).toList(),
+    );
   }
 
-  void _openNewChat() => context.push('/chat/discover');
+  List<Conversation> _sortConversations(
+    MessagingProvider provider,
+    List<Conversation> conversations,
+  ) {
+    conversations.sort((a, b) {
+      final aPinned = provider.isConversationPinned(a.id);
+      final bPinned = provider.isConversationPinned(b.id);
+      if (aPinned != bPinned) return aPinned ? -1 : 1;
+      return b.updatedAt.compareTo(a.updatedAt);
+    });
+    return conversations;
+  }
+
+  void _openPrimaryAction() {
+    // Keep the inline field for searching conversations already in this
+    // account. The floating action is the broader network discovery entry
+    // point for users, groups, and channels.
+    context.push('/chat/discover');
+  }
+
+  Future<void> _removeConversation(Conversation conversation) async {
+    final isDirect = conversation.type == ConversationType.dm;
+    final actionLabel = switch (conversation.type) {
+      ConversationType.dm => 'Remove from my chats',
+      ConversationType.group => 'Leave circle',
+      ConversationType.channel => 'Leave channel',
+    };
+    final targetName =
+        conversation.otherUser?.effectiveDisplayName ??
+        conversation.title ??
+        'this conversation';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('$actionLabel?'),
+        content: Text(
+          isDirect
+              ? 'This removes "$targetName" only from your chat list. It does not delete the conversation for the other person. New messages will show it again.'
+              : 'You will no longer see "$targetName" in your conversation list.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(actionLabel),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+
+    final provider = context.read<MessagingProvider>();
+    try {
+      switch (conversation.type) {
+        case ConversationType.dm:
+          await provider.deleteConversation(conversation.id);
+        case ConversationType.group:
+          await provider.leaveGroup(conversation.id);
+        case ConversationType.channel:
+          await provider.unsubscribeFromChannel(conversation.id);
+      }
+      if (mounted) {
+        NotificationService.showSuccess(context, '$actionLabel completed');
+      }
+    } catch (error) {
+      if (mounted) {
+        NotificationService.showError(context, 'Unable to $actionLabel');
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final unreadNotifications = context.select<MessagingProvider, int>(
+      (provider) => provider.unreadNotificationCount,
+    );
 
     return GradientScaffold(
       useSafeArea: false,
+      resizeToAvoidBottomInset: false,
       extendBodyBehindAppBar: false,
       appBar: AppBar(
         title: const Text('Messenger'),
@@ -188,13 +304,59 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
             ),
           ),
         ),
-        actions: const [SizedBox(width: 16)],
+        actions: [
+          IconButton(
+            tooltip: 'Updates',
+            onPressed: () => context.go('/notifications'),
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(Icons.notifications_none_rounded, color: colors.primary),
+                if (unreadNotifications > 0)
+                  Positioned(
+                    right: -10,
+                    top: -10,
+                    child: Container(
+                      constraints: const BoxConstraints(
+                        minWidth: 18,
+                        minHeight: 18,
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: colors.error,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: colors.surface, width: 1.5),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        unreadNotifications > 99
+                            ? '99+'
+                            : '$unreadNotifications',
+                        style: TextStyle(
+                          color: colors.onError,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 110),
+      floatingActionButtonLocation: _ChatSearchFabLocation(
+        keyboardInset: _windowKeyboardInset(context),
+      ),
+      floatingActionButton: HeroMode(
+        // This action is persistent across provider updates; a Hero animation
+        // here restarts whenever notifications or presence change and looks
+        // like the search icon is flickering.
+        enabled: false,
         child: FloatingActionButton(
-          onPressed: _openNewChat,
+          heroTag: 'chat-search-fab',
+          onPressed: _openPrimaryAction,
           backgroundColor: colors.primary,
           foregroundColor: colors.onPrimary,
           shape: RoundedRectangleBorder(
@@ -204,18 +366,27 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
           child: const Icon(Icons.search_rounded, size: 30),
         ),
       ),
-      child: Stack(
-        children: [
-          Positioned.fill(child: _buildContent()),
-          Positioned(
-            top: 12,
-            left: 16,
-            right: 16,
-            child: _buildFloatingControls(),
-          ),
-        ],
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => _searchFocusNode.unfocus(),
+        child: Stack(
+          children: [
+            Positioned.fill(child: _buildContent()),
+            Positioned(
+              top: 12,
+              left: 16,
+              right: 16,
+              child: _buildFloatingControls(),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  double _windowKeyboardInset(BuildContext context) {
+    final view = View.of(context);
+    return view.viewInsets.bottom / view.devicePixelRatio;
   }
 
   Widget _buildFloatingControls() {
@@ -257,9 +428,9 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
                   SizedBox(
                     height: 44,
                     child: TextField(
-                      onChanged: (v) {
-                        setState(() => searchQuery = v);
-                      },
+                      controller: _searchController,
+                      focusNode: _searchFocusNode,
+                      onChanged: (v) => setState(() => searchQuery = v),
                       style: const TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 15,
@@ -276,6 +447,19 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
                           size: 20,
                           color: colors.primary,
                         ),
+                        suffixIcon: searchQuery.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: 'Clear search',
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => searchQuery = '');
+                                },
+                                icon: Icon(
+                                  Icons.close_rounded,
+                                  color: colors.onSurfaceVariant,
+                                ),
+                              ),
                         border: InputBorder.none,
                         filled: false,
                         contentPadding: const EdgeInsets.symmetric(
@@ -363,6 +547,8 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
                 icon: icon,
                 title: emptyTitle,
                 message: emptyMsg,
+                actionLabel: null,
+                onAction: null,
               );
             }
 
@@ -403,7 +589,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
                     if (other == null) return const SizedBox.shrink();
 
                     final lastMsgText =
-                        conv.lastMessage?.text ?? 'No messages yet';
+                        conv.lastMessage?.previewText ?? 'No messages yet';
 
                     item = ChatListItem(
                       user: other.copyWith(
@@ -413,27 +599,46 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
                       ),
                       lastMessage: conv.lastMessage,
                       time: _formatTime(conv.updatedAt),
+                      isPinned: provider.isConversationPinned(conv.id),
                       onTap: () =>
                           context.push('/conversation/${conv.id}', extra: conv),
-                      onAvatarTap: () =>
-                          context.push('/user/profile', extra: other),
+                      onPinToggle: () {
+                        provider.toggleConversationPin(conv.id);
+                      },
+                      onRemove: () => _removeConversation(conv),
                     );
                   } else if (type == ConversationType.group) {
                     item = group_widgets.GroupListItem(
                       conversation: conv,
+                      isPinned: provider.isConversationPinned(conv.id),
                       onTap: () =>
                           context.push('/conversation/${conv.id}', extra: conv),
+                      onPinToggle: () {
+                        provider.toggleConversationPin(conv.id);
+                      },
+                      onRemove: () => _removeConversation(conv),
                     );
                   } else if (type == ConversationType.channel) {
-                    item = ChannelListItem(conversation: conv);
+                    item = ChannelListItem(
+                      conversation: conv,
+                      isPinned: provider.isConversationPinned(conv.id),
+                      onPinToggle: () {
+                        provider.toggleConversationPin(conv.id);
+                      },
+                      onRemove: () => _removeConversation(conv),
+                    );
                   } else {
                     return const SizedBox.shrink();
                   }
 
-                  return item
-                      .animate()
-                      .fadeIn(duration: 400.ms, delay: (index * 40).ms)
-                      .slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad);
+                  // Provider updates are frequent (presence, receipts,
+                  // realtime messages). Replaying an entrance animation on
+                  // every notifyListeners makes the whole Chat home appear
+                  // to flicker and can restart avatar image composition.
+                  return KeyedSubtree(
+                    key: ValueKey('${type.name}:${conv.id}'),
+                    child: item,
+                  );
                 },
               ),
             );
@@ -448,7 +653,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
     final query = searchQuery.trim().toLowerCase();
 
     final dms = provider.conversations
-        .where((c) => c.type == ConversationType.dm && c.lastMessage != null)
+        .where((c) => c.type == ConversationType.dm)
         .toList();
     final groups = provider.conversations
         .where((c) => c.type == ConversationType.group)
@@ -460,15 +665,21 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
     bool matches(Conversation conv) {
       final title = conv.title?.toLowerCase() ?? '';
       final user = conv.otherUser?.effectiveDisplayName.toLowerCase() ?? '';
-      final lastMsg = conv.lastMessage?.text.toLowerCase() ?? '';
+      final lastMsg = conv.lastMessage?.previewText.toLowerCase() ?? '';
       return title.contains(query) ||
           user.contains(query) ||
           lastMsg.contains(query);
     }
 
-    final dmResults = dms.where(matches).toList();
-    final groupResults = groups.where(matches).toList();
-    final channelResults = channels.where(matches).toList();
+    final dmResults = _sortConversations(provider, dms.where(matches).toList());
+    final groupResults = _sortConversations(
+      provider,
+      groups.where(matches).toList(),
+    );
+    final channelResults = _sortConversations(
+      provider,
+      channels.where(matches).toList(),
+    );
 
     if (dmResults.isEmpty && groupResults.isEmpty && channelResults.isEmpty) {
       return Padding(
@@ -508,16 +719,19 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
           ...dmResults.map(
             (conv) => ChatListItem(
               user: conv.otherUser!.copyWith(
-                lastMessage: conv.lastMessage?.text ?? 'No messages yet',
+                lastMessage: conv.lastMessage?.previewText ?? 'No messages yet',
                 timestamp: conv.updatedAt,
                 unreadCount: conv.unreadCount,
               ),
               lastMessage: conv.lastMessage,
               time: _formatTime(conv.updatedAt),
+              isPinned: provider.isConversationPinned(conv.id),
               onTap: () =>
                   context.push('/conversation/${conv.id}', extra: conv),
-              onAvatarTap: () =>
-                  context.push('/user/profile', extra: conv.otherUser),
+              onPinToggle: () {
+                provider.toggleConversationPin(conv.id);
+              },
+              onRemove: () => _removeConversation(conv),
             ),
           ),
         ],
@@ -526,14 +740,28 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
           ...groupResults.map(
             (conv) => group_widgets.GroupListItem(
               conversation: conv,
+              isPinned: provider.isConversationPinned(conv.id),
               onTap: () =>
                   context.push('/conversation/${conv.id}', extra: conv),
+              onPinToggle: () {
+                provider.toggleConversationPin(conv.id);
+              },
+              onRemove: () => _removeConversation(conv),
             ),
           ),
         ],
         if (channelResults.isNotEmpty) ...[
           _SearchSectionHeader(title: 'Channels'),
-          ...channelResults.map((conv) => ChannelListItem(conversation: conv)),
+          ...channelResults.map(
+            (conv) => ChannelListItem(
+              conversation: conv,
+              isPinned: provider.isConversationPinned(conv.id),
+              onPinToggle: () {
+                provider.toggleConversationPin(conv.id);
+              },
+              onRemove: () => _removeConversation(conv),
+            ),
+          ),
         ],
         const SizedBox(height: 100),
       ],
@@ -553,10 +781,14 @@ class _EmptyState extends StatelessWidget {
   final IconData icon;
   final String title;
   final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
   const _EmptyState({
     required this.icon,
     required this.title,
     required this.message,
+    this.actionLabel,
+    this.onAction,
   });
 
   @override
@@ -586,6 +818,14 @@ class _EmptyState extends StatelessWidget {
               ),
               textAlign: TextAlign.center,
             ),
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: 20),
+              FilledButton.icon(
+                onPressed: onAction,
+                icon: const Icon(Icons.group_add_rounded),
+                label: Text(actionLabel!),
+              ),
+            ],
           ],
         ),
       ),
@@ -687,6 +927,29 @@ class _ChatSectionSwitcher extends StatelessWidget {
         }).toList(),
       ),
     );
+  }
+}
+
+/// Keeps the Chat Home search action fixed above the persistent GNav.
+/// Flutter's default endFloat location can use keyboard insets and lift the
+/// button when a search field receives focus.
+class _ChatSearchFabLocation extends FloatingActionButtonLocation {
+  final double keyboardInset;
+
+  const _ChatSearchFabLocation({required this.keyboardInset});
+
+  @override
+  Offset getOffset(ScaffoldPrelayoutGeometry geometry) {
+    final x =
+        geometry.scaffoldSize.width -
+        geometry.floatingActionButtonSize.width -
+        16;
+    final y =
+        geometry.scaffoldSize.height -
+        geometry.floatingActionButtonSize.height -
+        125 +
+        keyboardInset;
+    return Offset(x, y.clamp(0.0, double.infinity).toDouble());
   }
 }
 

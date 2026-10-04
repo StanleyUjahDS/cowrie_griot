@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/token_model.dart';
+import '../providers/display_currency_provider.dart';
+import '../providers/wallet_provider.dart';
 import '../utils/wallet_formatters.dart';
 import 'token_icon.dart';
 
@@ -19,22 +22,6 @@ class TokenListItem extends StatelessWidget {
     return WalletFormatters.formatBalance(token.balance);
   }
 
-  String _formatPrice(num? value) {
-    if (value == null || !token.hasMarketData || value <= 0) return '—';
-    final price = value.toDouble();
-    if (price >= 1) return '\$${price.toStringAsFixed(2)}';
-    if (price >= 0.01) return '\$${price.toStringAsFixed(4)}';
-    return '\$${price.toStringAsFixed(6)}';
-  }
-
-  String _formatUsd(num? value) {
-    if (value == null || !token.hasMarketData) return '—';
-    final amount = value.toDouble().abs();
-    if (amount >= 1000000) return '\$${(amount / 1000000).toStringAsFixed(2)}M';
-    if (amount >= 1000) return '\$${(amount / 1000).toStringAsFixed(2)}K';
-    return '\$${amount.toStringAsFixed(2)}';
-  }
-
   String _formatChange(num? value) {
     if (value == null || !token.hasMarketData) return '—';
     final change = value.toDouble();
@@ -46,6 +33,8 @@ class TokenListItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
+    final displayCurrency = context.watch<DisplayCurrencyProvider>();
+    final hideBalances = context.watch<WalletProvider>().hideBalances;
 
     final bool isPositive = (token.changePercent ?? 0) >= 0;
 
@@ -89,13 +78,17 @@ class TokenListItem extends StatelessWidget {
                   padding: const EdgeInsets.all(2),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: colors.primary.withValues(alpha: 0.1)),
+                    border: Border.all(
+                      color: colors.primary.withValues(alpha: 0.1),
+                    ),
                   ),
                   child: TokenIcon(
                     imageUrl: token.imageUrl,
                     symbol: token.symbol,
                     name: token.name,
-                    chainName: token.chain,
+                    chainName: token.rawNetwork.isNotEmpty
+                        ? token.rawNetwork
+                        : token.chain,
                     isNative: token.isNative,
                     radius: 22,
                   ),
@@ -136,9 +129,11 @@ class TokenListItem extends StatelessWidget {
                       Row(
                         children: [
                           Text(
-                            '${token.symbol} • ${token.chain.toUpperCase()}',
+                            token.symbol,
                             style: text.labelSmall?.copyWith(
-                              color: colors.onSurfaceVariant.withValues(alpha: 0.5),
+                              color: colors.onSurfaceVariant.withValues(
+                                alpha: 0.5,
+                              ),
                               fontWeight: FontWeight.w700,
                               letterSpacing: 0.2,
                             ),
@@ -146,9 +141,16 @@ class TokenListItem extends StatelessWidget {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              _formatPrice(token.priceUsd),
+                              hideBalances
+                                  ? '••••'
+                                  : displayCurrency.formatUsd(
+                                      token.priceUsd,
+                                      unitPrice: true,
+                                    ),
                               style: text.labelSmall?.copyWith(
-                                color: colors.onSurfaceVariant.withValues(alpha: 0.4),
+                                color: colors.onSurfaceVariant.withValues(
+                                  alpha: 0.4,
+                                ),
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -166,8 +168,13 @@ class TokenListItem extends StatelessWidget {
                   children: [
                     Flexible(
                       child: Text(
-                        _formatUsd(token.valueUsd),
-                        style: text.bodyLarge?.copyWith(fontWeight: FontWeight.w900, fontSize: 17),
+                        hideBalances
+                            ? '••••'
+                            : displayCurrency.formatUsd(token.valueUsd),
+                        style: text.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 17,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -178,9 +185,11 @@ class TokenListItem extends StatelessWidget {
                       children: [
                         Flexible(
                           child: Text(
-                            _formatBalance(token),
+                            hideBalances ? '••••' : _formatBalance(token),
                             style: text.labelSmall?.copyWith(
-                              color: colors.onSurfaceVariant.withValues(alpha: 0.4),
+                              color: colors.onSurfaceVariant.withValues(
+                                alpha: 0.4,
+                              ),
                               fontWeight: FontWeight.w700,
                             ),
                             maxLines: 1,
@@ -189,13 +198,15 @@ class TokenListItem extends StatelessWidget {
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          _formatChange(token.changePercent),
+                          hideBalances
+                              ? '••••'
+                              : _formatChange(token.changePercent),
                           style: text.labelSmall?.copyWith(
                             color: !token.hasMarketData
                                 ? colors.onSurfaceVariant
                                 : isPositive
-                                    ? colors.tertiary
-                                    : colors.error,
+                                ? colors.tertiary
+                                : colors.error,
                             fontWeight: FontWeight.w900,
                           ),
                         ),

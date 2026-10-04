@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../../../../core/ui/dialogs/griot_confirm_dialog.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
@@ -15,6 +17,7 @@ import '../../../wallet/utils/chain_assets.dart';
 import '../../models/chat_user.dart';
 import '../../models/conversation_model.dart';
 import '../../providers/messaging_provider.dart';
+import '../../utils/tip_display.dart';
 
 enum _TipAudience { friends, selectedPeople }
 
@@ -42,6 +45,7 @@ class TipSheet extends StatefulWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       useRootNavigator: true,
       backgroundColor: Colors.transparent,
       builder: (context) => TipSheet(
@@ -166,24 +170,9 @@ class _TipSheetState extends State<TipSheet> {
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
-      child: Container(
+      child: GriotBottomSheet(
+        radius: 32,
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-          border: Border(
-            top: BorderSide(
-              color: colorScheme.primary.withValues(alpha: 0.6),
-              width: 1.5,
-            ),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 30,
-            ),
-          ],
-        ),
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxHeight: MediaQuery.of(context).size.height * 0.8,
@@ -327,6 +316,7 @@ class _TipSheetState extends State<TipSheet> {
   ) {
     return InkWell(
       onTap: () async {
+        FocusManager.instance.primaryFocus?.unfocus();
         final selected = await _showTokenSelector(_selectedToken, available);
         if (selected != null) setState(() => _selectedToken = selected);
       },
@@ -630,7 +620,7 @@ class _TipSheetState extends State<TipSheet> {
       ),
       child: Text(
         _isUsdInput
-            ? '≈ ${tokenAmount.toStringAsFixed(6)} ${_selectedToken?.symbol}'
+            ? '≈ ${_formatDisplayAmount(tokenAmount.toString())} ${_selectedToken?.symbol}'
             : '≈ \$${usdValue.toStringAsFixed(2)}',
         style: TextStyle(
           color: colorScheme.onSurfaceVariant,
@@ -730,8 +720,22 @@ class _TipSheetState extends State<TipSheet> {
     final raw = rawAmount.toString().padLeft(decimals + 1, '0');
     final split = raw.length - decimals;
     final whole = raw.substring(0, split);
-    final fraction = raw.substring(split).replaceFirst(RegExp(r'0+$'), '');
+    final fraction = raw
+        .substring(split, math.min(raw.length, split + 6))
+        .replaceFirst(RegExp(r'0+$'), '');
     return fraction.isEmpty ? whole : '$whole.$fraction';
+  }
+
+  String _formatDisplayAmount(String value, {int maxDecimals = 4}) {
+    final parsed = double.tryParse(value.replaceAll(',', '').trim());
+    if (parsed == null || !parsed.isFinite) {
+      return value.length > 18 ? '${value.substring(0, 18)}…' : value;
+    }
+    if (parsed == 0) return '0';
+    return parsed
+        .toStringAsFixed(maxDecimals)
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '');
   }
 
   Future<void> _handleSend(MessagingProvider provider, double? input) async {
@@ -752,7 +756,7 @@ class _TipSheetState extends State<TipSheet> {
               final price = _selectedToken!.priceUsd?.toDouble() ?? 0.0;
               return price > 0 ? entered / price : 0.0;
             }).toList()
-          : [_currentTokenAmount];
+          : List<double>.filled(recipients.length, _currentTokenAmount);
 
       if (tokenAmounts.any((amount) => amount <= 0)) {
         throw Exception('Enter a valid amount for every selected person');
@@ -779,37 +783,44 @@ class _TipSheetState extends State<TipSheet> {
       }
 
       final sharedAmount = tokenAmounts.first;
+      String formatAmount(double value) => value
+          .toStringAsFixed(4)
+          .replaceAll(RegExp(r'0+$'), '')
+          .replaceAll(RegExp(r'\.$'), '');
+      String recipientName(ChatUser recipient) => TipDisplay.person(
+        username: recipient.username,
+        displayName: recipient.displayName,
+      );
       final confirmationText = useIndividualAmounts
           ? recipients
                 .asMap()
                 .entries
                 .map((entry) {
-                  final amount = tokenAmounts[entry.key]
-                      .toStringAsFixed(6)
-                      .replaceAll(RegExp(r'0+$'), '')
-                      .replaceAll(RegExp(r'\.$'), '');
-                  return '${entry.value.effectiveDisplayName}: $amount ${_selectedToken!.symbol}';
+                  final amount = formatAmount(tokenAmounts[entry.key]);
+                  return '${recipientName(entry.value)}: $amount ${_selectedToken!.symbol}';
                 })
                 .join('\n')
-          : 'Send ${sharedAmount.toStringAsFixed(6).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '')} ${_selectedToken!.symbol} to ${recipients.length} member${recipients.length > 1 ? "s" : ""}?';
+          : 'Send ${formatAmount(sharedAmount)} ${_selectedToken!.symbol} to ${recipients.length} member${recipients.length > 1 ? "s" : ""}?';
+
+      final tipMessage = useIndividualAmounts
+          ? recipients
+                .asMap()
+                .entries
+                .map(
+                  (entry) =>
+                      '${recipientName(entry.value)}: ${formatAmount(tokenAmounts[entry.key])} ${_selectedToken!.symbol}',
+                )
+                .join(' · ')
+          : recipients.length > 1
+          ? 'Distributed ${formatAmount(sharedAmount)} ${_selectedToken!.symbol} each'
+          : 'Tipped ${formatAmount(sharedAmount)} ${_selectedToken!.symbol}';
 
       // Simple confirmation
-      final confirm = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text(recipients.length > 1 ? 'Distribute Batch' : 'Send Tip'),
-          content: Text(confirmationText),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Confirm'),
-            ),
-          ],
-        ),
+      final confirm = await showGriotConfirmDialog(
+        context,
+        title: recipients.length > 1 ? 'Distribute batch' : 'Send tip',
+        message: confirmationText,
+        confirmLabel: 'Send',
       );
 
       if (confirm != true) {
@@ -840,14 +851,24 @@ class _TipSheetState extends State<TipSheet> {
         );
       }
 
+      // Keep the display information with the tip message. The contract
+      // address and raw integer amounts are useful for verification, but the
+      // chat card should remain readable after it is reloaded.
+      prepared.addAll({
+        'tokenName': _selectedToken!.name,
+        'tokenSymbol': _selectedToken!.symbol,
+        'tokenDecimals': decimals,
+        'recipientNames': recipients.map(recipientName).toList(),
+        'amountsDisplay': tokenAmounts.map(formatAmount).toList(),
+        'amountDisplay': useIndividualAmounts
+            ? tokenAmounts.map(formatAmount).join(' · ')
+            : '${formatAmount(sharedAmount)} ${_selectedToken!.symbol} each',
+      });
+
       await provider.executeTip(
         preparedTip: prepared,
         conversationId: widget.conversationId,
-        tipMessage: useIndividualAmounts
-            ? 'Sent individual ${_selectedToken!.symbol} tips to ${recipients.length} people'
-            : recipients.length > 1
-            ? 'Distributed ${sharedAmount.toStringAsFixed(6).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '')} ${_selectedToken!.symbol} each'
-            : 'Tipped ${sharedAmount.toStringAsFixed(6).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '')} ${_selectedToken!.symbol}',
+        tipMessage: tipMessage,
         onStatusUpdate: (s) {
           if (mounted) setState(() => _status = s);
         },
@@ -900,7 +921,7 @@ class _TipSheetState extends State<TipSheet> {
       final audience = await _showAudienceSelector();
       if (audience == null) return null;
       if (audience == _TipAudience.selectedPeople) {
-        return _showGlobalRecipientSelector(currentlySelected);
+        return _showGlobalRecipientSelectorStable(currentlySelected);
       }
     }
 
@@ -944,6 +965,7 @@ class _TipSheetState extends State<TipSheet> {
     return await showModalBottomSheet<List<ChatUser>>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
         List<ChatUser> selected = List.from(currentlySelected);
@@ -954,99 +976,97 @@ class _TipSheetState extends State<TipSheet> {
               initialChildSize: 0.8,
               minChildSize: 0.5,
               maxChildSize: 0.95,
-              builder: (context, scrollController) => Container(
-                decoration: BoxDecoration(
-                  color: colors.surface,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(32),
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 12),
-                    Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: colors.onSurfaceVariant.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Row(
-                        children: [
-                          const Text(
-                            'Select Recipients',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 18,
-                            ),
-                          ),
-                          const Spacer(),
-                          if (selected.isNotEmpty)
-                            TextButton(
-                              onPressed: () =>
-                                  setSheetState(() => selected.clear()),
-                              child: const Text('Clear'),
-                            ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: ListView.builder(
-                        controller: scrollController,
-                        itemCount: otherMembers.length,
-                        itemBuilder: (context, index) {
-                          final member = otherMembers[index];
-                          final isSelected = selected.any(
-                            (s) => s.id == member.id,
-                          );
-                          return ListTile(
-                            onTap: () => setSheetState(
-                              () => isSelected
-                                  ? selected.removeWhere(
-                                      (s) => s.id == member.id,
-                                    )
-                                  : selected.add(member),
-                            ),
-                            leading: CircleAvatar(
-                              backgroundImage: member.profileUrl != null
-                                  ? NetworkImage(member.profileUrl!)
-                                  : null,
-                            ),
-                            title: Text(
-                              member.effectiveDisplayName,
-                              style: TextStyle(
-                                fontWeight: isSelected
-                                    ? FontWeight.w800
-                                    : FontWeight.w600,
-                              ),
-                            ),
-                            trailing: Icon(
-                              isSelected
-                                  ? Icons.check_circle_rounded
-                                  : Icons.circle_outlined,
-                              color: isSelected
-                                  ? colors.primary
-                                  : colors.outline,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: SizedBox(
-                        width: double.infinity,
-                        height: 56,
-                        child: FilledButton(
-                          onPressed: () => Navigator.pop(context, selected),
-                          child: Text('Confirm (${selected.length})'),
+              builder: (context, scrollController) => GriotBottomSheet(
+                radius: 32,
+                child: SafeArea(
+                  top: false,
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 12),
+                      Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: colors.onSurfaceVariant.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(2),
                         ),
                       ),
-                    ),
-                  ],
+                      Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Row(
+                          children: [
+                            const Text(
+                              'Select Recipients',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 18,
+                              ),
+                            ),
+                            const Spacer(),
+                            if (selected.isNotEmpty)
+                              TextButton(
+                                onPressed: () =>
+                                    setSheetState(() => selected.clear()),
+                                child: const Text('Clear'),
+                              ),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: ListView.builder(
+                          controller: scrollController,
+                          itemCount: otherMembers.length,
+                          itemBuilder: (context, index) {
+                            final member = otherMembers[index];
+                            final isSelected = selected.any(
+                              (s) => s.id == member.id,
+                            );
+                            return ListTile(
+                              onTap: () => setSheetState(
+                                () => isSelected
+                                    ? selected.removeWhere(
+                                        (s) => s.id == member.id,
+                                      )
+                                    : selected.add(member),
+                              ),
+                              leading: CircleAvatar(
+                                backgroundImage: member.profileUrl != null
+                                    ? NetworkImage(member.profileUrl!)
+                                    : null,
+                              ),
+                              title: Text(
+                                member.effectiveDisplayName,
+                                style: TextStyle(
+                                  fontWeight: isSelected
+                                      ? FontWeight.w800
+                                      : FontWeight.w600,
+                                ),
+                              ),
+                              trailing: Icon(
+                                isSelected
+                                    ? Icons.check_circle_rounded
+                                    : Icons.circle_outlined,
+                                color: isSelected
+                                    ? colors.primary
+                                    : colors.outline,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: 56,
+                          child: FilledButton(
+                            onPressed: () => Navigator.pop(context, selected),
+                            child: Text('Confirm (${selected.length})'),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -1060,13 +1080,11 @@ class _TipSheetState extends State<TipSheet> {
     final colors = Theme.of(context).colorScheme;
     return showModalBottomSheet<_TipAudience>(
       context: context,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) => Container(
+      builder: (sheetContext) => GriotBottomSheet(
+        radius: 28,
         padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1130,289 +1148,22 @@ class _TipSheetState extends State<TipSheet> {
     );
   }
 
-  Future<List<ChatUser>?> _showGlobalRecipientSelector(
+  Future<List<ChatUser>?> _showGlobalRecipientSelectorStable(
     List<ChatUser> currentlySelected,
   ) {
-    final colors = Theme.of(context).colorScheme;
+    final api = context.read<UserProvider>().userApiService;
     final currentUserId = context.read<UserProvider>().user?.id;
-    // The modal builder can rebuild when the keyboard opens or closes. Keep
-    // selection and search state outside it so selected recipients survive
-    // those layout rebuilds.
-    final selected = List<ChatUser>.from(currentlySelected);
-    List<ChatUser> results = [];
-    Timer? debounce;
-    var isLoading = false;
-    String? errorMessage;
-    var queryVersion = 0;
-    var closed = false;
-    final searchController = TextEditingController();
-
-    final sheet = showModalBottomSheet<List<ChatUser>>(
+    return showModalBottomSheet<List<ChatUser>>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        Future<void> search(String query, StateSetter setSheetState) async {
-          if (closed) return;
-          final trimmed = query.trim();
-          final version = ++queryVersion;
-          if (trimmed.length < 2) {
-            setSheetState(() {
-              results = [];
-              isLoading = false;
-              errorMessage = null;
-            });
-            return;
-          }
-
-          setSheetState(() {
-            isLoading = true;
-            errorMessage = null;
-          });
-          try {
-            final response = await context
-                .read<UserProvider>()
-                .userApiService
-                .searchUsers(trimmed, limit: 20);
-            if (closed || version != queryVersion || !mounted) return;
-            final users = response['users'] as List? ?? const [];
-            final seenIds = <String>{};
-            setSheetState(() {
-              results = users
-                  .map<ChatUser?>((rawUser) {
-                    if (rawUser is ChatUser) return rawUser;
-                    if (rawUser is UserModel) {
-                      return ChatUser.fromUserModel(rawUser);
-                    }
-                    if (rawUser is Map) {
-                      return ChatUser.fromJson(
-                        Map<String, dynamic>.from(rawUser),
-                      );
-                    }
-                    return null;
-                  })
-                  .whereType<ChatUser>()
-                  .where(
-                    (user) =>
-                        user.id != currentUserId &&
-                        user.walletAddress.isNotEmpty &&
-                        user.walletAddress != '0x',
-                  )
-                  .where((user) => seenIds.add(user.id))
-                  .toList();
-              isLoading = false;
-            });
-          } catch (_) {
-            if (!closed && version == queryVersion && mounted) {
-              setSheetState(() {
-                results = [];
-                isLoading = false;
-                errorMessage =
-                    'Search failed. Check your connection and try again.';
-              });
-            }
-          }
-        }
-
-        return StatefulBuilder(
-          builder: (context, setSheetState) => SizedBox(
-            height: MediaQuery.sizeOf(context).height * 0.92,
-            child: PopScope<Object?>(
-              onPopInvokedWithResult: (didPop, result) {
-                if (!didPop) return;
-                FocusManager.instance.primaryFocus?.unfocus();
-                closed = true;
-                queryVersion++;
-                debounce?.cancel();
-              },
-              child: GriotBottomSheet(
-                radius: 28,
-                child: Column(
-                  children: [
-                    const SizedBox(height: 12),
-                    Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: colors.onSurfaceVariant.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Select people to tip',
-                            style: TextStyle(
-                              fontSize: 19,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: searchController,
-                            autofocus: true,
-                            decoration: InputDecoration(
-                              hintText: 'Search name, username, or wallet',
-                              prefixIcon: const Icon(Icons.search_rounded),
-                              filled: true,
-                              fillColor: colors.surfaceContainerHighest
-                                  .withValues(alpha: 0.45),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(14),
-                                borderSide: BorderSide.none,
-                              ),
-                            ),
-                            onChanged: (value) {
-                              debounce?.cancel();
-                              debounce = Timer(
-                                const Duration(milliseconds: 350),
-                                () {
-                                  search(value, setSheetState);
-                                },
-                              );
-                            },
-                          ),
-                          if (selected.isNotEmpty) ...[
-                            const SizedBox(height: 12),
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                '${selected.length} selected',
-                                style: TextStyle(
-                                  color: colors.onSurfaceVariant,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: Wrap(
-                                spacing: 6,
-                                runSpacing: 6,
-                                children: selected.map((user) {
-                                  return InputChip(
-                                    label: Text(user.effectiveDisplayName),
-                                    onDeleted: () => setSheetState(
-                                      () => selected.removeWhere(
-                                        (item) => item.id == user.id,
-                                      ),
-                                    ),
-                                  );
-                                }).toList(),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: isLoading
-                          ? const Center(child: GriotLoader())
-                          : results.isEmpty
-                          ? Center(
-                              child: Text(
-                                errorMessage ??
-                                    (searchController.text.trim().length < 2
-                                        ? 'Type at least 2 characters to search.'
-                                        : 'No eligible users found.'),
-                                style: TextStyle(
-                                  color: colors.onSurfaceVariant,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            )
-                          : ListView.builder(
-                              itemCount: results.length,
-                              itemBuilder: (context, index) {
-                                final user = results[index];
-                                final isSelected = selected.any(
-                                  (item) => item.id == user.id,
-                                );
-                                return Material(
-                                  color: Colors.transparent,
-                                  child: ListTile(
-                                    onTap: () => setSheetState(() {
-                                      if (isSelected) {
-                                        selected.removeWhere(
-                                          (item) => item.id == user.id,
-                                        );
-                                      } else {
-                                        selected.add(user);
-                                      }
-                                    }),
-                                    leading: CircleAvatar(
-                                      backgroundImage: user.profileUrl != null
-                                          ? NetworkImage(user.profileUrl!)
-                                          : null,
-                                      child: user.profileUrl == null
-                                          ? Text(
-                                              user.effectiveDisplayName
-                                                  .substring(0, 1)
-                                                  .toUpperCase(),
-                                            )
-                                          : null,
-                                    ),
-                                    title: Text(
-                                      user.effectiveDisplayName,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    subtitle: user.username == null
-                                        ? null
-                                        : Text('@${user.username}'),
-                                    trailing: Icon(
-                                      isSelected
-                                          ? Icons.check_circle_rounded
-                                          : Icons.circle_outlined,
-                                      color: isSelected
-                                          ? colors.primary
-                                          : colors.outline,
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                    ),
-                    SafeArea(
-                      top: false,
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                        child: SizedBox(
-                          width: double.infinity,
-                          height: 54,
-                          child: FilledButton(
-                            onPressed: selected.isEmpty
-                                ? null
-                                : () {
-                                    FocusManager.instance.primaryFocus
-                                        ?.unfocus();
-                                    Navigator.pop(sheetContext, selected);
-                                  },
-                            child: Text('Continue (${selected.length})'),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+      builder: (sheetContext) => _GlobalRecipientSelectorSheet(
+        initialSelected: currentlySelected,
+        currentUserId: currentUserId,
+        searchUsers: (query) => api.searchUsers(query, limit: 20),
+      ),
     );
-    return sheet.whenComplete(() {
-      closed = true;
-      queryVersion++;
-      debounce?.cancel();
-      searchController.dispose();
-    });
   }
 
   Future<TokenModel?> _showTokenSelector(
@@ -1423,62 +1174,391 @@ class _TipSheetState extends State<TipSheet> {
     return showModalBottomSheet<TokenModel>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        margin: const EdgeInsets.all(12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(24),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Select Token',
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
-            ),
-            const SizedBox(height: 16),
-            if (available.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(32),
-                child: Text('No supported tokens found.'),
-              )
-            else
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.sizeOf(context).height * 0.6,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) {
+        final mediaQuery = MediaQuery.of(sheetContext);
+        final usableHeight =
+            mediaQuery.size.height - mediaQuery.viewInsets.bottom;
+        final listHeight = math.max(160.0, math.min(usableHeight * 0.5, 400.0));
+        return GriotBottomSheet(
+          radius: 28,
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: colors.onSurfaceVariant.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: available.length,
-                  itemBuilder: (context, index) {
-                    final token = available[index];
-                    return Material(
-                      color: Colors.transparent,
-                      child: ListTile(
-                        onTap: () => Navigator.pop(context, token),
-                        leading: CircleAvatar(
-                          backgroundImage: token.imageUrl.isNotEmpty
-                              ? NetworkImage(token.imageUrl)
-                              : null,
+                const SizedBox(height: 14),
+                const Text(
+                  'Select Token',
+                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+                ),
+                const SizedBox(height: 12),
+                if (available.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Text('No supported tokens found.'),
+                  )
+                else
+                  SizedBox(
+                    height: listHeight,
+                    child: ListView.builder(
+                      itemCount: available.length,
+                      itemBuilder: (context, index) {
+                        final token = available[index];
+                        return Material(
+                          color: Colors.transparent,
+                          child: ListTile(
+                            dense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                            ),
+                            onTap: () => Navigator.pop(sheetContext, token),
+                            leading: CircleAvatar(
+                              radius: 18,
+                              backgroundImage: token.imageUrl.isNotEmpty
+                                  ? NetworkImage(token.imageUrl)
+                                  : null,
+                              child: token.imageUrl.isEmpty
+                                  ? Text(token.symbol.substring(0, 1))
+                                  : null,
+                            ),
+                            title: Text(
+                              token.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            subtitle: Text(
+                              '${token.symbol} • ${_formatDisplayAmount(token.balance)}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: token.identity == current?.identity
+                                ? Icon(
+                                    Icons.check_circle_rounded,
+                                    color: colors.primary,
+                                  )
+                                : null,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _GlobalRecipientSelectorSheet extends StatefulWidget {
+  final List<ChatUser> initialSelected;
+  final String? currentUserId;
+  final Future<Map<String, dynamic>> Function(String query) searchUsers;
+
+  const _GlobalRecipientSelectorSheet({
+    required this.initialSelected,
+    required this.currentUserId,
+    required this.searchUsers,
+  });
+
+  @override
+  State<_GlobalRecipientSelectorSheet> createState() =>
+      _GlobalRecipientSelectorSheetState();
+}
+
+class _GlobalRecipientSelectorSheetState
+    extends State<_GlobalRecipientSelectorSheet> {
+  late final TextEditingController _searchController;
+  late final List<ChatUser> _selected;
+  Timer? _debounce;
+  List<ChatUser> _results = [];
+  String? _errorMessage;
+  bool _isLoading = false;
+  int _queryVersion = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController();
+    _selected = List<ChatUser>.from(widget.initialSelected);
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _scheduleSearch(String value) {
+    _debounce?.cancel();
+    final query = value.trim();
+    final version = ++_queryVersion;
+    if (query.length < 2) {
+      setState(() {
+        _results = [];
+        _isLoading = false;
+        _errorMessage = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    _debounce = Timer(const Duration(milliseconds: 350), () {
+      _search(query, version);
+    });
+  }
+
+  Future<void> _search(String query, int version) async {
+    try {
+      final response = await widget.searchUsers(query);
+      if (!mounted || version != _queryVersion) return;
+
+      final users = response['users'] as List? ?? const [];
+      final seenIds = <String>{};
+      final results = users
+          .map<ChatUser?>((rawUser) {
+            if (rawUser is ChatUser) return rawUser;
+            if (rawUser is UserModel) return ChatUser.fromUserModel(rawUser);
+            if (rawUser is Map) {
+              return ChatUser.fromJson(Map<String, dynamic>.from(rawUser));
+            }
+            return null;
+          })
+          .whereType<ChatUser>()
+          .where(
+            (user) =>
+                user.id != widget.currentUserId &&
+                user.walletAddress.isNotEmpty &&
+                user.walletAddress != '0x',
+          )
+          .where((user) => seenIds.add(user.id))
+          .toList();
+
+      setState(() {
+        _results = results;
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (!mounted || version != _queryVersion) return;
+      setState(() {
+        _results = [];
+        _isLoading = false;
+        _errorMessage = 'Search failed. Check your connection and try again.';
+      });
+    }
+  }
+
+  Future<void> _finish() async {
+    if (_selected.isEmpty) return;
+    FocusScope.of(context).unfocus();
+    await WidgetsBinding.instance.endOfFrame;
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    if (!mounted) return;
+    Navigator.of(context).pop(List<ChatUser>.from(_selected));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.9,
+      minChildSize: 0.55,
+      maxChildSize: 0.95,
+      builder: (context, scrollController) => GriotBottomSheet(
+        radius: 28,
+        child: SafeArea(
+          top: false,
+          child: ListView(
+            controller: scrollController,
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: EdgeInsets.zero,
+            children: [
+              const SizedBox(height: 12),
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: colors.onSurfaceVariant.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Select people to tip',
+                      style: TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _searchController,
+                      autofocus: true,
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: _scheduleSearch,
+                      decoration: InputDecoration(
+                        hintText: 'Search name, username, or wallet',
+                        prefixIcon: const Icon(Icons.search_rounded),
+                        filled: true,
+                        fillColor: colors.surfaceContainerHighest.withValues(
+                          alpha: 0.45,
                         ),
-                        title: Text(
-                          token.name,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide.none,
                         ),
-                        subtitle: Text('${token.symbol} • ${token.balance}'),
-                        trailing: token.identity == current?.identity
-                            ? Icon(
-                                Icons.check_circle_rounded,
-                                color: colors.primary,
+                      ),
+                      onChanged: _scheduleSearch,
+                    ),
+                    if (_selected.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        '${_selected.length} selected',
+                        style: TextStyle(
+                          color: colors.onSurfaceVariant,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      SizedBox(
+                        height: 36,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _selected.length,
+                          separatorBuilder: (_, index) =>
+                              const SizedBox(width: 6),
+                          itemBuilder: (context, index) {
+                            final user = _selected[index];
+                            return InputChip(
+                              label: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 140,
+                                ),
+                                child: Text(
+                                  user.effectiveDisplayName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              onDeleted: () =>
+                                  setState(() => _selected.removeAt(index)),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (_isLoading)
+                const SizedBox(height: 220, child: Center(child: GriotLoader()))
+              else if (_results.isEmpty)
+                SizedBox(
+                  height: 220,
+                  child: Center(
+                    child: Text(
+                      _errorMessage ??
+                          (_searchController.text.trim().length < 2
+                              ? 'Type at least 2 characters to search.'
+                              : 'No eligible users found.'),
+                      style: TextStyle(color: colors.onSurfaceVariant),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                )
+              else
+                ..._results.map((user) {
+                  final isSelected = _selected.any(
+                    (item) => item.id == user.id,
+                  );
+                  return Material(
+                    color: Colors.transparent,
+                    child: ListTile(
+                      onTap: () => setState(() {
+                        if (isSelected) {
+                          _selected.removeWhere((item) => item.id == user.id);
+                        } else {
+                          _selected.add(user);
+                        }
+                      }),
+                      leading: CircleAvatar(
+                        backgroundImage: user.profileUrl != null
+                            ? NetworkImage(user.profileUrl!)
+                            : null,
+                        child: user.profileUrl == null
+                            ? Text(
+                                user.effectiveDisplayName
+                                    .substring(0, 1)
+                                    .toUpperCase(),
                               )
                             : null,
                       ),
-                    );
-                  },
+                      title: Text(
+                        user.effectiveDisplayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      subtitle: user.username == null
+                          ? null
+                          : Text(
+                              '@${user.username}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                      trailing: Icon(
+                        isSelected
+                            ? Icons.check_circle_rounded
+                            : Icons.circle_outlined,
+                        color: isSelected ? colors.primary : colors.outline,
+                      ),
+                    ),
+                  );
+                }),
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: FilledButton(
+                      onPressed: _selected.isEmpty ? null : _finish,
+                      child: Text('Continue (${_selected.length})'),
+                    ),
+                  ),
                 ),
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );

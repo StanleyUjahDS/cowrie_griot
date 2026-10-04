@@ -5,7 +5,9 @@ import '../../../core/ui/widgets/griot_branded_container.dart';
 
 class SetPassword extends StatefulWidget {
   final Future<void> Function(BuildContext)? onSuccess;
-  const SetPassword({super.key, this.onSuccess});
+  final bool setupBiometrics;
+
+  const SetPassword({super.key, this.onSuccess, this.setupBiometrics = false});
 
   @override
   State<SetPassword> createState() => _SetPasswordState();
@@ -16,40 +18,58 @@ class _SetPasswordState extends State<SetPassword> {
   int? _pressedIndex;
 
   final List<String> keys = [
-    '1', '2', '3',
-    '4', '5', '6',
-    '7', '8', '9',
-    '', '0', '⌫',
+    '1',
+    '2',
+    '3',
+    '4',
+    '5',
+    '6',
+    '7',
+    '8',
+    '9',
+    '',
+    '0',
+    '⌫',
   ];
 
-  void _onKeyTap(String key, int index) async {
+  void _onKeyTap(String key, int index) {
     setState(() => _pressedIndex = index);
-    await Future.delayed(const Duration(milliseconds: 120));
-    if (!mounted) return;
-    setState(() => _pressedIndex = null);
-
-    setState(() {
-      if (key == '⌫') {
-        if (input.isNotEmpty) {
-          input = input.substring(0, input.length - 1);
-        }
-      } else if (key.isNotEmpty && input.length < 6) {
-        input += key;
+    Future<void>.delayed(const Duration(milliseconds: 120), () {
+      if (mounted && _pressedIndex == index) {
+        setState(() => _pressedIndex = null);
       }
     });
 
-    if (input.length == 6) {
-      _onContinue();
+    var nextInput = input;
+    if (key == '⌫') {
+      if (nextInput.isNotEmpty) {
+        nextInput = nextInput.substring(0, nextInput.length - 1);
+      }
+    } else if (key.isNotEmpty && nextInput.length < 6) {
+      nextInput += key;
+    }
+
+    setState(() {
+      input = nextInput;
+    });
+
+    if (nextInput.length == 6) {
+      _onContinue(nextInput);
     }
   }
 
-  void _onContinue() {
-    if (input.length == 6) {
+  void _onContinue([String? value]) {
+    final pin = value ?? input;
+    if (pin.length == 6) {
       if (mounted) {
-        context.pushReplacement('/confirm_password', extra: {
-          'pin': input,
-          'onSuccess': widget.onSuccess,
-        });
+        context.pushReplacement(
+          '/confirm_password',
+          extra: {
+            'pin': pin,
+            'onSuccess': widget.onSuccess,
+            'setupBiometrics': widget.setupBiometrics,
+          },
+        );
       }
     } else {
       NotificationService.showError(context, "Enter a 6-digit PIN");
@@ -91,25 +111,6 @@ class _SetPasswordState extends State<SetPassword> {
                       ),
                     ),
 
-                    const SizedBox(height: 24),
-
-                    Text(
-                      'Secure Your Account',
-                      style: textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    Text(
-                      'Set a 6-digit password to secure your account on this device.',
-                      textAlign: TextAlign.center,
-                      style: textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-                        height: 1.4,
-                      ),
-                    ),
                     const SizedBox(height: 40),
 
                     /// ================= PIN DOTS =================
@@ -143,12 +144,13 @@ class _SetPasswordState extends State<SetPassword> {
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       itemCount: keys.length,
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        mainAxisSpacing: 12,
-                        crossAxisSpacing: 12,
-                        mainAxisExtent: 70,
-                      ),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            mainAxisSpacing: 12,
+                            crossAxisSpacing: 12,
+                            mainAxisExtent: 70,
+                          ),
                       itemBuilder: (context, index) {
                         final key = keys[index];
                         if (key.isEmpty) return const SizedBox.shrink();

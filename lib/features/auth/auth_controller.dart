@@ -5,11 +5,14 @@ import 'services/auth_storage_service.dart';
 import 'services/wallet_auth_service.dart';
 import '../wallet/services/wallet_service.dart';
 import '../chat/providers/messaging_provider.dart';
+import '../users/providers/user_provider.dart';
+import '../../core/services/push_notification_service.dart';
 
 class AuthController extends ChangeNotifier {
   final AuthApiService _authService;
   final WalletService _walletService;
   MessagingProvider? _messagingProvider;
+  UserProvider? _userProvider;
 
   AuthController({
     required AuthApiService authService,
@@ -19,6 +22,10 @@ class AuthController extends ChangeNotifier {
 
   void setMessagingProvider(MessagingProvider provider) {
     _messagingProvider = provider;
+  }
+
+  void setUserProvider(UserProvider provider) {
+    _userProvider = provider;
   }
 
   // ============================================================
@@ -100,7 +107,7 @@ class AuthController extends ChangeNotifier {
   //
   // ============================================================
 
-  Future<bool> authenticateWallet() async {
+  Future<bool> authenticateWallet({bool acceptPolicies = true}) async {
     if (_isAuthenticating) {
       debugPrint('AuthController: Authentication already in progress.');
       return false;
@@ -121,6 +128,11 @@ class AuthController extends ChangeNotifier {
       if (address == null || address.isEmpty) {
         throw Exception('No wallet found on this device.');
       }
+
+      // A wallet import/switch can happen without killing the app. Remove
+      // state from the previous account before the new wallet is verified.
+      _userProvider?.clearUser();
+      await _messagingProvider?.clearState();
 
       _walletAddress = address;
 
@@ -164,6 +176,7 @@ class AuthController extends ChangeNotifier {
         walletAddress: address,
         nonce: nonce,
         signature: signature,
+        acceptPolicies: acceptPolicies,
       );
 
       // ----------------------------------------------------------
@@ -184,6 +197,10 @@ class AuthController extends ChangeNotifier {
       if (_accessToken != null) {
         _messagingProvider?.initSocket(_accessToken!);
       }
+
+      // Registration is intentionally after successful wallet verification.
+      // This covers new wallets, imported wallets, and welcome-back unlocks.
+      await PushNotificationService.instance.syncTokenWithBackend();
 
       return true;
     } catch (error) {
@@ -356,8 +373,9 @@ class AuthController extends ChangeNotifier {
 
       _accessToken = accessToken;
       _refreshToken = refreshToken;
-      _isAuthenticated = true; // We have keys, assume authenticated until an API fails
-      
+      _isAuthenticated =
+          true; // We have keys, assume authenticated until an API fails
+
       notifyListeners();
       return true;
     } finally {

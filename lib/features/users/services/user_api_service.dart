@@ -6,6 +6,15 @@ import '../../../core/network/api_config.dart';
 import '../models/user_model.dart';
 
 class UserApiService {
+  static const Set<String> _preferenceKeys = {
+    'chat_notifications',
+    'message_preview',
+    'read_receipts',
+    'typing_indicators',
+    'online_status_visibility',
+    'profile_discoverability',
+  };
+
   final ApiClient _apiClient;
 
   UserApiService({required ApiClient apiClient}) : _apiClient = apiClient;
@@ -23,6 +32,15 @@ class UserApiService {
 
   Future<UserModel> getUserById(String userId) async {
     final response = await _apiClient.get(ApiConfig.userById(userId));
+    final data = _getData(response);
+    return UserModel.fromJson(Map<String, dynamic>.from(data));
+  }
+
+  Future<UserModel> getUserByUsername(String username) async {
+    final value = username.trim().replaceFirst(RegExp(r'^@'), '');
+    if (value.isEmpty) throw Exception('Username is required.');
+
+    final response = await _apiClient.get(ApiConfig.userByUsername(value));
     final data = _getData(response);
     return UserModel.fromJson(Map<String, dynamic>.from(data));
   }
@@ -77,6 +95,23 @@ class UserApiService {
     final data = _getData(response);
 
     return UserModel.fromJson(Map<String, dynamic>.from(data));
+  }
+
+  /// Permanently removes the current cloud account after an explicit user
+  /// confirmation. Local wallet/session data is cleared by the caller only
+  /// after this request succeeds.
+  Future<void> deleteCurrentAccount() async {
+    await _apiClient.delete(
+      ApiConfig.usersMe,
+      body: const {'confirmation': 'DELETE'},
+    );
+  }
+
+  Future<void> acceptCurrentPolicies() async {
+    await _apiClient.patch(
+      ApiConfig.userPolicyAcceptance,
+      body: const {'accepted': true},
+    );
   }
 
   // ============================================================
@@ -134,9 +169,7 @@ class UserApiService {
     final response = await _apiClient.get(ApiConfig.userPreferences);
     final data = _getData(response);
     if (data is Map) {
-      return Map<String, bool>.from(
-        data.map((key, value) => MapEntry(key.toString(), value == true)),
-      );
+      return _parsePreferences(data);
     }
     return {};
   }
@@ -150,9 +183,7 @@ class UserApiService {
     );
     final data = _getData(response);
     if (data is Map) {
-      return Map<String, bool>.from(
-        data.map((key, value) => MapEntry(key.toString(), value == true)),
-      );
+      return _parsePreferences(data);
     }
     return {};
   }
@@ -173,5 +204,13 @@ class UserApiService {
     }
     // Return flat response as is
     return response;
+  }
+
+  Map<String, bool> _parsePreferences(Map<dynamic, dynamic> data) {
+    return {
+      for (final entry in data.entries)
+        if (_preferenceKeys.contains(entry.key.toString()))
+          entry.key.toString(): entry.value == true,
+    };
   }
 }

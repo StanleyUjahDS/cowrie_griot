@@ -64,6 +64,7 @@ class _GriotNativeAdState extends State<GriotNativeAd> {
       },
       listener: NativeAdListener(
         onAdLoaded: (ad) {
+          debugPrint('NativeAd loaded. Response: ${ad.responseInfo}');
           if (!mounted) {
             ad.dispose();
             return;
@@ -75,6 +76,9 @@ class _GriotNativeAdState extends State<GriotNativeAd> {
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
           debugPrint('NativeAd failed to load: $error');
+        },
+        onAdImpression: (ad) {
+          debugPrint('NativeAd impression. Response: ${ad.responseInfo}');
         },
       ),
     )..load();

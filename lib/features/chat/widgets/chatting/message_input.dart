@@ -37,13 +37,13 @@ class MessageInput extends StatelessWidget {
     final showWarning = textLength > 3500;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 6),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(28),
         child: BackdropFilter(
           filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
           child: Container(
-            padding: EdgeInsets.fromLTRB(12, 12, 12, 8),
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
             decoration: BoxDecoration(
               color: theme.scaffoldBackgroundColor.withValues(alpha: 0.9),
               borderRadius: BorderRadius.circular(28),
@@ -79,15 +79,26 @@ class MessageInput extends StatelessWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    ComposerIconButton(
-                      icon: Icons.add_rounded,
-                      color: colorScheme.primary.withValues(alpha: 0.08),
-                      iconColor: colorScheme.primary,
-                      onTap: onAttachment,
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      child: hasText
+                          ? const SizedBox.shrink()
+                          : ComposerIconButton(
+                              icon: Icons.add_rounded,
+                              color: colorScheme.primary.withValues(alpha: 0.08),
+                              iconColor: colorScheme.primary,
+                              onTap: onAttachment,
+                            ),
                     ),
-                    const SizedBox(width: 8),
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      child: SizedBox(width: hasText ? 0 : 6, height: 1),
+                    ),
                     Expanded(
                       child: Container(
+                        constraints: const BoxConstraints(minHeight: 48),
                         decoration: BoxDecoration(
                           color: colorScheme.onSurface.withValues(alpha: 0.04),
                           borderRadius: BorderRadius.circular(24),
@@ -121,27 +132,32 @@ class MessageInput extends StatelessWidget {
                                   ),
                                   border: InputBorder.none,
                                   contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
+                                    horizontal: 14,
+                                    vertical: 10,
                                   ),
                                 ),
                               ),
                             ),
-                            if (!hasText)
-                              IconButton(
-                                icon: Icon(
-                                  Icons.camera_alt_outlined,
-                                  color: colorScheme.onSurfaceVariant
-                                      .withValues(alpha: 0.5),
-                                  size: 22,
-                                ),
-                                onPressed: onCamera,
-                              ),
+                            AnimatedSize(
+                              duration: const Duration(milliseconds: 220),
+                              curve: Curves.easeOutCubic,
+                              child: hasText
+                                  ? const SizedBox.shrink()
+                                  : IconButton(
+                                      icon: Icon(
+                                        Icons.camera_alt_outlined,
+                                        color: colorScheme.onSurfaceVariant
+                                            .withValues(alpha: 0.5),
+                                        size: 22,
+                                      ),
+                                      onPressed: onCamera,
+                                    ),
+                            ),
                           ],
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     AnimatedSwitcher(
                       duration: const Duration(milliseconds: 250),
                       transitionBuilder: (child, animation) =>

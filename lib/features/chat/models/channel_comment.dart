@@ -33,15 +33,23 @@ class ChannelComment {
       postId: json['postId'] as String,
       content: json['content'] as String,
       authorId: json['authorId'] as String,
-      author: json['author'] != null 
-          ? ChatUser.fromJson(Map<String, dynamic>.from(json['author'])) 
+      author: json['author'] != null
+          ? ChatUser.fromJson(Map<String, dynamic>.from(json['author']))
           : null,
       replyToCommentId: json['replyToCommentId'] as String?,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt'] as String) : null,
+      createdAt: DateTime.parse(json['createdAt'] as String).toLocal(),
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.parse(json['updatedAt'] as String).toLocal()
+          : null,
       isDeleted: json['isDeleted'] as bool? ?? false,
       reactions: Map<String, int>.from(json['reactions'] ?? {}),
-      replies: (json['replies'] as List?)?.map((r) => ChannelComment.fromJson(Map<String, dynamic>.from(r))).toList() ?? [],
+      replies:
+          (json['replies'] as List?)
+              ?.map(
+                (r) => ChannelComment.fromJson(Map<String, dynamic>.from(r)),
+              )
+              .toList() ??
+          [],
     );
   }
 

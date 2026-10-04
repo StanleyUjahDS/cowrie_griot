@@ -8,22 +8,15 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../core/network/api_client.dart';
 import '../providers/wallet_provider.dart';
 import '../services/dapp_browser_service.dart';
+import '../services/transaction_api_service.dart';
+import '../services/wallet_rpc_service.dart';
+import '../services/wallet_service.dart';
 import '../utils/chain_assets.dart';
 import '../utils/dapp_provider_js.dart';
-
-class DAppNetwork {
-  final String name;
-  final String chainId;
-  final String symbol;
-
-  const DAppNetwork({
-    required this.name,
-    required this.chainId,
-    required this.symbol,
-  });
-}
+import '../utils/dapp_network_registry.dart';
 
 class DAppBrowserScreen extends StatefulWidget {
   final String initialUrl;
@@ -46,14 +39,7 @@ class _DAppBrowserScreenState extends State<DAppBrowserScreen> {
   String? _iconBase64;
   String? _pageFaviconUrl;
 
-  static const List<DAppNetwork> _networks = [
-    DAppNetwork(name: 'Ethereum', chainId: '0x1', symbol: 'ETH'),
-    DAppNetwork(name: 'BNB Chain', chainId: '0x38', symbol: 'BNB'),
-    DAppNetwork(name: 'Polygon', chainId: '0x89', symbol: 'MATIC'),
-    DAppNetwork(name: 'Arbitrum', chainId: '0xa4b1', symbol: 'ETH'),
-    DAppNetwork(name: 'Optimism', chainId: '0xa', symbol: 'ETH'),
-    DAppNetwork(name: 'Base', chainId: '0x2105', symbol: 'ETH'),
-  ];
+  static const List<DAppNetwork> _networks = DAppNetworkRegistry.networks;
 
   DAppNetwork _selectedNetwork = _networks[0];
 
@@ -71,7 +57,7 @@ class _DAppBrowserScreenState extends State<DAppBrowserScreen> {
       'desc': 'Protocol Home',
     },
     {
-      'name': 'Griot Leaderboard',
+      'name': 'Griot Network',
       'url': 'https://griot.network',
       'icon': 'https://griot.network/assets/griot-network-32.png',
       'desc': 'Network Rankings',
@@ -117,6 +103,15 @@ class _DAppBrowserScreenState extends State<DAppBrowserScreen> {
   @override
   void initState() {
     super.initState();
+    final debugLogging = PlatformInAppWebViewController.debugLoggingSettings;
+    if (!debugLogging.excludeFilter.any(
+      (filter) => filter.pattern == r'^GriotWeb3$',
+    )) {
+      debugLogging.excludeFilter = [
+        ...debugLogging.excludeFilter,
+        RegExp(r'^GriotWeb3$'),
+      ];
+    }
     _loadIcon();
     if (widget.initialUrl != 'https://app.uniswap.org') {
       _showDiscovery = false;
@@ -124,22 +119,21 @@ class _DAppBrowserScreenState extends State<DAppBrowserScreen> {
     }
 
     _dAppService = DAppBrowserService(
-      context,
+      walletService: context.read<WalletService>(),
+      transactionApiService: context.read<TransactionApiService>(),
+      walletRpcService: context.read<WalletRpcService>(),
+      apiClient: context.read<ApiClient>(),
       getChainId: () => _selectedNetwork.chainId,
-      onChainSwitch: (chainId) {
-        final network = _networks.firstWhere(
-          (n) => n.chainId.toLowerCase() == chainId.toLowerCase(),
-          orElse: () => _selectedNetwork,
-        );
+      onChainSwitch: (chainId) async {
+        final network = DAppNetworkRegistry.find(chainId);
+        if (network == null || !mounted) return false;
         setState(() {
           _selectedNetwork = network;
         });
-
-        _webViewController?.evaluateJavascript(
-          source:
-              "if(window.ethereum) { window.ethereum.chainId = '$chainId'; }",
+        await _webViewController?.evaluateJavascript(
+          source: "window.ethereum?._setChainId?.('${network.chainId}');",
         );
-        _webViewController?.reload();
+        return true;
       },
     );
   }
@@ -266,7 +260,7 @@ class _DAppBrowserScreenState extends State<DAppBrowserScreen> {
         leadingWidth: 64,
         leading: Center(
           child: GestureDetector(
-            onTap: () => Navigator.of(context).pop(),
+            onTap: _goBack,
             child: Container(
               width: 36,
               height: 36,
@@ -284,7 +278,7 @@ class _DAppBrowserScreenState extends State<DAppBrowserScreen> {
                   ),
                 ),
               ),
-              child: Icon(Icons.close_rounded, size: 18, color: colors.primary),
+              child: Icon(Icons.arrow_back_rounded, size: 18, color: colors.primary),
             ),
           ),
         ),
@@ -371,8 +365,11 @@ class _DAppBrowserScreenState extends State<DAppBrowserScreen> {
                       useShouldOverrideUrlLoading: true,
                       mediaPlaybackRequiresUserGesture: false,
                       allowsInlineMediaPlayback: true,
-                      userAgent:
-                          'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1 MetaMaskMobile/5.0.0',
+                      // Preserve the real Android/iOS WebView user agent and
+                      // append our own identity. Pretending to be MetaMask
+                      // conflicts with the injected provider's Griot identity
+                      // and causes connector SDKs such as Privy to reject it.
+                      applicationNameForUserAgent: 'GriotWallet/1.0',
                     ),
                     initialUserScripts: UnmodifiableListView<UserScript>([
                       UserScript(
@@ -393,7 +390,7 @@ class _DAppBrowserScreenState extends State<DAppBrowserScreen> {
                         handlerName: 'GriotWeb3',
                         callback: (args) async {
                           try {
-                            if (!mounted) {
+                            if (!context.mounted) {
                               return {
                                 'error': {
                                   'code': -32000,
@@ -402,9 +399,33 @@ class _DAppBrowserScreenState extends State<DAppBrowserScreen> {
                               };
                             }
                             final request = args[0] as Map<String, dynamic>;
+                            final currentUrl = await controller.getUrl();
+                            if (!context.mounted) {
+                              return {
+                                'error': {
+                                  'code': -32000,
+                                  'message': 'Screen unmounted',
+                                },
+                              };
+                            }
+                            final currentUri = currentUrl == null
+                                ? null
+                                : Uri.tryParse(currentUrl.toString());
+                            if (currentUri == null ||
+                                (currentUri.scheme != 'https' &&
+                                    currentUri.scheme != 'http') ||
+                                currentUri.host.isEmpty) {
+                              return {
+                                'error': {
+                                  'code': 4100,
+                                  'message': 'Untrusted DApp origin',
+                                },
+                              };
+                            }
                             return await _dAppService.handleRequest(
                               request,
                               context,
+                              origin: currentUri.origin,
                             );
                           } catch (e) {
                             return {
@@ -513,85 +534,88 @@ class _DAppBrowserScreenState extends State<DAppBrowserScreen> {
         constraints: BoxConstraints(
           maxHeight: MediaQuery.of(context).size.height * 0.8,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurfaceVariant.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(2),
+        child: Material(
+          type: MaterialType.transparency,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurfaceVariant.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            const Text(
-              'Switch Network',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            Flexible(
-              child: ListView(
-                shrinkWrap: true,
-                padding: EdgeInsets.zero,
-                children: _networks
-                    .map(
-                      (network) => ListTile(
-                        leading: Container(
-                          width: 40,
-                          height: 40,
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: _selectedNetwork.chainId == network.chainId
-                                ? Theme.of(
-                                    context,
-                                  ).colorScheme.primary.withValues(alpha: 0.1)
-                                : Theme.of(context)
-                                      .colorScheme
-                                      .surfaceContainerHighest
-                                      .withValues(alpha: 0.5),
-                            shape: BoxShape.circle,
+              const Text(
+                'Switch Network',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  padding: EdgeInsets.zero,
+                  children: _networks
+                      .map(
+                        (network) => ListTile(
+                          leading: Container(
+                            width: 40,
+                            height: 40,
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: _selectedNetwork.chainId == network.chainId
+                                  ? Theme.of(
+                                      context,
+                                    ).colorScheme.primary.withValues(alpha: 0.1)
+                                  : Theme.of(context)
+                                        .colorScheme
+                                        .surfaceContainerHighest
+                                        .withValues(alpha: 0.5),
+                              shape: BoxShape.circle,
+                            ),
+                            child: ChainAssets.getIcon(network.name),
                           ),
-                          child: ChainAssets.getIcon(network.name),
-                        ),
-                        title: Text(
-                          network.name,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        subtitle: Text(
-                          'Chain ID: ${network.chainId}',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
+                          title: Text(
+                            network.name,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
-                        ),
-                        trailing: _selectedNetwork.chainId == network.chainId
-                            ? Icon(
-                                Icons.check_circle,
-                                color: Theme.of(context).colorScheme.primary,
-                              )
-                            : null,
-                        onTap: () {
-                          final targetChainId = network.chainId;
-                          setState(() => _selectedNetwork = network);
-                          Navigator.pop(context);
+                          subtitle: Text(
+                            'Chain ID: ${network.chainId}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          trailing: _selectedNetwork.chainId == network.chainId
+                              ? Icon(
+                                  Icons.check_circle,
+                                  color: Theme.of(context).colorScheme.primary,
+                                )
+                              : null,
+                          onTap: () {
+                            final targetChainId = network.chainId;
+                            setState(() => _selectedNetwork = network);
+                            Navigator.pop(context);
 
-                          _webViewController?.evaluateJavascript(
-                            source:
-                                "if(window.ethereum) { window.ethereum.chainId = '$targetChainId'; }",
-                          );
-                          _webViewController?.reload();
-                        },
-                      ),
-                    )
-                    .toList(),
+                            _webViewController?.evaluateJavascript(
+                              source:
+                                  "window.ethereum?._setChainId?.('$targetChainId');",
+                            );
+                            _webViewController?.reload();
+                          },
+                        ),
+                      )
+                      .toList(),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -781,6 +805,18 @@ class _DAppBrowserScreenState extends State<DAppBrowserScreen> {
     );
   }
 
+  Future<void> _goBack() async {
+    if (_showDiscovery) {
+      if (mounted) Navigator.of(context).pop();
+      return;
+    }
+    if (await _webViewController?.canGoBack() ?? false) {
+      await _webViewController?.goBack();
+    } else if (mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
   void _showBrowserMenu(BuildContext context) async {
     final url = await _webViewController?.getUrl();
     final origin = url?.origin;
@@ -797,129 +833,134 @@ class _DAppBrowserScreenState extends State<DAppBrowserScreen> {
           color: Theme.of(context).colorScheme.surface,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(2),
+        child: Material(
+          type: MaterialType.transparency,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            if (origin != null)
+              if (origin != null)
+                ListTile(
+                  leading: Icon(
+                    isConnected ? Icons.link_rounded : Icons.link_off_rounded,
+                    color: isConnected ? Colors.green : Colors.grey,
+                  ),
+                  title: Text(isConnected ? 'Connected' : 'Not Connected'),
+                  subtitle: Text(origin, style: const TextStyle(fontSize: 11)),
+                  trailing: isConnected
+                      ? TextButton(
+                          onPressed: () {
+                            DAppBrowserService.disconnect(origin);
+                            Navigator.pop(context);
+                            _webViewController?.reload();
+                          },
+                          child: const Text(
+                            'Disconnect',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        )
+                      : null,
+                ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.refresh),
+                title: const Text('Reload'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _webViewController?.reload();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.open_in_browser),
+                title: const Text('Open in External Browser'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final url = await _webViewController?.getUrl();
+                  if (url != null) {
+                    launchUrl(
+                      Uri.parse(url.toString()),
+                      mode: LaunchMode.externalApplication,
+                    );
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.copy),
+                title: const Text('Copy URL'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final url = await _webViewController?.getUrl();
+                  if (url != null) {
+                    await Clipboard.setData(
+                      ClipboardData(text: url.toString()),
+                    );
+                  }
+                },
+              ),
               ListTile(
                 leading: Icon(
-                  isConnected ? Icons.link_rounded : Icons.link_off_rounded,
-                  color: isConnected ? Colors.green : Colors.grey,
+                  Icons.delete_outline,
+                  color: Theme.of(context).colorScheme.error,
                 ),
-                title: Text(isConnected ? 'Connected' : 'Not Connected'),
-                subtitle: Text(origin, style: const TextStyle(fontSize: 11)),
-                trailing: isConnected
-                    ? TextButton(
-                        onPressed: () {
-                          DAppBrowserService.disconnect(origin);
-                          Navigator.pop(context);
-                          _webViewController?.reload();
-                        },
-                        child: const Text(
-                          'Disconnect',
-                          style: TextStyle(color: Colors.red),
-                        ),
-                      )
-                    : null,
-              ),
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.refresh),
-              title: const Text('Reload'),
-              onTap: () {
-                Navigator.pop(context);
-                _webViewController?.reload();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.open_in_browser),
-              title: const Text('Open in External Browser'),
-              onTap: () async {
-                Navigator.pop(context);
-                final url = await _webViewController?.getUrl();
-                if (url != null) {
-                  launchUrl(
-                    Uri.parse(url.toString()),
-                    mode: LaunchMode.externalApplication,
-                  );
-                }
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.copy),
-              title: const Text('Copy URL'),
-              onTap: () async {
-                Navigator.pop(context);
-                final url = await _webViewController?.getUrl();
-                if (url != null) {
-                  await Clipboard.setData(ClipboardData(text: url.toString()));
-                }
-              },
-            ),
-            ListTile(
-              leading: Icon(
-                Icons.delete_outline,
-                color: Theme.of(context).colorScheme.error,
-              ),
-              title: Text(
-                'Clear History & Cache',
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-              onTap: () async {
-                Navigator.pop(context);
-                final confirmed = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Clear Browser Data?'),
-                    content: const Text(
-                      'This will clear your browsing history, cache, and session data.',
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Cancel'),
+                title: Text(
+                  'Clear History & Cache',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final confirmed = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Clear Browser Data?'),
+                      content: const Text(
+                        'This will clear your browsing history, cache, and session data.',
                       ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: Text(
-                          'Clear',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.error,
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('Cancel'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: Text(
+                            'Clear',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                );
+                      ],
+                    ),
+                  );
 
-                if (confirmed == true) {
-                  await InAppWebViewController.clearAllCache();
-                  final cookieManager = CookieManager.instance();
-                  await cookieManager.deleteAllCookies();
+                  if (confirmed == true) {
+                    await InAppWebViewController.clearAllCache();
+                    final cookieManager = CookieManager.instance();
+                    await cookieManager.deleteAllCookies();
 
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Browser data cleared')),
-                    );
-                    setState(() {
-                      _showDiscovery = true;
-                      _urlController.clear();
-                    });
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Browser data cleared')),
+                      );
+                      setState(() {
+                        _showDiscovery = true;
+                        _urlController.clear();
+                      });
+                    }
                   }
-                }
-              },
-            ),
-            const SizedBox(height: 16),
-          ],
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );

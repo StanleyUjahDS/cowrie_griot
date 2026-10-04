@@ -85,7 +85,12 @@ class ChatMessage {
 
   bool get isText => type == MessageType.text;
 
-  bool get isMedia => type == MessageType.image || type == MessageType.video;
+  bool get isMedia =>
+      type == MessageType.image ||
+      type == MessageType.video ||
+      type == MessageType.audio ||
+      type == MessageType.voice ||
+      type == MessageType.file;
 
   bool get isAudio => type == MessageType.audio || type == MessageType.voice;
 
@@ -199,12 +204,18 @@ class ChatMessage {
           '',
       text: (json['content'] ?? json['text'])?.toString() ?? '',
       type: _messageTypeFromString(
-        (json['message_type'] ?? json['messageType'] ?? json['type'])
+        (json['message_type'] ??
+                json['messageType'] ??
+                json['type'] ??
+                json['media_content_type'] ??
+                json['mediaContentType'])
             ?.toString(),
       ),
       status: _messageStatusFromString(json['status']?.toString()),
       createdAt: (json['created_at'] ?? json['createdAt']) != null
-          ? DateTime.parse((json['created_at'] ?? json['createdAt']).toString())
+          ? DateTime.parse(
+              (json['created_at'] ?? json['createdAt']).toString(),
+            ).toLocal()
           : DateTime.now(),
       mediaUrl: json['mediaUrl'] ?? json['media_url'],
       thumbnailUrl: json['thumbnailUrl'] ?? json['thumbnail_url'],
@@ -249,7 +260,12 @@ class ChatMessage {
   // ==========================================================
 
   static MessageType _messageTypeFromString(String? value) {
-    switch (value) {
+    final normalized = value?.toLowerCase().trim();
+    if (normalized == null || normalized.isEmpty) return MessageType.text;
+    if (normalized.startsWith('image/')) return MessageType.image;
+    if (normalized.startsWith('video/')) return MessageType.video;
+    if (normalized.startsWith('audio/')) return MessageType.audio;
+    switch (normalized) {
       case 'image':
         return MessageType.image;
       case 'video':

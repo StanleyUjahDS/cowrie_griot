@@ -171,7 +171,7 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
         automaticallyImplyLeading: false,
         leading: Center(
           child: GestureDetector(
-            onTap: () => context.pop(),
+            onTap: () => context.go('/chat?tab=direct'),
             child: Container(
               width: 40,
               height: 40,

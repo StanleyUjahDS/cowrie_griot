@@ -9,25 +9,30 @@ import '../../../core/security/encryption_service.dart';
 import 'wallet_crypto_service.dart';
 
 class WalletStorageService {
-  static const FlutterSecureStorage _storage =
-  FlutterSecureStorage();
+  static const FlutterSecureStorage _storage = FlutterSecureStorage();
 
-  static const String _mnemonicKey =
-      'wallet_mnemonic';
+  static const String _mnemonicKey = 'wallet_mnemonic';
 
-  static const String _privateKeyKey =
-      'wallet_private_key';
+  static const String _privateKeyKey = 'wallet_private_key';
 
-  static const String _publicKeyKey =
-      'wallet_public_key';
+  static const String _publicKeyKey = 'wallet_public_key';
 
-  static const String _addressKey =
-      'wallet_address';
+  static const String _addressKey = 'wallet_address';
 
-  static const String _encryptionSaltKey =
-      'wallet_encryption_salt';
+  static const String _encryptionSaltKey = 'wallet_encryption_salt';
 
   final EncryptionService _encryptionService = EncryptionService();
+
+  static String _normalizeEvmAddress(String address) {
+    final value = address.trim();
+    if (RegExp(r'^[0-9a-fA-F]{40}$').hasMatch(value)) {
+      return '0x$value';
+    }
+    if (RegExp(r'^0x[0-9a-fA-F]{40}$').hasMatch(value)) {
+      return '0x${value.substring(2)}';
+    }
+    return value;
+  }
 
   // ============================================================
   // SALT MANAGEMENT
@@ -47,10 +52,7 @@ class WalletStorageService {
       salt[i] = random.nextInt(256);
     }
 
-    await _storage.write(
-      key: _encryptionSaltKey,
-      value: hex.encode(salt),
-    );
+    await _storage.write(key: _encryptionSaltKey, value: hex.encode(salt));
 
     return salt;
   }
@@ -59,10 +61,7 @@ class WalletStorageService {
   // SAVE WALLET
   // ============================================================
 
-  Future<void> saveWallet(
-      WalletData wallet, {
-      SecretKey? secretKey,
-      }) async {
+  Future<void> saveWallet(WalletData wallet, {SecretKey? secretKey}) async {
     String mnemonic = wallet.mnemonic;
     String privateKey = wallet.privateKey;
 
@@ -71,24 +70,15 @@ class WalletStorageService {
       privateKey = await _encryptionService.encrypt(privateKey, secretKey);
     }
 
-    await _storage.write(
-      key: _mnemonicKey,
-      value: mnemonic,
-    );
+    await _storage.write(key: _mnemonicKey, value: mnemonic);
 
-    await _storage.write(
-      key: _privateKeyKey,
-      value: privateKey,
-    );
+    await _storage.write(key: _privateKeyKey, value: privateKey);
 
-    await _storage.write(
-      key: _publicKeyKey,
-      value: wallet.publicKey,
-    );
+    await _storage.write(key: _publicKeyKey, value: wallet.publicKey);
 
     await _storage.write(
       key: _addressKey,
-      value: wallet.address,
+      value: _normalizeEvmAddress(wallet.address),
     );
   }
 
@@ -97,21 +87,16 @@ class WalletStorageService {
   // ============================================================
 
   Future<WalletData?> loadWallet({SecretKey? secretKey}) async {
-    String? mnemonic = await _storage.read(
-      key: _mnemonicKey,
-    );
+    String? mnemonic = await _storage.read(key: _mnemonicKey);
 
-    String? privateKey = await _storage.read(
-      key: _privateKeyKey,
-    );
+    String? privateKey = await _storage.read(key: _privateKeyKey);
 
-    final publicKey = await _storage.read(
-      key: _publicKeyKey,
-    );
+    final publicKey = await _storage.read(key: _publicKeyKey);
 
-    final address = await _storage.read(
-      key: _addressKey,
-    );
+    final storedAddress = await _storage.read(key: _addressKey);
+    final address = storedAddress == null
+        ? null
+        : _normalizeEvmAddress(storedAddress);
 
     if (mnemonic == null ||
         privateKey == null ||
@@ -127,7 +112,9 @@ class WalletStorageService {
       } catch (e) {
         // If decryption fails, it might be that the data is not encrypted yet
         // or the PIN is wrong. We re-throw to let the caller handle it.
-        throw Exception('Failed to decrypt wallet data. Please check your PIN.');
+        throw Exception(
+          'Failed to decrypt wallet data. Please check your PIN.',
+        );
       }
     }
 
@@ -144,9 +131,11 @@ class WalletStorageService {
   // ============================================================
 
   Future<String?> getAddress() {
-    return _storage.read(
-      key: _addressKey,
-    );
+    return _storage
+        .read(key: _addressKey)
+        .then(
+          (address) => address == null ? null : _normalizeEvmAddress(address),
+        );
   }
 
   // ============================================================
@@ -154,9 +143,7 @@ class WalletStorageService {
   // ============================================================
 
   Future<String?> getPublicKey() {
-    return _storage.read(
-      key: _publicKeyKey,
-    );
+    return _storage.read(key: _publicKeyKey);
   }
 
   // ============================================================
@@ -164,9 +151,7 @@ class WalletStorageService {
   // ============================================================
 
   Future<String?> getPrivateKey() {
-    return _storage.read(
-      key: _privateKeyKey,
-    );
+    return _storage.read(key: _privateKeyKey);
   }
 
   // ============================================================
@@ -174,9 +159,7 @@ class WalletStorageService {
   // ============================================================
 
   Future<String?> getMnemonic() {
-    return _storage.read(
-      key: _mnemonicKey,
-    );
+    return _storage.read(key: _mnemonicKey);
   }
 
   // ============================================================
@@ -184,21 +167,13 @@ class WalletStorageService {
   // ============================================================
 
   Future<void> clearWallet() async {
-    await _storage.delete(
-      key: _mnemonicKey,
-    );
+    await _storage.delete(key: _mnemonicKey);
 
-    await _storage.delete(
-      key: _privateKeyKey,
-    );
+    await _storage.delete(key: _privateKeyKey);
 
-    await _storage.delete(
-      key: _publicKeyKey,
-    );
+    await _storage.delete(key: _publicKeyKey);
 
-    await _storage.delete(
-      key: _addressKey,
-    );
+    await _storage.delete(key: _addressKey);
   }
 
   // ============================================================
@@ -218,9 +193,7 @@ class WalletStorageService {
   // This is useful specifically for recovery.
   // ============================================================
 
-  Future<void> replaceWallet(
-      WalletData wallet,
-      ) async {
+  Future<void> replaceWallet(WalletData wallet) async {
     await clearWallet();
     await saveWallet(wallet);
   }
@@ -244,10 +217,7 @@ class WalletStorageService {
   }
 
   Future<void> saveHiddenTokens(List<String> keys) async {
-    await _storage.write(
-      key: _hiddenTokensKey,
-      value: jsonEncode(keys),
-    );
+    await _storage.write(key: _hiddenTokensKey, value: jsonEncode(keys));
   }
 
   // ============================================================
@@ -269,9 +239,6 @@ class WalletStorageService {
   }
 
   Future<void> saveWalletFilters(Map<String, dynamic> filters) async {
-    await _storage.write(
-      key: _filtersKey,
-      value: jsonEncode(filters),
-    );
+    await _storage.write(key: _filtersKey, value: jsonEncode(filters));
   }
 }

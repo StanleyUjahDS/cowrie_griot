@@ -1,51 +1,16 @@
-import 'package:flutter/foundation.dart';
-
 class ApiConfig {
   ApiConfig._();
 
-  /// Set this for release builds, for example:
-  /// flutter build apk --dart-define=API_BASE_URL=https://api.example.com/api
-  ///
-  /// The local fallback is intentionally retained for development only.
-  static const String _configuredBaseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: '',
-  );
+  // Current testing backend. Change this one constant to the production API
+  // when the release build is prepared.
+  static const String _baseUrl =
+      'http://griot-api-alb-1072605846.eu-north-1.elb.amazonaws.com:5002/api';
+  static String get baseUrl => _baseUrl;
 
-  static const String _productionBaseUrl = 'https://api.griot.network/api';
-
-  // ==========================================================
-  // BASE URL
-  // ==========================================================
-
-  static String get baseUrl {
-    if (_configuredBaseUrl.isNotEmpty) {
-      final normalized = _configuredBaseUrl.replaceFirst(RegExp(r'/+$'), '');
-      final uri = Uri.tryParse(normalized);
-      final host = uri?.host.toLowerCase();
-      final isProductionHost = host == 'api.griot.network';
-      final isLocalDebugHost =
-          kDebugMode &&
-          (host == 'localhost' ||
-              host == '127.0.0.1' ||
-              host == '10.0.2.2' ||
-              (host?.startsWith('10.') ?? false) ||
-              (host?.startsWith('192.168.') ?? false));
-
-      if (uri != null &&
-          ((uri.scheme == 'https' && isProductionHost) ||
-              (uri.scheme == 'http' && isLocalDebugHost))) {
-        return normalized;
-      }
-
-      if (kDebugMode) {
-        debugPrint('ApiConfig: rejected unsafe/unapproved API_BASE_URL.');
-      }
-    }
-
-    // Production Hosted API
-    return _productionBaseUrl;
-  }
+  /// Namespace for local caches. Staging and production must never share
+  /// account/session snapshots on the same device.
+  static String get cacheNamespace =>
+      'production';
 
   // ==========================================================
   // AUTHENTICATION
@@ -61,6 +26,8 @@ class ApiConfig {
   // ==========================================================
 
   static String get notificationDevices => '$baseUrl/notifications/devices';
+  static String get notificationVoipDevices =>
+      '$baseUrl/notifications/voip-devices';
 
   static String get notificationDevicesAll =>
       '$baseUrl/notifications/devices/all';
@@ -76,6 +43,8 @@ class ApiConfig {
 
   static String get usersMe => '$baseUrl/users/me';
   static String get usersUpdate => '$baseUrl/users/me';
+  static String get userPolicyAcceptance =>
+      '$baseUrl/users/me/policy-acceptance';
   static String get userPreferences => '$baseUrl/users/preferences';
 
   // ==========================================================
@@ -97,6 +66,8 @@ class ApiConfig {
           )
           .toString();
   static String userById(String userId) => '$baseUrl/users/$userId';
+  static String userByUsername(String username) =>
+      '$baseUrl/users/username/${Uri.encodeComponent(username)}';
 
   static String usernameAvailability(String username) => Uri.parse(
     '$baseUrl/users/username/availability',
@@ -315,6 +286,12 @@ class ApiConfig {
   // ==========================================================
 
   static String get messagingBase => '$baseUrl/messaging';
+  static String get realtimeToken => '$baseUrl/realtime/token';
+  static String get realtimeCalls => '$baseUrl/realtime/calls';
+  static String get realtimeActiveCalls => '$baseUrl/realtime/calls/active';
+  static String get realtimeCallLinks => '$baseUrl/realtime/call-links';
+  static String get realtimeCallLinkResolve =>
+      '$baseUrl/realtime/call-links/resolve';
 
   static String get messagingDirect => '$messagingBase/direct';
 
@@ -387,6 +364,8 @@ class ApiConfig {
   static String get messagingBlocks => '$messagingBase/blocks';
   static String messagingBlockUser(String userId) => '$messagingBlocks/$userId';
 
+  static String get messagingReports => '$messagingBase/reports';
+
   static String messagingRequestById(String requestId) =>
       '$messagingRequests/$requestId';
 
@@ -424,6 +403,46 @@ class ApiConfig {
   // ==========================================================
 
   static String get messagingGroups => '$messagingBase/groups';
+  static String messagingCampfires({
+    int limit = 20,
+    int offset = 0,
+    String region = 'GLOBAL',
+  }) => Uri.parse('$messagingBase/campfires')
+      .replace(
+        queryParameters: {
+          'limit': '$limit',
+          'offset': '$offset',
+          'region': region,
+        },
+      )
+      .toString();
+  static String get messagingCampfiresCreate => '$messagingBase/campfires';
+  static String messagingCampfiresUpcoming({
+    int limit = 10,
+    int offset = 0,
+    String region = 'GLOBAL',
+  }) => Uri.parse('$messagingBase/campfires/upcoming')
+      .replace(
+        queryParameters: {
+          'limit': '$limit',
+          'offset': '$offset',
+          'region': region,
+        },
+      )
+      .toString();
+  static String messagingCampfireJoin(String id) =>
+      '$messagingBase/campfires/$id/join';
+  static String messagingCampfireLeave(String id) =>
+      '$messagingBase/campfires/$id/leave';
+  static String messagingCampfireParticipants(String id) =>
+      '$messagingBase/campfires/$id/participants';
+  static String messagingCampfireRequestSpeaker(String id) =>
+      '$messagingBase/campfires/$id/request-speaker';
+  static String messagingCampfireModerateParticipant(
+    String campfireId,
+    String userId,
+  ) => '$messagingBase/campfires/$campfireId/participants/$userId';
+  static String messagingCampfireEnd(String id) => '$messagingBase/campfires/$id/end';
 
   static String messagingConversationById(String conversationId) =>
       '$messagingBase/conversations/$conversationId';
@@ -433,6 +452,9 @@ class ApiConfig {
 
   static String messagingGroupByUsername(String username) =>
       '$messagingGroups/username/${Uri.encodeComponent(username)}';
+
+  static String messagingGroupJoin(String conversationId) =>
+      '$messagingGroups/$conversationId/join';
 
   static String messagingGroupMembers(String conversationId) =>
       '$messagingGroups/$conversationId/members';
@@ -492,4 +514,5 @@ class ApiConfig {
   static String get tipBase => '$baseUrl/crypto/tips';
   static String get tipConfig => '$tipBase/config';
   static String get tipPrepare => '$tipBase/prepare';
+  static String get tipBroadcast => '$tipBase/broadcast';
 }

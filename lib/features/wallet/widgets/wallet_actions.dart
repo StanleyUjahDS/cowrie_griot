@@ -47,8 +47,8 @@ class WalletActions extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: WalletActionBox(
-              icon: Icons.shopping_cart_outlined,
-              label: 'Buy',
+              icon: Icons.currency_exchange_rounded,
+              label: 'Flash',
               onTap: onBuyTap,
             ),
           ),

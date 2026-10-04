@@ -2,6 +2,11 @@ package com.griotcowrie.griot_cowrie
 
 import android.content.Intent
 import android.net.Uri
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.media.AudioAttributes
+import android.media.RingtoneManager
+import android.os.Build
 import android.util.Log
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
@@ -17,6 +22,7 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        createPushNotificationChannel()
 
         pendingShare = extractShare(intent)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "griot/share_receiver")
@@ -49,6 +55,37 @@ class MainActivity : FlutterFragmentActivity() {
         } catch (e: Exception) {
             Log.e("MainActivity", "Failed to register NativeAdFactory", e)
         }
+    }
+
+    private fun createPushNotificationChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val channel = NotificationChannel(
+            "high_importance_channel",
+            "Griot notifications",
+            NotificationManager.IMPORTANCE_HIGH,
+        ).apply {
+            description = "Messages, connection requests, and call alerts"
+            enableVibration(true)
+        }
+        getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
+        val ringtone = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+        val callChannel = NotificationChannel(
+            "incoming_calls",
+            "Incoming calls",
+            NotificationManager.IMPORTANCE_HIGH,
+        ).apply {
+            description = "Incoming Griot voice and video calls"
+            enableVibration(true)
+            setSound(
+                ringtone,
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build(),
+            )
+            lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+        }
+        getSystemService(NotificationManager::class.java)?.createNotificationChannel(callChannel)
     }
 
     override fun onNewIntent(intent: Intent) {

@@ -4,30 +4,35 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../providers/wallet_provider.dart';
+import '../providers/display_currency_provider.dart';
 import '../../users/providers/user_provider.dart';
 import '../models/token_model.dart';
 import '../widgets/wallet_filter_sheet.dart';
 import '../widgets/wallet_header.dart';
 import '../widgets/wallet_balance_card.dart';
 import '../widgets/wallet_address_card.dart';
+import '../utils/wallet_formatters.dart';
 import '../widgets/wallet_actions.dart';
 import '../widgets/token_list.dart';
 import '../widgets/nft_item.dart';
 import '../widgets/token_icon.dart';
 import '../widgets/wallet_loading.dart';
-import '../utils/wallet_formatters.dart';
 import '../utils/wallet_layout_utils.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
+import '../../../core/ui/widgets/griot_branded_container.dart';
 import '../../../core/ui/widgets/ad_carousel.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/services/navigation_scroll_service.dart';
 
 class WalletScreen extends StatefulWidget {
-  const WalletScreen({super.key});
+  final String initialTab;
+
+  const WalletScreen({super.key, this.initialTab = 'tokens'});
 
   @override
   State<WalletScreen> createState() => _WalletScreenState();
@@ -43,8 +48,19 @@ class _WalletScreenState extends State<WalletScreen> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<WalletProvider>();
+      final requestedTab = switch (widget.initialTab.toLowerCase()) {
+        'nfts' || 'nft' => 1,
+        'activity' || 'activities' => 2,
+        _ => 0,
+      };
+      if (requestedTab != provider.selectedTab) {
+        provider.setTab(requestedTab);
+      }
       if (provider.tokens.isEmpty) {
         provider.loadWallet();
+      }
+      if (requestedTab == 2 && provider.activities.isEmpty) {
+        provider.loadActivity(refresh: true);
       }
     });
   }
@@ -128,7 +144,7 @@ class _WalletScreenState extends State<WalletScreen> {
                         ),
                       ),
                       Text(
-                        '${token.symbol} • ${token.chain.toUpperCase()}',
+                        token.symbol,
                         style: text.labelSmall?.copyWith(
                           color: colors.onSurfaceVariant,
                         ),
@@ -225,8 +241,8 @@ class _WalletScreenState extends State<WalletScreen> {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
-    return Consumer2<WalletProvider, UserProvider>(
-      builder: (context, walletProvider, userProvider, child) {
+    return Consumer3<WalletProvider, UserProvider, DisplayCurrencyProvider>(
+      builder: (context, walletProvider, userProvider, displayCurrency, child) {
         final user = userProvider.user;
         final wallet = walletProvider.wallet;
 
@@ -249,6 +265,7 @@ class _WalletScreenState extends State<WalletScreen> {
             theme,
             colors,
             displayName,
+            displayCurrency,
           ),
         );
       },
@@ -262,6 +279,7 @@ class _WalletScreenState extends State<WalletScreen> {
     ThemeData theme,
     ColorScheme colors,
     String displayName,
+    DisplayCurrencyProvider displayCurrency,
   ) {
     if (provider.isLoading && provider.wallet == null) {
       return const WalletLoading(key: ValueKey('loading'));
@@ -272,6 +290,8 @@ class _WalletScreenState extends State<WalletScreen> {
 
     return GradientScaffold(
       key: const ValueKey('content'),
+      // Keep wallet actions anchored while a keyboard or bottom sheet is open.
+      resizeToAvoidBottomInset: false,
       useSafeArea: false,
       extendBodyBehindAppBar: false,
       appBar: AppBar(
@@ -285,6 +305,34 @@ class _WalletScreenState extends State<WalletScreen> {
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         actions: [
+          IconButton(
+            tooltip: provider.hideBalances ? 'Show balances' : 'Hide balances',
+            onPressed: () => provider.setHideBalances(!provider.hideBalances),
+            icon: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: colors.surface.withValues(alpha: 0.95),
+                border: Border(
+                  top: BorderSide(
+                    color: colors.primary.withValues(alpha: 0.6),
+                    width: 1.2,
+                  ),
+                  bottom: BorderSide(
+                    color: colors.primary.withValues(alpha: 0.6),
+                    width: 1.2,
+                  ),
+                ),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(
+                provider.hideBalances
+                    ? Icons.visibility_off_rounded
+                    : Icons.visibility_rounded,
+                size: 20,
+              ),
+            ),
+          ),
           IconButton(
             onPressed: () => context.push('/wallet/search'),
             icon: Container(
@@ -357,9 +405,7 @@ class _WalletScreenState extends State<WalletScreen> {
             parent: BouncingScrollPhysics(),
           ),
           slivers: [
-            SliverToBoxAdapter(
-              child: const SizedBox(height: 12),
-            ),
+            SliverToBoxAdapter(child: const SizedBox(height: 12)),
             SliverToBoxAdapter(
               child: WalletHeader(
                 displayName: displayName,
@@ -382,12 +428,14 @@ class _WalletScreenState extends State<WalletScreen> {
             SliverToBoxAdapter(
               child:
                   WalletBalanceCard(
-                        balance: WalletFormatters.formatCurrency(
+                        balance: displayCurrency.formatUsd(
                           provider.wallet?.totalBalance ?? 0,
                         ),
-                        change:
-                            '${(provider.wallet?.changePercent ?? 0) >= 0 ? '+' : ''}${provider.wallet?.changePercent.toStringAsFixed(2)}%',
+                        change: provider.hideBalances
+                            ? '••••'
+                            : '${(provider.wallet?.changePercent ?? 0) >= 0 ? '+' : ''}${provider.wallet?.changePercent.toStringAsFixed(2)}%',
                         isProfit: (provider.wallet?.changePercent ?? 0) >= 0,
+                        isHidden: provider.hideBalances,
                       )
                       .animate()
                       .fadeIn(duration: 400.ms, delay: 50.ms)
@@ -435,7 +483,9 @@ class _WalletScreenState extends State<WalletScreen> {
                 ),
               ],
 
-              if (provider.tokens.isEmpty) _buildEmptyTokenState(context),
+              // Show a useful empty state after filters/zero-balance assets too.
+              if (provider.visibleAssets.isEmpty)
+                _buildEmptyTokenState(context),
             ] else if (provider.selectedTab == 1) ...[
               if (provider.isLoadingNfts && provider.nfts.isEmpty)
                 const SliverToBoxAdapter(
@@ -501,7 +551,9 @@ class _WalletScreenState extends State<WalletScreen> {
   Future<void> _copyAddress(BuildContext context, String? address) async {
     if (address == null || address.isEmpty) return;
 
-    await Clipboard.setData(ClipboardData(text: address));
+    await Clipboard.setData(
+      ClipboardData(text: WalletFormatters.normalizeEvmAddress(address)),
+    );
     if (!context.mounted) return;
 
     NotificationService.showSuccess(context, 'Wallet address copied');
@@ -547,11 +599,15 @@ class _WalletScreenState extends State<WalletScreen> {
                       borderRadius: BorderRadius.circular(12),
                       border: Border(
                         top: BorderSide(
-                          color: colors.primary.withValues(alpha: isSelected ? 0 : 0.6),
+                          color: colors.primary.withValues(
+                            alpha: isSelected ? 0 : 0.6,
+                          ),
                           width: 1.5,
                         ),
                         bottom: BorderSide(
-                          color: colors.primary.withValues(alpha: isSelected ? 0 : 0.6),
+                          color: colors.primary.withValues(
+                            alpha: isSelected ? 0 : 0.6,
+                          ),
                           width: 1.5,
                         ),
                       ),
@@ -560,7 +616,9 @@ class _WalletScreenState extends State<WalletScreen> {
                         ? Icon(
                             tabs[index] as IconData,
                             size: 16,
-                            color: colors.onSurfaceVariant.withValues(alpha: 0.6),
+                            color: colors.onSurfaceVariant.withValues(
+                              alpha: 0.6,
+                            ),
                           )
                         : Text(
                             tabs[index] as String,
@@ -568,7 +626,9 @@ class _WalletScreenState extends State<WalletScreen> {
                             style: text.labelMedium?.copyWith(
                               color: isSelected
                                   ? colors.onPrimary
-                                  : colors.onSurfaceVariant.withValues(alpha: 0.7),
+                                  : colors.onSurfaceVariant.withValues(
+                                      alpha: 0.7,
+                                    ),
                               fontWeight: isSelected
                                   ? FontWeight.w900
                                   : FontWeight.w700,
@@ -640,32 +700,40 @@ class _WalletScreenState extends State<WalletScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 58,
-                height: 58,
-                decoration: BoxDecoration(
-                  color: colors.surfaceContainerHighest,
-                  shape: BoxShape.circle,
-                ),
+              GriotBrandedContainer(
+                padding: const EdgeInsets.all(20),
+                borderRadius: 28,
                 child: Icon(
                   Icons.account_balance_wallet_outlined,
-                  size: 27,
-                  color: colors.onSurfaceVariant,
+                  size: 40,
+                  color: colors.primary,
                 ),
               ),
               const SizedBox(height: 12),
               Text(
-                'No tokens found',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
+                'Fund your wallet',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 4),
-              Text(
-                'Your assets will appear here.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.onSurfaceVariant,
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Text(
+                  'Receive crypto to your wallet and your assets will appear here. Start by choosing a network and sharing your address.',
+                  textAlign: TextAlign.center,
+                  softWrap: true,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
                 ),
+              ),
+              const SizedBox(height: 14),
+              FilledButton.icon(
+                onPressed: () => context.push('/wallet/receive'),
+                icon: const Icon(Icons.add_card_rounded, size: 18),
+                label: const Text('Fund wallet'),
               ),
             ],
           ),
@@ -675,47 +743,12 @@ class _WalletScreenState extends State<WalletScreen> {
   }
 
   Widget _buildEmptyNFTState(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-
-    return SliverToBoxAdapter(
-      child: SizedBox(
-        height: 300,
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 58,
-                height: 58,
-                decoration: BoxDecoration(
-                  color: colors.surfaceContainerHighest,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.grid_view_rounded,
-                  size: 27,
-                  color: colors.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'No NFTs found',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Collectibles will appear here.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return _buildWalletEmptyState(
+      context,
+      icon: Icons.grid_view_rounded,
+      title: 'No collectibles yet',
+      message:
+          'NFTs and other collectibles will appear here when you receive them.',
     );
   }
 
@@ -757,44 +790,52 @@ class _WalletScreenState extends State<WalletScreen> {
   }
 
   Widget _buildEmptyActivityState(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+    return _buildWalletEmptyState(
+      context,
+      icon: Icons.history_rounded,
+      title: 'No activity yet',
+      message:
+          'Your wallet transactions will appear here when you send or receive crypto.',
+    );
+  }
 
+  SliverToBoxAdapter _buildWalletEmptyState(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String message,
+  }) {
+    final colors = Theme.of(context).colorScheme;
     return SliverToBoxAdapter(
       child: SizedBox(
         height: 300,
         child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 58,
-                height: 58,
-                decoration: BoxDecoration(
-                  color: colors.surfaceContainerHighest,
-                  shape: BoxShape.circle,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GriotBrandedContainer(
+                  padding: const EdgeInsets.all(20),
+                  borderRadius: 28,
+                  child: Icon(icon, size: 40, color: colors.primary),
                 ),
-                child: Icon(
-                  Icons.history_rounded,
-                  size: 27,
-                  color: colors.onSurfaceVariant,
+                const SizedBox(height: 24),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'No activity yet',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
+                const SizedBox(height: 8),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: colors.onSurfaceVariant),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Transactions will appear here.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.onSurfaceVariant,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -810,14 +851,21 @@ class _WalletScreenState extends State<WalletScreen> {
         final operation = item['operationType']?.toString() ?? 'transaction';
         final chain = item['chain']?.toString();
         final hash = item['hash']?.toString();
-        final title = item['title']?.toString() ?? (operation[0].toUpperCase() + operation.substring(1));
-        final subtitle = item['subtitle']?.toString() ?? [
-          if (chain != null && chain.isNotEmpty) chain.toUpperCase(),
-          if (hash != null && hash.isNotEmpty) _shortenHash(hash),
-        ].join(' • ');
+        final title =
+            item['title']?.toString() ??
+            (operation[0].toUpperCase() + operation.substring(1));
+        final subtitle =
+            item['subtitle']?.toString() ??
+            [
+              if (chain != null && chain.isNotEmpty) chain.toUpperCase(),
+              if (hash != null && hash.isNotEmpty) _shortenHash(hash),
+            ].join(' • ');
         final status = item['status']?.toString() ?? '';
         final timestampStr = item['timestamp']?.toString();
-        final timestamp = timestampStr != null ? DateTime.tryParse(timestampStr) : null;
+        final timestamp = timestampStr != null
+            ? DateTime.tryParse(timestampStr)
+            : null;
+        final explorerUrl = _transactionExplorerUrl(item);
 
         final groupedItems = item['groupedItems'] is List
             ? (item['groupedItems'] as List).whereType<Map>().toList()
@@ -825,6 +873,9 @@ class _WalletScreenState extends State<WalletScreen> {
         final hasDetails = groupedItems.length > 1;
 
         final tile = ListTile(
+          onTap: explorerUrl == null
+              ? null
+              : () => _openTransactionExplorer(context, explorerUrl),
           leading: Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
@@ -832,7 +883,11 @@ class _WalletScreenState extends State<WalletScreen> {
               shape: BoxShape.circle,
             ),
             child: Icon(
-              operation == 'receive' ? Icons.volunteer_activism_outlined : (operation == 'send' ? Icons.north_east_rounded : Icons.swap_horiz_rounded),
+              operation == 'receive'
+                  ? Icons.volunteer_activism_outlined
+                  : (operation == 'send'
+                        ? Icons.north_east_rounded
+                        : Icons.swap_horiz_rounded),
               color: colors.primary,
               size: 20,
             ),
@@ -842,7 +897,10 @@ class _WalletScreenState extends State<WalletScreen> {
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                  ),
                 ),
               ),
               if (timestamp != null)
@@ -858,18 +916,25 @@ class _WalletScreenState extends State<WalletScreen> {
           ),
           subtitle: Text(
             subtitle,
-            style: TextStyle(color: colors.onSurfaceVariant.withValues(alpha: 0.6), fontSize: 12),
+            style: TextStyle(
+              color: colors.onSurfaceVariant.withValues(alpha: 0.6),
+              fontSize: 12,
+            ),
           ),
           trailing: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: (status == 'confirmed' ? AppColors.success : colors.primary).withValues(alpha: 0.1),
+              color:
+                  (status == 'confirmed' ? AppColors.success : colors.primary)
+                      .withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
               status.toUpperCase(),
               style: TextStyle(
-                color: status == 'confirmed' ? AppColors.success : colors.primary,
+                color: status == 'confirmed'
+                    ? AppColors.success
+                    : colors.primary,
                 fontSize: 9,
                 fontWeight: FontWeight.w900,
               ),
@@ -904,13 +969,19 @@ class _WalletScreenState extends State<WalletScreen> {
                 ),
               ),
             if (hash != null && hash.isNotEmpty)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Transaction: ${_shortenHash(hash)}',
-                  style: TextStyle(
-                    color: colors.onSurfaceVariant.withValues(alpha: 0.65),
-                    fontSize: 11,
+              InkWell(
+                onTap: explorerUrl == null
+                    ? null
+                    : () => _openTransactionExplorer(context, explorerUrl),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'View on explorer · ${_shortenHash(hash)}',
+                    style: TextStyle(
+                      color: colors.primary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ),
@@ -923,7 +994,8 @@ class _WalletScreenState extends State<WalletScreen> {
   String _tipParticipantName(Map item, String operation) {
     final user = operation == 'send' ? item['toUser'] : item['fromUser'];
     if (user is Map) {
-      return (user['displayName'] ?? user['username'] ?? 'Griot user').toString();
+      return (user['displayName'] ?? user['username'] ?? 'Griot user')
+          .toString();
     }
     return operation == 'send' ? 'Recipient' : 'Sender';
   }
@@ -951,7 +1023,73 @@ class _WalletScreenState extends State<WalletScreen> {
     return '${hash.substring(0, 6)}...${hash.substring(hash.length - 4)}';
   }
 
-  Widget _buildLoadMoreActivityButton(BuildContext context, WalletProvider provider) {
+  String? _transactionExplorerUrl(Map<String, dynamic> item) {
+    final provided = item['explorer']?.toString().trim();
+    if (provided != null && provided.isNotEmpty) return provided;
+    final hash = (item['hash'] ?? item['transactionHash'] ?? item['txHash'])
+        ?.toString()
+        .trim();
+    if (hash == null || hash.isEmpty) return null;
+    final rawChain =
+        (item['chain'] ?? item['network'] ?? item['chainName'] ?? '')
+            .toString()
+            .toLowerCase()
+            .replaceAll('_', '-')
+            .replaceAll(' ', '-');
+    // Griot Wallet currently supports EVM networks only. Keep explorer
+    // resolution deliberately EVM-specific until other chain wallets exist.
+    final chainId = (item['chainId'] ?? item['chain_id'])?.toString();
+    const explorersByChainId = {
+      '1': 'https://etherscan.io/tx/',
+      '10': 'https://optimistic.etherscan.io/tx/',
+      '56': 'https://bscscan.com/tx/',
+      '137': 'https://polygonscan.com/tx/',
+      '8453': 'https://basescan.org/tx/',
+      '42161': 'https://arbiscan.io/tx/',
+      '43114': 'https://snowtrace.io/tx/',
+    };
+    final chainIdPrefix = explorersByChainId[chainId];
+    if (chainIdPrefix != null) return '$chainIdPrefix$hash';
+    const explorers = {
+      'ethereum': 'https://etherscan.io/tx/',
+      'eth': 'https://etherscan.io/tx/',
+      'polygon': 'https://polygonscan.com/tx/',
+      'matic': 'https://polygonscan.com/tx/',
+      'bsc': 'https://bscscan.com/tx/',
+      'bnb': 'https://bscscan.com/tx/',
+      'base': 'https://basescan.org/tx/',
+      'arbitrum': 'https://arbiscan.io/tx/',
+      'optimism': 'https://optimistic.etherscan.io/tx/',
+      'avalanche': 'https://snowtrace.io/tx/',
+    };
+    final prefix =
+        explorers[rawChain] ??
+        explorers.entries
+            .firstWhere(
+              (entry) => rawChain.contains(entry.key),
+              orElse: () => const MapEntry('', ''),
+            )
+            .value;
+    return prefix.isEmpty ? null : '$prefix$hash';
+  }
+
+  Future<void> _openTransactionExplorer(
+    BuildContext context,
+    String url,
+  ) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null ||
+        !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (context.mounted) {
+        NotificationService.showError(context, 'Could not open block explorer');
+      }
+    }
+  }
+
+  Widget _buildLoadMoreActivityButton(
+    BuildContext context,
+    WalletProvider provider,
+  ) {
     final colors = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 24),
@@ -963,14 +1101,23 @@ class _WalletScreenState extends State<WalletScreen> {
                 icon: const Icon(Icons.add_rounded, size: 20),
                 label: const Text(
                   'LOAD MORE',
-                  style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.0, fontSize: 12),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.0,
+                    fontSize: 12,
+                  ),
                 ),
                 style: TextButton.styleFrom(
                   foregroundColor: colors.primary,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: colors.primary.withValues(alpha: 0.2)),
+                    side: BorderSide(
+                      color: colors.primary.withValues(alpha: 0.2),
+                    ),
                   ),
                 ),
               ),
@@ -1038,6 +1185,27 @@ class _AdSpace extends StatelessWidget {
               subtitle: 'Invite friends for rewards',
               icon: Icons.people_rounded,
               onTap: () => context.push('/settings/user-details'),
+            ),
+            CarouselItem(type: CarouselItemType.ad),
+            CarouselItem(
+              type: CarouselItemType.feature,
+              title: 'Griot Wallet',
+              subtitle: 'Secure multichain wallet',
+              icon: Icons.account_balance_wallet_rounded,
+              onTap: () => context.go('/wallet'),
+            ),
+            CarouselItem(type: CarouselItemType.ad),
+            CarouselItem(
+              type: CarouselItemType.feature,
+              title: 'Griot Network',
+              subtitle: 'Explore the Griot community',
+              icon: Icons.public_rounded,
+              onTap: () async {
+                await launchUrl(
+                  Uri.parse('https://griot.network'),
+                  mode: LaunchMode.externalApplication,
+                );
+              },
             ),
           ],
         ),

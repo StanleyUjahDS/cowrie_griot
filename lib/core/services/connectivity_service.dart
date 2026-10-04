@@ -16,6 +16,27 @@ class ConnectivityService extends ChangeNotifier {
 
   bool _isInitialized = false;
   ToastificationItem? _currentToast;
+  Timer? _pendingStatusTimer;
+
+  /// An API response is stronger evidence of reachability than a transient
+  /// connectivity plugin event. Keep the banner state aligned with reality
+  /// when the app has successfully reached the backend.
+  void markOnline() {
+    if (_isOnline) {
+      if (_currentToast != null) {
+        toastification.dismiss(_currentToast!);
+        _currentToast = null;
+      }
+      return;
+    }
+
+    _isOnline = true;
+    notifyListeners();
+    if (_currentToast != null) {
+      toastification.dismiss(_currentToast!);
+      _currentToast = null;
+    }
+  }
 
   void initialize() {
     if (_isInitialized) return;
@@ -23,7 +44,11 @@ class ConnectivityService extends ChangeNotifier {
 
     _subscription = _connectivity.onConnectivityChanged.listen((results) {
       // Small delay to prevent flapping during network transitions
-      Future.delayed(const Duration(milliseconds: 500), () => _updateConnectionStatus(results));
+      _pendingStatusTimer?.cancel();
+      _pendingStatusTimer = Timer(
+        const Duration(milliseconds: 800),
+        () => _updateConnectionStatus(results),
+      );
     });
 
     // Initial check
@@ -32,7 +57,9 @@ class ConnectivityService extends ChangeNotifier {
 
   void _updateConnectionStatus(List<ConnectivityResult> results) {
     // Filter out results that are effectively 'none' or empty
-    final bool online = results.isNotEmpty && !results.every((r) => r == ConnectivityResult.none);
+    final bool online =
+        results.isNotEmpty &&
+        !results.every((r) => r == ConnectivityResult.none);
 
     if (_isOnline != online) {
       final bool wasInitiallyTrue = _isOnline;
@@ -55,6 +82,19 @@ class ConnectivityService extends ChangeNotifier {
       return;
     }
 
+    // Connectivity can emit during runApp, before the router has installed
+    // its Navigator. Toastification requires that Navigator to be available.
+    final navigatorContext = WidgetsBinding.instance.rootElement
+        ?.findRootAncestorStateOfType<NavigatorState>();
+    if (navigatorContext == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (WidgetsBinding.instance.lifecycleState != null) {
+          _showConnectivityBanner(online);
+        }
+      });
+      return;
+    }
+
     if (_currentToast != null) {
       toastification.dismiss(_currentToast!);
       _currentToast = null;
@@ -69,8 +109,14 @@ class ConnectivityService extends ChangeNotifier {
             child: Material(
               color: Colors.transparent,
               child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                margin: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 10,
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: online ? AppColors.success : AppColors.error,
                   borderRadius: BorderRadius.circular(12),
@@ -93,8 +139,8 @@ class ConnectivityService extends ChangeNotifier {
                     Expanded(
                       child: Text(
                         online
-                          ? 'Back online. Connection restored.'
-                          : 'No internet connection. Please check your network.',
+                            ? 'Back online. Connection restored.'
+                            : 'No internet connection. Please check your network.',
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w600,
@@ -104,7 +150,11 @@ class ConnectivityService extends ChangeNotifier {
                     ),
                     if (!online)
                       IconButton(
-                        icon: const Icon(Icons.close_rounded, color: Colors.white, size: 18),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.white,
+                          size: 18,
+                        ),
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                         onPressed: () {
@@ -126,6 +176,7 @@ class ConnectivityService extends ChangeNotifier {
 
   @override
   void dispose() {
+    _pendingStatusTimer?.cancel();
     _subscription?.cancel();
     super.dispose();
   }

@@ -1,12 +1,13 @@
 import 'dart:async';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
+import '../../../../core/network/api_config.dart';
 import 'tables/local_conversations_table.dart';
 import 'tables/local_profiles_table.dart';
 
 class ChatDatabase {
-  static const String _dbName = 'griot_chat_v2.db';
-  static const int _dbVersion = 4;
+  static String get _dbName => 'griot_chat_${ApiConfig.cacheNamespace}_v2.db';
+  static const int _dbVersion = 5;
 
   Database? _db;
 
@@ -47,6 +48,12 @@ class ChatDatabase {
         'ALTER TABLE ${LocalProfilesTable.tableName} ADD COLUMN ${LocalProfilesTable.columnIsPlus} INTEGER NOT NULL DEFAULT 0',
       );
     }
+    if (oldVersion < 5) {
+      await db.execute(
+        'ALTER TABLE cached_messages ADD COLUMN client_message_id TEXT',
+      );
+      await db.execute('ALTER TABLE cached_messages ADD COLUMN tip_data TEXT');
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -62,6 +69,8 @@ class ChatDatabase {
         message_type TEXT NOT NULL DEFAULT 'text',
         created_at TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'sent',
+        client_message_id TEXT,
+        tip_data TEXT,
         is_deleted INTEGER NOT NULL DEFAULT 0,
         server_synced INTEGER NOT NULL DEFAULT 0,
         last_synced_at TEXT,

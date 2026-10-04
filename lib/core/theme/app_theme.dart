@@ -149,8 +149,8 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
 
         titleTextStyle: TextStyle(
-          fontSize: 24,
-          fontWeight: FontWeight.w900,
+          fontSize: 20,
+          fontWeight: FontWeight.w800,
           letterSpacing: -0.5,
           fontFamily: AppText.fontFamily,
           color: dark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,

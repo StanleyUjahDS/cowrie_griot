@@ -6,8 +6,10 @@ class TokenAssets {
   /// Only tokens explicitly registered here may use a local token logo.
   /// Unknown tokens intentionally fall back to their own initials.
   static const Map<String, String> _logosBySymbol = {
-    'HBADG': 'assets/chains/Hbadger.svg',
+    'HBADG': '$_coinPath/hbadger_logo.png',
     'COWRIE': '$_coinPath/Cowrie.svg',
+    'USDT': '$_coinPath/usdt.svg',
+    'USDC': '$_coinPath/usdc.svg',
   };
 
   static String? getLogo(String symbol) {

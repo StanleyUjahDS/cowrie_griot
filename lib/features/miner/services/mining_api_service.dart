@@ -40,8 +40,16 @@ class MiningApiService {
   }
 
   dynamic _unwrap(dynamic response) {
-    if (response is Map<String, dynamic> && response.containsKey('data')) {
-      return response['data'];
+    if (response is Map<String, dynamic>) {
+      if (response.containsKey('data') && response['data'] is Map) {
+        return response['data'];
+      }
+      if (response.containsKey('mining') && response['mining'] is Map) {
+        return response['mining'];
+      }
+      if (response.containsKey('status') && response['status'] is Map) {
+        return response['status'];
+      }
     }
     return response;
   }

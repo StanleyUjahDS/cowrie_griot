@@ -7,8 +7,10 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/widgets/griot_plus_badge.dart';
 import '../models/chat_user.dart';
 import '../models/chat_message.dart';
+import 'chatting/message_status.dart';
 import '../providers/messaging_provider.dart';
 import '../../users/providers/user_provider.dart';
+import 'conversation_actions_sheet.dart';
 
 class ChatListItem extends StatelessWidget {
   final ChatUser user;
@@ -16,6 +18,11 @@ class ChatListItem extends StatelessWidget {
   final ChatMessage? lastMessage;
   final VoidCallback? onTap;
   final VoidCallback? onAvatarTap;
+  final VoidCallback? onLongPress;
+  final VoidCallback? onPinToggle;
+  final VoidCallback? onRemove;
+  final bool isPinned;
+  final String removeLabel;
 
   const ChatListItem({
     super.key,
@@ -24,6 +31,11 @@ class ChatListItem extends StatelessWidget {
     this.lastMessage,
     this.onTap,
     this.onAvatarTap,
+    this.onLongPress,
+    this.onPinToggle,
+    this.onRemove,
+    this.isPinned = false,
+    this.removeLabel = 'Delete conversation',
   });
 
   @override
@@ -73,7 +85,7 @@ class ChatListItem extends StatelessWidget {
               () {
                 context.push('/chat/user/${user.id}', extra: user);
               },
-          onLongPress: onAvatarTap,
+          onLongPress: onLongPress ?? onAvatarTap,
           borderRadius: BorderRadius.circular(24),
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -199,6 +211,15 @@ class ChatListItem extends StatelessWidget {
                                 ),
                               ),
                             ),
+                          if (isPinned)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 5),
+                              child: Icon(
+                                Icons.push_pin_rounded,
+                                size: 13,
+                                color: colorScheme.primary,
+                              ),
+                            ),
                           if (user.isPlus) ...[
                             const SizedBox(width: 6),
                             const GriotPlusBadge(isPlus: true, compact: true),
@@ -296,14 +317,38 @@ class ChatListItem extends StatelessWidget {
                           ),
                         ),
                       )
-                    else
-                      Icon(
-                        Icons.done_all_rounded,
-                        size: 16,
-                        color: colorScheme.primary.withValues(alpha: 0.3),
+                    else if (user.reputation != null)
+                      Tooltip(
+                        message: user.reputation!.tierName,
+                        child: Icon(
+                          Icons.workspace_premium_rounded,
+                          size: 16,
+                          color: AppColors.parseHexColor(
+                            user.reputation!.badgeColor,
+                          ),
+                        ),
                       ),
                   ],
                 ),
+                if (onPinToggle != null || onRemove != null) ...[
+                  const SizedBox(width: 4),
+                  IconButton(
+                    tooltip: 'Conversation actions',
+                    padding: EdgeInsets.zero,
+                    onPressed: () => showConversationActionsSheet(
+                      context: context,
+                      isPinned: isPinned,
+                      onPinToggle: onPinToggle,
+                      onRemove: onRemove,
+                      removeLabel: removeLabel,
+                    ),
+                    icon: Icon(
+                      Icons.more_vert_rounded,
+                      size: 20,
+                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.55),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -321,13 +366,6 @@ class _DeliveryIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final icon = switch (status) {
-      MessageStatus.sending => Icons.schedule_rounded,
-      MessageStatus.sent => Icons.done_rounded,
-      MessageStatus.delivered => Icons.done_all_rounded,
-      MessageStatus.read => Icons.done_all_rounded,
-      MessageStatus.failed => Icons.error_outline_rounded,
-    };
-    return Icon(icon, size: 14, color: color);
+    return GriotMessageStatus(status: status, color: color);
   }
 }

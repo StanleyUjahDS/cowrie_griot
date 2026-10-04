@@ -5,7 +5,7 @@ repository: https://github.com/griotcowrie/griot_cowrie
 
 publish_to: 'none'
 
-version: 1.0.1+4
+version: 1.0.6+14
 
 environment:
   sdk: ^3.10.3
@@ -36,11 +36,15 @@ dependencies:
   socket_io_client: ^3.1.6
   flutter_inappwebview: ^6.1.5
   url_launcher: ^6.3.2
+  upgrader: ^13.7.0
   app_links: ^6.4.0
 
   # Firebase & Notifications
   firebase_core: ^4.14.0
   firebase_messaging: ^16.6.0
+  flutter_callkit_incoming: ^3.1.6
+  device_info_plus: ^13.2.0
+  package_info_plus: ^10.2.1
 
   # Storage & Utilities
   shared_preferences: ^2.5.5
@@ -71,12 +75,14 @@ dependencies:
   image_cropper: ^12.2.1
   flutter_image_compress: ^2.5.1
   just_audio: ^0.9.42
+  audio_session: ^0.1.25
   audio_video_progress_bar: ^2.0.1
   video_player: ^2.9.1
   any_link_preview: ^3.0.1
 
   # Monetization & IAP
   google_mobile_ads: ^9.1.0
+  gma_mediation_unity: ^1.10.0
   in_app_purchase: ^3.3.0
   in_app_purchase_android: ^0.5.3
   in_app_purchase_storekit: ^0.4.11+2
@@ -84,6 +90,7 @@ dependencies:
   permission_handler: ^13.0.1
   geolocator: ^14.0.3
   flutter_contacts: ^2.3.1
+  zego_express_engine: ^3.25.0
 
 dev_dependencies:
   flutter_launcher_icons: ^0.14.4
@@ -91,8 +98,21 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
 
+
 flutter:
   uses-material-design: true
+
+  # Bundle the app typography so Android and iOS render the same font
+  # instead of falling back to platform-specific system fonts.
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700
 
   assets:
     - assets/coins_logo/

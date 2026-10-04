@@ -11,9 +11,7 @@ import '../../wallet/services/wallet_crypto_service.dart';
 import '../../wallet/services/wallet_storage_service.dart';
 
 class VerifySeed extends StatefulWidget {
-  const VerifySeed({
-    super.key,
-  });
+  const VerifySeed({super.key});
 
   @override
   State<VerifySeed> createState() => _VerifySeedState();
@@ -23,10 +21,7 @@ class _SeedOption {
   final String word;
   final int originalIndex;
 
-  const _SeedOption({
-    required this.word,
-    required this.originalIndex,
-  });
+  const _SeedOption({required this.word, required this.originalIndex});
 }
 
 class _VerifySeedState extends State<VerifySeed> {
@@ -72,16 +67,14 @@ class _VerifySeedState extends State<VerifySeed> {
     if (seedPhrase.length < 9) return;
     const Set<int> mandatory = {3, 8};
     final List<_SeedOption> selected = mandatory
-        .map((index) => _SeedOption(
-              word: seedPhrase[index],
-              originalIndex: index,
-            ))
+        .map(
+          (index) => _SeedOption(word: seedPhrase[index], originalIndex: index),
+        )
         .toList();
     final List<int> remaining = List<int>.generate(
       seedPhrase.length,
       (index) => index,
-    ).where((index) => !mandatory.contains(index)).toList()
-      ..shuffle();
+    ).where((index) => !mandatory.contains(index)).toList()..shuffle();
     while (selected.length < 6) {
       final int index = remaining.removeLast();
       selected.add(_SeedOption(word: seedPhrase[index], originalIndex: index));
@@ -108,7 +101,9 @@ class _VerifySeedState extends State<VerifySeed> {
 
   void _showIncorrectSelection() {
     NotificationService.showError(
-        context, 'Incorrect selection. Please try again.');
+      context,
+      'Incorrect selection. Please try again.',
+    );
   }
 
   void _showWalletError() {
@@ -123,9 +118,12 @@ class _VerifySeedState extends State<VerifySeed> {
     if (_isSelectionCorrect()) {
       context.pushReplacement(
         '/set_password',
-        extra: (BuildContext ctx) async {
-          final authController = ctx.read<AuthController>();
-          await authController.authenticateWallet();
+        extra: {
+          'setupBiometrics': true,
+          'onSuccess': (BuildContext ctx) async {
+            final authController = ctx.read<AuthController>();
+            await authController.authenticateWallet(acceptPolicies: true);
+          },
         },
       );
       return;
@@ -197,7 +195,9 @@ class _VerifySeedState extends State<VerifySeed> {
                             height: 42,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: colorScheme.primary.withValues(alpha: 0.12),
+                              color: colorScheme.primary.withValues(
+                                alpha: 0.12,
+                              ),
                             ),
                             child: Icon(
                               Icons.security_rounded,
@@ -262,25 +262,35 @@ class _VerifySeedState extends State<VerifySeed> {
                               decoration: BoxDecoration(
                                 color: selected
                                     ? colorScheme.primary
-                                    : colorScheme.surface.withValues(alpha: 0.5),
+                                    : colorScheme.surface.withValues(
+                                        alpha: 0.5,
+                                      ),
                                 borderRadius: BorderRadius.circular(18),
                                 border: selected
-                                  ? Border.all(color: colorScheme.primary, width: 1.5)
-                                  : Border(
-                                      top: BorderSide(
-                                        color: colorScheme.primary.withValues(alpha: 0.4),
-                                        width: 1.2,
+                                    ? Border.all(
+                                        color: colorScheme.primary,
+                                        width: 1.5,
+                                      )
+                                    : Border(
+                                        top: BorderSide(
+                                          color: colorScheme.primary.withValues(
+                                            alpha: 0.4,
+                                          ),
+                                          width: 1.2,
+                                        ),
+                                        bottom: BorderSide(
+                                          color: colorScheme.primary.withValues(
+                                            alpha: 0.4,
+                                          ),
+                                          width: 1.2,
+                                        ),
                                       ),
-                                      bottom: BorderSide(
-                                        color: colorScheme.primary.withValues(alpha: 0.4),
-                                        width: 1.2,
-                                      ),
-                                    ),
                                 boxShadow: selected
                                     ? [
                                         BoxShadow(
-                                          color: colorScheme.primary
-                                              .withValues(alpha: 0.2),
+                                          color: colorScheme.primary.withValues(
+                                            alpha: 0.2,
+                                          ),
                                           blurRadius: 15,
                                           offset: const Offset(0, 5),
                                         ),
@@ -289,29 +299,6 @@ class _VerifySeedState extends State<VerifySeed> {
                               ),
                               child: Row(
                                 children: [
-                                  Container(
-                                    width: 32,
-                                    height: 32,
-                                    alignment: Alignment.center,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: selected
-                                          ? colorScheme.onPrimary
-                                              .withValues(alpha: 0.2)
-                                          : colorScheme.onSurface
-                                              .withValues(alpha: 0.05),
-                                    ),
-                                    child: Text(
-                                      '${option.originalIndex + 1}',
-                                      style: textTheme.bodySmall?.copyWith(
-                                        color: selected
-                                            ? colorScheme.onPrimary
-                                            : colorScheme.onSurfaceVariant,
-                                        fontWeight: FontWeight.w900,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
                                   Expanded(
                                     child: Text(
                                       option.word,
@@ -333,13 +320,14 @@ class _VerifySeedState extends State<VerifySeed> {
                                     child: Icon(
                                       selected
                                           ? Icons.check_circle_rounded
-                                          : Icons.radio_button_unchecked_rounded,
+                                          : Icons
+                                                .radio_button_unchecked_rounded,
                                       key: ValueKey<bool>(selected),
                                       size: 24,
                                       color: selected
                                           ? colorScheme.onPrimary
                                           : colorScheme.onSurfaceVariant
-                                              .withValues(alpha: 0.5),
+                                                .withValues(alpha: 0.5),
                                     ),
                                   ),
                                 ],

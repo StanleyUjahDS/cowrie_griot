@@ -27,6 +27,7 @@ class TokenModel {
   final String? type;
   final String? chainId;
   final num? marketCapUsd;
+  final num? fullyDilutedValuationUsd;
   final num? volume24hUsd;
   final num? liquidityUsd;
   final DateTime? priceUpdatedAt;
@@ -56,6 +57,7 @@ class TokenModel {
     this.type,
     this.chainId,
     this.marketCapUsd,
+    this.fullyDilutedValuationUsd,
     this.volume24hUsd,
     this.liquidityUsd,
     this.priceUpdatedAt,
@@ -63,16 +65,29 @@ class TokenModel {
 
   String get identity {
     // CONTRACT: use network + tokenAddress as token identity
-    final net = rawNetwork.isNotEmpty ? rawNetwork.toLowerCase() : ChainAssets.normalize(chain);
+    // Always use the canonical chain key.  The API may return `bnb`, `bsc`,
+    // or `binance`, which otherwise makes the same native asset appear twice.
+    final net = ChainAssets.normalize(rawNetwork.isNotEmpty ? rawNetwork : chain);
     if (isNative) return '$net:native';
     return '$net:${contractAddress.toLowerCase().trim()}';
   }
 
   bool get isNative {
     final address = contractAddress.trim().toLowerCase();
+    final network = ChainAssets.normalize(rawNetwork.isNotEmpty ? rawNetwork : chain);
+    final normalizedSymbol = symbol.trim().toLowerCase();
+    final nativeAlias = switch (network) {
+      'ethereum' || 'arbitrum' || 'optimism' || 'base' => normalizedSymbol == 'eth',
+      'bsc' => normalizedSymbol == 'bnb',
+      'polygon' => normalizedSymbol == 'pol' || normalizedSymbol == 'matic',
+      'avalanche' => normalizedSymbol == 'avax',
+      _ => false,
+    };
     return address.isEmpty ||
         address == '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' ||
-        address == '0x0000000000000000000000000000000000000000';
+        address == '0x0000000000000000000000000000000000000000' ||
+        (network == 'polygon' && address == '0x0000000000000000000000000000000000001010') ||
+        nativeAlias;
   }
 
   bool get isProfit => (changePercent ?? 0) >= 0;
@@ -98,16 +113,38 @@ class TokenModel {
       }
     }
 
-    // Market Data Priority mapping
-    final num? priceUsd = _numOrNull(json['priceUsd']);
+    // Market data has appeared in both the flattened wallet response and the
+    // nested `market` response over time. Accept both shapes so percentage
+    // changes are not silently lost when the backend/provider changes shape.
+    final market = json['market'] is Map
+        ? Map<String, dynamic>.from(json['market'] as Map)
+        : const <String, dynamic>{};
+    final num? priceUsd = _numOrNull(
+      json['priceUsd'] ?? json['price_usd'] ?? market['price'],
+    );
     final num? valueUsd = _numOrNull(json['valueUsd'] ?? json['balanceUsd']);
-    final num? changePercent = _numOrNull(json['changePercent24h'] ?? json['changePercent']);
+    final num? changePercent = _numOrNull(
+      json['changePercent24h'] ??
+          json['changePercent'] ??
+          json['priceChange24h'] ??
+          json['price_change_percentage_24h'] ??
+          json['change24h'] ??
+          json['price_change_percentage_24h_in_currency'] ??
+          json['usd_24h_change'] ??
+          market['change24h'] ??
+          market['priceChange24h'] ??
+          market['price_change_percentage_24h'] ??
+          market['usd_24h_change'],
+    );
 
-    final bool hasMarketData = priceUsd != null || valueUsd != null;
+    final bool hasMarketData =
+        priceUsd != null || valueUsd != null || changePercent != null;
 
     final linksRaw = json['externalLinks'];
     final externalLinks = linksRaw is Map
-        ? Map<String, String>.from(linksRaw.map((k, v) => MapEntry(k.toString(), v.toString())))
+        ? Map<String, String>.from(
+            linksRaw.map((k, v) => MapEntry(k.toString(), v.toString())),
+          )
         : <String, String>{};
 
     return TokenModel(
@@ -134,10 +171,30 @@ class TokenModel {
       id: json['id']?.toString(),
       type: json['type']?.toString(),
       chainId: json['chainId']?.toString(),
-      marketCapUsd: _numOrNull(json['marketCapUsd'] ?? json['marketCap'] ?? json['market_cap_usd']),
-      volume24hUsd: _numOrNull(json['volume24hUsd'] ?? json['volume24h'] ?? json['volume_24h_usd']),
-      liquidityUsd: _numOrNull(json['liquidityUsd'] ?? json['liquidity'] ?? json['liquidity_usd']),
-      priceUpdatedAt: json['priceUpdatedAt'] != null ? DateTime.tryParse(json['priceUpdatedAt'].toString()) : null,
+      marketCapUsd: _numOrNull(
+        json['marketCapUsd'] ??
+            json['marketCap'] ??
+            json['market_cap_usd'] ??
+            json['market_cap'],
+      ),
+      fullyDilutedValuationUsd: _numOrNull(
+        json['fullyDilutedValuationUsd'] ?? json['fdvUsd'] ?? json['fdv_usd'],
+      ),
+      volume24hUsd: _numOrNull(
+        json['volume24hUsd'] ??
+            json['volume24h'] ??
+            json['volume_24h_usd'] ??
+            json['volume_24h'],
+      ),
+      liquidityUsd: _numOrNull(
+        json['liquidityUsd'] ??
+            json['liquidity'] ??
+            json['liquidity_usd'] ??
+            json['total_reserve_in_usd'],
+      ),
+      priceUpdatedAt: json['priceUpdatedAt'] != null
+          ? DateTime.tryParse(json['priceUpdatedAt'].toString())
+          : null,
     );
   }
 
@@ -167,6 +224,7 @@ class TokenModel {
       'type': type,
       'chainId': chainId,
       'marketCapUsd': marketCapUsd,
+      'fullyDilutedValuationUsd': fullyDilutedValuationUsd,
       'volume24hUsd': volume24hUsd,
       'liquidityUsd': liquidityUsd,
       'priceUpdatedAt': priceUpdatedAt?.toIso8601String(),

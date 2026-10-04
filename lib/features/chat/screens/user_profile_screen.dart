@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:flutter/services.dart';
 import '../providers/messaging_provider.dart';
 import '../models/message_request.dart';
 import '../models/chat_user.dart';
@@ -11,11 +13,13 @@ import '../../users/models/user_model.dart';
 import '../../users/providers/user_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/services/share_link_service.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
 import '../../../core/ui/widgets/griot_avatar.dart';
 import '../../../core/ui/widgets/griot_plus_badge.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../widgets/chatting/fullscreen_media_viewer.dart';
+import '../widgets/chatting/report_content_sheet.dart';
 
 class UserProfileScreen extends StatefulWidget {
   final UserModel user;
@@ -59,6 +63,39 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     } catch (_) {
       // Keep the route payload visible if the refresh is temporarily unavailable.
     }
+  }
+
+  Future<void> _copyProfileLink(UserModel user) async {
+    final link = ShareLinkService.profile(user);
+    if (link == null) {
+      if (mounted) {
+        NotificationService.showError(context, 'Profile link unavailable');
+      }
+      return;
+    }
+
+    await Clipboard.setData(ClipboardData(text: link));
+    if (mounted) {
+      NotificationService.showSuccess(context, 'Profile link copied');
+    }
+  }
+
+  Future<void> _shareProfileLink(UserModel user) async {
+    final link = ShareLinkService.profile(user);
+    if (link == null) {
+      if (mounted) {
+        NotificationService.showError(context, 'Profile link unavailable');
+      }
+      return;
+    }
+
+    await SharePlus.instance.share(
+      ShareParams(
+        text:
+            'View ${user.displayName ?? (user.formattedUsername.isNotEmpty ? user.formattedUsername : 'this profile')} on Griot\n$link',
+        subject: 'Griot profile',
+      ),
+    );
   }
 
   @override
@@ -207,6 +244,15 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     TipSheet.show(context, recipients: [ChatUser.fromUserModel(widget.user)]);
   }
 
+  void _showReportUserSheet() {
+    ReportContentSheet.show(
+      context: context,
+      targetType: 'user',
+      targetId: widget.user.id,
+      subjectLabel: 'user',
+    );
+  }
+
   RelationshipState _getEffectiveRelationship(
     RelationshipState local,
     String? initialStatus,
@@ -275,7 +321,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 surfaceTintColor: Colors.transparent,
                 leading: Center(
                   child: GestureDetector(
-                    onTap: () => context.pop(),
+                    onTap: () {
+                      final router = GoRouter.of(context);
+                      if (router.canPop()) {
+                        router.pop();
+                      } else {
+                        router.go('/chat?tab=direct');
+                      }
+                    },
                     child: Container(
                       width: 40,
                       height: 40,
@@ -302,58 +355,102 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   ),
                 ),
                 actions: [
-                  if (!isSelf)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 12),
-                      child: Center(
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: colors.surface,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border(
-                              top: BorderSide(
-                                color: colors.primary.withValues(alpha: 0.6),
-                                width: 1.2,
-                              ),
-                              bottom: BorderSide(
-                                color: colors.primary.withValues(alpha: 0.6),
-                                width: 1.2,
-                              ),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: Center(
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: colors.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border(
+                            top: BorderSide(
+                              color: colors.primary.withValues(alpha: 0.6),
+                              width: 1.2,
+                            ),
+                            bottom: BorderSide(
+                              color: colors.primary.withValues(alpha: 0.6),
+                              width: 1.2,
                             ),
                           ),
-                          child: Theme(
-                            data: Theme.of(context).copyWith(
-                              splashColor: Colors.transparent,
-                              highlightColor: Colors.transparent,
+                        ),
+                        child: Theme(
+                          data: Theme.of(context).copyWith(
+                            splashColor: Colors.transparent,
+                            highlightColor: Colors.transparent,
+                          ),
+                          child: PopupMenuButton<String>(
+                            icon: Icon(
+                              Icons.more_vert_rounded,
+                              color: colors.primary,
+                              size: 20,
                             ),
-                            child: PopupMenuButton<String>(
-                              icon: Icon(
-                                Icons.more_vert_rounded,
-                                color: colors.primary,
-                                size: 20,
+                            padding: EdgeInsets.zero,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              side: BorderSide(
+                                color: colors.primary.withValues(alpha: 0.1),
+                                width: 1.5,
                               ),
-                              padding: EdgeInsets.zero,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(24),
-                                side: BorderSide(
-                                  color: colors.primary.withValues(alpha: 0.1),
-                                  width: 1.5,
+                            ),
+                            elevation: 4,
+                            offset: const Offset(0, 50),
+                            onSelected: (val) {
+                              if (val == 'copy') {
+                                _copyProfileLink(user);
+                              } else if (val == 'share') {
+                                _shareProfileLink(user);
+                              } else if (val == 'block') {
+                                _handleBlockToggle(isBlocked);
+                              } else if (val == 'report') {
+                                _showReportUserSheet();
+                              } else if (val == 'unfriend') {
+                                _handleUnfriend();
+                              } else if (val == 'tip') {
+                                _showTipSheet();
+                              }
+                            },
+                            itemBuilder: (context) => [
+                              PopupMenuItem(
+                                value: 'copy',
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.link_rounded,
+                                      color: colors.primary,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    const Text(
+                                      'Copy Profile Link',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              elevation: 4,
-                              offset: const Offset(0, 50),
-                              onSelected: (val) {
-                                if (val == 'block') {
-                                  _handleBlockToggle(isBlocked);
-                                } else if (val == 'unfriend') {
-                                  _handleUnfriend();
-                                } else if (val == 'tip') {
-                                  _showTipSheet();
-                                }
-                              },
-                              itemBuilder: (context) => [
+                              PopupMenuItem(
+                                value: 'share',
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.share_rounded,
+                                      color: colors.primary,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    const Text(
+                                      'Share Profile',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (!isSelf) ...[
                                 PopupMenuItem(
                                   value: 'tip',
                                   child: Row(
@@ -395,6 +492,26 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                     ),
                                   ),
                                 PopupMenuItem(
+                                  value: 'report',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.flag_outlined,
+                                        color: colors.error,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        'Report User',
+                                        style: TextStyle(
+                                          color: colors.error,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuItem(
                                   value: 'block',
                                   child: Row(
                                     children: [
@@ -421,11 +538,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                   ),
                                 ),
                               ],
-                            ),
+                            ],
                           ),
                         ),
                       ),
                     ),
+                  ),
                   const SizedBox(width: 8),
                 ],
                 flexibleSpace: FlexibleSpaceBar(

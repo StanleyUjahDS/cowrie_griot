@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:any_link_preview/any_link_preview.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../../core/services/deep_link_service.dart';
 
 class LinkPreviewWidget extends StatelessWidget {
   final String url;
@@ -16,6 +17,14 @@ class LinkPreviewWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+
+    final uri = Uri.tryParse(url);
+    final isGriotLink = uri != null &&
+        (uri.host.toLowerCase() == 'griot.network' ||
+            uri.host.toLowerCase() == 'www.griot.network');
+    if (isGriotLink) {
+      return _buildGriotPreview(context, uri, colorScheme);
+    }
 
     return Container(
       margin: const EdgeInsets.only(top: 8),
@@ -74,6 +83,83 @@ class LinkPreviewWidget extends StatelessWidget {
             color: isMe ? colorScheme.onPrimary.withValues(alpha: 0.7) : colorScheme.onSurfaceVariant,
           ),
           onTap: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGriotPreview(
+    BuildContext context,
+    Uri uri,
+    ColorScheme colorScheme,
+  ) {
+    final segments = uri.pathSegments;
+    final kind = segments.isNotEmpty ? segments.first.toLowerCase() : '';
+    final value = segments.length > 1 ? segments[1] : null;
+    final (String title, String subtitle, IconData icon) = switch (kind) {
+      'group' || 'circle' => (
+          value == null ? 'Griot group' : 'Griot group · @$value',
+          'Open this group in Griot',
+          Icons.groups_rounded,
+        ),
+      'channel' => (
+          value == null ? 'Griot channel' : 'Griot channel · @$value',
+          'Open this channel in Griot',
+          Icons.campaign_rounded,
+        ),
+      'profile' => (
+          value == null ? 'Griot profile' : 'Griot profile · @$value',
+          'View this profile in Griot',
+          Icons.person_rounded,
+        ),
+      'join' => ('Join Griot Network', 'Open your invitation in Griot', Icons.link_rounded),
+      'plus' => ('Griot Plus', 'Open Griot Plus in the app', Icons.star_rounded),
+      _ => ('Griot Network', 'Open in Griot', Icons.public_rounded),
+    };
+
+    final cardColor = isMe
+        ? colorScheme.onPrimary.withValues(alpha: 0.12)
+        : colorScheme.surfaceContainerHighest.withValues(alpha: 0.7);
+    return Semantics(
+      button: true,
+      label: '$title. $subtitle',
+      child: InkWell(
+        onTap: () => DeepLinkService.instance.handleUri(
+          uri.replace(host: 'griot.network'),
+        ),
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          margin: const EdgeInsets.only(top: 8),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: colorScheme.primary.withValues(alpha: 0.22),
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: colorScheme.primary, size: 28),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontWeight: FontWeight.w700,
+                            color: isMe ? colorScheme.onPrimary : colorScheme.onSurface)),
+                    const SizedBox(height: 3),
+                    Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12,
+                            color: isMe ? colorScheme.onPrimary.withValues(alpha: 0.72) : colorScheme.onSurfaceVariant)),
+                  ],
+                ),
+              ),
+              Icon(Icons.arrow_forward_ios_rounded, size: 14,
+                  color: isMe ? colorScheme.onPrimary : colorScheme.primary),
+            ],
+          ),
         ),
       ),
     );
