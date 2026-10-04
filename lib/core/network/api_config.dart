@@ -1,10 +1,9 @@
 class ApiConfig {
   ApiConfig._();
 
-  // Current testing backend. Change this one constant to the production API
-  // when the release build is prepared.
+  // Production API. Keep the app on the HTTPS public API for release builds.
   static const String _baseUrl =
-      'http://griot-api-alb-1072605846.eu-north-1.elb.amazonaws.com:5002/api';
+      'https://api.griot.network/api';
   static String get baseUrl => _baseUrl;
 
   /// Namespace for local caches. Staging and production must never share

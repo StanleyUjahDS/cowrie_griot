@@ -170,33 +170,47 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return false;
   }
 
+  void _handleBack() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/chat');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return GradientScaffold(
-      useSafeArea: false,
-      extendBodyBehindAppBar: false,
-      appBar: AppBar(
-        title: const Text('Updates'),
-        centerTitle: true,
-        backgroundColor: colors.surface,
-        elevation: 0,
-        toolbarHeight: 56,
-        automaticallyImplyLeading: false,
-        leading: IconButton(
-          tooltip: 'Back',
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => context.go('/chat'),
+    return PopScope(
+      canPop: context.canPop(),
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _handleBack();
+      },
+      child: GradientScaffold(
+        useSafeArea: false,
+        extendBodyBehindAppBar: false,
+        appBar: AppBar(
+          title: const Text('Updates'),
+          centerTitle: true,
+          backgroundColor: colors.surface,
+          elevation: 0,
+          toolbarHeight: 56,
+          automaticallyImplyLeading: false,
+          leading: IconButton(
+            tooltip: 'Back',
+            icon: const Icon(Icons.arrow_back_rounded),
+            onPressed: _handleBack,
+          ),
         ),
-      ),
-      child: Consumer<MessagingProvider>(
-        builder: (context, provider, child) {
-          return AnimatedSwitcher(
-            duration: const Duration(milliseconds: 600),
-            switchInCurve: Curves.easeOutQuart,
-            child: _buildBody(context, provider),
-          );
-        },
+        child: Consumer<MessagingProvider>(
+          builder: (context, provider, child) {
+            return AnimatedSwitcher(
+              duration: const Duration(milliseconds: 600),
+              switchInCurve: Curves.easeOutQuart,
+              child: _buildBody(context, provider),
+            );
+          },
+        ),
       ),
     );
   }

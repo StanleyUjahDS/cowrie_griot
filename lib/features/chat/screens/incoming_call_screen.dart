@@ -30,8 +30,9 @@ class IncomingCallScreen extends StatelessWidget {
     final name = callerName.trim();
     if (name.isNotEmpty && name.toLowerCase() != 'griot contact') return name;
     final wallet = callerWalletAddress?.trim() ?? '';
-    if (wallet.length > 6)
+    if (wallet.length > 6) {
       return '${wallet.substring(0, 3)}…${wallet.substring(wallet.length - 3)}';
+    }
     return name.isEmpty ? 'Griot user' : name;
   }
 

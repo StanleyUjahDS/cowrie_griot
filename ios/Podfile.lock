@@ -66,9 +66,9 @@ PODS:
   - geolocator_apple (1.2.0):
     - Flutter
     - FlutterMacOS
-  - gma_mediation_unity (1.11.0):
+  - gma_mediation_unity (1.11.1):
     - Flutter
-    - GoogleMobileAdsMediationUnity (~> 4.20.0.0)
+    - GoogleMobileAdsMediationUnity (~> 4.20.1.0)
   - Google-Mobile-Ads-SDK (13.9.0):
     - GoogleUserMessagingPlatform (>= 1.1)
   - google_mobile_ads (9.1.0):
@@ -78,9 +78,9 @@ PODS:
   - GoogleDataTransport (10.1.1):
     - nanopb (~> 3.30910.0)
     - PromisesObjC (~> 2.4)
-  - GoogleMobileAdsMediationUnity (4.20.0.0):
+  - GoogleMobileAdsMediationUnity (4.20.1.0):
     - Google-Mobile-Ads-SDK (~> 13.3)
-    - UnityAds (= 4.20.0)
+    - UnityAds (= 4.20.1)
   - GoogleUserMessagingPlatform (3.1.0)
   - GoogleUtilities/AppDelegateSwizzler (8.1.3):
     - GoogleUtilities/Environment
@@ -114,7 +114,6 @@ PODS:
   - in_app_purchase_storekit (0.0.1):
     - Flutter
     - FlutterMacOS
-  - IronSourceAdQualitySDK (9.10.0)
   - just_audio (0.0.1):
     - Flutter
     - FlutterMacOS
@@ -164,8 +163,7 @@ PODS:
     - Flutter
     - FlutterMacOS
   - TOCropViewController (3.1.2)
-  - UnityAds (4.20.0):
-    - IronSourceAdQualitySDK (< 10.0.0)
+  - UnityAds (4.20.1):
     - UnityCoherenceLib (= 0.1.0)
   - UnityCoherenceLib (0.1.0)
   - url_launcher_ios (0.0.1):
@@ -226,7 +224,6 @@ SPEC REPOS:
     - GoogleMobileAdsMediationUnity
     - GoogleUserMessagingPlatform
     - GoogleUtilities
-    - IronSourceAdQualitySDK
     - libwebp
     - nanopb
     - OrderedSet
@@ -324,17 +321,16 @@ SPEC CHECKSUMS:
   flutter_inappwebview_ios: b89ba3482b96fb25e00c967aae065701b66e9b99
   flutter_secure_storage_darwin: 46e401699982ee74142909676535e0f6a7321e58
   geolocator_apple: ab36aa0e8b7d7a2d7639b3b4e48308394e8cef5e
-  gma_mediation_unity: 6689302afde8e716ee923945506a2d5388a46dae
+  gma_mediation_unity: 07079ce0bc50b081dc22c386db7270069dad6257
   Google-Mobile-Ads-SDK: cec761d0da669c462bcc19cd16c747498b9f39f7
   google_mobile_ads: 6b1c16497394528f4a59e76e2fc947cb32b101e2
   GoogleDataTransport: a24e58982ab3ba2f64d79613e027fe7f57e88539
-  GoogleMobileAdsMediationUnity: 9717cf23332a8d1a4e137b479edbfd4528e1fc3c
+  GoogleMobileAdsMediationUnity: cf8c4104b642d1829ce5ad7fd70184b9599bfc50
   GoogleUserMessagingPlatform: befe603da6501006420c206222acd449bba45a9c
   GoogleUtilities: 4e0c2ad9fa0d0d18b5c4df8bf57b461cba35b0bb
   image_cropper: fca51f94982730acae168c4b5d691e0f11aeb259
   image_picker_ios: e0ece4aa2a75771a7de3fa735d26d90817041326
   in_app_purchase_storekit: 22cca7d08eebca9babdf4d07d0baccb73325d3c8
-  IronSourceAdQualitySDK: 779fc3754f27b3d5fae8da52c5709a2dbdb502a6
   just_audio: 4e391f57b79cad2b0674030a00453ca5ce817eed
   libwebp: af5937a13536ef73f3784d69cc342b98961acf33
   local_auth_darwin: c3ee6cce0a8d56be34c8ccb66ba31f7f180aaebb
@@ -351,7 +347,7 @@ SPEC CHECKSUMS:
   shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
   sqflite_darwin: 20b2a3a3b70e43edae938624ce550a3cbf66a3d0
   TOCropViewController: a916930c465b5d9445a74d95e0c0da931771b4df
-  UnityAds: aac7752619961224969a1bfea8b5077d2b93005f
+  UnityAds: 70ddc29f85c2e26967afca937e5379118f435747
   UnityCoherenceLib: d9be08c5b9c2880cb220c7ecd643f97ebda422b7
   url_launcher_ios: 7a95fa5b60cc718a708b8f2966718e93db0cef1b
   video_player_avfoundation: 3453f792138786248960ca029747fcd9f318ef52

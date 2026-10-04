@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:zego_express_engine/zego_express_engine.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
@@ -207,8 +208,32 @@ class _CallScreenState extends State<CallScreen> {
       final participants = await context
           .read<MessagingApiService>()
           .getCampfireParticipants(widget.conversationId);
-      final changed = participants.length != _spaceParticipants.length ||
-          participants.asMap().entries.any((entry) {
+      final previousById = {
+        for (final participant in _spaceParticipants)
+          participant.id: participant,
+      };
+      final stableParticipants = participants
+          .map((participant) {
+            final previous = previousById[participant.id];
+            if (previous?.avatarUrl != null &&
+                participant.avatarUrl != previous!.avatarUrl) {
+              return SpaceParticipant(
+                id: participant.id,
+                name: participant.name,
+                role: participant.role,
+                muted: participant.muted,
+                isOwner: participant.isOwner,
+                isSelf: participant.isSelf,
+                speakerRequested: participant.speakerRequested,
+                avatarUrl: previous.avatarUrl,
+              );
+            }
+            return participant;
+          })
+          .toList(growable: false);
+      final changed =
+          stableParticipants.length != _spaceParticipants.length ||
+          stableParticipants.asMap().entries.any((entry) {
             final old = _spaceParticipants.length > entry.key
                 ? _spaceParticipants[entry.key]
                 : null;
@@ -221,8 +246,10 @@ class _CallScreenState extends State<CallScreen> {
                 old.avatarUrl != next.avatarUrl ||
                 old.name != next.name;
           });
-      if (mounted && changed) setState(() => _spaceParticipants = participants);
-      await _enforceCampfireAudioState(participants);
+      if (mounted && changed) {
+        setState(() => _spaceParticipants = stableParticipants);
+      }
+      await _enforceCampfireAudioState(stableParticipants);
     } catch (_) {
       // The active call remains usable if a participant refresh is delayed.
     }
@@ -515,8 +542,9 @@ class _CallScreenState extends State<CallScreen> {
 
   String _shortWallet(String? wallet) {
     final value = wallet?.trim() ?? '';
-    if (value.length > 6)
+    if (value.length > 6) {
       return '${value.substring(0, 3)}…${value.substring(value.length - 3)}';
+    }
     return value.isEmpty ? 'Griot user' : value;
   }
 
@@ -1673,7 +1701,7 @@ class _CallScreenState extends State<CallScreen> {
                           name,
                           isLocal: isLocal,
                           avatarUrl: isLocal
-                              ? null
+                              ? context.read<UserProvider>().user?.avatarUrl
                               : (_avatarUrlFromProfile(profile) ??
                                     _remoteAvatarUrl),
                         );
@@ -1808,13 +1836,12 @@ class _CallScreenState extends State<CallScreen> {
               backgroundColor: colors.primary.withValues(alpha: .16),
               child: avatarUrl != null && avatarUrl.trim().isNotEmpty
                   ? ClipOval(
-                      child: Image.network(
-                        avatarUrl,
+                      child: CachedNetworkImage(
+                        imageUrl: avatarUrl,
                         width: 56,
                         height: 56,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) =>
-                            _avatarFallback(colors, name),
+                        errorWidget: (_, _, _) => _avatarFallback(colors, name),
                       ),
                     )
                   : _avatarFallback(colors, name),
@@ -2032,12 +2059,12 @@ class _CallScreenState extends State<CallScreen> {
                                               .trim()
                                               .isNotEmpty
                                       ? ClipOval(
-                                          child: Image.network(
-                                            participant.avatarUrl!,
+                                          child: CachedNetworkImage(
+                                            imageUrl: participant.avatarUrl!,
                                             width: 50,
                                             height: 50,
                                             fit: BoxFit.cover,
-                                            errorBuilder: (_, _, _) =>
+                                            errorWidget: (_, _, _) =>
                                                 _avatarFallback(
                                                   colors,
                                                   participant.name,
@@ -2049,6 +2076,25 @@ class _CallScreenState extends State<CallScreen> {
                                           participant.name,
                                         ),
                                 ),
+                                if (participant.speakerRequested)
+                                  Positioned(
+                                    left: -3,
+                                    top: -3,
+                                    child: DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        color: colors.tertiaryContainer,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(3),
+                                        child: Icon(
+                                          Icons.front_hand_rounded,
+                                          size: 14,
+                                          color: colors.onTertiaryContainer,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                                 Positioned(
                                   right: -3,
                                   bottom: -2,
@@ -2140,10 +2186,15 @@ class _CallScreenState extends State<CallScreen> {
           'participant',
           'user',
         }.contains(value.toLowerCase());
-    if (!generic) return value;
+    final looksLikeWallet =
+        value.length >= 12 &&
+        (value.startsWith('0x') || RegExp(r'^[a-fA-F0-9]+$').hasMatch(value));
+    if (!generic && !looksLikeWallet) return value;
     final id = participant.id.trim();
-    if (id.length > 6)
-      return '${id.substring(0, 3)}…${id.substring(id.length - 3)}';
+    final source = looksLikeWallet ? value : id;
+    if (source.length > 6) {
+      return '${source.substring(0, 3)}…${source.substring(source.length - 3)}';
+    }
     return id.isEmpty ? 'Griot user' : id;
   }
 
@@ -2559,7 +2610,7 @@ class _CallScreenState extends State<CallScreen> {
       controls.add(
         _CallControl(
           icon: self?.speakerRequested == true
-              ? Icons.back_hand_rounded
+              ? Icons.front_hand_rounded
               : Icons.pan_tool_outlined,
           label: self?.speakerRequested == true ? 'Lower hand' : 'Raise hand',
           onPressed: _requestToSpeak,

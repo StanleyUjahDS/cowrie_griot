@@ -1,12 +1,16 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 
 class AppConfig {
-  /// Ads are always enabled. Debug/Profile builds use Google's test units;
-  /// Release builds use the production AdMob units below.
+  /// Ads are always enabled. All builds use the configured production units so
+  /// mediation (including Unity) can be inspected on registered test devices.
   static const bool adsEnabled = true;
 
-  static bool get _useTestAds => kDebugMode || kProfileMode;
+  // Devices used for development must be registered as AdMob test devices.
+  // Generic Google test units bypass the app's mediation groups entirely.
+  static const bool _useTestAds = false;
+
+  /// True for development builds. Release builds always use production units.
+  static bool get usesTestAds => _useTestAds;
 
   // ==========================================================
   // ADMOB CONFIGURATION

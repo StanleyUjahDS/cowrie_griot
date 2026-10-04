@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../core/ui/dialogs/griot_confirm_dialog.dart';
 import 'package:go_router/go_router.dart';
@@ -18,6 +19,7 @@ import '../../../core/ui/widgets/banner_ad.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
 import '../../../core/services/navigation_scroll_service.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/services/ad_service.dart';
 import '../../../core/ui/widgets/griot_branded_container.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -602,6 +604,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   subtitle: 'App information and policies',
                   onTap: () => context.push('/settings/about'),
                 ),
+                if (kDebugMode || kProfileMode) ...[
+                  _divider(context),
+                  _settingTile(
+                    context: context,
+                    icon: Icons.analytics_outlined,
+                    title: 'Open Ad Inspector',
+                    subtitle: 'Inspect mediation adapters and ad fills',
+                    onTap: AdService.instance.openAdInspector,
+                  ),
+                ],
               ],
             ),
             _sectionLabel(context, 'Account Actions'),

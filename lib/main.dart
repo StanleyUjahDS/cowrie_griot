@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:toastification/toastification.dart';
 
 import 'app.dart';
+import 'core/config/app_config.dart';
 import 'core/services/ad_service.dart';
 import 'core/services/push_notification_service.dart';
 import 'core/services/native_call_service.dart';
@@ -58,8 +59,14 @@ Future<void> main() async {
     debugPrint('Firebase Initialization Error: $e');
   }
 
-  // Ads are opt-in while mediation and publisher accounts are being prepared.
-  unawaited(AdService.instance.initialize());
+  // Keep development builds on Google's test units. Release builds select the
+  // production AdMob units from AppConfig automatically.
+  debugPrint(
+    'Ads: ${AppConfig.adsEnabled ? (AppConfig.usesTestAds ? 'test' : 'production') : 'disabled'} units',
+  );
+  // Mediation adapters must finish initialization before any ad widget makes
+  // its first request; otherwise Ad Inspector can report no adapters.
+  await AdService.instance.initialize();
 
   // Load theme - also non-blocking if possible,
   // but GriotCowrieApp needs it for initial build.

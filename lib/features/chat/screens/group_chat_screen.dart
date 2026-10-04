@@ -56,6 +56,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   bool _lastTypingState = false;
   bool _showScrollToBottom = false;
   Map<String, dynamic>? _activeGroupCall;
+  Timer? _activeCallRefreshTimer;
 
   @override
   void initState() {
@@ -70,6 +71,10 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
       _initConversation();
       _loadGroupMembers();
       _loadActiveGroupCall();
+      _activeCallRefreshTimer = Timer.periodic(
+        const Duration(seconds: 5),
+        (_) => _loadActiveGroupCall(),
+      );
       provider.loadTipConfig();
     });
   }
@@ -79,14 +84,16 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
       final calls = await RealtimeCallService(
         context.read<ApiClient>(),
       ).activeCalls();
-      final match = calls
-          .where(
-            (call) =>
-                call['conversationId']?.toString() == widget.conversationId &&
-                (call['contextType']?.toString() == 'group' ||
-                    call['context_type']?.toString() == 'group'),
-          )
-          .firstOrNull;
+      final match = calls.where((call) {
+        final conversationId =
+            (call['conversationId'] ?? call['conversation_id'])?.toString();
+        final contextType = (call['contextType'] ?? call['context_type'])
+            ?.toString();
+        final status = (call['status'] ?? '').toString().toLowerCase();
+        return conversationId == widget.conversationId &&
+            contextType == 'group' &&
+            (status.isEmpty || status == 'ringing' || status == 'active');
+      }).firstOrNull;
       if (mounted) setState(() => _activeGroupCall = match);
     } catch (_) {}
   }
@@ -122,6 +129,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
 
   @override
   void dispose() {
+    _activeCallRefreshTimer?.cancel();
     _typingTimer?.cancel();
     _highlightTimer?.cancel();
     try {
@@ -595,7 +603,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                           color: colorScheme.primary,
                         ),
                         content: Text(
-                          'Live group call • ${_activeGroupCall!['participantCount'] ?? ''} joined',
+                          'Live group call • ${_activeGroupCall!['participantCount'] ?? _activeGroupCall!['participant_count'] ?? ''} joined',
                         ),
                         actions: [
                           TextButton(
@@ -606,8 +614,11 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                                 'mode': _activeGroupCall!['mode'] ?? 'voice',
                                 'callId':
                                     _activeGroupCall!['id'] ??
-                                    _activeGroupCall!['callId'],
-                                'roomId': _activeGroupCall!['roomId'],
+                                    _activeGroupCall!['callId'] ??
+                                    _activeGroupCall!['call_id'],
+                                'roomId':
+                                    _activeGroupCall!['roomId'] ??
+                                    _activeGroupCall!['room_id'],
                               },
                             ),
                             child: const Text('Join'),

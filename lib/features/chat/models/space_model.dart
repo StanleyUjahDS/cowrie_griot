@@ -31,7 +31,9 @@ class SpaceModel {
         '${json['title'] ?? json['name'] ?? json['topic'] ?? 'Untitled Campfire'}',
     description: (json['description'] ?? json['summary'])?.toString(),
     mode: _canonicalCampfireMode(json['mode'] ?? json['type']),
-    hostName: '${json['host_name'] ?? json['hostName'] ?? 'Griot user'}',
+    hostName: _displayIdentity(
+      json['host_name'] ?? json['hostName'] ?? 'Griot user',
+    ),
     isHost: json['is_host'] == true || json['isHost'] == true,
     regionCode:
         '${json['region_code'] ?? json['regionCode'] ?? json['region'] ?? 'GLOBAL'}',
@@ -58,8 +60,26 @@ class SpaceModel {
     if (value is! List) return const [];
     return value
         .whereType<Map>()
-        .map((item) => Map<String, dynamic>.from(item))
+        .map((item) {
+          final mapped = Map<String, dynamic>.from(item);
+          final name = mapped['displayName'] ?? mapped['display_name'];
+          if (name != null) {
+            mapped['displayName'] = _displayIdentity(name);
+          }
+          return mapped;
+        })
         .toList(growable: false);
+  }
+
+  static String _displayIdentity(Object? value) {
+    final text = value?.toString().trim() ?? '';
+    final walletLike =
+        text.length >= 12 &&
+        (text.startsWith('0x') || RegExp(r'^[a-fA-F0-9]+$').hasMatch(text));
+    if (walletLike) {
+      return '${text.substring(0, 3)}…${text.substring(text.length - 3)}';
+    }
+    return text.isEmpty ? 'Griot user' : text;
   }
 }
 
@@ -130,12 +150,22 @@ class SpaceParticipant {
       json['username'],
       json['name'],
     ]) {
-      if (usable(value)) return value.toString().trim();
+      if (usable(value)) {
+        final text = value.toString().trim();
+        final walletLike =
+            text.length >= 12 &&
+            (text.startsWith('0x') || RegExp(r'^[a-fA-F0-9]+$').hasMatch(text));
+        if (walletLike) {
+          return '${text.substring(0, 3)}…${text.substring(text.length - 3)}';
+        }
+        return text;
+      }
     }
     final wallet = '${json['wallet_address'] ?? json['walletAddress'] ?? ''}'
         .trim();
-    if (wallet.length > 6)
+    if (wallet.length > 6) {
       return '${wallet.substring(0, 3)}…${wallet.substring(wallet.length - 3)}';
+    }
     return wallet.isEmpty ? 'Griot user' : wallet;
   }
 }

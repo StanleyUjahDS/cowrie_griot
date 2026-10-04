@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../config/app_config.dart';
 
@@ -24,6 +24,20 @@ class AdService extends ChangeNotifier {
   /// Initializes the ads SDK only when ads have been enabled for this build.
   Future<void> initialize() async {
     if (!AppConfig.adsEnabled) return;
+
+    // Keep Ad Inspector available on the registered development devices.
+    // These IDs are only applied to debug/profile builds; release builds use
+    // the normal production request configuration.
+    if (kDebugMode || kProfileMode) {
+      await MobileAds.instance.updateRequestConfiguration(
+        RequestConfiguration(
+          testDeviceIds: <String>[
+            'b36fb7f5-cca7-4f57-b76f-a7d8f2fb500b', // Pixel 7 Pro Advertising ID
+            '4d313a79b92adca39dcedc95ab09a99f', // iPhone
+          ],
+        ),
+      );
+    }
 
     late final InitializationStatus status;
     try {
@@ -50,7 +64,14 @@ class AdService extends ChangeNotifier {
   void openAdInspector() {
     if (!AppConfig.adsEnabled) return;
     MobileAds.instance.openAdInspector((error) {
-      if (error != null) debugPrint('Ad Inspector closed with error: $error');
+      if (error != null) {
+        debugPrint(
+          'Ad Inspector error: code=${error.code ?? '-'} '
+          'domain=${error.domain ?? '-'} message=${error.message ?? '-'}',
+        );
+      } else {
+        debugPrint('Ad Inspector closed normally.');
+      }
     });
   }
 

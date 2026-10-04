@@ -793,10 +793,10 @@ packages:
     dependency: "direct main"
     description:
       name: gma_mediation_unity
-      sha256: "767ee65dd7f3dbc817f0fed2e5e763b1f6594cb8338a993529ab2ea81a4e0aaa"
+      sha256: "400d2ca165479aa55a2c56110d42884eba92bbb20347781c491dc7d8c641c1cf"
       url: "https://pub.dev"
     source: hosted
-    version: "1.11.0"
+    version: "1.11.1"
   go_router:
     dependency: "direct main"
     description:
