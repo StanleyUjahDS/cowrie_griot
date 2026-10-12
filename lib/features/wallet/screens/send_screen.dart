@@ -21,8 +21,14 @@ import '../../../core/utils/transaction_logger.dart';
 class SendScreen extends StatefulWidget {
   final TokenModel? initialToken;
   final String? initialAddress;
+  final String? initialAmount;
 
-  const SendScreen({super.key, this.initialToken, this.initialAddress});
+  const SendScreen({
+    super.key,
+    this.initialToken,
+    this.initialAddress,
+    this.initialAmount,
+  });
 
   @override
   State<SendScreen> createState() => _SendScreenState();
@@ -41,6 +47,7 @@ class _SendScreenState extends State<SendScreen> {
     super.initState();
     _token = widget.initialToken;
     if (widget.initialAddress != null) _address.text = widget.initialAddress!;
+    if (widget.initialAmount != null) _amount.text = widget.initialAmount!;
   }
 
   @override

@@ -12,6 +12,7 @@ import '../../../iap/models/plus_status_model.dart';
 import '../../../../core/ui/widgets/griot_plus_badge.dart';
 import '../../../../core/ui/widgets/griot_pioneer_badge.dart';
 import '../../../users/providers/user_provider.dart';
+import 'plus_crypto_payment_screen.dart';
 
 class GriotPlusScreen extends StatefulWidget {
   const GriotPlusScreen({super.key});
@@ -416,22 +417,36 @@ class _GriotPlusScreenState extends State<GriotPlusScreen>
 
   Widget _buildSubscriptionOptions(IapProvider iap) {
     if (!iap.isStoreAvailable) {
-      return _buildInfoCard(
-        'STORE UNAVAILABLE',
-        'We could not connect to the app store. Please check your connection or try again later.',
+      return Column(
+        children: [
+          _buildInfoCard(
+            'STORE UNAVAILABLE',
+            'We could not connect to the app store. You can still pay with USDT or USDC on the Griot Network.',
+          ),
+          const SizedBox(height: 16),
+          _buildCryptoPaymentButton(),
+        ],
       );
     }
 
     if (iap.products.isEmpty) {
-      return _buildInfoCard(
-        'LOADING PLANS',
-        'Fetching latest subscription plans from the store...',
+      return Column(
+        children: [
+          _buildInfoCard(
+            'LOADING PLANS',
+            'Fetching latest subscription plans from the store...',
+          ),
+          const SizedBox(height: 16),
+          _buildCryptoPaymentButton(),
+        ],
       );
     }
 
     return Column(
       children: [
         ...iap.products.map((product) => _buildProductTile(iap, product)),
+        const SizedBox(height: 8),
+        _buildCryptoPaymentButton(),
         const SizedBox(height: 16),
         TextButton(
           onPressed: () => iap.restorePurchases(),
@@ -440,6 +455,18 @@ class _GriotPlusScreenState extends State<GriotPlusScreen>
       ],
     );
   }
+
+  Widget _buildCryptoPaymentButton() => SizedBox(
+    width: double.infinity,
+    height: 54,
+    child: OutlinedButton.icon(
+      onPressed: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const PlusCryptoPaymentScreen()),
+      ),
+      icon: const Icon(Icons.currency_exchange_rounded),
+      label: const Text('PAY WITH USDT OR USDC'),
+    ),
+  );
 
   Widget _buildProductTile(IapProvider iap, ProductDetails product) {
     final colors = Theme.of(context).colorScheme;
