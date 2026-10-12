@@ -15,7 +15,9 @@ class SharedContentService {
   static const _eventChannel = EventChannel('griot/share_receiver/events');
 
   Stream<SharedContent> get stream {
-    if (!Platform.isAndroid && !Platform.isIOS) return const Stream<SharedContent>.empty();
+    if (!Platform.isAndroid && !Platform.isIOS) {
+      return const Stream<SharedContent>.empty();
+    }
     return _eventChannel
         .receiveBroadcastStream()
         .where((event) => event is Map)

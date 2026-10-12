@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/ui/widgets/griot_plus_badge.dart';
+
 /// Explains why a Plus-only action is unavailable before offering the upgrade.
 Future<bool> showPlusRequiredDialog(BuildContext context) async {
   final shouldOpenPlus = await showDialog<bool>(
@@ -20,100 +22,100 @@ Future<bool> showPlusRequiredDialog(BuildContext context) async {
           ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(22, 10, 22, 22),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: colors.outlineVariant,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Row(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: colors.primary.withValues(alpha: 0.14),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.local_fire_department_rounded,
-                    color: colors.primary,
-                    size: 30,
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: colors.outlineVariant,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
                   ),
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Start your own Campfire',
-                        style: textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
+                const SizedBox(height: 24),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: colors.primary.withValues(alpha: 0.14),
+                        shape: BoxShape.circle,
                       ),
-                      const SizedBox(height: 5),
-                      Text(
-                        'A Griot Plus feature',
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: colors.primary,
-                          fontWeight: FontWeight.w800,
-                        ),
+                      child: Icon(
+                        Icons.local_fire_department_rounded,
+                        color: colors.primary,
+                        size: 30,
                       ),
-                    ],
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Start your own Campfire',
+                            style: textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            'A Griot Plus feature',
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: colors.primary,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'Bring people together around a topic, story, or idea. Browse and join live Campfires for free.',
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                _BenefitRow(
+                  icon: Icons.graphic_eq_rounded,
+                  text: 'Host voice or video Campfires',
+                ),
+                _BenefitRow(
+                  icon: Icons.radio_rounded,
+                  text: 'Record and share the conversation',
+                ),
+                _BenefitRow(
+                  icon: Icons.link_rounded,
+                  text: 'Invite people with an expiring call link',
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () => Navigator.pop(dialogContext, true),
+                    icon: const GriotPlusBadge(isPlus: true, compact: true),
+                    label: const Text('Explore Griot Plus'),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(dialogContext, false),
+                    child: const Text('Not now'),
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 18),
-            Text(
-              'Bring people together around a topic, story, or idea. Browse and join live Campfires for free.',
-              style: textTheme.bodyMedium?.copyWith(
-                color: colors.onSurfaceVariant,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 18),
-            _BenefitRow(
-              icon: Icons.graphic_eq_rounded,
-              text: 'Host voice or video Campfires',
-            ),
-            _BenefitRow(
-              icon: Icons.radio_rounded,
-              text: 'Record and share the conversation',
-            ),
-            _BenefitRow(
-              icon: Icons.link_rounded,
-              text: 'Invite people with an expiring call link',
-            ),
-            const SizedBox(height: 22),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                icon: const Icon(Icons.workspace_premium_rounded),
-                label: const Text('Explore Griot Plus'),
-              ),
-            ),
-            const SizedBox(height: 6),
-            SizedBox(
-              width: double.infinity,
-              child: TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('Not now'),
-              ),
-            ),
-          ],
             ),
           ),
         ),

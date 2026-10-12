@@ -488,7 +488,7 @@ class _SendScreenState extends State<SendScreen> {
         .filteredTokens
         // Sending is limited to assets the wallet can actually spend.
         // Do not offer zero-balance or merely discoverable assets here.
-        .where((t) => (num.tryParse(t.balance) ?? 0) > 0)
+        .where((t) => !t.isSpam && (num.tryParse(t.balance) ?? 0) > 0)
         .toList();
     showModalBottomSheet(
       context: context,
@@ -618,7 +618,10 @@ class _SendScreenState extends State<SendScreen> {
       onTap: () => FocusScope.of(context).unfocus(),
       child: GradientScaffold(
         useSafeArea: true,
-        resizeToAvoidBottomInset: true,
+        // Keep the banner anchored to the screen bottom. The form remains
+        // scrollable when the keyboard opens instead of pushing the ad upward
+        // with the resized body.
+        resizeToAvoidBottomInset: false,
         extendBodyBehindAppBar: true,
         appBar: AppBar(
           title: const Text('Send'),
@@ -627,247 +630,242 @@ class _SendScreenState extends State<SendScreen> {
           surfaceTintColor: Colors.transparent,
           elevation: 0,
         ),
-        child: Column(
+        child: Stack(
           children: [
-            Expanded(
-              child: Stack(
-                children: [
-                  // Content
-                  SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 16,
-                    ),
-                    physics: const BouncingScrollPhysics(),
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 8),
+            Positioned.fill(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 112),
+                physics: const BouncingScrollPhysics(),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 8),
 
-                        // Asset Selection
-                        _buildInputLabel(context, 'Select Asset'),
-                        const SizedBox(height: 8),
-                        _buildAssetSelector(context),
+                    // Asset Selection
+                    _buildInputLabel(context, 'Select Asset'),
+                    const SizedBox(height: 8),
+                    _buildAssetSelector(context),
 
-                        const SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
-                        // Recipient
-                        _buildInputLabel(context, 'Recipient Address'),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _address,
-                          textInputAction: TextInputAction.next,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                          decoration: InputDecoration(
-                            hintText: 'Enter 0x… address',
-                            prefixIcon: Icon(
-                              Icons.account_balance_wallet_rounded,
-                              color: colors.primary.withValues(alpha: 0.5),
-                            ),
-                            suffixIcon: IconButton(
-                              onPressed: () async {
-                                final result = await GoRouter.of(
-                                  context,
-                                ).push<String>('/wallet/scan');
-                                if (result != null && mounted) {
-                                  _address.text = result;
-                                }
-                              },
-                              icon: Icon(
-                                Icons.qr_code_scanner_rounded,
-                                color: colors.primary,
-                              ),
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide(
-                                color: colors.primary.withValues(alpha: 0.3),
-                                width: 1,
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide(
-                                color: colors.primary.withValues(alpha: 0.3),
-                                width: 1,
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide(
-                                color: colors.primary,
-                                width: 2,
-                              ),
-                            ),
-                            filled: true,
-                            fillColor: colors.surfaceContainerLow.withValues(
-                              alpha: 0.5,
-                            ),
+                    // Recipient
+                    _buildInputLabel(context, 'Recipient Address'),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _address,
+                      textInputAction: TextInputAction.next,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                      decoration: InputDecoration(
+                        hintText: 'Enter 0x… address',
+                        prefixIcon: Icon(
+                          Icons.account_balance_wallet_rounded,
+                          color: colors.primary.withValues(alpha: 0.5),
+                        ),
+                        suffixIcon: IconButton(
+                          onPressed: () async {
+                            final result = await GoRouter.of(
+                              context,
+                            ).push<String>('/wallet/scan');
+                            if (result != null && mounted) {
+                              _address.text = result;
+                            }
+                          },
+                          icon: Icon(
+                            Icons.qr_code_scanner_rounded,
+                            color: colors.primary,
                           ),
                         ),
-
-                        const SizedBox(height: 24),
-
-                        // Amount
-                        _buildInputLabel(context, 'Amount'),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _amount,
-                          onChanged: (_) => setState(() {}),
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(
+                            color: colors.primary.withValues(alpha: 0.3),
+                            width: 1,
                           ),
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w900,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(
+                            color: colors.primary.withValues(alpha: 0.3),
+                            width: 1,
                           ),
-                          decoration: InputDecoration(
-                            hintText: '0.00',
-                            suffixIcon: Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (_token != null)
-                                    TextButton(
-                                      onPressed: _useMax,
-                                      style: TextButton.styleFrom(
-                                        backgroundColor: colors.primary
-                                            .withValues(alpha: 0.1),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(
+                            color: colors.primary,
+                            width: 2,
+                          ),
+                        ),
+                        filled: true,
+                        fillColor: colors.surfaceContainerLow.withValues(
+                          alpha: 0.5,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Amount
+                    _buildInputLabel(context, 'Amount'),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _amount,
+                      onChanged: (_) => setState(() {}),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: '0.00',
+                        suffixIcon: Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (_token != null)
+                                TextButton(
+                                  onPressed: _useMax,
+                                  style: TextButton.styleFrom(
+                                    backgroundColor: colors.primary.withValues(
+                                      alpha: 0.1,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'MAX',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              const SizedBox(width: 8),
+                              _buildCurrencyToggle(context),
+                            ],
+                          ),
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(
+                            color: colors.primary.withValues(alpha: 0.3),
+                            width: 1,
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(
+                            color: colors.primary.withValues(alpha: 0.3),
+                            width: 1,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(
+                            color: colors.primary,
+                            width: 2,
+                          ),
+                        ),
+                        filled: true,
+                        fillColor: colors.surfaceContainerLow.withValues(
+                          alpha: 0.5,
+                        ),
+                      ),
+                    ),
+                    if (_token != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8, left: 4),
+                        child: Text(
+                          _usdMode
+                              ? '≈ ${_entered.toStringAsFixed(8)} ${_token!.symbol}'
+                              : '≈ ${displayCurrency.formatUsd(_entered * (_token!.priceUsd?.toDouble() ?? 0))}',
+                          style: TextStyle(
+                            color: colors.onSurfaceVariant.withValues(
+                              alpha: 0.4,
+                            ),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+
+                    const SizedBox(height: 48),
+
+                    // Premium Action Pill
+                    Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: _loading ? null : _send,
+                            borderRadius: BorderRadius.circular(24),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 20),
+                              decoration: BoxDecoration(
+                                color: colors.primary,
+                                borderRadius: BorderRadius.circular(24),
+                              ),
+                              child: _loading
+                                  ? Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        SizedBox(
+                                          height: 20,
+                                          width: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 3,
+                                            color: colors.onPrimary.withValues(
+                                              alpha: 0.6,
+                                            ),
                                           ),
                                         ),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
+                                        const SizedBox(width: 16),
+                                        Text(
+                                          _message,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 16,
+                                            color: colors.onPrimary,
+                                          ),
                                         ),
-                                      ),
-                                      child: const Text(
-                                        'MAX',
+                                      ],
+                                    )
+                                  : Center(
+                                      child: Text(
+                                        'CONTINUE',
                                         style: TextStyle(
                                           fontWeight: FontWeight.w900,
-                                          fontSize: 12,
+                                          fontSize: 18,
+                                          letterSpacing: 1.5,
+                                          color: colors.onPrimary,
                                         ),
                                       ),
                                     ),
-                                  const SizedBox(width: 8),
-                                  _buildCurrencyToggle(context),
-                                ],
-                              ),
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide(
-                                color: colors.primary.withValues(alpha: 0.3),
-                                width: 1,
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide(
-                                color: colors.primary.withValues(alpha: 0.3),
-                                width: 1,
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide(
-                                color: colors.primary,
-                                width: 2,
-                              ),
-                            ),
-                            filled: true,
-                            fillColor: colors.surfaceContainerLow.withValues(
-                              alpha: 0.5,
                             ),
                           ),
+                        )
+                        .animate()
+                        .fadeIn(duration: 600.ms, delay: 400.ms)
+                        .scale(
+                          begin: const Offset(0.9, 0.9),
+                          end: const Offset(1, 1),
                         ),
-                        if (_token != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8, left: 4),
-                            child: Text(
-                              _usdMode
-                                  ? '≈ ${_entered.toStringAsFixed(8)} ${_token!.symbol}'
-                                  : '≈ ${displayCurrency.formatUsd(_entered * (_token!.priceUsd?.toDouble() ?? 0))}',
-                              style: TextStyle(
-                                color: colors.onSurfaceVariant.withValues(
-                                  alpha: 0.4,
-                                ),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-
-                        const SizedBox(height: 48),
-
-                        // Premium Action Pill
-                        Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: _loading ? null : _send,
-                                borderRadius: BorderRadius.circular(24),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 20,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: colors.primary,
-                                    borderRadius: BorderRadius.circular(24),
-                                  ),
-                                  child: _loading
-                                      ? Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            SizedBox(
-                                              height: 20,
-                                              width: 20,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 3,
-                                                color: colors.onPrimary
-                                                    .withValues(alpha: 0.6),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 16),
-                                            Text(
-                                              _message,
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.w800,
-                                                fontSize: 16,
-                                                color: colors.onPrimary,
-                                              ),
-                                            ),
-                                          ],
-                                        )
-                                      : Center(
-                                          child: Text(
-                                            'CONTINUE',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w900,
-                                              fontSize: 18,
-                                              letterSpacing: 1.5,
-                                              color: colors.onPrimary,
-                                            ),
-                                          ),
-                                        ),
-                                ),
-                              ),
-                            )
-                            .animate()
-                            .fadeIn(duration: 600.ms, delay: 400.ms)
-                            .scale(
-                              begin: const Offset(0.9, 0.9),
-                              end: const Offset(1, 1),
-                            ),
-                        const SizedBox(height: 20),
-                      ],
-                    ),
-                  ),
-                ],
+                    const SizedBox(height: 20),
+                  ],
+                ),
               ),
             ),
-            const GriotBannerAd(),
+            const Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: GriotBannerAd(),
+            ),
           ],
         ),
       ),

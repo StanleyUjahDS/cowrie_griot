@@ -9,19 +9,25 @@ class MediaApiService {
 
   MediaApiService({required ApiClient apiClient}) : _apiClient = apiClient;
 
-  Future<Map<String, dynamic>> uploadMedia(String filePath, {String? conversationId}) async {
+  Future<Map<String, dynamic>> uploadMedia(
+    String filePath, {
+    String? conversationId,
+  }) async {
     final file = File(filePath);
     final filename = path.basename(filePath);
     final sizeBytes = await file.length();
     final contentType = _getContentType(filePath);
 
     // 1. Presign
-    final presignResponse = await _apiClient.post(ApiConfig.mediaPresign, body: {
-      'filename': filename,
-      'contentType': contentType,
-      'sizeBytes': sizeBytes,
-      ...?conversationId == null ? null : {'conversationId': conversationId},
-    });
+    final presignResponse = await _apiClient.post(
+      ApiConfig.mediaPresign,
+      body: {
+        'filename': filename,
+        'contentType': contentType,
+        'sizeBytes': sizeBytes,
+        ...?conversationId == null ? null : {'conversationId': conversationId},
+      },
+    );
 
     final presignData = _getData(presignResponse);
     final mediaId = presignData['id'].toString();
@@ -32,9 +38,7 @@ class MediaApiService {
     final putResponse = await http.put(
       Uri.parse(uploadUrl),
       body: fileBytes,
-      headers: {
-        'Content-Type': contentType,
-      },
+      headers: {'Content-Type': contentType},
     );
 
     if (putResponse.statusCode < 200 || putResponse.statusCode >= 300) {
@@ -42,17 +46,19 @@ class MediaApiService {
     }
 
     // 3. Complete
-    final completeResponse = await _apiClient.post(ApiConfig.mediaComplete(mediaId));
+    final completeResponse = await _apiClient.post(
+      ApiConfig.mediaComplete(mediaId),
+    );
     final completeData = _getData(completeResponse);
 
-    final rawMediaUrl = completeData['mediaUrl'].toString();
+    final rawMediaUrl = completeData['mediaUrl']?.toString().trim();
+    if (rawMediaUrl == null || rawMediaUrl.isEmpty || rawMediaUrl == 'null') {
+      throw Exception('Media upload completed without a media URL');
+    }
     final mediaUrl = rawMediaUrl.startsWith('/')
         ? '${ApiConfig.baseUrl.replaceFirst(RegExp(r'/api/?$'), '')}$rawMediaUrl'
         : rawMediaUrl;
-    return {
-      'id': mediaId,
-      'mediaUrl': mediaUrl,
-    };
+    return {'id': mediaId, 'mediaUrl': mediaUrl};
   }
 
   String _getContentType(String filePath) {

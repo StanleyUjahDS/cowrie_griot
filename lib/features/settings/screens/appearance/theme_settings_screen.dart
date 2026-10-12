@@ -6,9 +6,7 @@ import '/core/theme/theme_controller.dart';
 import '/core/ui/scaffolds/gradient_scaffold.dart';
 
 class ThemeSettingsPage extends StatelessWidget {
-  const ThemeSettingsPage({
-    super.key,
-  });
+  const ThemeSettingsPage({super.key});
 
   // ============================================================
   // THEME MODE LABEL
@@ -65,19 +63,11 @@ class ThemeSettingsPage extends StatelessWidget {
   // SECTION TITLE
   // ============================================================
 
-  Widget _sectionTitle(
-      BuildContext context,
-      String title,
-      ) {
+  Widget _sectionTitle(BuildContext context, String title) {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        4,
-        8,
-        4,
-        9,
-      ),
+      padding: const EdgeInsets.fromLTRB(4, 8, 4, 9),
       child: Text(
         title,
         style: theme.textTheme.labelLarge?.copyWith(
@@ -137,10 +127,7 @@ class ThemeSettingsPage extends StatelessWidget {
     final selected = controller.themeMode == mode;
 
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: 5,
-      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
       onTap: () {
         controller.setTheme(mode);
       },
@@ -155,17 +142,13 @@ class ThemeSettingsPage extends StatelessWidget {
         ),
         child: Icon(
           _themeModeIcon(mode),
-          color: selected
-              ? colorScheme.primary
-              : colorScheme.onSurfaceVariant,
+          color: selected ? colorScheme.primary : colorScheme.onSurfaceVariant,
         ),
       ),
       title: Text(
         _themeModeLabel(mode),
         style: theme.textTheme.bodyLarge?.copyWith(
-          fontWeight: selected
-              ? FontWeight.w700
-              : FontWeight.w500,
+          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
         ),
       ),
       subtitle: Text(
@@ -178,9 +161,7 @@ class ThemeSettingsPage extends StatelessWidget {
         selected
             ? Icons.check_circle_rounded
             : Icons.radio_button_unchecked_rounded,
-        color: selected
-            ? colorScheme.primary
-            : colorScheme.onSurfaceVariant,
+        color: selected ? colorScheme.primary : colorScheme.onSurfaceVariant,
       ),
     );
   }
@@ -210,10 +191,7 @@ class ThemeSettingsPage extends StatelessWidget {
 
     return AnimatedBuilder(
       animation: controller,
-      builder: (
-          context,
-          _,
-          ) {
+      builder: (context, _) {
         final theme = Theme.of(context);
         final colorScheme = theme.colorScheme;
 
@@ -232,106 +210,162 @@ class ThemeSettingsPage extends StatelessWidget {
           child: SafeArea(
             child: ListView(
               physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(
-                18,
-                8,
-                18,
-                30,
-              ),
-              children: [
-                // ==================================================
-                // APPEARANCE
-                // ==================================================
+              padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
+              children:
+                  [
+                        // ==================================================
+                        // APPEARANCE
+                        // ==================================================
 
-                _sectionTitle(
-                  context,
-                  'Appearance',
-                ),
+                        _sectionTitle(context, 'Appearance'),
 
-                _settingContainer(
-                  context: context,
-                  child: Column(
-                    children: [
-                      _themeModeTile(
-                        context: context,
-                        controller: controller,
-                        mode: ThemeMode.system,
-                      ),
+                        _settingContainer(
+                          context: context,
+                          child: Column(
+                            children: [
+                              _themeModeTile(
+                                context: context,
+                                controller: controller,
+                                mode: ThemeMode.system,
+                              ),
 
-                      _divider(context),
+                              _divider(context),
 
-                      _themeModeTile(
-                        context: context,
-                        controller: controller,
-                        mode: ThemeMode.light,
-                      ),
+                              _themeModeTile(
+                                context: context,
+                                controller: controller,
+                                mode: ThemeMode.light,
+                              ),
 
-                      _divider(context),
+                              _divider(context),
 
-                      _themeModeTile(
-                        context: context,
-                        controller: controller,
-                        mode: ThemeMode.dark,
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(
-                  height: 24,
-                ),
-
-                // ==================================================
-                // INFORMATION
-                // ==================================================
-
-                Container(
-                  padding: const EdgeInsets.all(15),
-                  decoration: BoxDecoration(
-                    color: colorScheme.primary.withValues(alpha: 0.07),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border(
-                      top: BorderSide(
-                        color: colorScheme.primary.withValues(alpha: 0.6),
-                        width: 1.2,
-                      ),
-                      bottom: BorderSide(
-                        color: colorScheme.primary.withValues(alpha: 0.6),
-                        width: 1.2,
-                      ),
-                    ),
-                  ),
-                  child: Row(
-                    crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                    children: [
-                      Icon(
-                        Icons.info_outline_rounded,
-                        color: colorScheme.primary,
-                        size: 21,
-                      ),
-                      const SizedBox(
-                        width: 10,
-                      ),
-                      Expanded(
-                        child: Text(
-                          'Theme controls the overall light or dark '
-                              'appearance of Griot. Accent colors can be '
-                              'changed separately.',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurface,
-                            height: 1.45,
+                              _themeModeTile(
+                                context: context,
+                                controller: controller,
+                                mode: ThemeMode.dark,
+                              ),
+                            ],
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-              ].animate(interval: 50.ms).fade(duration: 400.ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
+
+                        const SizedBox(height: 20),
+                        _sectionTitle(context, 'Text size'),
+                        _textSizeControl(context, controller),
+
+                        const SizedBox(height: 24),
+
+                        // ==================================================
+                        // INFORMATION
+                        // ==================================================
+                        Container(
+                          padding: const EdgeInsets.all(15),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary.withValues(alpha: 0.07),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border(
+                              top: BorderSide(
+                                color: colorScheme.primary.withValues(
+                                  alpha: 0.6,
+                                ),
+                                width: 1.2,
+                              ),
+                              bottom: BorderSide(
+                                color: colorScheme.primary.withValues(
+                                  alpha: 0.6,
+                                ),
+                                width: 1.2,
+                              ),
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.info_outline_rounded,
+                                color: colorScheme.primary,
+                                size: 21,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Theme controls the overall light or dark '
+                                  'appearance of Griot. Accent colors can be '
+                                  'changed separately.',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: colorScheme.onSurface,
+                                    height: 1.45,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ]
+                      .animate(interval: 50.ms)
+                      .fade(duration: 400.ms)
+                      .slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _textSizeControl(BuildContext context, ThemeController controller) {
+    final colors = Theme.of(context).colorScheme;
+    final scale = controller.textScale;
+    final label = scale < 0.95
+        ? 'Small'
+        : scale < 1.08
+        ? 'Default'
+        : scale < 1.18
+        ? 'Large'
+        : scale < 1.34
+        ? 'Extra large'
+        : scale < 1.42
+        ? 'Huge'
+        : 'Accessibility';
+    return _settingContainer(
+      context: context,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'App text size',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: colors.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+            Text(
+              'Adjust text throughout Griot',
+              style: TextStyle(color: colors.onSurfaceVariant),
+            ),
+            Slider(
+              value: scale,
+              min: 0.85,
+              max: 1.45,
+              divisions: 6,
+              label: label,
+              activeColor: colors.primary,
+              onChanged: controller.setTextScale,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

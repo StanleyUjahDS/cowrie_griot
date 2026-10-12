@@ -34,6 +34,15 @@ class MainActivity : FlutterFragmentActivity() {
                     result.notImplemented()
                 }
             }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "griot/notifications")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "clearDeliveredNotifications") {
+                    clearDeliveredNotifications()
+                    result.success(null)
+                } else {
+                    result.notImplemented()
+                }
+            }
         EventChannel(flutterEngine.dartExecutor.binaryMessenger, "griot/share_receiver/events")
             .setStreamHandler(object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
@@ -86,6 +95,20 @@ class MainActivity : FlutterFragmentActivity() {
             lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
         }
         getSystemService(NotificationManager::class.java)?.createNotificationChannel(callChannel)
+    }
+
+    private fun clearDeliveredNotifications() {
+        val manager = getSystemService(NotificationManager::class.java) ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            // Do not remove an active incoming-call notification while the
+            // user is reading another notification in the app.
+            manager.activeNotifications
+                .filter { Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
+                    it.notification.channelId != "incoming_calls" }
+                .forEach { manager.cancel(it.tag, it.id) }
+        } else {
+            manager.cancelAll()
+        }
     }
 
     override fun onNewIntent(intent: Intent) {

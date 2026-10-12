@@ -17,6 +17,7 @@ class PublicDeepLinkRecoveryScreen extends StatefulWidget {
     final path = _normalizeUri(uri).path.toLowerCase();
     return path == '/join' ||
         path == '/plus' ||
+        path == '/call/join' ||
         path.startsWith('/profile/') ||
         path.startsWith('/channel/') ||
         path.startsWith('/circle/') ||
@@ -30,6 +31,7 @@ class PublicDeepLinkRecoveryScreen extends StatefulWidget {
     const supportedHosts = {
       'join',
       'plus',
+      'call',
       'profile',
       'group',
       'circle',

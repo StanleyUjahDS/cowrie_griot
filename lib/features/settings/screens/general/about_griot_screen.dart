@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../../core/ui/widgets/griot_branded_container.dart';
+import '../../../../core/services/notification_service.dart';
 
 class AboutGriotScreen extends StatelessWidget {
   const AboutGriotScreen({super.key});
@@ -13,9 +14,7 @@ class AboutGriotScreen extends StatelessWidget {
       mode: LaunchMode.externalApplication,
     );
     if (!opened && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to open this page.')),
-      );
+      NotificationService.showError(context, 'Unable to open this page.');
     }
   }
 

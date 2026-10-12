@@ -159,6 +159,7 @@ class MessagingProvider extends ChangeNotifier {
 
   final Map<String, List<ChatMessage>> _messagesByConversation = {};
   final Map<String, bool> _isLoadingMessages = {};
+  final Map<String, List<String>> _pinnedMessageIdsByConversation = {};
 
   List<Conversation> _conversations = [];
   final Set<String> _pinnedConversationIds = <String>{};
@@ -219,6 +220,10 @@ class MessagingProvider extends ChangeNotifier {
   Timer? _presenceHeartbeat;
   String? _currentRoomId;
   final Map<String, Set<String>> _typingUsers = {};
+  // Typing is intentionally ephemeral. If a client is killed or loses its
+  // connection before sending typing_stop, expire the remote indicator rather
+  // than leaving it stuck until the provider is recreated.
+  final Map<String, Timer> _typingExpiryTimers = {};
 
   // Tip Event Stream for Global UI
   final _tipReceivedController =
@@ -235,6 +240,37 @@ class MessagingProvider extends ChangeNotifier {
       _pinnedConversationIds.contains(conversationId);
   bool get isLoadingConversations => _isLoadingConversations;
   Map<String, Set<String>> get typingUsers => _typingUsers;
+
+  List<String> pinnedMessageIds(String conversationId) => List.unmodifiable(
+    _pinnedMessageIdsByConversation[conversationId] ?? const [],
+  );
+
+  Future<void> loadPinnedMessages(String conversationId) async {
+    try {
+      final rows = await _apiService.getPinnedMessages(conversationId);
+      // The API normally returns newest pins first. Keep that contract here
+      // as well so the banner's #1 card is always the most recently pinned,
+      // even if a proxy/database changes the row order.
+      rows.sort((a, b) {
+        DateTime? date(dynamic value) =>
+            value == null ? null : DateTime.tryParse(value.toString());
+        final aDate = date(a['pinned_at'] ?? a['pinnedAt']);
+        final bDate = date(b['pinned_at'] ?? b['pinnedAt']);
+        if (aDate == null && bDate == null) return 0;
+        if (aDate == null) return 1;
+        if (bDate == null) return -1;
+        return bDate.compareTo(aDate);
+      });
+      _pinnedMessageIdsByConversation[conversationId] = rows
+          .map((row) => (row['message_id'] ?? row['messageId'])?.toString())
+          .whereType<String>()
+          .where((id) => id.isNotEmpty)
+          .toList();
+      notifyListeners();
+    } catch (error) {
+      debugPrint('MessagingProvider: unable to load pinned messages: $error');
+    }
+  }
 
   List<MessageRequest> get receivedRequests => _receivedRequests;
   List<MessageRequest> get sentRequests => _sentRequests;
@@ -1380,6 +1416,34 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
+  /// The conversations endpoint can return a leaner participant projection
+  /// than the friend/profile endpoint. Keep participant metadata that has
+  /// already been loaded so a background refresh cannot make badges disappear
+  /// from the chat-home card.
+  Conversation _mergeConversationMetadata(
+    Conversation previous,
+    Conversation incoming,
+  ) {
+    final previousUser = previous.otherUser;
+    final incomingUser = incoming.otherUser;
+    if (previousUser == null) return incoming;
+    if (incomingUser == null) {
+      return incoming.copyWith(otherUser: previousUser);
+    }
+
+    return incoming.copyWith(
+      otherUser: incomingUser.copyWith(
+        username: incomingUser.username ?? previousUser.username,
+        displayName: incomingUser.displayName ?? previousUser.displayName,
+        profileUrl: incomingUser.profileUrl ?? previousUser.profileUrl,
+        bio: incomingUser.bio ?? previousUser.bio,
+        reputation: incomingUser.reputation ?? previousUser.reputation,
+        isPlus: incomingUser.isPlus || previousUser.isPlus,
+        isPioneer: incomingUser.isPioneer || previousUser.isPioneer,
+      ),
+    );
+  }
+
   Future<void> _loadConversations() async {
     if (_conversations.isEmpty) {
       _isLoadingConversations = true;
@@ -1428,11 +1492,24 @@ class MessagingProvider extends ChangeNotifier {
       // Update with fresh data
       for (final section in results) {
         for (final conversation in section) {
-          byId[conversation.id] = conversation;
+          final previous = byId[conversation.id];
+          byId[conversation.id] = previous == null
+              ? conversation
+              : _mergeConversationMetadata(previous, conversation);
         }
       }
 
       final list = byId.values.toList();
+      // The open room is authoritative locally: opening it clears its unread
+      // badge immediately, so a delayed conversations response must not put
+      // the stale badge back while the user is still inside that room.
+      final activeId = _currentRoomId;
+      if (activeId != null) {
+        final activeIndex = list.indexWhere((c) => c.id == activeId);
+        if (activeIndex != -1 && list[activeIndex].unreadCount != 0) {
+          list[activeIndex] = list[activeIndex].copyWith(unreadCount: 0);
+        }
+      }
       list.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
 
       _conversations = list;
@@ -1455,8 +1532,21 @@ class MessagingProvider extends ChangeNotifier {
   }) async {
     try {
       var conversation = await _apiService.findDirectConversation(otherUserId);
-      if (conversation.otherUser == null && otherUser != null) {
-        conversation = conversation.copyWith(otherUser: otherUser);
+      if (otherUser != null) {
+        final existing = conversation.otherUser;
+        conversation = conversation.copyWith(
+          otherUser: existing == null
+              ? otherUser
+              : existing.copyWith(
+                  username: existing.username ?? otherUser.username,
+                  displayName: existing.displayName ?? otherUser.displayName,
+                  profileUrl: existing.profileUrl ?? otherUser.profileUrl,
+                  bio: existing.bio ?? otherUser.bio,
+                  reputation: existing.reputation ?? otherUser.reputation,
+                  isPlus: existing.isPlus || otherUser.isPlus,
+                  isPioneer: existing.isPioneer || otherUser.isPioneer,
+                ),
+        );
       }
       if (!_conversations.any((c) => c.id == conversation.id)) {
         _conversations.insert(0, conversation);
@@ -1935,6 +2025,9 @@ class MessagingProvider extends ChangeNotifier {
         shouldUpdate = true;
       } else if (incoming.id != existing.id) {
         shouldUpdate = true;
+      } else if (incoming.isEdited &&
+          (incoming.text != existing.text || !existing.isEdited)) {
+        shouldUpdate = true;
       }
 
       if (shouldUpdate) {
@@ -2014,7 +2107,11 @@ class MessagingProvider extends ChangeNotifier {
 
     // A receipt can arrive before the REST send response that reveals the
     // server message ID. Apply that buffered status during reconciliation.
-    final pendingStatus = _pendingMessageStatuses.remove(messageToCache.id);
+    final pendingStatus =
+        _pendingMessageStatuses.remove(messageToCache.id) ??
+        (messageToCache.clientMessageId == null
+            ? null
+            : _pendingMessageStatuses.remove(messageToCache.clientMessageId));
     if (pendingStatus != null &&
         messageToCache.status.index < pendingStatus.index &&
         resolvedIndex >= 0) {
@@ -2265,6 +2362,14 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> editMessage(String messageId, String content) async {
+    final updated = await _apiService.editMessage(
+      messageId: messageId,
+      content: content,
+    );
+    upsertMessage(updated);
+  }
+
   Future<void> deleteMessageForMe(String messageId) async {
     await _apiService.deleteMessageForMe(messageId);
     String? conversationId;
@@ -2281,6 +2386,28 @@ class MessagingProvider extends ChangeNotifier {
     }
     await _messageCache.deleteLocalMessage(messageId);
     notifyListeners();
+  }
+
+  Future<void> pinMessage({
+    required String conversationId,
+    required String messageId,
+  }) async {
+    await _apiService.pinMessage(
+      conversationId: conversationId,
+      messageId: messageId,
+    );
+    await loadPinnedMessages(conversationId);
+  }
+
+  Future<void> unpinMessage({
+    required String conversationId,
+    required String messageId,
+  }) async {
+    await _apiService.unpinMessage(
+      conversationId: conversationId,
+      messageId: messageId,
+    );
+    await loadPinnedMessages(conversationId);
   }
 
   void _applyReactionUpdate(Map<String, dynamic> data) {
@@ -2766,7 +2893,8 @@ class MessagingProvider extends ChangeNotifier {
       emitCampfireEvent('campfire_ended', data);
       if (data is Map) {
         lastEndedCampfireId =
-            (data['spaceId'] ?? data['space_id'] ?? data['campfireId'])?.toString();
+            (data['spaceId'] ?? data['space_id'] ?? data['campfireId'])
+                ?.toString();
       }
       campfireRevision++;
       notifyListeners();
@@ -2854,6 +2982,7 @@ class MessagingProvider extends ChangeNotifier {
     });
 
     _socket?.on('user_typing', (data) {
+      if (data is! Map) return;
       final String? conversationId = data['conversationId']?.toString();
       final String? userId = data['userId']?.toString();
       final bool isTyping = data['isTyping'] == true;
@@ -2865,12 +2994,30 @@ class MessagingProvider extends ChangeNotifier {
         }
 
         final users = _typingUsers[conversationId] ?? {};
+        final expiryKey = '$conversationId:$userId';
+        _typingExpiryTimers[expiryKey]?.cancel();
         if (isTyping) {
           users.add(userId);
+          _typingExpiryTimers[expiryKey] = Timer(
+            const Duration(seconds: 6),
+            () {
+              final current = _typingUsers[conversationId];
+              if (current?.remove(userId) == true) {
+                if (current!.isEmpty) _typingUsers.remove(conversationId);
+                notifyListeners();
+              }
+              _typingExpiryTimers.remove(expiryKey);
+            },
+          );
         } else {
           users.remove(userId);
+          _typingExpiryTimers.remove(expiryKey);
         }
-        _typingUsers[conversationId] = users;
+        if (users.isEmpty) {
+          _typingUsers.remove(conversationId);
+        } else {
+          _typingUsers[conversationId] = users;
+        }
         notifyListeners();
       }
     });
@@ -2886,6 +3033,12 @@ class MessagingProvider extends ChangeNotifier {
       final String? messageId = data['messageId']?.toString();
       if (messageId != null) {
         _markMessageDeletedLocally(messageId);
+      }
+    });
+
+    _socket?.on('message_updated', (data) {
+      if (data is Map) {
+        upsertMessage(ChatMessage.fromJson(Map<String, dynamic>.from(data)));
       }
     });
 
@@ -3088,6 +3241,11 @@ class MessagingProvider extends ChangeNotifier {
   void disconnectSocket() {
     _presenceHeartbeat?.cancel();
     _presenceHeartbeat = null;
+    for (final timer in _typingExpiryTimers.values) {
+      timer.cancel();
+    }
+    _typingExpiryTimers.clear();
+    _typingUsers.clear();
     _socket?.disconnect();
     _socket?.dispose();
     _socket = null;
@@ -3280,15 +3438,53 @@ class MessagingProvider extends ChangeNotifier {
       }
     }
 
+    ChatMessage? target;
+    String? conversationId;
+    for (final entry in _messagesByConversation.entries) {
+      final found = entry.value.where((m) => m.id == messageId).firstOrNull;
+      if (found != null) {
+        target = found;
+        conversationId = entry.key;
+        break;
+      }
+    }
+    if (target == null || conversationId == null) return;
+
+    // Update immediately so the reacting user's bubble never waits for the
+    // socket echo. The server still remains the source of truth.
+    final next = <String, List<String>>{
+      for (final entry in target.reactions.entries)
+        entry.key: List<String>.from(entry.value),
+    };
+    final users = next[emoji] ?? <String>[];
+    if (alreadyReacted) {
+      users.remove(currentUserId);
+      if (users.isEmpty) {
+        next.remove(emoji);
+      } else {
+        next[emoji] = users;
+      }
+    } else {
+      if (!users.contains(currentUserId)) users.add(currentUserId);
+      next[emoji] = users;
+    }
+    final list = _messagesByConversation[conversationId]!;
+    final index = list.indexWhere((m) => m.id == messageId);
+    if (index != -1) {
+      list[index] = list[index].copyWith(reactions: next);
+      notifyListeners();
+    }
+
     try {
       if (alreadyReacted) {
         await _apiService.removeReaction(messageId, emoji);
       } else {
         await _apiService.toggleReaction(messageId, emoji);
       }
-      // Local update will happen via socket event 'message_reaction_updated'
     } catch (e) {
       debugPrint('Failed to toggle reaction: $e');
+      // Refresh this conversation so a failed optimistic update is corrected.
+      await loadMessages(conversationId, refresh: true);
     }
   }
 
@@ -3316,6 +3512,10 @@ class MessagingProvider extends ChangeNotifier {
   String? get activeConversationId => _currentRoomId;
 
   void leaveConversation(String conversationId) {
+    // A route can dispose after the next conversation has already mounted.
+    // Do not let the old screen clear the new active room or make subsequent
+    // receipts look unread on Chat Home.
+    if (_currentRoomId != conversationId) return;
     if (_socket?.connected == true) {
       _socket?.emit('leave_conversation', {'conversationId': conversationId});
     }
@@ -3429,6 +3629,31 @@ class MessagingProvider extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       debugPrint('Error creating channel post: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> toggleChannelPostReaction({
+    required String conversationId,
+    required String postId,
+    required String reaction,
+  }) async {
+    final index = (_channelPosts[conversationId] ?? []).indexWhere(
+      (post) => post.id == postId,
+    );
+    if (index < 0) return;
+
+    try {
+      final reactions = await _apiService.toggleChannelPostReaction(
+        conversationId: conversationId,
+        postId: postId,
+        reaction: reaction,
+      );
+      final posts = _channelPosts[conversationId]!;
+      posts[index] = posts[index].copyWith(reactions: reactions);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error toggling channel post reaction: $e');
       rethrow;
     }
   }
@@ -3555,18 +3780,38 @@ class MessagingProvider extends ChangeNotifier {
     String role,
   ) async {
     await _apiService.updateGroupMemberRole(conversationId, userId, role);
-    notifyListeners();
+    await loadConversations(force: true);
   }
 
   Future<void> leaveGroup(String conversationId) async {
     await _apiService.leaveGroup(conversationId);
     _conversations.removeWhere((c) => c.id == conversationId);
+    _messagesByConversation.remove(conversationId);
+    _isLoadingMessages.remove(conversationId);
+    await _messageCache.deleteMessages(conversationId);
+    await _messageCache.deleteConversation(conversationId);
+    notifyListeners();
+  }
+
+  Future<void> deleteGroup(String conversationId) async {
+    await _apiService.deleteGroup(conversationId);
+    _conversations.removeWhere((c) => c.id == conversationId);
+    _messagesByConversation.remove(conversationId);
+    _isLoadingMessages.remove(conversationId);
+    await _messageCache.deleteMessages(conversationId);
+    await _messageCache.deleteConversation(conversationId);
     notifyListeners();
   }
 
   Future<void> deleteConversation(String conversationId) async {
     await _apiService.deleteConversation(conversationId);
     _conversations.removeWhere((c) => c.id == conversationId);
+    // Removing a conversation from the inbox must also evict any messages
+    // already held by the provider/cache. Otherwise reopening the chat (or a
+    // stale route) can immediately render the old conversation again.
+    _messagesByConversation.remove(conversationId);
+    _isLoadingMessages.remove(conversationId);
+    await _messageCache.deleteMessages(conversationId);
     await _messageCache.deleteConversation(conversationId);
     notifyListeners();
   }
@@ -3574,11 +3819,20 @@ class MessagingProvider extends ChangeNotifier {
   Future<void> clearGroupMessages(String conversationId) async {
     await _apiService.clearGroupMessages(conversationId);
     _messagesByConversation[conversationId] = [];
+    _isLoadingMessages.remove(conversationId);
     await _messageCache.deleteMessages(conversationId);
     notifyListeners();
   }
 
-  Future<void> updateGroup(
+  Future<void> clearDirectMessages(String conversationId) async {
+    await _apiService.clearDirectMessages(conversationId);
+    _messagesByConversation[conversationId] = [];
+    _isLoadingMessages.remove(conversationId);
+    await _messageCache.deleteMessages(conversationId);
+    notifyListeners();
+  }
+
+  Future<Conversation> updateGroup(
     String conversationId, {
     String? name,
     String? description,
@@ -3601,9 +3855,10 @@ class MessagingProvider extends ChangeNotifier {
       _conversations[index] = conversation;
       notifyListeners();
     }
+    return conversation;
   }
 
-  Future<void> updateChannel(
+  Future<Conversation> updateChannel(
     String conversationId, {
     String? name,
     String? description,
@@ -3626,11 +3881,16 @@ class MessagingProvider extends ChangeNotifier {
       _conversations[index] = conversation;
       notifyListeners();
     }
+    return conversation;
   }
 
   Future<void> deleteChannel(String conversationId) async {
     await _apiService.deleteChannel(conversationId);
     _conversations.removeWhere((c) => c.id == conversationId);
+    _messagesByConversation.remove(conversationId);
+    _isLoadingMessages.remove(conversationId);
+    await _messageCache.deleteMessages(conversationId);
+    await _messageCache.deleteConversation(conversationId);
     notifyListeners();
   }
 
@@ -3644,12 +3904,12 @@ class MessagingProvider extends ChangeNotifier {
 
   Future<void> addChannelAdmin(String conversationId, String userId) async {
     await _apiService.addChannelAdmin(conversationId, userId);
-    notifyListeners();
+    await loadConversations(force: true);
   }
 
   Future<void> removeChannelAdmin(String conversationId, String userId) async {
     await _apiService.removeChannelAdmin(conversationId, userId);
-    notifyListeners();
+    await loadConversations(force: true);
   }
 
   Future<void> subscribeToChannel(String conversationId) async {
@@ -3693,6 +3953,10 @@ class MessagingProvider extends ChangeNotifier {
       _conversations.removeWhere(
         (conversation) => conversation.id == conversationId,
       );
+      _messagesByConversation.remove(conversationId);
+      _isLoadingMessages.remove(conversationId);
+      await _messageCache.deleteMessages(conversationId);
+      await _messageCache.deleteConversation(conversationId);
       notifyListeners();
     } catch (e) {
       debugPrint('Failed to unsubscribe: $e');

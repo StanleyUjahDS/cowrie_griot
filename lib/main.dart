@@ -59,15 +59,12 @@ Future<void> main() async {
     debugPrint('Firebase Initialization Error: $e');
   }
 
-  // Keep development builds on Google's test units. Release builds select the
-  // production AdMob units from AppConfig automatically.
+  // Use the configured production AdMob units. Development devices are
+  // registered as test devices with the SDK so mediation can still be tested
+  // safely without swapping the app's ad-unit configuration.
   debugPrint(
     'Ads: ${AppConfig.adsEnabled ? (AppConfig.usesTestAds ? 'test' : 'production') : 'disabled'} units',
   );
-  // Mediation adapters must finish initialization before any ad widget makes
-  // its first request; otherwise Ad Inspector can report no adapters.
-  await AdService.instance.initialize();
-
   // Load theme - also non-blocking if possible,
   // but GriotCowrieApp needs it for initial build.
   // We'll keep it awaited for now as it's just SharedPreferences.
@@ -78,4 +75,11 @@ Future<void> main() async {
   // ==========================================================
 
   runApp(const ToastificationWrapper(child: GriotCowrieApp()));
+
+  // Let the first frame render before the consent form/network work starts.
+  // Ad widgets remain gated by AdService.canRequestAds and begin loading only
+  // after UMP has completed and notifies them that the SDK is ready.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    unawaited(AdService.instance.initialize());
+  });
 }

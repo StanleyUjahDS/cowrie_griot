@@ -20,8 +20,8 @@ class DaySeparator extends StatelessWidget {
     final label = dateOnly == todayOnly
         ? 'Today'
         : dateOnly == todayOnly.subtract(const Duration(days: 1))
-            ? 'Yesterday'
-            : DateFormat('d MMMM yyyy').format(localDate);
+        ? 'Yesterday'
+        : DateFormat('d MMMM yyyy').format(localDate);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 14),
@@ -45,9 +45,9 @@ class DaySeparator extends StatelessWidget {
             child: Text(
               label,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w700,
-                  ),
+                color: colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
           Expanded(

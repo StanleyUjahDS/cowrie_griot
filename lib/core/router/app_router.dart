@@ -41,6 +41,7 @@ import '../../features/chat/screens/create_call_link_screen.dart';
 import '../../features/chat/services/realtime_call_service.dart';
 import '../../features/chat/screens/friends_list_screen.dart';
 import '../../features/chat/screens/shared_content_screen.dart';
+import '../../features/chat/screens/game_center_screen.dart';
 import '../../features/chat/models/shared_content.dart';
 import '../../features/chat/screens/user_profile_screen.dart';
 import '../../features/chat/models/conversation_model.dart';
@@ -182,19 +183,28 @@ class AppRouter {
           }
 
           final extra = state.extra;
-          if (extra is Conversation) {
-            if (extra.type == ConversationType.channel) {
-              return ChannelFeedScreen(conversation: extra);
+          final extraMap = extra is Map ? extra : null;
+          final conversationExtra = extraMap?['conversation'] is Conversation
+              ? extraMap!['conversation'] as Conversation
+              : extra is Conversation
+              ? extra
+              : null;
+          final messageId = extraMap?['messageId']?.toString();
+          if (conversationExtra != null) {
+            if (conversationExtra.type == ConversationType.channel) {
+              return ChannelFeedScreen(conversation: conversationExtra);
             }
-            if (extra.type == ConversationType.group) {
+            if (conversationExtra.type == ConversationType.group) {
               return GroupChatScreen(
                 conversationId: conversationId,
-                initialConversation: extra,
+                initialConversation: conversationExtra,
+                initialMessageId: messageId,
               );
             }
             return DMChatScreen(
               conversationId: conversationId,
-              initialConversation: extra,
+              initialConversation: conversationExtra,
+              initialMessageId: messageId,
             );
           }
 
@@ -204,6 +214,10 @@ class AppRouter {
         },
       ),
 
+      GoRoute(
+        path: '/games',
+        builder: (context, state) => const GameCenterScreen(),
+      ),
       GoRoute(
         path: '/viewer',
         builder: (context, state) {
@@ -715,8 +729,14 @@ class AppRouter {
       ),
       GoRoute(
         path: '/call/join',
-        builder: (context, state) =>
-            JoinCallScreen(invite: state.uri.queryParameters['invite'] ?? ''),
+        builder: (context, state) => JoinCallScreen(
+          invite:
+              (state.uri.queryParameters['invite'] ??
+                      state.uri.queryParameters['token'] ??
+                      state.uri.queryParameters['code'] ??
+                      '')
+                  .trim(),
+        ),
       ),
       GoRoute(
         path: '/calls/:conversationId',
@@ -740,6 +760,9 @@ class AppRouter {
           final callId = extra is Map<String, dynamic>
               ? extra['callId']?.toString()
               : null;
+          final title = extra is Map<String, dynamic>
+              ? extra['title']?.toString()
+              : null;
           final openParticipants =
               extra is Map<String, dynamic> &&
               (extra['openParticipants'] == true ||
@@ -755,6 +778,7 @@ class AppRouter {
               callId: callId,
               session: session,
               roomId: roomId,
+              title: title,
               openParticipants: openParticipants,
             ),
           );
@@ -765,7 +789,14 @@ class AppRouter {
       // full-screen form and never renders behind Griot's bottom bar.
       GoRoute(
         path: '/campfires/create',
-        builder: (context, state) => const CreateCampfireScreen(),
+        builder: (context, state) {
+          final extra = state.extra;
+          final options = extra is Map ? Map<String, dynamic>.from(extra) : const <String, dynamic>{};
+          return CreateCampfireScreen(
+            conversationId: options['conversationId']?.toString(),
+            conversationType: options['conversationType']?.toString(),
+          );
+        },
       ),
 
       // ======================================================

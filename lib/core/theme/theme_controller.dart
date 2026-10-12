@@ -14,35 +14,30 @@ enum AppThemeStyle {
   // SKY
   // Messaging-style blue
   // ============================================================
-
   sky,
 
   // ============================================================
   // FOREST
   // Natural-style green
   // ============================================================
-
   forest,
 
   // ============================================================
   // VIOLET
   // Modern purple
   // ============================================================
-
   violet,
 
   // ============================================================
   // LAVENDER
   // Soft purple
   // ============================================================
-
   lavender,
 
   // ============================================================
   // ROSE
   // Elegant pink / rose
   // ============================================================
-
   rose,
 
   // ============================================================
@@ -50,69 +45,59 @@ enum AppThemeStyle {
   // Premium gold
   // Separate from Griot
   // ============================================================
-
   gold,
 
   // ============================================================
   // MIDNIGHT
   // Dark blue / indigo
   // ============================================================
-
   midnight,
 
   // ============================================================
   // SLATE
   // Neutral modern grey
   // ============================================================
-
   slate,
 
   // ============================================================
   // AZURE
   // Sky-style blue
   // ============================================================
-
   azure,
 
   // ============================================================
   // INDIGO
   // Deep-style blue
   // ============================================================
-
   indigo,
 
   // ============================================================
   // AURORA
   // Modern-style blurple
   // ============================================================
-
   aurora,
 
   // ============================================================
   // TEAL
   // Clean modern teal
   // ============================================================
-
   teal,
 
   // ============================================================
   // ORANGE
   // Warm modern orange
   // ============================================================
-
   orange,
 
   // ============================================================
   // RED
   // Strong modern red
   // ============================================================
-
   red,
 
   // ============================================================
   // NEW PREMIUM THEMES
   // ============================================================
-
   cyber,
   onyx,
   cappuccino,
@@ -121,7 +106,6 @@ enum AppThemeStyle {
   // ============================================================
   // MONOCHROME THEMES
   // ============================================================
-
   mono,
   noir,
 }
@@ -131,8 +115,7 @@ class ThemeController extends ChangeNotifier {
   // SINGLE SHARED INSTANCE
   // ============================================================
 
-  static final ThemeController instance =
-  ThemeController._internal();
+  static final ThemeController instance = ThemeController._internal();
 
   factory ThemeController() {
     return instance;
@@ -146,6 +129,7 @@ class ThemeController extends ChangeNotifier {
 
   static const String _themeModeKey = 'theme_mode';
   static const String _themeStyleKey = 'theme_style';
+  static const String _textScaleKey = 'text_scale';
 
   // ============================================================
   // CURRENT VALUES
@@ -154,6 +138,7 @@ class ThemeController extends ChangeNotifier {
   ThemeMode _themeMode = ThemeMode.system;
 
   AppThemeStyle _themeStyle = AppThemeStyle.griot;
+  double _textScale = 1.0;
 
   // ============================================================
   // GETTERS
@@ -162,6 +147,7 @@ class ThemeController extends ChangeNotifier {
   ThemeMode get themeMode => _themeMode;
 
   AppThemeStyle get themeStyle => _themeStyle;
+  double get textScale => _textScale;
 
   bool get isDark => _themeMode == ThemeMode.dark;
 
@@ -175,6 +161,10 @@ class ThemeController extends ChangeNotifier {
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
+    final savedTextScale = prefs.getDouble(_textScaleKey);
+    if (savedTextScale != null) {
+      _textScale = savedTextScale.clamp(0.85, 1.45).toDouble();
+    }
 
     // ==========================================================
     // THEME MODE
@@ -299,13 +289,20 @@ class ThemeController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setTextScale(double scale) async {
+    final next = scale.clamp(0.85, 1.45).toDouble();
+    if ((_textScale - next).abs() < 0.001) return;
+    _textScale = next;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_textScaleKey, next);
+  }
+
   // ============================================================
   // SAVE THEME MODE
   // ============================================================
 
-  Future<void> _saveThemeMode(
-      ThemeMode mode,
-      ) async {
+  Future<void> _saveThemeMode(ThemeMode mode) async {
     final prefs = await SharedPreferences.getInstance();
 
     final value = switch (mode) {
@@ -314,19 +311,14 @@ class ThemeController extends ChangeNotifier {
       ThemeMode.system => 'system',
     };
 
-    await prefs.setString(
-      _themeModeKey,
-      value,
-    );
+    await prefs.setString(_themeModeKey, value);
   }
 
   // ============================================================
   // SAVE THEME STYLE
   // ============================================================
 
-  Future<void> _saveThemeStyle(
-      AppThemeStyle style,
-      ) async {
+  Future<void> _saveThemeStyle(AppThemeStyle style) async {
     final prefs = await SharedPreferences.getInstance();
 
     final value = switch (style) {
@@ -353,19 +345,14 @@ class ThemeController extends ChangeNotifier {
       AppThemeStyle.noir => 'noir',
     };
 
-    await prefs.setString(
-      _themeStyleKey,
-      value,
-    );
+    await prefs.setString(_themeStyleKey, value);
   }
 
   // ============================================================
   // SET THEME MODE
   // ============================================================
 
-  void setTheme(
-      ThemeMode mode,
-      ) {
+  void setTheme(ThemeMode mode) {
     if (_themeMode == mode) {
       return;
     }
@@ -381,9 +368,7 @@ class ThemeController extends ChangeNotifier {
   // SET THEME STYLE
   // ============================================================
 
-  void setThemeStyle(
-      AppThemeStyle style,
-      ) {
+  void setThemeStyle(AppThemeStyle style) {
     if (_themeStyle == style) {
       return;
     }
@@ -400,10 +385,6 @@ class ThemeController extends ChangeNotifier {
   // ============================================================
 
   void toggleTheme() {
-    setTheme(
-      _themeMode == ThemeMode.dark
-          ? ThemeMode.light
-          : ThemeMode.dark,
-    );
+    setTheme(_themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark);
   }
 }

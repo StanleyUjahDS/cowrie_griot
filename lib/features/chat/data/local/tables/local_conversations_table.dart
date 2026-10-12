@@ -23,7 +23,8 @@ class LocalConversationsTable {
   static const String columnDescription = 'description';
   static const String columnMessagesLocked = 'messages_locked';
 
-  static const String createTable = '''
+  static const String createTable =
+      '''
     CREATE TABLE $tableName (
       $columnId TEXT PRIMARY KEY,
       $columnType TEXT NOT NULL,

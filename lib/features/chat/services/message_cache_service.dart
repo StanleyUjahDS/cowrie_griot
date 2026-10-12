@@ -538,6 +538,7 @@ class MessageCacheService {
       LocalProfilesTable.columnReputationColor: user.reputation?.badgeColor,
       LocalProfilesTable.columnRelationshipStatus: user.relationshipStatus,
       LocalProfilesTable.columnIsPlus: user.isPlus ? 1 : 0,
+      LocalProfilesTable.columnIsPioneer: user.isPioneer ? 1 : 0,
       LocalProfilesTable.columnLastSeenAt: user.timestamp.toIso8601String(),
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
@@ -575,6 +576,7 @@ class MessageCacheService {
       relationshipStatus:
           row[LocalProfilesTable.columnRelationshipStatus] as String?,
       isPlus: (row[LocalProfilesTable.columnIsPlus] as int? ?? 0) == 1,
+      isPioneer: (row[LocalProfilesTable.columnIsPioneer] as int? ?? 0) == 1,
     );
   }
 

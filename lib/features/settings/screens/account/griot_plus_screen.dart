@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -10,6 +9,9 @@ import '../../../miner/providers/mining_provider.dart';
 import '../../../../core/ui/widgets/griot_loader.dart';
 import '../../../iap/providers/iap_provider.dart';
 import '../../../iap/models/plus_status_model.dart';
+import '../../../../core/ui/widgets/griot_plus_badge.dart';
+import '../../../../core/ui/widgets/griot_pioneer_badge.dart';
+import '../../../users/providers/user_provider.dart';
 
 class GriotPlusScreen extends StatefulWidget {
   const GriotPlusScreen({super.key});
@@ -124,11 +126,11 @@ class _GriotPlusScreenState extends State<GriotPlusScreen>
             extra: miningProvider.status?.multiplier.total != null
                 ? '${miningProvider.status!.multiplier.total.toStringAsFixed(1)}x Active'
                 : 'Boost Active',
-            color: Colors.amber,
+            color: colors.secondary,
           ),
           _buildBenefitTile(
             context,
-            icon: Icons.verified_user_rounded,
+            iconWidget: const GriotPlusBadge(isPlus: true),
             title: 'Premium Badge',
             description:
                 'Stand out in the community with a unique Griot Plus identity.',
@@ -136,10 +138,18 @@ class _GriotPlusScreenState extends State<GriotPlusScreen>
           ),
           _buildBenefitTile(
             context,
+            iconWidget: const GriotPioneerBadge(),
+            title: 'Pioneer Badge',
+            description:
+                'Granted by Griot for recognised early contribution. It is not a paid feature.',
+            color: colors.tertiary,
+          ),
+          _buildBenefitTile(
+            context,
             icon: Icons.auto_awesome_rounded,
             title: 'Early Access',
             description: 'Be the first to test new Griot features and tools.',
-            color: Colors.purple,
+            color: colors.tertiary,
           ),
 
           const SizedBox(height: 40),
@@ -160,6 +170,7 @@ class _GriotPlusScreenState extends State<GriotPlusScreen>
   Widget _buildHeroCard(BuildContext context, PlusStatus status) {
     final colors = Theme.of(context).colorScheme;
     final isPlus = status.isPlus;
+    final isPioneer = context.read<UserProvider>().user?.isPioneer == true;
 
     return Container(
       width: double.infinity,
@@ -190,13 +201,10 @@ class _GriotPlusScreenState extends State<GriotPlusScreen>
             top: -20,
             child: Opacity(
               opacity: 0.1,
-              child: SvgPicture.asset(
-                'assets/coins_logo/hbadger_logo.svg',
-                width: 140,
-                colorFilter: ColorFilter.mode(
-                  isPlus ? Colors.white : colors.onSurface,
-                  BlendMode.srcIn,
-                ),
+              child: Image.asset(
+                'assets/coins_logo/hbadger_loader.png',
+                width: 96,
+                color: isPlus ? colors.onPrimary : colors.onSurface,
               ),
             ),
           ),
@@ -209,26 +217,36 @@ class _GriotPlusScreenState extends State<GriotPlusScreen>
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: (isPlus ? Colors.white : colors.primary).withValues(
-                    alpha: 0.15,
-                  ),
+                  color: (isPlus ? colors.onPrimary : colors.primary)
+                      .withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text(
-                  'GRIOT PLUS',
-                  style: TextStyle(
-                    color: isPlus ? Colors.white : colors.primary,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.5,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GriotPlusBadge(isPlus: isPlus, compact: true),
+                    if (isPioneer) ...[
+                      const SizedBox(width: 6),
+                      const GriotPioneerBadge(compact: true),
+                    ],
+                    const SizedBox(width: 8),
+                    Text(
+                      'GRIOT PLUS',
+                      style: TextStyle(
+                        color: isPlus ? colors.onPrimary : colors.primary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 20),
               Text(
-                isPlus ? 'Certified Pioneer' : 'Elevate your Identity',
+                isPlus ? 'Griot Plus' : 'Elevate your Identity',
                 style: TextStyle(
-                  color: isPlus ? Colors.white : colors.onSurface,
+                  color: isPlus ? colors.onPrimary : colors.onSurface,
                   fontSize: 26,
                   fontWeight: FontWeight.w900,
                   height: 1.2,
@@ -237,12 +255,11 @@ class _GriotPlusScreenState extends State<GriotPlusScreen>
               const SizedBox(height: 12),
               Text(
                 isPlus
-                    ? 'Your account is verified for premium network benefits.'
+                    ? 'Your account is verified for premium network benefits. Pioneer recognition is granted separately by Griot.'
                     : 'Join the inner circle of social pioneers and community contributors.',
                 style: TextStyle(
-                  color: (isPlus ? Colors.white : colors.onSurface).withValues(
-                    alpha: 0.7,
-                  ),
+                  color: (isPlus ? colors.onPrimary : colors.onSurface)
+                      .withValues(alpha: 0.7),
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
                 ),
@@ -284,7 +301,7 @@ class _GriotPlusScreenState extends State<GriotPlusScreen>
           _buildDetailRow(
             'Status',
             status.status.name.toUpperCase(),
-            color: Colors.green,
+            color: colors.primary,
           ),
           const Divider(height: 24),
           if (status.expiresAt != null)
@@ -320,7 +337,8 @@ class _GriotPlusScreenState extends State<GriotPlusScreen>
 
   Widget _buildBenefitTile(
     BuildContext context, {
-    required IconData icon,
+    IconData? icon,
+    Widget? iconWidget,
     required String title,
     required String description,
     String? extra,
@@ -342,7 +360,7 @@ class _GriotPlusScreenState extends State<GriotPlusScreen>
               color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: color, size: 20),
+            child: iconWidget ?? Icon(icon, color: color, size: 20),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -366,13 +384,13 @@ class _GriotPlusScreenState extends State<GriotPlusScreen>
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.amber.withValues(alpha: 0.1),
+                          color: color.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
                           extra,
-                          style: const TextStyle(
-                            color: Colors.amber,
+                          style: TextStyle(
+                            color: color,
                             fontSize: 9,
                             fontWeight: FontWeight.w900,
                           ),
@@ -417,10 +435,7 @@ class _GriotPlusScreenState extends State<GriotPlusScreen>
         const SizedBox(height: 16),
         TextButton(
           onPressed: () => iap.restorePurchases(),
-          child: const Text(
-            'Restore Purchases',
-            style: TextStyle(fontWeight: FontWeight.w700),
-          ),
+          child: const Text('Restore Purchases'),
         ),
       ],
     );
@@ -516,10 +531,7 @@ class _GriotPlusScreenState extends State<GriotPlusScreen>
           child: FilledButton.icon(
             onPressed: _manageSubscription,
             icon: const Icon(Icons.subscriptions_rounded),
-            label: const Text(
-              'MANAGE SUBSCRIPTION',
-              style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1),
-            ),
+            label: const Text('MANAGE SUBSCRIPTION'),
             style: FilledButton.styleFrom(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
@@ -530,10 +542,7 @@ class _GriotPlusScreenState extends State<GriotPlusScreen>
         const SizedBox(height: 12),
         TextButton(
           onPressed: () => iap.restorePurchases(),
-          child: const Text(
-            'Restore Purchases',
-            style: TextStyle(fontWeight: FontWeight.w700),
-          ),
+          child: const Text('Restore Purchases'),
         ),
       ],
     );

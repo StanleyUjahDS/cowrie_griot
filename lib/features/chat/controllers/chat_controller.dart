@@ -17,9 +17,9 @@ class ChatController extends ChangeNotifier {
   ChatController({
     ChatOperations? chatOperations,
     MessageRequestOperations? messageRequestOperations,
-  })  : chatOperations = chatOperations ?? ChatOperations(),
-        messageRequestOperations =
-            messageRequestOperations ?? MessageRequestOperations();
+  }) : chatOperations = chatOperations ?? ChatOperations(),
+       messageRequestOperations =
+           messageRequestOperations ?? MessageRequestOperations();
 
   // ==========================================================
   // STATE
@@ -41,11 +41,9 @@ class ChatController extends ChangeNotifier {
 
   List<ChatUser> get users => List.unmodifiable(_users);
 
-  List<MessageRequest> get requests =>
-      List.unmodifiable(_requests);
+  List<MessageRequest> get requests => List.unmodifiable(_requests);
 
-  List<ChatMessage> get messages =>
-      List.unmodifiable(_messages);
+  List<ChatMessage> get messages => List.unmodifiable(_messages);
 
   bool get isLoading => _isLoading;
 
@@ -61,10 +59,7 @@ class ChatController extends ChangeNotifier {
     try {
       _error = null;
 
-      await Future.wait([
-        loadChats(),
-        loadMessageRequests(),
-      ]);
+      await Future.wait([loadChats(), loadMessageRequests()]);
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -82,9 +77,7 @@ class ChatController extends ChangeNotifier {
 
       _users = List<ChatUser>.from(result);
 
-      _users.sort(
-            (a, b) => b.timestamp.compareTo(a.timestamp),
-      );
+      _users.sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
       notifyListeners();
     } catch (e) {
@@ -99,11 +92,9 @@ class ChatController extends ChangeNotifier {
 
   Future<void> loadMessageRequests() async {
     try {
-      final result =
-      await messageRequestOperations.getRequests();
+      final result = await messageRequestOperations.getRequests();
 
-      _requests =
-      List<MessageRequest>.from(result);
+      _requests = List<MessageRequest>.from(result);
 
       notifyListeners();
     } catch (e) {
@@ -118,10 +109,7 @@ class ChatController extends ChangeNotifier {
 
   int get pendingRequestCount {
     return _requests
-        .where(
-          (request) =>
-      request.status == RequestStatus.pending,
-    )
+        .where((request) => request.status == RequestStatus.pending)
         .length;
   }
 
@@ -129,17 +117,11 @@ class ChatController extends ChangeNotifier {
   // ACCEPT REQUEST
   // ==========================================================
 
-  Future<void> acceptRequest(
-      MessageRequest request,
-      ) async {
+  Future<void> acceptRequest(MessageRequest request) async {
     try {
-      await messageRequestOperations.acceptRequest(
-        request.id,
-      );
+      await messageRequestOperations.acceptRequest(request.id);
 
-      final index = _requests.indexWhere(
-            (item) => item.id == request.id,
-      );
+      final index = _requests.indexWhere((item) => item.id == request.id);
 
       if (index != -1) {
         _requests[index] = request..status = RequestStatus.accepted;
@@ -150,8 +132,8 @@ class ChatController extends ChangeNotifier {
       // ======================================================
 
       final alreadyExists = _users.any(
-            (user) =>
-        user.walletAddress.toLowerCase() ==
+        (user) =>
+            user.walletAddress.toLowerCase() ==
             request.senderWalletAddress.toLowerCase(),
       );
 
@@ -160,32 +142,25 @@ class ChatController extends ChangeNotifier {
           0,
           ChatUser(
             id: request.senderWalletAddress,
-            walletAddress:
-            request.senderWalletAddress,
+            walletAddress: request.senderWalletAddress,
 
-            username:
-            request.senderUsername,
+            username: request.senderUsername,
 
-            displayName:
-            request.senderDisplayName,
+            displayName: request.senderDisplayName,
 
             phoneNumber: null,
 
             phoneDiscoveryEnabled: false,
 
-            profileUrl:
-            request.senderProfileUrl,
+            profileUrl: request.senderProfileUrl,
 
-            lastMessage:
-            request.message,
+            lastMessage: request.message,
 
-            timestamp:
-            request.createdAt,
+            timestamp: request.createdAt,
 
             unreadCount: 1,
 
-            isOnline:
-            request.senderIsOnline,
+            isOnline: request.senderIsOnline,
           ),
         );
       }
@@ -202,17 +177,11 @@ class ChatController extends ChangeNotifier {
   // DECLINE REQUEST
   // ==========================================================
 
-  Future<void> declineRequest(
-      MessageRequest request,
-      ) async {
+  Future<void> declineRequest(MessageRequest request) async {
     try {
-      await messageRequestOperations.declineRequest(
-        request.id,
-      );
+      await messageRequestOperations.declineRequest(request.id);
 
-      final index = _requests.indexWhere(
-            (item) => item.id == request.id,
-      );
+      final index = _requests.indexWhere((item) => item.id == request.id);
 
       if (index != -1) {
         _requests[index] = request..status = RequestStatus.declined;
@@ -234,15 +203,11 @@ class ChatController extends ChangeNotifier {
     required String recipientId,
   }) async {
     try {
-      final request =
-      await messageRequestOperations.sendRequest(
+      final request = await messageRequestOperations.sendRequest(
         recipientId: recipientId,
       );
 
-      _requests.insert(
-        0,
-        request,
-      );
+      _requests.insert(0, request);
 
       notifyListeners();
 
@@ -258,21 +223,15 @@ class ChatController extends ChangeNotifier {
   // SEARCH USERS
   // ==========================================================
 
-  Future<List<ChatUser>> searchUsers(
-      String query,
-      ) async {
-    final trimmed =
-    query.trim().toLowerCase();
+  Future<List<ChatUser>> searchUsers(String query) async {
+    final trimmed = query.trim().toLowerCase();
 
     if (trimmed.isEmpty) {
       return [];
     }
 
     try {
-      final result =
-      await chatOperations.searchUsers(
-        trimmed,
-      );
+      final result = await chatOperations.searchUsers(trimmed);
 
       return List<ChatUser>.from(result);
     } catch (e) {
@@ -287,13 +246,9 @@ class ChatController extends ChangeNotifier {
   // FIND USER BY WALLET
   // ==========================================================
 
-  Future<ChatUser?> findUserByWallet(
-      String walletAddress,
-      ) async {
+  Future<ChatUser?> findUserByWallet(String walletAddress) async {
     try {
-      return await chatOperations.findUserByWallet(
-        walletAddress,
-      );
+      return await chatOperations.findUserByWallet(walletAddress);
     } catch (e) {
       _error = e.toString();
       notifyListeners();
@@ -307,17 +262,14 @@ class ChatController extends ChangeNotifier {
   // ==========================================================
 
   Future<List<ChatUser>> findUsersByPhoneNumbers(
-      List<String> phoneNumbers,
-      ) async {
+    List<String> phoneNumbers,
+  ) async {
     if (phoneNumbers.isEmpty) {
       return [];
     }
 
     try {
-      final result =
-      await chatOperations.findUsersByPhoneNumbers(
-        phoneNumbers,
-      );
+      final result = await chatOperations.findUsersByPhoneNumbers(phoneNumbers);
 
       return List<ChatUser>.from(result);
     } catch (e) {
@@ -343,17 +295,12 @@ class ChatController extends ChangeNotifier {
       );
 
       final index = _users.indexWhere(
-            (user) =>
-        user.walletAddress.toLowerCase() ==
-            walletAddress.toLowerCase(),
+        (user) =>
+            user.walletAddress.toLowerCase() == walletAddress.toLowerCase(),
       );
 
       if (index != -1) {
-        _users[index] =
-            _users[index].copyWith(
-              phoneDiscoveryEnabled:
-              enabled,
-            );
+        _users[index] = _users[index].copyWith(phoneDiscoveryEnabled: enabled);
       }
 
       notifyListeners();
@@ -368,12 +315,8 @@ class ChatController extends ChangeNotifier {
   // OPEN CHAT
   // ==========================================================
 
-  Future<void> openChat(
-      String userId,
-      ) async {
-    final index = _users.indexWhere(
-          (user) => user.id == userId,
-    );
+  Future<void> openChat(String userId) async {
+    final index = _users.indexWhere((user) => user.id == userId);
 
     if (index == -1) {
       return;
@@ -381,9 +324,7 @@ class ChatController extends ChangeNotifier {
 
     final user = _users[index];
 
-    _users[index] = user.copyWith(
-      unreadCount: 0,
-    );
+    _users[index] = user.copyWith(unreadCount: 0);
 
     notifyListeners();
   }
@@ -409,9 +350,7 @@ class ChatController extends ChangeNotifier {
   // LOADING
   // ==========================================================
 
-  void _setLoading(
-      bool value,
-      ) {
+  void _setLoading(bool value) {
     _isLoading = value;
     notifyListeners();
   }

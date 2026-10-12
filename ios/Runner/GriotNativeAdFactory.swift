@@ -20,6 +20,7 @@ class GriotNativeAdFactory: NSObject, FLTNativeAdFactory {
         var onPrimaryColor = UIColor.white
         var onSurfaceColor = UIColor.label
         var onSurfaceVariantColor = UIColor.secondaryLabel
+        let compact = (customOptions?["compact"] as? NSNumber)?.boolValue ?? false
 
         if let options = customOptions {
             if let primaryNum = options["primary"] as? NSNumber {
@@ -103,12 +104,12 @@ class GriotNativeAdFactory: NSObject, FLTNativeAdFactory {
         adView.callToActionView = callToAction
 
         // Constraints
-        NSLayoutConstraint.activate([
+        var constraints: [NSLayoutConstraint] = [
             // Headline & Icon Row
             iconView.topAnchor.constraint(equalTo: adView.topAnchor, constant: 4),
             iconView.leftAnchor.constraint(equalTo: adView.leftAnchor, constant: 0),
-            iconView.widthAnchor.constraint(equalToConstant: 40),
-            iconView.heightAnchor.constraint(equalToConstant: 40),
+            iconView.widthAnchor.constraint(equalToConstant: compact ? 32 : 40),
+            iconView.heightAnchor.constraint(equalToConstant: compact ? 32 : 40),
 
             headlineLabel.topAnchor.constraint(equalTo: adView.topAnchor, constant: 4),
             headlineLabel.leftAnchor.constraint(equalTo: iconView.rightAnchor, constant: 10),
@@ -124,23 +125,36 @@ class GriotNativeAdFactory: NSObject, FLTNativeAdFactory {
             adLabel.widthAnchor.constraint(equalToConstant: 24),
             adLabel.heightAnchor.constraint(equalToConstant: 15),
 
-            // Media View (Flexible space)
-            mediaView.topAnchor.constraint(equalTo: iconView.bottomAnchor, constant: 12),
-            mediaView.leftAnchor.constraint(equalTo: adView.leftAnchor),
-            mediaView.rightAnchor.constraint(equalTo: adView.rightAnchor),
+            // Media View: use the full card width so video creatives form a
+            // clear media panel instead of a small centered square.
+            mediaView.topAnchor.constraint(equalTo: iconView.bottomAnchor, constant: compact ? 6 : 12),
 
             // Body
-            bodyLabel.topAnchor.constraint(equalTo: mediaView.bottomAnchor, constant: 10),
+            bodyLabel.topAnchor.constraint(equalTo: mediaView.bottomAnchor, constant: compact ? 4 : 10),
             bodyLabel.leftAnchor.constraint(equalTo: adView.leftAnchor),
             bodyLabel.rightAnchor.constraint(equalTo: adView.rightAnchor),
 
             // Call To Action (Pinned to bottom)
-            callToAction.topAnchor.constraint(equalTo: bodyLabel.bottomAnchor, constant: 12),
+            callToAction.topAnchor.constraint(equalTo: bodyLabel.bottomAnchor, constant: compact ? 6 : 12),
             callToAction.leftAnchor.constraint(equalTo: adView.leftAnchor),
             callToAction.rightAnchor.constraint(equalTo: adView.rightAnchor),
-            callToAction.heightAnchor.constraint(equalToConstant: 44),
+            callToAction.heightAnchor.constraint(equalToConstant: compact ? 30 : 44),
             callToAction.bottomAnchor.constraint(equalTo: adView.bottomAnchor, constant: 0)
-        ])
+        ]
+
+        if compact {
+            constraints += [
+                mediaView.leftAnchor.constraint(equalTo: adView.leftAnchor, constant: 2),
+                mediaView.rightAnchor.constraint(equalTo: adView.rightAnchor, constant: -2),
+                mediaView.heightAnchor.constraint(equalToConstant: 190)
+            ]
+        } else {
+            constraints += [
+                mediaView.leftAnchor.constraint(equalTo: adView.leftAnchor),
+                mediaView.rightAnchor.constraint(equalTo: adView.rightAnchor)
+            ]
+        }
+        NSLayoutConstraint.activate(constraints)
 
         // Priority for MediaView to expand
         mediaView.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
@@ -149,7 +163,7 @@ class GriotNativeAdFactory: NSObject, FLTNativeAdFactory {
         // Populate data
         (adView.headlineView as? UILabel)?.text = nativeAd.headline
         (adView.bodyView as? UILabel)?.text = nativeAd.body
-        adView.bodyView?.isHidden = nativeAd.body == nil
+        adView.bodyView?.isHidden = compact || nativeAd.body == nil
 
         (adView.callToActionView as? UIButton)?.setTitle(nativeAd.callToAction, for: .normal)
         adView.callToActionView?.isHidden = nativeAd.callToAction == nil

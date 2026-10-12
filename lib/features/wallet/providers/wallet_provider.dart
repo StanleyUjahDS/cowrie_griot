@@ -137,6 +137,7 @@ class WalletProvider extends ChangeNotifier {
   }
 
   bool canSwap(TokenModel token) {
+    if (token.isSpam) return false;
     // CONTRACT: Allow swap if asset is in wallet (has balance), is a popular/official asset,
     // or is a Griot native asset.
     final hasBalance = (num.tryParse(token.balance) ?? 0) > 0;

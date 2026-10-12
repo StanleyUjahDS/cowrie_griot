@@ -4,11 +4,13 @@ class SpaceModel {
   final String? description;
   final String mode;
   final String hostName;
+  final String? hostAvatarUrl;
   final bool isHost;
   final String regionCode;
   final int participantCount;
   final List<Map<String, dynamic>> friendsPresent;
   final bool recordingEnabled;
+  final bool reminderEnabled;
   final DateTime? scheduledAt;
 
   const SpaceModel({
@@ -17,11 +19,13 @@ class SpaceModel {
     this.description,
     this.mode = 'voice',
     this.hostName = 'Griot user',
+    this.hostAvatarUrl,
     this.isHost = false,
     this.regionCode = 'GLOBAL',
     this.participantCount = 0,
     this.friendsPresent = const [],
     this.recordingEnabled = false,
+    this.reminderEnabled = false,
     this.scheduledAt,
   });
 
@@ -34,7 +38,14 @@ class SpaceModel {
     hostName: _displayIdentity(
       json['host_name'] ?? json['hostName'] ?? 'Griot user',
     ),
-    isHost: json['is_host'] == true || json['isHost'] == true,
+    hostAvatarUrl: _avatarUrl(json),
+    isHost:
+        json['is_host'] == true ||
+        json['isHost'] == true ||
+        json['is_owner'] == true ||
+        json['isOwner'] == true ||
+        json['is_creator'] == true ||
+        json['isCreator'] == true,
     regionCode:
         '${json['region_code'] ?? json['regionCode'] ?? json['region'] ?? 'GLOBAL'}',
     participantCount:
@@ -47,6 +58,8 @@ class SpaceModel {
     ),
     recordingEnabled:
         json['recording_enabled'] == true || json['recordingEnabled'] == true,
+    reminderEnabled:
+        json['reminder_enabled'] == true || json['reminderEnabled'] == true,
     scheduledAt: DateTime.tryParse(
       '${json['scheduled_at'] ?? json['scheduledAt'] ?? ''}',
     ),
@@ -54,6 +67,24 @@ class SpaceModel {
 
   static String _canonicalCampfireMode(Object? value) {
     return value?.toString().toLowerCase() == 'video' ? 'video' : 'voice';
+  }
+
+  static String? _avatarUrl(Map<String, dynamic> json) {
+    final host = json['host'];
+    final hostMap = host is Map ? Map<String, dynamic>.from(host) : null;
+    final value =
+        json['host_avatar_url'] ??
+        json['hostAvatarUrl'] ??
+        json['host_avatar'] ??
+        json['hostAvatar'] ??
+        json['host_profile_url'] ??
+        json['hostProfileUrl'] ??
+        hostMap?['avatar_url'] ??
+        hostMap?['avatarUrl'] ??
+        hostMap?['profile_url'] ??
+        hostMap?['profileUrl'];
+    final url = value?.toString().trim();
+    return url == null || url.isEmpty ? null : url;
   }
 
   static List<Map<String, dynamic>> _parseFriends(Object? value) {
@@ -92,6 +123,8 @@ class SpaceParticipant {
   final bool isSelf;
   final bool speakerRequested;
   final String? avatarUrl;
+  final bool isPlus;
+  final bool isPioneer;
 
   const SpaceParticipant({
     required this.id,
@@ -102,7 +135,31 @@ class SpaceParticipant {
     required this.isSelf,
     required this.speakerRequested,
     this.avatarUrl,
+    this.isPlus = false,
+    this.isPioneer = false,
   });
+
+  SpaceParticipant copyWith({
+    String? role,
+    bool? muted,
+    bool? isOwner,
+    bool? isSelf,
+    bool? speakerRequested,
+    String? avatarUrl,
+    bool? isPlus,
+    bool? isPioneer,
+  }) => SpaceParticipant(
+    id: id,
+    name: name,
+    role: role ?? this.role,
+    muted: muted ?? this.muted,
+    isOwner: isOwner ?? this.isOwner,
+    isSelf: isSelf ?? this.isSelf,
+    speakerRequested: speakerRequested ?? this.speakerRequested,
+    avatarUrl: avatarUrl ?? this.avatarUrl,
+    isPlus: isPlus ?? this.isPlus,
+    isPioneer: isPioneer ?? this.isPioneer,
+  );
 
   factory SpaceParticipant.fromJson(Map<String, dynamic> json) =>
       SpaceParticipant(
@@ -116,6 +173,14 @@ class SpaceParticipant {
             json['speaker_requested_at'] != null ||
             json['speakerRequested'] == true,
         avatarUrl: _participantAvatarUrl(json),
+        isPlus:
+            json['is_plus'] == true ||
+            json['isPlus'] == true ||
+            json['plus'] == true,
+        isPioneer:
+            json['is_pioneer'] == true ||
+            json['isPioneer'] == true ||
+            json['pioneer'] == true,
       );
 
   static String? _participantAvatarUrl(Map<String, dynamic> json) {

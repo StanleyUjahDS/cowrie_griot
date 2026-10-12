@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import '../../../core/ui/dialogs/griot_confirm_dialog.dart';
@@ -12,6 +14,8 @@ import '../../../core/network/api_client.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../core/ui/widgets/griot_branded_container.dart';
+import '../../../core/ui/widgets/griot_plus_badge.dart';
+import '../../../core/ui/widgets/griot_pioneer_badge.dart';
 import '../../users/models/user_model.dart';
 import '../../users/providers/user_provider.dart';
 import '../services/realtime_call_service.dart';
@@ -34,6 +38,7 @@ extension on _VideoThumbnailCorner {
 
 class CallScreen extends StatefulWidget {
   final String conversationId, conversationType, mode;
+  final String? title;
   final String? initialCallId;
   final RealtimeCallSession? initialSession;
   final String? initialRoomId;
@@ -46,6 +51,7 @@ class CallScreen extends StatefulWidget {
     this.initialCallId,
     this.initialSession,
     this.initialRoomId,
+    this.title,
     this.openParticipantsOnLoad = false,
   });
   @override
@@ -68,8 +74,12 @@ class _CallScreenState extends State<CallScreen> {
   int? _localViewId;
   final Map<String, Widget> _remoteVideoViews = <String, Widget>{};
   bool _showLocalMain = false;
+  bool _showVideoControls = true;
   bool _usingFrontCamera = true;
-  bool _isMirrored = true;
+  // Voice calls use the handset/earpiece; video and Campfires use speaker.
+  // The control lets users switch routes without changing mute.
+  bool _speakerEnabled = false;
+  ZegoAudioRoute _audioRoute = ZegoAudioRoute.Receiver;
   // Direct and group calls can be upgraded from voice to video in place.
   // Campfires keep the format selected by their host.
   bool get _videoCallActive => _owner.videoCallActive;
@@ -83,6 +93,87 @@ class _CallScreenState extends State<CallScreen> {
   String _remoteDisplayName = '';
   String? _remoteAvatarUrl;
   final Map<String, Map<String, dynamic>> _callParticipantProfiles = {};
+  double _localSoundLevel = 0;
+  final Map<String, double> _remoteSoundLevels = <String, double>{};
+  final Map<String, bool> _remoteMuted = <String, bool>{};
+  String? _publishedStreamId;
+  bool _campfireCanPublish = true;
+  bool _campfireL3Enabled = false;
+  static const _callReactionChoices = ['👏', '❤️', '🔥', '😂', '🎉', '👍'];
+  static const _maxCampfireStageSeats = 8;
+  static const _callReactionLibrary = [
+    '😀',
+    '😃',
+    '😄',
+    '😁',
+    '😂',
+    '🤣',
+    '😊',
+    '😍',
+    '🥰',
+    '😘',
+    '🤩',
+    '🥳',
+    '😮',
+    '😢',
+    '😭',
+    '😡',
+    '🤯',
+    '😴',
+    '🤔',
+    '🙄',
+    '😇',
+    '😎',
+    '🥹',
+    '😅',
+    '👍',
+    '👎',
+    '👏',
+    '🙏',
+    '🙌',
+    '🤝',
+    '💪',
+    '👌',
+    '✌️',
+    '🤞',
+    '👋',
+    '🫶',
+    '💯',
+    '🔥',
+    '🎉',
+    '❤️',
+    '💔',
+    '✨',
+    '⭐',
+    '✅',
+    '❌',
+    '💡',
+    '🎤',
+    '🎶',
+  ];
+  final List<String> _recentCallReactions = [..._callReactionChoices];
+
+  String get _campfireTitle {
+    final value = widget.title?.trim() ?? '';
+    return value.isEmpty ? 'Campfire' : value;
+  }
+
+  /// Campfire audiences use ZEGOCLOUD's L3 distribution path once it has
+  /// been enabled for the project. Direct and group calls stay on RTC.
+  ZegoPlayerConfig _playerConfigForStream() {
+    final config = ZegoPlayerConfig.defaultConfig();
+    if (widget.conversationType == 'space') {
+      config.resourceMode = ZegoStreamResourceMode.OnlyL3;
+      // ZEGOCLOUD's L3 Flutter guidance requires OnlyL3 playback. Keep the
+      // source resource type at its SDK default: forcing sourceResourceType
+      // is support-directed and can interfere with the SDK's RTC co-host
+      // transition when an approved speaker starts publishing.
+    }
+    return config;
+  }
+
+  final Map<String, String> _spaceReactions = <String, String>{};
+  final Map<String, Timer> _spaceReactionTimers = <String, Timer>{};
   List<SpaceParticipant> get _spaceParticipants => _owner.participants;
   set _spaceParticipants(List<SpaceParticipant> value) =>
       _owner.participants = value;
@@ -91,20 +182,39 @@ class _CallScreenState extends State<CallScreen> {
   Timer? _answerTimeout;
   Timer? _participantRefreshDebounce;
   Timer? _participantRefreshTimer;
+  Timer? _soundLevelFrameTimer;
+  double? _pendingLocalSoundLevel;
+  final Map<String, double> _pendingRemoteSoundLevels = <String, double>{};
+  bool _participantRefreshInFlight = false;
   int _campfireRevision = 0;
   MessagingProvider? _messagingProvider;
   bool _remoteJoined = false;
   bool _timedOut = false;
   bool _spaceControlsOpen = false;
+  // Direct calls can be upgraded in place. Keep this presentation state
+  // separate from conversationType, which intentionally remains "direct" for
+  // the existing call/session and backend lifecycle.
+  bool _multiPartyMode = false;
   int _missingSelfRefreshes = 0;
   final Set<String> _terminalCallIds = {};
   Set<String> get _remoteStreams => _media.streams;
+  // A direct call can be upgraded in place when the host invites additional
+  // people. Once more than one remote stream is present, render the same
+  // multi-party layout used by group calls instead of keeping the two-person
+  // presentation mounted.
+  bool get _isMultiPartyCall =>
+      widget.conversationType == 'group' ||
+      widget.conversationType == 'channel' ||
+      _multiPartyMode ||
+      _remoteStreams.length > 1;
   late final String _roomId =
       widget.initialRoomId ??
       'griot-${widget.conversationType}-${widget.conversationId}';
   @override
   void initState() {
     super.initState();
+    _speakerEnabled =
+        widget.conversationType == 'space' || widget.mode == 'video';
     _callId = widget.initialCallId ?? widget.initialSession?.callId;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -130,7 +240,9 @@ class _CallScreenState extends State<CallScreen> {
         // keeps the host's participant grid correct after reconnects or when
         // the join happened before this screen subscribed.
         _participantRefreshTimer = Timer.periodic(
-          const Duration(seconds: 4),
+          // Socket events are the primary update path. This slower
+          // reconciliation protects large rooms from overlapping requests.
+          const Duration(seconds: 10),
           (_) => unawaited(_refreshCampfireParticipants()),
         );
         if (widget.openParticipantsOnLoad) {
@@ -204,6 +316,8 @@ class _CallScreenState extends State<CallScreen> {
   }
 
   Future<void> _refreshCampfireParticipants() async {
+    if (_participantRefreshInFlight || _cleaningUp) return;
+    _participantRefreshInFlight = true;
     try {
       final participants = await context
           .read<MessagingApiService>()
@@ -226,6 +340,8 @@ class _CallScreenState extends State<CallScreen> {
                 isSelf: participant.isSelf,
                 speakerRequested: participant.speakerRequested,
                 avatarUrl: previous.avatarUrl,
+                isPlus: participant.isPlus,
+                isPioneer: participant.isPioneer,
               );
             }
             return participant;
@@ -252,6 +368,8 @@ class _CallScreenState extends State<CallScreen> {
       await _enforceCampfireAudioState(stableParticipants);
     } catch (_) {
       // The active call remains usable if a participant refresh is delayed.
+    } finally {
+      _participantRefreshInFlight = false;
     }
   }
 
@@ -281,6 +399,16 @@ class _CallScreenState extends State<CallScreen> {
     }
     _missingSelfRefreshes = 0;
     if (_campfireMicUpdating) return;
+    // A listener should not keep an outbound stream alive after losing the
+    // speaking seat. Muting is enough for an admitted speaker, but removing
+    // the stream saves audience-side RTC credit when moderation demotes them.
+    if (!_canCampfireSpeak(self) && _publishedStreamId != null) {
+      try {
+        await ZegoExpressEngine.instance.stopPublishingStream();
+      } catch (_) {}
+      _publishedStreamId = null;
+      _campfireCanPublish = false;
+    }
     // Server moderation may mute, but a refresh must never open a user's mic.
     final mustMute = !_canCampfireSpeak(self) || self.muted;
     if (mustMute && _audioEnabled && _engineCreated) {
@@ -308,8 +436,14 @@ class _CallScreenState extends State<CallScreen> {
         if (mounted) setState(() => _spaceParticipants = participants);
         final self = participants.where((item) => item.isSelf).firstOrNull;
         final canSpeak = _canCampfireSpeak(self);
+        // The server marks hosts as unmuted when they join and listeners as
+        // muted. Mirror that authoritative state here. Previously every
+        // Campfire entered with a locally-muted publisher, so the sound-level
+        // flame moved (the microphone was being captured) while nobody else
+        // could hear the host or an admitted speaker.
         _audioEnabled = canSpeak && self?.muted != true;
-        _videoEnabled = _videoCallActive && _audioEnabled;
+        _campfireCanPublish = canSpeak;
+        _videoEnabled = _videoCallActive && canSpeak;
       }
       final s =
           widget.initialSession ??
@@ -321,6 +455,13 @@ class _CallScreenState extends State<CallScreen> {
             callId: widget.initialCallId,
           );
       activeRoomId = s.roomId;
+      _campfireL3Enabled =
+          widget.conversationType == 'space' && s.campfireL3Enabled;
+      if (widget.conversationType == 'space' && !_campfireL3Enabled) {
+        throw StateError(
+          'This Campfire requires ZEGOCLOUD L3 live streaming and is not enabled.',
+        );
+      }
       _callId = s.callId ?? widget.initialCallId;
       if (_terminalCallIds.contains(_callId)) {
         unawaited(_close(notifyServer: false));
@@ -331,14 +472,54 @@ class _CallScreenState extends State<CallScreen> {
       }
       if (_cleaningUp) return;
       await _media.create(s);
+      ZegoExpressEngine
+          .onPublisherStateUpdate = (streamID, state, errorCode, extendedData) {
+        debugPrint(
+          '[Campfire][publish] stream=$streamID state=$state error=$errorCode data=$extendedData',
+        );
+      };
+      ZegoExpressEngine
+          .onPlayerStateUpdate = (streamID, state, errorCode, extendedData) {
+        debugPrint(
+          '[Campfire][play] stream=$streamID state=$state error=$errorCode data=$extendedData',
+        );
+      };
+      ZegoExpressEngine.onAudioRouteChange = (route) {
+        if (!mounted || _cleaningUp) return;
+        setState(() {
+          _audioRoute = route;
+          _speakerEnabled = route == ZegoAudioRoute.Speaker;
+        });
+      };
       ZegoExpressEngine.onRoomStreamUpdate =
           (roomId, updateType, streamList, extendedData) async {
             if (roomId != s.roomId || _cleaningUp || !mounted) return;
             for (final stream in streamList) {
               if (updateType == ZegoUpdateType.Add) {
                 _remoteJoined = true;
+                unawaited(_owner.stopRingback());
                 _answerTimeout?.cancel();
                 if (_remoteStreams.add(stream.streamID)) {
+                  // The stream update includes the publisher's current
+                  // metadata. Read the initial mute flag here as well as in
+                  // onRoomStreamExtraInfoUpdate; otherwise a video call can
+                  // miss a friend's already-muted state when the listener
+                  // joins after that metadata was published.
+                  _setRemoteMuteFromExtraInfo(
+                    stream.streamID,
+                    stream.extraInfo,
+                  );
+                  // Once a second remote stream arrives, every mounted call
+                  // view must use the multi-party presentation. This also
+                  // covers a direct call that was upgraded while it was open.
+                  if (_remoteStreams.length > 1 && !_multiPartyMode) {
+                    _multiPartyMode = true;
+                  }
+                  // Switch the presentation immediately when a direct call
+                  // is upgraded. Waiting for a video surface (or profile
+                  // lookup) leaves voice calls stuck on the two-person view.
+                  if (mounted && !_cleaningUp) setState(() {});
+                  unawaited(_loadStreamProfile(stream.streamID));
                   try {
                     if (_videoCallActive) {
                       final view = await ZegoExpressEngine.instance
@@ -348,6 +529,7 @@ class _CallScreenState extends State<CallScreen> {
                               ZegoExpressEngine.instance.startPlayingStream(
                                 stream.streamID,
                                 canvas: _callCanvas(viewID),
+                                config: _playerConfigForStream(),
                               ),
                             );
                           });
@@ -360,10 +542,15 @@ class _CallScreenState extends State<CallScreen> {
                     } else {
                       await ZegoExpressEngine.instance.startPlayingStream(
                         stream.streamID,
+                        config: _playerConfigForStream(),
                       );
                       if (mounted) setState(() {});
                     }
-                  } catch (_) {}
+                  } catch (error, stackTrace) {
+                    debugPrint(
+                      '[Campfire][play] start failed stream=${stream.streamID}: $error\n$stackTrace',
+                    );
+                  }
                 }
               } else if (updateType == ZegoUpdateType.Delete &&
                   _remoteStreams.remove(stream.streamID)) {
@@ -384,6 +571,77 @@ class _CallScreenState extends State<CallScreen> {
       if (_cleaningUp) return;
       await _media.join(s);
       if (_cleaningUp) return;
+      // Zego exposes 0-100 local/remote levels at a lightweight interval.
+      // These drive only the visual speaking treatment; they are never sent
+      // to the server or persisted.
+      ZegoExpressEngine.onCapturedSoundLevelUpdate = (level) {
+        if (!mounted || _cleaningUp) return;
+        _pendingLocalSoundLevel = level.clamp(0, 100) / 100;
+        _scheduleSoundLevelFrame();
+      };
+      ZegoExpressEngine.onRemoteSoundLevelUpdate = (levels) {
+        if (!mounted || _cleaningUp) return;
+        for (final entry in levels.entries) {
+          _pendingRemoteSoundLevels[entry.key] =
+              entry.value.clamp(0, 100) / 100;
+        }
+        _scheduleSoundLevelFrame();
+      };
+      ZegoExpressEngine.onRoomStreamExtraInfoUpdate = (roomId, streams) {
+        if (!mounted || _cleaningUp || roomId != s.roomId) return;
+        setState(() {
+          for (final stream in streams) {
+            _setRemoteMuteFromExtraInfo(stream.streamID, stream.extraInfo);
+          }
+        });
+      };
+      ZegoExpressEngine.onIMRecvCustomCommand = (roomId, fromUser, command) {
+        if (!mounted || _cleaningUp || roomId != s.roomId) return;
+        try {
+          final data = jsonDecode(command);
+          if (data is! Map) return;
+          if (data['type'] == 'call_reaction') {
+            final emoji = data['emoji']?.toString();
+            if (emoji == null || emoji.isEmpty) return;
+            final reactorId = fromUser.userID.toString();
+            _spaceReactionTimers[reactorId]?.cancel();
+            if (mounted) {
+              setState(() => _spaceReactions[reactorId] = emoji);
+              _spaceReactionTimers[reactorId] = Timer(
+                const Duration(seconds: 3),
+                () {
+                  if (mounted) {
+                    setState(() => _spaceReactions.remove(reactorId));
+                  }
+                  _spaceReactionTimers.remove(reactorId);
+                },
+              );
+            }
+            return;
+          }
+          if (data['type'] != 'mute_participant') return;
+          if (data['streamId'] != _publishedStreamId) return;
+          final muted = data['muted'] == true;
+          unawaited(() async {
+            await ZegoExpressEngine.instance.mutePublishStreamAudio(muted);
+            await ZegoExpressEngine.instance.setStreamExtraInfo(
+              jsonEncode({'muted': muted}),
+            );
+            if (mounted && !_cleaningUp) setState(() => _audioEnabled = !muted);
+          }());
+        } catch (_) {}
+      };
+      await ZegoExpressEngine.instance.startSoundLevelMonitor(
+        config: ZegoSoundLevelConfig(100, true),
+      );
+      await ZegoExpressEngine.instance.setAudioRouteToSpeaker(_speakerEnabled);
+      try {
+        _audioRoute = await ZegoExpressEngine.instance.getAudioRouteType();
+        _speakerEnabled = _audioRoute == ZegoAudioRoute.Speaker;
+      } catch (_) {
+        // Route detection is unavailable on some platforms; retain the
+        // requested speaker/earpiece state as the fallback label.
+      }
       await ZegoExpressEngine.instance.enableCamera(_videoEnabled);
       await ZegoExpressEngine.instance.mutePublishStreamAudio(!_audioEnabled);
       await ZegoExpressEngine.instance.mutePublishStreamVideo(!_videoEnabled);
@@ -401,7 +659,15 @@ class _CallScreenState extends State<CallScreen> {
         if (mounted) setState(() => _localVideoView = localView);
       }
       if (_cleaningUp) return;
-      await _media.publish(s.userId);
+      // In a Campfire, listeners are receive-only. Publishing a muted stream
+      // for every listener unnecessarily consumes RTC media credit and is not
+      // how a live-room audience should behave.
+      if (widget.conversationType != 'space' || _campfireCanPublish) {
+        _publishedStreamId = await _media.publish(s.userId);
+        await ZegoExpressEngine.instance.setStreamExtraInfo(
+          jsonEncode({'muted': !_audioEnabled}),
+        );
+      }
       if (_callId != null) {
         try {
           await RealtimeCallService(apiClient).updateStatus(_callId!, 'active');
@@ -418,6 +684,11 @@ class _CallScreenState extends State<CallScreen> {
       }
     } catch (e) {
       final failedCallId = _callId;
+      // Ending a call while connection/setup is still in flight is a normal
+      // race (especially when the native call sheet is dismissed). Do not
+      // turn that intentional teardown into a visible API/setup error or
+      // overwrite the closing state with "Call unavailable".
+      if (_cleaningUp) return;
       if (failedCallId != null && widget.conversationType != 'space') {
         try {
           await RealtimeCallService(
@@ -437,7 +708,7 @@ class _CallScreenState extends State<CallScreen> {
       }
       // Connection failures are displayed locally. Only an actual answer
       // timeout may classify the call as missed.
-      if (mounted) {
+      if (mounted && !_cleaningUp) {
         setState(() {
           _error = e.toString().replaceFirst('Bad state: ', '');
           _status = 'Call unavailable';
@@ -558,25 +829,36 @@ class _CallScreenState extends State<CallScreen> {
         : value;
   }
 
+  bool get _remoteParticipantMuted {
+    if (_remoteStreams.isEmpty) return false;
+    return _remoteMuted[_remoteStreams.first] ?? false;
+  }
+
   Future<void> _requestCallPermissions() async {
     final requested = <Permission>[Permission.microphone];
-    if (_videoEnabled) requested.add(Permission.camera);
+    // Campfire video starts with the camera disabled until the participant
+    // role is loaded. Request camera permission up front for video rooms so
+    // approved speakers can publish immediately, just like voice rooms.
+    final cameraNeeded =
+        _videoEnabled ||
+        (widget.conversationType == 'space' && widget.mode == 'video');
+    if (cameraNeeded) requested.add(Permission.camera);
 
     final result = await requested.request();
     final microphone = result[Permission.microphone];
     final camera = result[Permission.camera];
     final microphoneGranted = microphone?.isGranted == true;
-    final cameraGranted = !_videoEnabled || camera?.isGranted == true;
+    final cameraGranted = !cameraNeeded || camera?.isGranted == true;
 
     if (microphoneGranted && cameraGranted) return;
 
     final permanentlyDenied =
         microphone?.isPermanentlyDenied == true ||
-        (_videoEnabled && camera?.isPermanentlyDenied == true);
+        (cameraNeeded && camera?.isPermanentlyDenied == true);
     throw StateError(
       permanentlyDenied
-          ? 'Enable microphone${_videoEnabled ? ' and camera' : ''} access in Settings to join the call.'
-          : 'Microphone${_videoEnabled ? ' and camera' : ''} permission is required to join the call.',
+          ? 'Enable microphone${cameraNeeded ? ' and camera' : ''} access in Settings to join the call.'
+          : 'Microphone${cameraNeeded ? ' and camera' : ''} permission is required to join the call.',
     );
   }
 
@@ -584,24 +866,34 @@ class _CallScreenState extends State<CallScreen> {
     if (!_started || _cleaningUp || _campfireMicUpdating) return;
     final messaging = context.read<MessagingApiService>();
     final next = !_audioEnabled;
+    SpaceParticipant? campfireSelf;
     _campfireMicUpdating = true;
     try {
       if (widget.conversationType == 'space') {
         final participants = await messaging.getCampfireParticipants(
           widget.conversationId,
         );
-        final self = participants.where((item) => item.isSelf).firstOrNull;
-        if (!_canCampfireSpeak(self)) {
+        campfireSelf = participants.where((item) => item.isSelf).firstOrNull;
+        if (!_canCampfireSpeak(campfireSelf)) {
           throw StateError('Raise your hand to request speaking permission.');
         }
         await messaging.moderateCampfireParticipant(
           campfireId: widget.conversationId,
-          userId: self!.id,
+          userId: campfireSelf!.id,
           action: next ? 'unmute' : 'mute',
         );
       }
       if (_cleaningUp || !_engineCreated) return;
+      if (widget.conversationType == 'space' &&
+          next &&
+          _publishedStreamId == null) {
+        _publishedStreamId = await _media.publish(campfireSelf!.id);
+        _campfireCanPublish = true;
+      }
       await ZegoExpressEngine.instance.mutePublishStreamAudio(!next);
+      await ZegoExpressEngine.instance.setStreamExtraInfo(
+        jsonEncode({'muted': !next}),
+      );
       if (mounted) setState(() => _audioEnabled = next);
     } catch (error) {
       if (mounted && !_cleaningUp) {
@@ -620,6 +912,59 @@ class _CallScreenState extends State<CallScreen> {
     }
   }
 
+  void _setRemoteMuteFromExtraInfo(String streamId, String extraInfo) {
+    if (streamId.isEmpty || extraInfo.isEmpty) return;
+    try {
+      final data = jsonDecode(extraInfo);
+      if (data is Map && data['muted'] is bool) {
+        _remoteMuted[streamId] = data['muted'] as bool;
+      }
+    } catch (_) {
+      // Stream metadata can contain provider-specific JSON. Ignore entries
+      // that do not carry our mute flag.
+    }
+  }
+
+  Future<void> _toggleSpeaker() async {
+    if (!_engineCreated || _cleaningUp) return;
+    final next = !_speakerEnabled;
+    try {
+      await ZegoExpressEngine.instance.setAudioRouteToSpeaker(next);
+      if (mounted && !_cleaningUp) {
+        final route = await ZegoExpressEngine.instance.getAudioRouteType();
+        setState(() {
+          _audioRoute = route;
+          _speakerEnabled = route == ZegoAudioRoute.Speaker;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        _showCallNotice(
+          'Audio output unchanged',
+          'Could not change audio output: $error',
+          icon: Icons.volume_off_rounded,
+        );
+      }
+    }
+  }
+
+  Future<void> _switchCamera() async {
+    if (!_started || !_videoEnabled) return;
+    _usingFrontCamera = !_usingFrontCamera;
+    try {
+      await ZegoExpressEngine.instance.useFrontCamera(_usingFrontCamera);
+      if (mounted) setState(() {});
+    } catch (error) {
+      if (mounted) {
+        _showCallNotice(
+          'Camera unchanged',
+          'Could not switch camera: $error',
+          icon: Icons.videocam_off_rounded,
+        );
+      }
+    }
+  }
+
   Future<void> _requestToSpeak() async {
     final self = _spaceParticipants.where((item) => item.isSelf).firstOrNull;
     final raised = self?.speakerRequested != true;
@@ -629,6 +974,18 @@ class _CallScreenState extends State<CallScreen> {
         raised: raised,
       );
       if (!mounted || _cleaningUp) return;
+      // Update the control optimistically so the action immediately changes
+      // from Raise hand to Lower hand (or back) while the realtime snapshot
+      // catches up.
+      setState(() {
+        _spaceParticipants = _spaceParticipants
+            .map(
+              (participant) => participant.isSelf
+                  ? participant.copyWith(speakerRequested: raised)
+                  : participant,
+            )
+            .toList(growable: false);
+      });
       await _refreshCampfireParticipants();
       if (!mounted || _cleaningUp) return;
       NotificationService.showPush(
@@ -651,6 +1008,51 @@ class _CallScreenState extends State<CallScreen> {
     }
   }
 
+  Future<void> _showCallReactions() async {
+    if (!_started || _cleaningUp) return;
+    final emoji = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      builder: (sheetContext) => _CallReactionPicker(
+        recent: _recentCallReactions,
+        onSelected: (value) => Navigator.pop(sheetContext, value),
+      ),
+    );
+    if (emoji == null || !_started || _cleaningUp) return;
+    _recentCallReactions.remove(emoji);
+    _recentCallReactions.insert(0, emoji);
+    if (_recentCallReactions.length > 8) _recentCallReactions.removeLast();
+    try {
+      await ZegoExpressEngine.instance.sendCustomCommand(
+        _roomId,
+        jsonEncode({'type': 'call_reaction', 'emoji': emoji}),
+        const [],
+      );
+      if (mounted) {
+        // Zego does not echo commands back to the sender, so render the
+        // sender's own reaction locally using the same card treatment.
+        final self = _spaceParticipants
+            .where((item) => item.isSelf)
+            .firstOrNull;
+        final reactorId = self?.id ?? _publishedStreamId;
+        if (reactorId != null && reactorId.isNotEmpty) {
+          _spaceReactionTimers[reactorId]?.cancel();
+          setState(() => _spaceReactions[reactorId] = emoji);
+          _spaceReactionTimers[reactorId] = Timer(
+            const Duration(seconds: 3),
+            () {
+              if (mounted) setState(() => _spaceReactions.remove(reactorId));
+              _spaceReactionTimers.remove(reactorId);
+            },
+          );
+        }
+      }
+    } catch (error) {
+      debugPrint('Call reaction failed: $error');
+    }
+  }
+
   Future<void> _toggleVideo() async {
     if (!_started) return;
     if (widget.conversationType == 'space') {
@@ -660,10 +1062,10 @@ class _CallScreenState extends State<CallScreen> {
       final self = participants.where((item) => item.isSelf).firstOrNull;
       if (!_canCampfireSpeak(self) || self?.muted == true) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Only approved speakers can turn on video.'),
-            ),
+          _showCallNotice(
+            'Video unavailable',
+            'Only approved speakers can turn on video.',
+            icon: Icons.videocam_off_rounded,
           );
         }
         return;
@@ -674,8 +1076,10 @@ class _CallScreenState extends State<CallScreen> {
       final permission = await Permission.camera.request();
       if (!permission.isGranted) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Camera permission is required.')),
+          _showCallNotice(
+            'Camera permission required',
+            'Allow camera access to turn on video.',
+            icon: Icons.videocam_off_rounded,
           );
         }
         return;
@@ -696,8 +1100,10 @@ class _CallScreenState extends State<CallScreen> {
       if (mounted) setState(() => _videoEnabled = next);
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not change camera state: $error')),
+        _showCallNotice(
+          'Camera unchanged',
+          'Could not change camera state: $error',
+          icon: Icons.videocam_off_rounded,
         );
       }
     }
@@ -732,6 +1138,7 @@ class _CallScreenState extends State<CallScreen> {
         ZegoExpressEngine.instance.startPlayingStream(
           streamId,
           canvas: _callCanvas(viewID),
+          config: _playerConfigForStream(),
         ),
       );
     });
@@ -740,40 +1147,6 @@ class _CallScreenState extends State<CallScreen> {
         _remoteVideoViews[streamId] = view;
         _showLocalMain = false;
       });
-    }
-  }
-
-  Future<void> _switchCamera() async {
-    if (!_started || !_videoEnabled) return;
-    _usingFrontCamera = !_usingFrontCamera;
-    try {
-      await ZegoExpressEngine.instance.useFrontCamera(_usingFrontCamera);
-      if (mounted) setState(() {});
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not switch camera: $error')),
-        );
-      }
-    }
-  }
-
-  Future<void> _toggleMirror() async {
-    if (!_engineCreated || !_videoEnabled) return;
-    final next = !_isMirrored;
-    try {
-      await ZegoExpressEngine.instance.setVideoMirrorMode(
-        next
-            ? ZegoVideoMirrorMode.OnlyPreviewMirror
-            : ZegoVideoMirrorMode.NoMirror,
-      );
-      if (mounted) setState(() => _isMirrored = next);
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not change mirror mode: $error')),
-        );
-      }
     }
   }
 
@@ -798,8 +1171,10 @@ class _CallScreenState extends State<CallScreen> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not create call link: $e')),
+        _showCallNotice(
+          'Call link unavailable',
+          'Could not create call link: $e',
+          icon: Icons.link_off_rounded,
         );
       }
     }
@@ -811,7 +1186,7 @@ class _CallScreenState extends State<CallScreen> {
     if (callId == null || !mounted) return;
     final selected = await FriendSelectorSheet.show(
       context,
-      title: 'Add people to call',
+      title: 'Add people or retry ringing',
       disabledIds: [context.read<UserProvider>().user?.id ?? ''],
     );
     if (!mounted || selected == null || selected.isEmpty) return;
@@ -822,21 +1197,124 @@ class _CallScreenState extends State<CallScreen> {
             userIds: selected.map((user) => user.id).toList(),
           );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            invited.isEmpty
-                ? 'Those people are already invited.'
-                : 'Call invitation sent.',
-          ),
-        ),
+      // The invite upgrades this existing session; do not wait for a route
+      // recreation or for the invitee's first media frame to change layout.
+      if (invited.isNotEmpty && !_multiPartyMode) {
+        setState(() => _multiPartyMode = true);
+      }
+      // The invite response contains IDs, not presentation data. Resolve the
+      // profiles now so the upgraded grid uses the same name/avatar hierarchy
+      // as the rest of the app instead of generic participant labels.
+      unawaited(_loadParticipantProfiles(invited));
+      _showCallNotice(
+        invited.isEmpty ? 'Already invited' : 'Invitation sent',
+        invited.isEmpty
+            ? 'Those people are already in this call.'
+            : 'The call is ringing them now. Select them here again to ring them again if they missed it.',
+        icon: invited.isEmpty
+            ? Icons.people_alt_outlined
+            : Icons.person_add_alt_1_rounded,
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not invite people: $error')),
+      _showCallNotice(
+        'Invitation failed',
+        'Could not invite people: $error',
+        icon: Icons.person_add_disabled_rounded,
       );
     }
+  }
+
+  Future<void> _requestMuteParticipant(String streamId) async {
+    if (_cleaningUp || !_started || streamId.isEmpty) return;
+    final targetId =
+        _profileForStream(streamId)?['id']?.toString() ??
+        _streamOwnerId(streamId);
+    if (targetId == null || targetId.isEmpty) return;
+    final muted = !(_remoteMuted[streamId] ?? false);
+    try {
+      await ZegoExpressEngine.instance.sendCustomCommand(
+        _roomId,
+        jsonEncode({
+          'type': 'mute_participant',
+          'streamId': streamId,
+          'muted': muted,
+        }),
+        [ZegoUser(targetId, targetId)],
+      );
+    } catch (error) {
+      if (mounted) {
+        _showCallNotice(
+          'Microphone unchanged',
+          'Could not change microphone: $error',
+          icon: Icons.mic_off_rounded,
+        );
+      }
+    }
+  }
+
+  String? _streamOwnerId(String streamId) {
+    final parts = streamId.split('-');
+    if (parts.length < 3 || parts.first != 'griot') return null;
+    return parts.sublist(1, parts.length - 1).join('-');
+  }
+
+  Future<void> _loadParticipantProfiles(Iterable<String> ids) async {
+    final userApi = context.read<UserProvider>().userApiService;
+    final pending = ids
+        .map((id) => id.trim())
+        .where(
+          (id) => id.isNotEmpty && !_callParticipantProfiles.containsKey(id),
+        )
+        .toSet();
+    if (pending.isEmpty) return;
+    await Future.wait(
+      pending.map((id) async {
+        try {
+          final user = await userApi.getUserById(id);
+          _callParticipantProfiles[id] = {
+            'id': user.id,
+            'display_name': user.displayName,
+            'username': user.username,
+            'wallet_address': user.walletAddress,
+            'avatar_url': user.avatarUrl,
+          };
+        } catch (_) {
+          // Stream rendering remains available with the wallet fallback.
+        }
+      }),
+    );
+    if (mounted && !_cleaningUp) setState(() {});
+  }
+
+  /// Coalesce the SDK's high-frequency sound callbacks into a small number of
+  /// visual frames. Sound levels only drive the speaking/flame treatment, so
+  /// rebuilding the whole call screen for every callback causes unnecessary
+  /// flicker and battery use without improving the UI.
+  void _scheduleSoundLevelFrame() {
+    if (_soundLevelFrameTimer != null || !mounted || _cleaningUp) return;
+    _soundLevelFrameTimer = Timer(const Duration(milliseconds: 80), () {
+      _soundLevelFrameTimer = null;
+      if (!mounted || _cleaningUp) return;
+      final local = _pendingLocalSoundLevel;
+      final remote = Map<String, double>.from(_pendingRemoteSoundLevels);
+      _pendingLocalSoundLevel = null;
+      _pendingRemoteSoundLevels.clear();
+      if (local == null && remote.isEmpty) return;
+      setState(() {
+        if (local != null) _localSoundLevel = local;
+        _remoteSoundLevels.addAll(remote);
+      });
+    });
+  }
+
+  Future<void> _loadStreamProfile(String streamId) async {
+    final profile = _profileForStream(streamId);
+    if (profile != null) return;
+    final parts = streamId.split('-');
+    if (parts.length < 3 || parts.first != 'griot') return;
+    final id = parts.sublist(1, parts.length - 1).join('-');
+    await _loadParticipantProfiles([id]);
   }
 
   Future<void> _showSpaceControls() async {
@@ -846,8 +1324,10 @@ class _CallScreenState extends State<CallScreen> {
       participants = await api.getCampfireParticipants(widget.conversationId);
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not load participants: $error')),
+        _showCallNotice(
+          'Participants unavailable',
+          'Could not load participants: $error',
+          icon: Icons.people_alt_outlined,
         );
       }
       return;
@@ -896,6 +1376,13 @@ class _CallScreenState extends State<CallScreen> {
           final self = participants.where((item) => item.isSelf).firstOrNull;
           final canModerate = self?.role == 'host' || self?.role == 'cohost';
           final isOwner = self?.isOwner == true || self?.role == 'host';
+          final stageCount = participants.where((item) {
+            return item.isOwner ||
+                item.role == 'host' ||
+                item.role == 'cohost' ||
+                item.role == 'speaker';
+          }).length;
+          final stageFull = stageCount >= _maxCampfireStageSeats;
           final orderedParticipants = [...participants]
             ..sort((a, b) {
               int rank(SpaceParticipant value) {
@@ -963,8 +1450,10 @@ class _CallScreenState extends State<CallScreen> {
               await refresh();
             } catch (error) {
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Action failed: $error')),
+                _showCallNotice(
+                  'Action failed',
+                  '$error',
+                  icon: Icons.error_outline_rounded,
                 );
               }
               if (context.mounted) setSheetState(() => busy = false);
@@ -1024,6 +1513,15 @@ class _CallScreenState extends State<CallScreen> {
                       Text(
                         '${participants.length} joined',
                         style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      Text(
+                        'Stage $stageCount/$_maxCampfireStageSeats seats',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: stageFull
+                              ? Theme.of(context).colorScheme.error
+                              : null,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       TextField(
@@ -1162,19 +1660,36 @@ class _CallScreenState extends State<CallScreen> {
                                           )
                                         : null,
                                   ),
-                                  title: Text(
-                                    _compactParticipantName(
-                                      participant.isSelf
-                                          ? '${_participantDisplayName(participant)} (You)'
-                                          : _participantDisplayName(
-                                              participant,
-                                            ),
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                    ),
+                                  title: Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          _compactParticipantName(
+                                            participant.isSelf
+                                                ? '${_participantDisplayName(participant)} (You)'
+                                                : _participantDisplayName(
+                                                    participant,
+                                                  ),
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                      if (participant.isPlus) ...[
+                                        const SizedBox(width: 3),
+                                        const GriotPlusBadge(
+                                          isPlus: true,
+                                          compact: true,
+                                        ),
+                                      ],
+                                      if (participant.isPioneer) ...[
+                                        const SizedBox(width: 3),
+                                        const GriotPioneerBadge(compact: true),
+                                      ],
+                                    ],
                                   ),
                                   subtitle: Text(
                                     '${participant.muted ? 'Muted · ' : ''}$role',
@@ -1185,7 +1700,7 @@ class _CallScreenState extends State<CallScreen> {
                                           children: [
                                             if (participant.speakerRequested)
                                               FilledButton(
-                                                onPressed: busy
+                                                onPressed: busy || stageFull
                                                     ? null
                                                     : () => moderate(
                                                         participant,
@@ -1199,8 +1714,10 @@ class _CallScreenState extends State<CallScreen> {
                                                         horizontal: 10,
                                                       ),
                                                 ),
-                                                child: const Text(
-                                                  'Make speaker',
+                                                child: Text(
+                                                  stageFull
+                                                      ? 'Stage full'
+                                                      : 'Make speaker',
                                                 ),
                                               ),
                                             PopupMenuButton<String>(
@@ -1215,9 +1732,14 @@ class _CallScreenState extends State<CallScreen> {
                                                         .speakerRequested &&
                                                     participant.role ==
                                                         'listener')
-                                                  const PopupMenuItem(
+                                                  PopupMenuItem(
                                                     value: 'approve_speaker',
-                                                    child: Text('Make speaker'),
+                                                    enabled: !stageFull,
+                                                    child: Text(
+                                                      stageFull
+                                                          ? 'Stage full'
+                                                          : 'Make speaker',
+                                                    ),
                                                   ),
                                                 if (isOwner)
                                                   PopupMenuItem(
@@ -1226,10 +1748,18 @@ class _CallScreenState extends State<CallScreen> {
                                                             'cohost'
                                                         ? 'demote'
                                                         : 'promote',
+                                                    enabled:
+                                                        participant.role !=
+                                                            'listener' ||
+                                                        !stageFull,
                                                     child: Text(
                                                       participant.role ==
                                                               'cohost'
                                                           ? 'Remove co-host'
+                                                          : participant.role ==
+                                                                    'listener' &&
+                                                                stageFull
+                                                          ? 'Stage full'
                                                           : 'Make co-host',
                                                     ),
                                                   ),
@@ -1339,6 +1869,19 @@ class _CallScreenState extends State<CallScreen> {
   }
 
   Future<void> _cleanupZego(String? roomId) async {
+    try {
+      await ZegoExpressEngine.instance.stopSoundLevelMonitor();
+    } catch (_) {}
+    ZegoExpressEngine.onCapturedSoundLevelUpdate = null;
+    ZegoExpressEngine.onRemoteSoundLevelUpdate = null;
+    ZegoExpressEngine.onRoomStreamExtraInfoUpdate = null;
+    ZegoExpressEngine.onIMRecvCustomCommand = null;
+    _remoteSoundLevels.clear();
+    _pendingLocalSoundLevel = null;
+    _pendingRemoteSoundLevels.clear();
+    _soundLevelFrameTimer?.cancel();
+    _soundLevelFrameTimer = null;
+    _remoteMuted.clear();
     await _media.close();
     _remoteVideoViews.clear();
     _localViewId = null;
@@ -1350,6 +1893,12 @@ class _CallScreenState extends State<CallScreen> {
     _participantRefreshDebounce?.cancel();
     _participantRefreshTimer?.cancel();
     _answerTimeout?.cancel();
+    _soundLevelFrameTimer?.cancel();
+    _soundLevelFrameTimer = null;
+    for (final timer in _spaceReactionTimers.values) {
+      timer.cancel();
+    }
+    _spaceReactionTimers.clear();
     // The app host removes this view only after explicit/remote cleanup.
     // Widget disposal never writes a terminal status to the server.
     super.dispose();
@@ -1371,7 +1920,8 @@ class _CallScreenState extends State<CallScreen> {
   }
 
   bool get _canShareCallLink =>
-      widget.conversationType != 'direct' && widget.conversationType != 'dm';
+      _multiPartyMode ||
+      (widget.conversationType != 'direct' && widget.conversationType != 'dm');
 
   String get _callExitLabel {
     if (widget.conversationType == 'space') {
@@ -1413,6 +1963,20 @@ class _CallScreenState extends State<CallScreen> {
       await _close(notifyServer: false);
     } catch (error) {
       if (mounted && !_cleaningUp) {
+        final message = '$error'.toLowerCase();
+        // The server may already have closed the room (another participant,
+        // timeout, or a duplicate end request). Treat these as successful
+        // teardown and never show a raw API error over the call screen.
+        if (message.contains('not found') ||
+            message.contains('already ended') ||
+            message.contains('already closed') ||
+            message.contains('no longer active') ||
+            message.contains('404') ||
+            message.contains('409') ||
+            message.contains('410')) {
+          await _close(notifyServer: false);
+          return;
+        }
         NotificationService.showPush(
           context,
           title: 'Could not end Campfire',
@@ -1426,6 +1990,20 @@ class _CallScreenState extends State<CallScreen> {
   void _minimizeCall() {
     if (!mounted || _cleaningUp) return;
     _owner.minimize();
+  }
+
+  void _showCallNotice(
+    String title,
+    String message, {
+    IconData icon = Icons.info_outline_rounded,
+  }) {
+    if (!mounted || _cleaningUp) return;
+    NotificationService.showPush(
+      context,
+      title: title,
+      message: message,
+      icon: icon,
+    );
   }
 
   @override
@@ -1445,7 +2023,7 @@ class _CallScreenState extends State<CallScreen> {
           ),
           title: Text(
             widget.conversationType == 'space'
-                ? (widget.mode == 'video' ? 'Video Campfire' : 'Voice Campfire')
+                ? _campfireTitle
                 : (_videoCallActive ? 'Video call' : 'Voice call'),
           ),
           centerTitle: true,
@@ -1460,7 +2038,7 @@ class _CallScreenState extends State<CallScreen> {
               ),
             if (widget.conversationType != 'space')
               IconButton(
-                tooltip: 'Add people to call',
+                tooltip: 'Add people or retry ringing',
                 onPressed: _invitePeople,
                 icon: const Icon(Icons.person_add_alt_1_rounded),
               ),
@@ -1490,8 +2068,7 @@ class _CallScreenState extends State<CallScreen> {
     if (widget.conversationType == 'space') {
       return _buildCampfireVoiceBody(colors);
     }
-    if (widget.conversationType == 'group' ||
-        widget.conversationType == 'channel') {
+    if (_isMultiPartyCall) {
       return _buildGroupVoiceBody(colors);
     }
     final title = widget.conversationType == 'space'
@@ -1499,22 +2076,11 @@ class _CallScreenState extends State<CallScreen> {
         : _remoteCallLabel();
     final subtitle = _started ? _status : 'Connecting securely';
     return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 12, 18, 22),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 14),
       child: Column(
         children: [
-          if (_started && _canShareCallLink)
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton.tonalIcon(
-                onPressed: _sharingLink ? null : _shareCallLink,
-                icon: const Icon(Icons.link_rounded),
-                label: Text(
-                  _sharingLink ? 'Creating link…' : 'Share call link',
-                ),
-              ),
-            ),
-          if (_started && _canShareCallLink) const SizedBox(height: 10),
-          Expanded(
+          Flexible(
+            fit: FlexFit.loose,
             child: GriotBrandedContainer(
               padding: const EdgeInsets.fromLTRB(24, 36, 24, 28),
               borderRadius: 30,
@@ -1524,7 +2090,7 @@ class _CallScreenState extends State<CallScreen> {
                     top: 0,
                     right: 0,
                     child: _CallStatusPill(
-                      label: _started ? 'LIVE' : 'CONNECTING',
+                      label: _started ? 'BURNING' : 'CONNECTING',
                       colors: colors,
                       live: _started,
                     ),
@@ -1567,6 +2133,23 @@ class _CallScreenState extends State<CallScreen> {
                                 : null,
                           ),
                         ),
+                        const SizedBox(height: 18),
+                        _AudioInputShimmer(
+                          // A live microphone should not animate while the
+                          // speaker is silent. This keeps the indicator tied
+                          // to the actual input level instead of breathing at
+                          // a fixed/random cadence.
+                          active:
+                              _started &&
+                              _audioEnabled &&
+                              _localSoundLevel > .025,
+                          color: colors.primary,
+                          intensity: _localSoundLevel,
+                        ),
+                        if (_remoteParticipantMuted) ...[
+                          const SizedBox(height: 8),
+                          _MutedCallIndicator(colors: colors),
+                        ],
                         if (widget.conversationType == 'space' &&
                             _spaceParticipants.isNotEmpty) ...[
                           const SizedBox(height: 18),
@@ -1606,18 +2189,17 @@ class _CallScreenState extends State<CallScreen> {
           ),
           const SizedBox(height: 14),
           if (_started)
-            GriotBrandedContainer(
-              padding: const EdgeInsets.fromLTRB(8, 10, 8, 12),
-              borderRadius: 22,
-              child: _buildCallControls(colors),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.22),
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
+                child: _buildCallControls(colors),
+              ),
             ),
           const SizedBox(height: 10),
-          if (_started && _canShareCallLink)
-            FilledButton.tonalIcon(
-              onPressed: _sharingLink ? null : _shareCallLink,
-              icon: const Icon(Icons.link_rounded),
-              label: Text(_sharingLink ? 'Creating link…' : 'Share call link'),
-            ),
           const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
@@ -1643,98 +2225,189 @@ class _CallScreenState extends State<CallScreen> {
   }
 
   Widget _buildGroupVoiceBody(ColorScheme colors) {
-    final remoteIds = _remoteStreams.toList(growable: false);
-    final total = remoteIds.length + 1;
+    final remoteIds = _remoteStreams.toList()
+      ..sort(
+        (a, b) =>
+            (_remoteSoundLevels[b] ?? 0).compareTo(_remoteSoundLevels[a] ?? 0),
+      );
+    // Keep the local participant in the same ranking as remote participants
+    // after a direct call is upgraded, so the active speakers occupy the
+    // first cards instead of always pinning the local user at index zero.
+    final participantOrder = <String?>[null, ...remoteIds]
+      ..sort((a, b) {
+        bool micIsOn(String? streamId) => streamId == null
+            ? _audioEnabled
+            : !(_remoteMuted[streamId] ?? false);
+        final aMic = micIsOn(a);
+        final bMic = micIsOn(b);
+        if (aMic != bMic) return bMic ? 1 : -1;
+        final aLevel = a == null
+            ? _localSoundLevel
+            : (_remoteSoundLevels[a] ?? 0);
+        final bLevel = b == null
+            ? _localSoundLevel
+            : (_remoteSoundLevels[b] ?? 0);
+        return bLevel.compareTo(aLevel);
+      });
+    final total = participantOrder.length;
+    final participantTiles = List<Widget>.generate(total, (index) {
+      final streamId = participantOrder[index];
+      final isLocal = streamId == null;
+      final name = isLocal
+          ? 'You'
+          : _participantNameFromStream(streamId, index);
+      final profile = streamId == null ? null : _profileForStream(streamId);
+      return _voiceParticipantCard(
+        colors,
+        name,
+        isLocal: isLocal,
+        soundLevel: isLocal
+            ? _localSoundLevel
+            : (_remoteSoundLevels[streamId] ?? 0),
+        speaking: isLocal
+            ? _audioEnabled && _localSoundLevel > 0.04
+            : !(_remoteMuted[streamId] ?? false) &&
+                  (_remoteSoundLevels[streamId] ?? 0) > 0.04,
+        muted: isLocal ? !_audioEnabled : (_remoteMuted[streamId] ?? false),
+        onLongPress: isLocal ? null : () => _requestMuteParticipant(streamId),
+        avatarUrl: isLocal
+            ? context.read<UserProvider>().user?.avatarUrl
+            : (_avatarUrlFromProfile(profile) ??
+                  (index == 1 ? _remoteAvatarUrl : null)),
+      );
+    });
     return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 12, 18, 22),
+      padding: const EdgeInsets.fromLTRB(14, 6, 14, 10),
       child: Column(
         children: [
           Expanded(
             child: GriotBrandedContainer(
-              padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+              padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
               borderRadius: 30,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+              child: Stack(
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _remoteDisplayName.isEmpty
-                              ? 'Group call'
-                              : _remoteCallLabel(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w800),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 82),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _multiPartyMode || _remoteDisplayName.isEmpty
+                                    ? 'Group call'
+                                    : _remoteCallLabel(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.titleLarge
+                                    ?.copyWith(fontWeight: FontWeight.w800),
+                              ),
+                            ),
+                            Text(
+                              '$total ${total == 1 ? 'participant' : 'participants'}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        Expanded(
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final columns = switch (participantTiles.length) {
+                                0 || 1 => 1,
+                                2 || 3 || 4 => 2,
+                                _ => constraints.maxWidth >= 680 ? 3 : 2,
+                              };
+                              final rows = <List<Widget>>[];
+                              for (
+                                var index = 0;
+                                index < participantTiles.length;
+                                index += columns
+                              ) {
+                                rows.add(
+                                  participantTiles.sublist(
+                                    index,
+                                    (index + columns).clamp(
+                                      0,
+                                      participantTiles.length,
+                                    ),
+                                  ),
+                                );
+                              }
+                              return ListView.separated(
+                                padding: const EdgeInsets.fromLTRB(2, 2, 2, 16),
+                                physics: const BouncingScrollPhysics(),
+                                itemCount: rows.length,
+                                separatorBuilder: (context, index) =>
+                                    const SizedBox(height: 10),
+                                itemBuilder: (context, rowIndex) {
+                                  final row = rows[rowIndex];
+                                  return SizedBox(
+                                    height: columns == 1
+                                        ? 220
+                                        : columns == 2
+                                        ? 190
+                                        : 170,
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        for (
+                                          var tileIndex = 0;
+                                          tileIndex < row.length;
+                                          tileIndex++
+                                        ) ...[
+                                          if (tileIndex > 0)
+                                            const SizedBox(width: 10),
+                                          Expanded(child: row[tileIndex]),
+                                        ],
+                                      ],
+                                    ),
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _status,
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: colors.onSurfaceVariant,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_started)
+                    Positioned(
+                      left: 28,
+                      right: 28,
+                      bottom: 14,
+                      child: Material(
+                        elevation: 10,
+                        color: colors.surface.withValues(alpha: 0.97),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                          side: BorderSide(
+                            color: colors.outlineVariant.withValues(alpha: 0.7),
+                          ),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(8, 8, 8, 9),
+                          child: _buildCallControls(colors, compact: true),
                         ),
                       ),
-                      Text(
-                        '$total ${total == 1 ? 'participant' : 'participants'}',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  Expanded(
-                    child: GridView.builder(
-                      padding: const EdgeInsets.all(2),
-                      gridDelegate:
-                          const SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: 190,
-                            crossAxisSpacing: 10,
-                            mainAxisSpacing: 10,
-                            mainAxisExtent: 156,
-                          ),
-                      itemCount: total,
-                      itemBuilder: (context, index) {
-                        final isLocal = index == 0;
-                        final streamId = isLocal ? null : remoteIds[index - 1];
-                        final name = isLocal
-                            ? 'You'
-                            : _participantNameFromStream(streamId!, index);
-                        final profile = streamId == null
-                            ? null
-                            : _profileForStream(streamId);
-                        return _voiceParticipantCard(
-                          colors,
-                          name,
-                          isLocal: isLocal,
-                          avatarUrl: isLocal
-                              ? context.read<UserProvider>().user?.avatarUrl
-                              : (_avatarUrlFromProfile(profile) ??
-                                    _remoteAvatarUrl),
-                        );
-                      },
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _status,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: colors.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 12),
-          if (_started)
-            GriotBrandedContainer(
-              padding: const EdgeInsets.fromLTRB(8, 10, 8, 12),
-              borderRadius: 22,
-              child: _buildCallControls(colors),
-            ),
-          const SizedBox(height: 8),
-          if (_started)
-            FilledButton.tonalIcon(
-              onPressed: _sharingLink ? null : _shareCallLink,
-              icon: const Icon(Icons.link_rounded),
-              label: Text(_sharingLink ? 'Creating link…' : 'Share call link'),
-            ),
           const SizedBox(height: 8),
           SizedBox(
             width: double.infinity,
@@ -1761,29 +2434,23 @@ class _CallScreenState extends State<CallScreen> {
 
   String _participantNameFromStream(String streamId, int index) {
     final profile = _profileForStream(streamId);
-    final profileName =
-        profile?['display_name'] ??
-        profile?['displayName'] ??
-        profile?['username'];
-    if (profileName is String && profileName.trim().isNotEmpty) {
-      return profileName.trim();
-    }
+    final profileName = _displayNameOrWallet(
+      profile?['display_name']?.toString() ??
+          profile?['displayName']?.toString(),
+      profile?['username']?.toString(),
+      profile?['wallet_address']?.toString() ??
+          profile?['walletAddress']?.toString(),
+      fallback: '',
+    );
+    if (profileName.isNotEmpty) return profileName;
     final parts = streamId.split('-');
     if (parts.length >= 3 && parts[0] == 'griot') {
       final id = parts.sublist(1, parts.length - 1).join('-');
       if (id.isNotEmpty) {
-        return id.length > 6
-            ? '${id.substring(0, 3)}…${id.substring(id.length - 3)}'
-            : id;
+        return _shortWallet(id);
       }
     }
-    final wallet = profile?['wallet_address'] ?? profile?['walletAddress'];
-    return _displayNameOrWallet(
-      null,
-      null,
-      wallet?.toString(),
-      fallback: 'Participant $index',
-    );
+    return 'Participant $index';
   }
 
   String? _avatarUrlFromProfile(Map<String, dynamic>? profile) {
@@ -1818,51 +2485,79 @@ class _CallScreenState extends State<CallScreen> {
     ColorScheme colors,
     String name, {
     required bool isLocal,
+    bool speaking = false,
+    double soundLevel = 0,
+    bool muted = false,
+    VoidCallback? onLongPress,
     String? avatarUrl,
   }) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest.withValues(alpha: .42),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: colors.outlineVariant.withValues(alpha: .4)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircleAvatar(
-              radius: 28,
-              backgroundColor: colors.primary.withValues(alpha: .16),
-              child: avatarUrl != null && avatarUrl.trim().isNotEmpty
-                  ? ClipOval(
-                      child: CachedNetworkImage(
-                        imageUrl: avatarUrl,
-                        width: 56,
-                        height: 56,
-                        fit: BoxFit.cover,
-                        errorWidget: (_, _, _) => _avatarFallback(colors, name),
-                      ),
-                    )
-                  : _avatarFallback(colors, name),
+    return _SpeakingRing(
+      active: speaking,
+      intensity: soundLevel,
+      accentColor: colors.primary,
+      fireEffect: false,
+      child: GestureDetector(
+        onLongPress: onLongPress,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: colors.surfaceContainerHighest.withValues(alpha: .42),
+            borderRadius: BorderRadius.circular(18),
+            border: Border(
+              top: BorderSide(
+                color: colors.primary.withValues(alpha: .6),
+                width: 1.2,
+              ),
+              bottom: BorderSide(
+                color: colors.primary.withValues(alpha: .6),
+                width: 1.2,
+              ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              isLocal ? '$name (You)' : name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontWeight: FontWeight.w700),
+            boxShadow: [
+              BoxShadow(
+                color: colors.shadow.withValues(alpha: .14),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: colors.primary.withValues(alpha: .16),
+                  child: avatarUrl != null && avatarUrl.trim().isNotEmpty
+                      ? ClipOval(
+                          child: CachedNetworkImage(
+                            imageUrl: avatarUrl,
+                            width: 56,
+                            height: 56,
+                            fit: BoxFit.cover,
+                            errorWidget: (_, _, _) =>
+                                _avatarFallback(colors, name),
+                          ),
+                        )
+                      : _avatarFallback(colors, name),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  isLocal ? '$name (You)' : name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 3),
+                Icon(
+                  !muted ? Icons.mic_rounded : Icons.mic_off_rounded,
+                  size: 16,
+                  color: muted ? colors.error : colors.primary,
+                ),
+              ],
             ),
-            const SizedBox(height: 3),
-            Icon(
-              _audioEnabled || !isLocal
-                  ? Icons.mic_rounded
-                  : Icons.mic_off_rounded,
-              size: 16,
-              color: _audioEnabled || !isLocal ? colors.primary : colors.error,
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -1870,101 +2565,99 @@ class _CallScreenState extends State<CallScreen> {
 
   Widget _buildCampfireVoiceBody(ColorScheme colors) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 12, 18, 22),
+      padding: const EdgeInsets.fromLTRB(10, 12, 10, 22),
       child: Column(
         children: [
           Expanded(
             child: GriotBrandedContainer(
-              padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
-              borderRadius: 30,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+              padding: EdgeInsets.zero,
+              borderRadius: 28,
+              child: Stack(
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          widget.mode == 'video'
-                              ? 'Video Campfire'
-                              : 'Voice Campfire',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w800),
-                        ),
-                      ),
-                      Text(
-                        '${_spaceParticipants.length} joined',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: colors.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      const Spacer(),
-                      _CallStatusPill(
-                        label: _started ? 'LIVE' : 'CONNECTING',
-                        colors: colors,
-                        live: _started,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: _spaceParticipants.isEmpty
-                        ? Center(
-                            child: Text(
-                              'Waiting for participants…',
-                              style: Theme.of(context).textTheme.bodyLarge,
+                  // Campfire controls stay visible so listeners can always
+                  // mute, react, raise a hand, or leave without tapping the
+                  // participant surface first.
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 16, 10, 18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    _campfireTitle,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge
+                                        ?.copyWith(fontWeight: FontWeight.w800),
+                                  ),
+                                ],
+                              ),
                             ),
-                          )
-                        : Scrollbar(
-                            thumbVisibility: true,
-                            child: SingleChildScrollView(
-                              physics: const BouncingScrollPhysics(),
-                              padding: const EdgeInsets.only(right: 4),
-                              child: _buildCampfireParticipantGrid(colors),
+                            Text(
+                              '${_spaceParticipants.length} joined',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: colors.onSurfaceVariant,
+                                  ),
                             ),
-                          ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    _audioEnabled ? 'You are speaking' : 'You are listening',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: colors.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
+                            const SizedBox(width: 8),
+                            _CallStatusPill(
+                              label: _started ? 'BURNING' : 'CONNECTING',
+                              colors: colors,
+                              live: _started,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Expanded(
+                          child: _spaceParticipants.isEmpty
+                              ? Center(
+                                  child: Text(
+                                    'Waiting for participants…',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyLarge,
+                                  ),
+                                )
+                              : SingleChildScrollView(
+                                  physics: const BouncingScrollPhysics(),
+                                  // Keep the last audience row above the
+                                  // floating controls instead of hiding it.
+                                  padding: const EdgeInsets.only(bottom: 112),
+                                  child: _buildCampfireParticipantGrid(colors),
+                                ),
+                        ),
+                      ],
                     ),
                   ),
+                  if (_started)
+                    Positioned(
+                      left: 16,
+                      right: 16,
+                      bottom: 10,
+                      child: GriotBrandedContainer(
+                        padding: const EdgeInsets.fromLTRB(4, 4, 4, 6),
+                        borderRadius: 18,
+                        child: _buildCallControls(colors, compact: true),
+                      ),
+                    ),
+                  if (widget.conversationType == 'space')
+                    Positioned(
+                      right: 18,
+                      bottom: 104,
+                      child: _buildCampfireExitFab(),
+                    ),
                 ],
               ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (_started)
-            GriotBrandedContainer(
-              padding: const EdgeInsets.fromLTRB(8, 10, 8, 12),
-              borderRadius: 22,
-              child: _buildCallControls(colors),
-            ),
-          const SizedBox(height: 8),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              style: FilledButton.styleFrom(
-                backgroundColor: colors.error,
-                foregroundColor: colors.onError,
-                padding: const EdgeInsets.symmetric(vertical: 15),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
-                ),
-              ),
-              onPressed: _isCampfireOwner
-                  ? _endCampfireForEveryone
-                  : _handleCampfireExit,
-              icon: const Icon(Icons.call_end_rounded),
-              label: Text(_callExitLabel),
             ),
           ),
         ],
@@ -1975,6 +2668,22 @@ class _CallScreenState extends State<CallScreen> {
   bool get _isCampfireOwner {
     final self = _spaceParticipants.where((item) => item.isSelf).firstOrNull;
     return self?.isOwner == true || self?.role == 'host';
+  }
+
+  Widget _buildCampfireExitFab() {
+    final colors = Theme.of(context).colorScheme;
+    return FloatingActionButton(
+      heroTag: null,
+      tooltip: _isCampfireOwner ? 'End Campfire' : 'Leave Campfire',
+      onPressed: _isCampfireOwner
+          ? _endCampfireForEveryone
+          : _handleCampfireExit,
+      backgroundColor: colors.primary,
+      foregroundColor: colors.onPrimary,
+      child: Icon(
+        _isCampfireOwner ? Icons.call_end_rounded : Icons.exit_to_app_rounded,
+      ),
+    );
   }
 
   Widget _buildCampfireParticipantGrid(ColorScheme colors) {
@@ -1989,6 +2698,17 @@ class _CallScreenState extends State<CallScreen> {
         )
         .toList();
     final listeners = participants.where((p) => !stage.contains(p)).toList();
+    // A Campfire can have a large audience. Rendering hundreds of avatar
+    // cards (and recalculating sound state for each one on every audio tick)
+    // makes the call view jank and can exhaust memory on mobile. Keep the
+    // stage complete, but virtualize the audience presentation with a
+    // bounded preview; the participant controls screen remains the place to
+    // manage the full list.
+    const maxListenerPreview = 24;
+    final visibleListeners = listeners.length > maxListenerPreview
+        ? listeners.take(maxListenerPreview).toList()
+        : listeners;
+    final hiddenListenerCount = listeners.length - visibleListeners.length;
 
     Widget section(String title, List<SpaceParticipant> people) {
       if (people.isEmpty) return const SizedBox.shrink();
@@ -1996,7 +2716,7 @@ class _CallScreenState extends State<CallScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.only(left: 2, bottom: 8),
+            padding: const EdgeInsets.only(left: 2, bottom: 6),
             child: Text(
               title,
               style: Theme.of(
@@ -2013,16 +2733,24 @@ class _CallScreenState extends State<CallScreen> {
                 // Keep the compact, stage-style layout used by modern social
                 // audio rooms. The surrounding participant viewport scrolls
                 // when a Campfire has more people than fit on screen.
-                crossAxisCount: constraints.maxWidth < 360 ? 3 : 4,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
+                // Keep three participants visible per row while preserving
+                // enough width for an avatar, name, role, and mic state.
+                // Tight spacing keeps the stage from feeling vertically
+                // stretched when several speakers are present.
+                crossAxisCount: 3,
+                crossAxisSpacing: 4,
+                mainAxisSpacing: 8,
                 // A fixed extent gives the name, role, mute state, and
                 // moderation affordance room to breathe. The old .78 ratio
                 // produced the visible 7px overflow on narrow phones.
-                mainAxisExtent: 128,
+                // Stage and audience cards intentionally share one extent so
+                // every row aligns as a regular three-column grid.
+                mainAxisExtent: 168,
               ),
               itemBuilder: (context, index) {
                 final participant = people[index];
+                final avatarUrl = participant.avatarUrl?.trim();
+                final reaction = _spaceReactions[participant.id];
                 final role = participant.isOwner || participant.role == 'host'
                     ? 'Host'
                     : participant.role == 'cohost'
@@ -2030,115 +2758,190 @@ class _CallScreenState extends State<CallScreen> {
                     : participant.role == 'speaker'
                     ? 'Speaker'
                     : 'Listener';
-                return GriotBrandedContainer(
-                  padding: EdgeInsets.zero,
-                  borderRadius: 16,
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () => _openCampfireParticipantProfile(participant),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 8,
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                CircleAvatar(
-                                  radius: 27,
-                                  backgroundColor: colors.primary.withValues(
-                                    alpha: .16,
-                                  ),
-                                  child:
-                                      participant.avatarUrl != null &&
-                                          participant.avatarUrl!
-                                              .trim()
-                                              .isNotEmpty
-                                      ? ClipOval(
-                                          child: CachedNetworkImage(
-                                            imageUrl: participant.avatarUrl!,
-                                            width: 50,
-                                            height: 50,
-                                            fit: BoxFit.cover,
-                                            errorWidget: (_, _, _) =>
-                                                _avatarFallback(
+                final participantSoundLevel = participant.isSelf
+                    ? _localSoundLevel
+                    : _remoteSoundLevels.entries
+                          .map(
+                            (entry) =>
+                                _streamBelongsToParticipant(
+                                  entry.key,
+                                  participant,
+                                )
+                                ? entry.value
+                                : 0.0,
+                          )
+                          .fold<double>(0, math.max);
+                final isStageParticipant = participant.role != 'listener';
+                // Keep a subtle stage animation visible, while real mic input
+                // raises its intensity when sound-level events arrive.
+                final participantSpeaking =
+                    _started && !participant.muted && isStageParticipant;
+                final flameIntensity = participantSpeaking
+                    ? math.max(.12, participantSoundLevel)
+                    : 0.0;
+                return _SpeakingRing(
+                  active: participantSpeaking,
+                  accentColor: colors.primary,
+                  fireEffect: true,
+                  intensity: flameIntensity,
+                  child: SizedBox.expand(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      clipBehavior: Clip.none,
+                      children: [
+                        GriotBrandedContainer(
+                          padding: EdgeInsets.zero,
+                          borderRadius: 16,
+                          blurSigma: 0,
+                          // The fire/speaking overlay is clipped inside this
+                          // card, while the normal Griot border remains visible
+                          // even when the participant is quiet.
+                          showBorder: true,
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () =>
+                                  _openCampfireParticipantProfile(participant),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 12,
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Stack(
+                                      clipBehavior: Clip.none,
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 39,
+                                          backgroundColor: colors.primary
+                                              .withValues(alpha: .16),
+                                          child:
+                                              avatarUrl != null &&
+                                                  avatarUrl.isNotEmpty
+                                              ? ClipOval(
+                                                  child: Image.network(
+                                                    avatarUrl,
+                                                    width: 76,
+                                                    height: 76,
+                                                    fit: BoxFit.cover,
+                                                    errorBuilder: (_, _, _) =>
+                                                        _avatarFallback(
+                                                          colors,
+                                                          participant.name,
+                                                        ),
+                                                  ),
+                                                )
+                                              : _avatarFallback(
                                                   colors,
                                                   participant.name,
                                                 ),
+                                        ),
+                                        if (participant.speakerRequested)
+                                          Positioned(
+                                            left: -3,
+                                            top: -3,
+                                            child: DecoratedBox(
+                                              decoration: BoxDecoration(
+                                                color: colors.tertiaryContainer,
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: Padding(
+                                                padding: const EdgeInsets.all(
+                                                  3,
+                                                ),
+                                                child: Icon(
+                                                  Icons.front_hand_rounded,
+                                                  size: 14,
+                                                  color: colors
+                                                      .onTertiaryContainer,
+                                                ),
+                                              ),
+                                            ),
                                           ),
-                                        )
-                                      : _avatarFallback(
-                                          colors,
-                                          participant.name,
+                                        Positioned(
+                                          right: -3,
+                                          bottom: -2,
+                                          child: Icon(
+                                            (participant.muted ||
+                                                    participant.role ==
+                                                        'listener')
+                                                ? Icons.mic_off_rounded
+                                                : Icons.mic_rounded,
+                                            size: 16,
+                                            color:
+                                                (participant.muted ||
+                                                    participant.role ==
+                                                        'listener')
+                                                ? colors.error
+                                                : colors.primary,
+                                          ),
                                         ),
-                                ),
-                                if (participant.speakerRequested)
-                                  Positioned(
-                                    left: -3,
-                                    top: -3,
-                                    child: DecoratedBox(
-                                      decoration: BoxDecoration(
-                                        color: colors.tertiaryContainer,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(3),
-                                        child: Icon(
-                                          Icons.front_hand_rounded,
-                                          size: 14,
-                                          color: colors.onTertiaryContainer,
-                                        ),
-                                      ),
+                                      ],
                                     ),
-                                  ),
-                                Positioned(
-                                  right: -3,
-                                  bottom: -2,
-                                  child: Icon(
-                                    (participant.muted ||
-                                            participant.role == 'listener')
-                                        ? Icons.mic_off_rounded
-                                        : Icons.mic_rounded,
-                                    size: 16,
-                                    color:
-                                        (participant.muted ||
-                                            participant.role == 'listener')
-                                        ? colors.error
-                                        : colors.primary,
-                                  ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            _compactParticipantName(
+                                              participant.isSelf
+                                                  ? 'You'
+                                                  : _participantDisplayName(
+                                                      participant,
+                                                    ),
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ),
+                                        if (participant.isPlus) ...[
+                                          const SizedBox(width: 2),
+                                          const GriotPlusBadge(
+                                            isPlus: true,
+                                            compact: true,
+                                          ),
+                                        ],
+                                        if (participant.isPioneer) ...[
+                                          const SizedBox(width: 2),
+                                          const GriotPioneerBadge(
+                                            compact: true,
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                    Text(
+                                      role,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(fontSize: 11),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              _compactParticipantName(
-                                participant.isSelf
-                                    ? 'You'
-                                    : _participantDisplayName(participant),
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12,
                               ),
                             ),
-                            Text(
-                              role,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(
-                                context,
-                              ).textTheme.bodySmall?.copyWith(fontSize: 11),
-                            ),
-                          ],
+                          ),
                         ),
-                      ),
+                        if (reaction != null)
+                          Positioned(
+                            top: 6,
+                            right: 6,
+                            child: _CallReactionBubble(
+                              emoji: reaction,
+                              colors: colors,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 );
@@ -2152,10 +2955,20 @@ class _CallScreenState extends State<CallScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        section('On stage', stage),
-        if (stage.isNotEmpty && listeners.isNotEmpty)
-          const SizedBox(height: 14),
-        section('Listeners', listeners),
+        section('On stage · ${stage.length} speakers', stage),
+        if (stage.isNotEmpty && listeners.isNotEmpty) const SizedBox(height: 8),
+        section('Audience · ${listeners.length} listeners', visibleListeners),
+        if (hiddenListenerCount > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              '+$hiddenListenerCount more listeners — open Participants to view all',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant.withValues(alpha: 0.7),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -2216,12 +3029,15 @@ class _CallScreenState extends State<CallScreen> {
 
   Widget _buildVideoCallBody(ColorScheme colors) {
     final remoteViews = _remoteVideoViews.values.toList();
-    if ((widget.conversationType == 'group' ||
-            widget.conversationType == 'space') &&
-        remoteViews.length + (_localVideoView == null ? 0 : 1) > 2) {
+    if (_isMultiPartyCall || widget.conversationType == 'space') {
       return _buildGroupVideoGrid(colors, remoteViews);
     }
     final remoteView = remoteViews.isEmpty ? null : remoteViews.first;
+    final remoteStreamId = _remoteVideoViews.isEmpty
+        ? null
+        : _remoteVideoViews.keys.first;
+    final remoteMuted =
+        remoteStreamId != null && (_remoteMuted[remoteStreamId] ?? false);
     final hasBothVideos = remoteView != null && _localVideoView != null;
     final mainView = hasBothVideos
         ? (_showLocalMain ? _localVideoView : remoteView)
@@ -2236,213 +3052,200 @@ class _CallScreenState extends State<CallScreen> {
         ? _remoteCallLabel()
         : _localDisplayName;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+      padding: const EdgeInsets.only(top: 4),
       child: Column(
         children: [
           Expanded(
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(28),
+              borderRadius: BorderRadius.circular(20),
               child: Container(
                 decoration: BoxDecoration(
                   color: colors.surfaceContainerHighest,
                 ),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    if (mainView != null)
-                      Positioned.fill(child: _coverVideo(mainView))
-                    else
-                      Center(
-                        child: Text(
-                          _started ? 'Waiting for the other camera…' : _status,
-                          style: TextStyle(color: colors.onSurfaceVariant),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () =>
+                      setState(() => _showVideoControls = !_showVideoControls),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (mainView != null)
+                        Positioned.fill(child: _coverVideo(mainView))
+                      else
+                        Center(
+                          child: Text(
+                            _started
+                                ? 'Waiting for the other camera…'
+                                : _status,
+                            style: TextStyle(color: colors.onSurfaceVariant),
+                          ),
                         ),
-                      ),
-                    // A subtle branded wash keeps the native video surface
-                    // integrated with the rest of Griot without obscuring it.
-                    Positioned.fill(
-                      child: IgnorePointer(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.black.withValues(alpha: .34),
-                                Colors.transparent,
-                                Colors.black.withValues(alpha: .42),
-                              ],
-                              stops: const [0, .42, 1],
+                      // A subtle branded wash keeps the native video surface
+                      // integrated with the rest of Griot without obscuring it.
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.black.withValues(alpha: .34),
+                                  Colors.transparent,
+                                  Colors.black.withValues(alpha: .42),
+                                ],
+                                stops: const [0, .42, 1],
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                    Positioned(
-                      top: 18,
-                      right: 18,
-                      child: _CallStatusPill(
-                        label: _started ? 'LIVE' : 'CONNECTING',
-                        colors: colors,
-                        live: _started,
+                      Positioned(
+                        top: 18,
+                        right: 18,
+                        child: _CallStatusPill(
+                          label: _started ? 'LIVE' : 'CONNECTING',
+                          colors: colors,
+                          live: _started,
+                        ),
                       ),
-                    ),
-                    Positioned(
-                      left: 16,
-                      bottom: 16,
-                      child: _VideoLabel(label: mainLabel, colors: colors),
-                    ),
-                    if (thumbnailView != null)
-                      AnimatedPositioned(
-                        duration: const Duration(milliseconds: 240),
-                        curve: Curves.easeOutCubic,
-                        top: _thumbnailTop,
-                        right: _thumbnailRight,
-                        bottom: _thumbnailBottom,
-                        left: _thumbnailLeft,
-                        width: 118,
-                        height: 168,
-                        child: Tooltip(
-                          message: 'Tap to swap • Drag to move',
-                          child: GestureDetector(
-                            onTap: _swapVideoLayout,
-                            onPanUpdate: (details) {
-                              setState(() {
-                                _thumbnailDragOffset = Offset(
-                                  (_thumbnailDragOffset.dx + details.delta.dx)
-                                      .clamp(-150.0, 150.0),
-                                  (_thumbnailDragOffset.dy + details.delta.dy)
-                                      .clamp(-260.0, 260.0),
-                                );
-                              });
-                            },
-                            onPanEnd: _onThumbnailDragEnd,
-                            child: Transform.translate(
-                              offset: _thumbnailDragOffset,
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: colors.surfaceContainerHighest,
-                                  borderRadius: BorderRadius.circular(18),
-                                  boxShadow: const [
-                                    BoxShadow(
-                                      color: Colors.black54,
-                                      blurRadius: 16,
-                                      offset: Offset(0, 6),
-                                    ),
-                                  ],
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: Stack(
-                                    fit: StackFit.expand,
-                                    children: [
-                                      Positioned.fill(
-                                        child: _coverVideo(thumbnailView),
-                                      ),
-                                      Positioned(
-                                        left: 8,
-                                        bottom: 8,
-                                        child: _VideoLabel(
-                                          label: thumbnailLabel,
-                                          colors: colors,
-                                          compact: true,
-                                        ),
-                                      ),
-                                      Positioned(
-                                        top: 6,
-                                        right: 6,
-                                        child: DecoratedBox(
-                                          decoration: BoxDecoration(
-                                            color: Colors.black.withValues(
-                                              alpha: .56,
-                                            ),
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: const Padding(
-                                            padding: EdgeInsets.all(6),
-                                            child: Icon(
-                                              Icons.swap_vert_rounded,
-                                              size: 16,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        ),
+                      // Keep the other participant's identity and the leave
+                      // action in the video chrome so the media surface stays
+                      // unobstructed and the action is always discoverable.
+                      if (widget.conversationType != 'space')
+                        Positioned(
+                          top: 16,
+                          left: 16,
+                          child: _VideoLabel(
+                            label: _remoteCallLabel(),
+                            colors: colors,
+                          ),
+                        ),
+                      if (remoteMuted)
+                        Positioned(
+                          top: 56,
+                          left: 16,
+                          child: _MutedCallIndicator(colors: colors),
+                        ),
+                      if (widget.conversationType == 'space')
+                        Positioned(
+                          left: 16,
+                          bottom: 16,
+                          child: _VideoLabel(label: mainLabel, colors: colors),
+                        ),
+                      if (thumbnailView != null)
+                        AnimatedPositioned(
+                          duration: const Duration(milliseconds: 240),
+                          curve: Curves.easeOutCubic,
+                          top: _thumbnailTop,
+                          right: _thumbnailRight,
+                          bottom: _thumbnailBottom,
+                          left: _thumbnailLeft,
+                          width: 118,
+                          height: 168,
+                          child: Tooltip(
+                            message: 'Tap to swap • Drag to move',
+                            child: GestureDetector(
+                              onTap: _swapVideoLayout,
+                              onPanUpdate: (details) {
+                                setState(() {
+                                  _thumbnailDragOffset = Offset(
+                                    (_thumbnailDragOffset.dx + details.delta.dx)
+                                        .clamp(-150.0, 150.0),
+                                    (_thumbnailDragOffset.dy + details.delta.dy)
+                                        .clamp(-260.0, 260.0),
+                                  );
+                                });
+                              },
+                              onPanEnd: _onThumbnailDragEnd,
+                              child: Transform.translate(
+                                offset: _thumbnailDragOffset,
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    color: colors.surfaceContainerHighest,
+                                    borderRadius: BorderRadius.circular(18),
+                                    boxShadow: const [
+                                      BoxShadow(
+                                        color: Colors.black54,
+                                        blurRadius: 16,
+                                        offset: Offset(0, 6),
                                       ),
                                     ],
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: Stack(
+                                      fit: StackFit.expand,
+                                      children: [
+                                        Positioned.fill(
+                                          child: _coverVideo(thumbnailView),
+                                        ),
+                                        Positioned(
+                                          left: 8,
+                                          bottom: 8,
+                                          child: _VideoLabel(
+                                            label: thumbnailLabel,
+                                            colors: colors,
+                                            compact: true,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                    if (_videoEnabled && _localVideoView != null)
-                      Positioned(
-                        top: 18,
-                        left: 18,
-                        child: IconButton.filledTonal(
-                          style: IconButton.styleFrom(
-                            backgroundColor: Colors.black.withValues(
-                              alpha: .46,
+                      if (_showVideoControls)
+                        Positioned(
+                          left: 12,
+                          right: 12,
+                          bottom: 14,
+                          child: AnimatedOpacity(
+                            opacity: _showVideoControls ? 1 : 0,
+                            duration: const Duration(milliseconds: 180),
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.28),
+                                borderRadius: BorderRadius.circular(22),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
+                                child: _buildCallControls(colors),
+                              ),
                             ),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
-                          tooltip: _isMirrored
-                              ? 'Turn off mirror'
-                              : 'Mirror my video',
-                          onPressed: _toggleMirror,
-                          icon: Icon(
-                            _isMirrored
-                                ? Icons.flip_rounded
-                                : Icons.flip_camera_android_rounded,
                           ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 12),
-          GriotBrandedContainer(
-            padding: const EdgeInsets.fromLTRB(8, 10, 8, 12),
-            borderRadius: 22,
-            child: _buildCallControls(colors),
-          ),
-          const SizedBox(height: 8),
-          if (_canShareCallLink)
-            FilledButton.tonalIcon(
-              onPressed: _sharingLink ? null : _shareCallLink,
-              icon: const Icon(Icons.link_rounded),
-              label: Text(_sharingLink ? 'Creating link…' : 'Share call link'),
-            ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              style: FilledButton.styleFrom(
-                backgroundColor: colors.error,
-                foregroundColor: colors.onError,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 16,
+          const SizedBox(height: 4),
+          if (widget.conversationType != 'space') ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: colors.error,
+                  foregroundColor: colors.onError,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
                 ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
-                ),
-              ),
-              onPressed: _handleCampfireExit,
-              icon: const Icon(Icons.call_end_rounded),
-              label: Text(
-                widget.conversationType == 'space'
-                    ? 'Leave Campfire'
-                    : 'End call',
+                onPressed: _handleCampfireExit,
+                icon: const Icon(Icons.call_end_rounded),
+                label: const Text('End call'),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -2451,15 +3254,53 @@ class _CallScreenState extends State<CallScreen> {
   Widget _buildGroupVideoGrid(ColorScheme colors, List<Widget> remoteViews) {
     final tiles = <Widget>[];
     if (_localVideoView != null) {
-      tiles.add(_videoTile(colors, _localVideoView!, _localDisplayName, true));
+      final self = widget.conversationType == 'space'
+          ? _spaceParticipants.where((item) => item.isSelf).firstOrNull
+          : null;
+      tiles.add(
+        _videoTile(
+          colors,
+          _localVideoView!,
+          _localDisplayName,
+          true,
+          subtitle: self == null ? null : _campfireRoleLabel(self),
+          speakerRequested: self?.speakerRequested == true,
+          muted: !_audioEnabled,
+          speaking: _audioEnabled,
+          soundLevel: widget.conversationType == 'space' ? _localSoundLevel : 0,
+        ),
+      );
     }
+    final remoteIds = _remoteVideoViews.keys.toList(growable: false);
     for (var index = 0; index < remoteViews.length; index++) {
+      final streamId = index < remoteIds.length ? remoteIds[index] : null;
+      final campfireParticipant =
+          streamId == null || widget.conversationType != 'space'
+          ? null
+          : _spaceParticipantForStream(streamId);
       tiles.add(
         _videoTile(
           colors,
           remoteViews[index],
-          'Participant ${index + 1}',
+          streamId == null
+              ? 'Participant ${index + 1}'
+              : campfireParticipant == null
+              ? _participantNameFromStream(streamId, index + 1)
+              : _participantDisplayName(campfireParticipant),
           false,
+          subtitle: campfireParticipant == null
+              ? null
+              : _campfireRoleLabel(campfireParticipant),
+          speakerRequested: campfireParticipant?.speakerRequested == true,
+          muted:
+              campfireParticipant?.muted ??
+              (streamId == null ? false : (_remoteMuted[streamId] ?? false)),
+          speaking: campfireParticipant == null
+              ? true
+              : !campfireParticipant.muted,
+          soundLevel: widget.conversationType == 'space' && streamId != null
+              ? (_remoteSoundLevels[streamId] ?? 0)
+              : 0,
         ),
       );
     }
@@ -2470,20 +3311,58 @@ class _CallScreenState extends State<CallScreen> {
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final columns = constraints.maxWidth >= 680 ? 3 : 2;
+                // Use a row layout instead of a fixed GridView.  This lets
+                // the final participant in a 3-person call span the width,
+                // keeps four participants in a balanced 2x2 layout, and
+                // switches to three columns only when the available surface
+                // is wide enough for comfortable video tiles.
+                final columns = switch (tiles.length) {
+                  0 || 1 => 1,
+                  2 || 3 || 4 => 2,
+                  _ => constraints.maxWidth >= 680 ? 3 : 2,
+                };
+                final rows = <List<Widget>>[];
+                for (var index = 0; index < tiles.length; index += columns) {
+                  rows.add(
+                    tiles.sublist(
+                      index,
+                      (index + columns).clamp(0, tiles.length),
+                    ),
+                  );
+                }
                 return Scrollbar(
-                  thumbVisibility: tiles.length > columns,
-                  child: GridView.builder(
+                  thumbVisibility: rows.length > 1,
+                  child: ListView.separated(
                     padding: const EdgeInsets.only(right: 4),
                     physics: const BouncingScrollPhysics(),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: columns,
-                      crossAxisSpacing: 10,
-                      mainAxisSpacing: 10,
-                      mainAxisExtent: columns == 3 ? 190 : 168,
-                    ),
-                    itemCount: tiles.length,
-                    itemBuilder: (_, index) => tiles[index],
+                    itemCount: rows.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 10),
+                    itemBuilder: (context, rowIndex) {
+                      final row = rows[rowIndex];
+                      return AspectRatio(
+                        // A single tile gets a wider presentation, while
+                        // multi-tile rows preserve a consistent card shape.
+                        aspectRatio: row.length == 1
+                            ? 1.55
+                            : columns == 3
+                            ? 1.55
+                            : 1.28,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            for (
+                              var tileIndex = 0;
+                              tileIndex < row.length;
+                              tileIndex++
+                            ) ...[
+                              if (tileIndex > 0) const SizedBox(width: 10),
+                              Expanded(child: row[tileIndex]),
+                            ],
+                          ],
+                        ),
+                      );
+                    },
                   ),
                 );
               },
@@ -2492,50 +3371,182 @@ class _CallScreenState extends State<CallScreen> {
           const SizedBox(height: 12),
           _buildCallControls(colors),
           const SizedBox(height: 10),
-          if (_canShareCallLink)
-            FilledButton.tonalIcon(
-              onPressed: _sharingLink ? null : _shareCallLink,
-              icon: const Icon(Icons.link_rounded),
-              label: Text(_sharingLink ? 'Creating link…' : 'Share call link'),
-            ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              style: FilledButton.styleFrom(
-                backgroundColor: colors.error,
-                foregroundColor: colors.onError,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
+          if (widget.conversationType != 'space') ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: colors.error,
+                  foregroundColor: colors.onError,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
                 ),
+                onPressed: _handleCampfireExit,
+                icon: const Icon(Icons.call_end_rounded),
+                label: const Text('End call'),
               ),
-              onPressed: _handleCampfireExit,
-              icon: const Icon(Icons.call_end_rounded),
-              label: Text(_callExitLabel),
             ),
-          ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _videoTile(ColorScheme colors, Widget view, String label, bool local) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(22),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          _coverVideo(view),
-          Positioned(
-            left: 10,
-            bottom: 10,
-            child: _VideoLabel(
-              label: local ? '$label (You)' : label,
-              colors: colors,
-            ),
+  SpaceParticipant? _spaceParticipantForStream(String streamId) {
+    final profile = _profileForStream(streamId);
+    final profileId =
+        (profile?['id'] ?? profile?['user_id'] ?? profile?['userId'])
+            ?.toString();
+    if (profileId != null) {
+      for (final participant in _spaceParticipants) {
+        if (participant.id == profileId) return participant;
+      }
+    }
+    final parts = streamId.split('-');
+    if (parts.length < 3 || parts.first != 'griot') return null;
+    final id = parts.sublist(1, parts.length - 1).join('-');
+    for (final participant in _spaceParticipants) {
+      if (participant.id == id) return participant;
+    }
+    return null;
+  }
+
+  bool _streamBelongsToParticipant(
+    String streamId,
+    SpaceParticipant participant,
+  ) {
+    if (streamId == participant.id) return true;
+    final participantId = participant.id.trim();
+    if (participantId.isNotEmpty && streamId.contains(participantId)) {
+      return true;
+    }
+    return _spaceParticipantForStream(streamId)?.id == participant.id;
+  }
+
+  String _campfireRoleLabel(SpaceParticipant participant) {
+    if (participant.isOwner || participant.role == 'host') return 'Host';
+    if (participant.role == 'cohost') return 'Co-host';
+    if (participant.role == 'speaker') return 'Speaker';
+    return 'Listener';
+  }
+
+  Widget _videoTile(
+    ColorScheme colors,
+    Widget view,
+    String label,
+    bool local, {
+    String? subtitle,
+    bool speakerRequested = false,
+    bool muted = false,
+    bool speaking = false,
+    double soundLevel = 0,
+  }) {
+    return _SpeakingRing(
+      active: speaking,
+      intensity: soundLevel,
+      fireEffect: false,
+      child: GriotBrandedContainer(
+        padding: EdgeInsets.zero,
+        borderRadius: 22,
+        blurSigma: 0,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(22),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              _coverVideo(view),
+              if (speaking)
+                Positioned(
+                  top: 10,
+                  right: muted ? 54 : 10,
+                  child: _AudioInputShimmer(
+                    active: true,
+                    color: Colors.white,
+                    intensity: soundLevel,
+                    width: 64,
+                    height: 18,
+                  ),
+                ),
+              if (speakerRequested)
+                Positioned(
+                  top: 10,
+                  left: 10,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: colors.tertiaryContainer,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(5),
+                      child: Icon(
+                        Icons.front_hand_rounded,
+                        size: 16,
+                        color: colors.onTertiaryContainer,
+                      ),
+                    ),
+                  ),
+                ),
+              if (muted)
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: colors.error.withValues(alpha: 0.92),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(6),
+                      child: Icon(
+                        Icons.mic_off_rounded,
+                        size: 16,
+                        color: colors.onError,
+                      ),
+                    ),
+                  ),
+                ),
+              Positioned(
+                left: 10,
+                bottom: 10,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _VideoLabel(
+                      label: local ? '$label (You)' : label,
+                      colors: colors,
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 3),
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: .52),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 3,
+                          ),
+                          child: Text(
+                            subtitle,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -2589,7 +3600,7 @@ class _CallScreenState extends State<CallScreen> {
     });
   }
 
-  Widget _buildCallControls(ColorScheme colors) {
+  Widget _buildCallControls(ColorScheme colors, {bool compact = false}) {
     final self = _spaceParticipants.where((item) => item.isSelf).firstOrNull;
     final canSpeak =
         widget.conversationType != 'space' ||
@@ -2598,22 +3609,56 @@ class _CallScreenState extends State<CallScreen> {
         self?.role == 'cohost' ||
         self?.role == 'speaker';
     final controls = <Widget>[];
+    controls.add(
+      _CallControl(
+        icon: switch (_audioRoute) {
+          ZegoAudioRoute.Speaker => Icons.volume_up_rounded,
+          ZegoAudioRoute.Headphone ||
+          ZegoAudioRoute.Bluetooth ||
+          ZegoAudioRoute.ExternalUSB ||
+          ZegoAudioRoute.AirPlay => Icons.headphones_rounded,
+          ZegoAudioRoute.Receiver => Icons.hearing_rounded,
+        },
+        label: switch (_audioRoute) {
+          ZegoAudioRoute.Speaker => 'Speaker on',
+          ZegoAudioRoute.Headphone => 'Headphones',
+          ZegoAudioRoute.Bluetooth => 'Bluetooth',
+          ZegoAudioRoute.ExternalUSB => 'USB audio',
+          ZegoAudioRoute.AirPlay => 'AirPlay',
+          ZegoAudioRoute.Receiver => 'Earpiece',
+        },
+        onPressed: _toggleSpeaker,
+        compact: compact,
+      ),
+    );
+    if (widget.conversationType == 'space') {
+      controls.add(
+        _CallControl(
+          icon: Icons.emoji_emotions_outlined,
+          label: 'React',
+          onPressed: _showCallReactions,
+          compact: compact,
+        ),
+      );
+    }
     if (canSpeak) {
       controls.add(
         _CallControl(
           icon: _audioEnabled ? Icons.mic_rounded : Icons.mic_off_rounded,
           label: _audioEnabled ? 'Mute' : 'Unmute',
           onPressed: _toggleAudio,
+          compact: compact,
         ),
       );
     } else if (widget.conversationType == 'space') {
+      final handRaised = self?.speakerRequested == true;
       controls.add(
         _CallControl(
-          icon: self?.speakerRequested == true
-              ? Icons.front_hand_rounded
-              : Icons.pan_tool_outlined,
-          label: self?.speakerRequested == true ? 'Lower hand' : 'Raise hand',
+          icon: handRaised ? Icons.pan_tool_rounded : Icons.pan_tool_outlined,
+          label: handRaised ? 'Lower hand' : 'Raise hand',
+          foregroundColor: handRaised ? colors.tertiary : null,
           onPressed: _requestToSpeak,
+          compact: compact,
         ),
       );
     }
@@ -2625,25 +3670,30 @@ class _CallScreenState extends State<CallScreen> {
               : Icons.videocam_off_rounded,
           label: _videoEnabled ? 'Camera off' : 'Camera on',
           onPressed: _toggleVideo,
+          compact: compact,
         ),
         if (_videoEnabled)
           _CallControl(
             icon: Icons.flip_camera_ios_rounded,
             label: 'Switch camera',
             onPressed: _switchCamera,
+            compact: compact,
           ),
       ]);
     }
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 360),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (final control in controls)
-              Expanded(child: Center(child: control)),
-          ],
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          // Keep the speaker/reaction/mic controls visually separated. The
+          // previous 4px compact gap made the buttons read as one crowded
+          // control, especially on Campfire cards.
+          spacing: compact ? 20 : 24,
+          runSpacing: compact ? 10 : 14,
+          children: controls,
         ),
       ),
     );
@@ -2659,6 +3709,33 @@ class _CallScreenState extends State<CallScreen> {
   );
 
   Widget _coverVideo(Widget video) => ClipRect(child: video);
+}
+
+class _CallReactionBubble extends StatelessWidget {
+  final String emoji;
+  final ColorScheme colors;
+
+  const _CallReactionBubble({required this.emoji, required this.colors});
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: colors.surface,
+      shape: BoxShape.circle,
+      border: Border.all(color: colors.primary.withValues(alpha: .7)),
+      boxShadow: [
+        BoxShadow(
+          color: colors.shadow.withValues(alpha: .25),
+          blurRadius: 8,
+          offset: const Offset(0, 3),
+        ),
+      ],
+    ),
+    child: Padding(
+      padding: const EdgeInsets.all(7),
+      child: Text(emoji, style: const TextStyle(fontSize: 22)),
+    ),
+  );
 }
 
 class _VideoLabel extends StatelessWidget {
@@ -2692,6 +3769,41 @@ class _VideoLabel extends StatelessWidget {
             fontSize: compact ? 10 : 12,
             fontWeight: FontWeight.w700,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MutedCallIndicator extends StatelessWidget {
+  final ColorScheme colors;
+
+  const _MutedCallIndicator({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.error.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colors.error.withValues(alpha: 0.42)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.mic_off_rounded, size: 15, color: colors.error),
+            const SizedBox(width: 5),
+            Text(
+              'Muted',
+              style: TextStyle(
+                color: colors.error,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -2745,41 +3857,462 @@ class _CallStatusPill extends StatelessWidget {
   }
 }
 
+/// A small, non-metering visual cue that gives callers immediate feedback
+/// that their microphone is active. The bars deliberately breathe through
+/// different heights to suggest both quiet and loud speech without exposing
+/// raw microphone data or implying a calibrated volume meter.
+class _AudioInputShimmer extends StatefulWidget {
+  const _AudioInputShimmer({
+    required this.active,
+    required this.color,
+    this.width = 112,
+    this.height = 24,
+    this.intensity = 0,
+  });
+
+  final bool active;
+  final Color color;
+  final double width;
+  final double height;
+  final double intensity;
+
+  @override
+  State<_AudioInputShimmer> createState() => _AudioInputShimmerState();
+}
+
+class _AudioInputShimmerState extends State<_AudioInputShimmer>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 720),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.active) _controller.repeat();
+  }
+
+  @override
+  void didUpdateWidget(covariant _AudioInputShimmer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active && !_controller.isAnimating) {
+      _controller.repeat();
+    } else if (!widget.active && _controller.isAnimating) {
+      _controller.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const levels = <double>[.3, .58, .9, .5, .78, .42, .68];
+    return SizedBox(
+      width: widget.width,
+      height: widget.height,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: List.generate(levels.length, (index) {
+              final phase = (_controller.value + index * .16) * math.pi * 2;
+              final input = widget.intensity.clamp(0.0, 1.0);
+              final pulse = widget.active
+                  ? .18 +
+                        input * .72 +
+                        ((math.sin(phase) + 1) / 2) * (.08 + input * .22)
+                  : .18;
+              final barHeight = math.max(
+                3.0,
+                widget.height * levels[index] * pulse,
+              );
+              return Container(
+                width: widget.width < 80 ? 3 : 5,
+                height: barHeight,
+                margin: const EdgeInsets.symmetric(horizontal: 2),
+                decoration: BoxDecoration(
+                  color: widget.color.withValues(
+                    alpha: widget.active ? .88 : .28,
+                  ),
+                  borderRadius: BorderRadius.circular(99),
+                  boxShadow: widget.active
+                      ? [
+                          BoxShadow(
+                            color: widget.color.withValues(alpha: .22),
+                            blurRadius: 5,
+                          ),
+                        ]
+                      : null,
+                ),
+              );
+            }),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SpeakingRing extends StatefulWidget {
+  final Widget child;
+  final bool active;
+  final Color? accentColor;
+  final double intensity;
+  final bool fireEffect;
+
+  const _SpeakingRing({
+    required this.child,
+    required this.active,
+    this.accentColor,
+    this.intensity = 0,
+    this.fireEffect = false,
+  });
+
+  @override
+  State<_SpeakingRing> createState() => _SpeakingRingState();
+}
+
+class _SpeakingRingState extends State<_SpeakingRing>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.active) _controller.repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(covariant _SpeakingRing oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active && !_controller.isAnimating) {
+      _controller.repeat(reverse: true);
+    } else if (!widget.active && _controller.isAnimating) {
+      _controller.stop();
+      _controller.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.active) {
+      return Material(
+        color: Colors.transparent,
+        elevation: widget.fireEffect ? 4 : 0,
+        shadowColor: Colors.black.withValues(alpha: .22),
+        borderRadius: BorderRadius.circular(16),
+        child: widget.child,
+      );
+    }
+    final color = widget.accentColor ?? Theme.of(context).colorScheme.primary;
+    return ClipRRect(
+      // Keep the animated border, glow, and flame overlay inside the same
+      // bounds as the participant card. Previously the animated spread
+      // painted into the next grid cell and made cards look mis-sized.
+      borderRadius: BorderRadius.circular(16),
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) => DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withValues(alpha: .68), width: 2),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Stack(
+              fit: StackFit.expand,
+              clipBehavior: Clip.hardEdge,
+              children: [
+                child ?? const SizedBox.shrink(),
+                if (widget.fireEffect)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    height: 28 + (widget.intensity.clamp(0.0, 1.0) * 96),
+                    child: IgnorePointer(
+                      child: Opacity(
+                        opacity: .55,
+                        child: CustomPaint(
+                          painter: _FlameOverlayPainter(
+                            progress: _controller.value,
+                            intensity: widget.intensity,
+                            flameColors: const [
+                              Color(0xFFE53935),
+                              Color(0xFFFF6D00),
+                              Color(0xFFFFC107),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+class _FlameOverlayPainter extends CustomPainter {
+  const _FlameOverlayPainter({
+    required this.progress,
+    required this.intensity,
+    required this.flameColors,
+  });
+
+  final double progress;
+  final double intensity;
+  final List<Color> flameColors;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (intensity <= .01) return;
+    final strength = (.24 + intensity * .58).clamp(.24, .85);
+    final base = size.height;
+    const tongues = [
+      (x: .08, width: .15, height: .22, phase: .08),
+      (x: .27, width: .22, height: .36, phase: .34),
+      (x: .50, width: .28, height: .52, phase: .66),
+      (x: .73, width: .22, height: .38, phase: .92),
+      (x: .92, width: .15, height: .24, phase: .2),
+    ];
+    for (var index = 0; index < tongues.length; index++) {
+      final tongue = tongues[index];
+      final sway =
+          math.sin((progress + tongue.phase) * math.pi * 2) * size.width * .025;
+      final center = size.width * tongue.x + sway;
+      final width = size.width * tongue.width;
+      final height = size.height * tongue.height * (.75 + intensity * .6);
+      final paint = Paint()
+        ..color = flameColors[index % flameColors.length].withValues(
+          alpha: strength,
+        );
+      final path = Path()
+        ..moveTo(center - width / 2, base)
+        ..cubicTo(
+          center - width * .55,
+          base - height * .3,
+          center - width * .15,
+          base - height * .58,
+          center,
+          base - height,
+        )
+        ..cubicTo(
+          center + width * .18,
+          base - height * .58,
+          center + width * .58,
+          base - height * .28,
+          center + width / 2,
+          base,
+        )
+        ..close();
+      canvas.drawPath(path, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _FlameOverlayPainter oldDelegate) =>
+      oldDelegate.progress != progress || oldDelegate.intensity != intensity;
+}
+
+class _CallReactionPicker extends StatefulWidget {
+  final List<String> recent;
+  final ValueChanged<String> onSelected;
+
+  const _CallReactionPicker({required this.recent, required this.onSelected});
+
+  @override
+  State<_CallReactionPicker> createState() => _CallReactionPickerState();
+}
+
+class _CallReactionPickerState extends State<_CallReactionPicker> {
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  List<String> get _filtered {
+    if (_query.trim().isEmpty) return _CallScreenState._callReactionLibrary;
+    // Emoji do not have a universal searchable name without a large bundled
+    // dictionary; searching the visible list still provides a predictable
+    // keyboard-friendly filter and keeps the picker lightweight.
+    return _CallScreenState._callReactionLibrary
+        .where((emoji) => emoji.contains(_query.trim()))
+        .toList();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'React in the call',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _searchController,
+              onChanged: (value) => setState(() => _query = value),
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: 'Search or use your keyboard',
+                prefixIcon: const Icon(Icons.search_rounded),
+                suffixIcon: _query.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Clear search',
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _query = '');
+                        },
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                filled: true,
+                fillColor: colors.surfaceContainerHighest,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  borderSide: BorderSide(color: colors.outlineVariant),
+                ),
+              ),
+            ),
+            if (_query.trim().isNotEmpty) ...[
+              const SizedBox(height: 10),
+              InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () => widget.onSelected(_query.trim()),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.primaryContainer.withValues(alpha: .55),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: colors.primary.withValues(alpha: .35),
+                    ),
+                  ),
+                  child: Text('Use “${_query.trim()}” as your reaction'),
+                ),
+              ),
+            ],
+            if (_query.isEmpty && widget.recent.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Text(
+                'Recently used',
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+              const SizedBox(height: 4),
+              SizedBox(
+                height: 48,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: widget.recent.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 8),
+                  itemBuilder: (_, index) => _emojiButton(widget.recent[index]),
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 230,
+              child: GridView.builder(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 8,
+                  mainAxisSpacing: 4,
+                  crossAxisSpacing: 4,
+                ),
+                itemCount: _filtered.length,
+                itemBuilder: (_, index) => _emojiButton(_filtered[index]),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _emojiButton(String emoji) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => widget.onSelected(emoji),
+      child: Center(child: Text(emoji, style: const TextStyle(fontSize: 26))),
+    );
+  }
+}
+
 class _CallControl extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onPressed;
+  final Color? foregroundColor;
+  final bool compact;
   const _CallControl({
     required this.icon,
     required this.label,
     required this.onPressed,
+    this.foregroundColor,
+    this.compact = false,
   });
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return Column(
-      children: [
-        IconButton.filledTonal(
+    return Tooltip(
+      message: label,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: colors.primary.withValues(alpha: .62),
+            width: 1.2,
+          ),
+        ),
+        child: IconButton.filledTonal(
           onPressed: onPressed,
           icon: Icon(icon, size: 22),
           style: IconButton.styleFrom(
-            minimumSize: const Size(52, 52),
-            backgroundColor: colors.surfaceContainerHighest,
-            foregroundColor: colors.onSurface,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(17),
-              side: BorderSide(color: colors.outline.withValues(alpha: .18)),
+            minimumSize: Size.square(compact ? 48 : 54),
+            backgroundColor: colors.surfaceContainerHighest.withValues(
+              alpha: .82,
             ),
+            foregroundColor: foregroundColor ?? colors.onSurface,
+            shape: const CircleBorder(),
           ),
         ),
-        const SizedBox(height: 6),
-        Text(
-          label,
-          style: Theme.of(
-            context,
-          ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
-        ),
-      ],
+      ),
     );
   }
 }

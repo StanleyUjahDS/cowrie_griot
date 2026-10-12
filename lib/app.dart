@@ -58,6 +58,7 @@ import 'core/services/deep_link_service.dart';
 import 'core/services/push_notification_service.dart';
 import 'core/services/native_call_service.dart';
 import 'features/chat/models/shared_content.dart';
+import 'features/chat/models/conversation_model.dart';
 import 'features/chat/services/shared_content_service.dart';
 
 String _safeCurrentRoutePath() {
@@ -157,26 +158,93 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
   }
 
   Future<void> _handleNativeCallAccepted(Map<String, dynamic> data) async {
+    // iOS may relaunch the app from CallKit before Flutter has restored all
+    // PushKit extras. Recover the authoritative session by call ID so a valid
+    // answer is not treated as an invalid call and immediately dismissed.
+    final acceptedData = await _recoverAcceptedCallData(data);
     // Direct/group calls use conversationId; Campfires use roomId. Both map
     // to the call screen route so accepting from a terminated Android app
     // always lands in the active room.
-    final conversationId = (data['conversationId'] ?? data['roomId'])
-        ?.toString();
+    final conversationId = _firstNonEmpty(
+      acceptedData['conversationId'],
+      acceptedData['conversation_id'],
+      acceptedData['roomId'],
+    );
     if (conversationId == null || conversationId.isEmpty) {
       debugPrint(
         'NativeCallService: accepted call has no conversation or room id',
       );
       return;
     }
+    // Griot owns one media session at a time. Do not report a second call as
+    // connected when the existing call host cannot replace the active call.
+    // The native call UI is dismissed and the server receives a clear busy
+    // terminal state instead of leaving the caller waiting indefinitely.
+    final activeCall = ActiveCallController.instance.request;
+    final incomingCallId = _firstNonEmpty(
+      acceptedData['callId'],
+      acceptedData['id'],
+    );
+    if (activeCall != null &&
+        !ActiveCallController.instance.closing &&
+        incomingCallId != null &&
+        incomingCallId.isNotEmpty) {
+      await NativeCallService.instance.rejectAsBusy(incomingCallId);
+      return;
+    }
     ActiveCallController.instance.open(
       CallRequest(
         conversationId: conversationId,
-        conversationType: data['contextType']?.toString() ?? 'direct',
-        mode: data['mode']?.toString() ?? 'voice',
-        roomId: data['roomId']?.toString(),
-        callId: data['callId']?.toString(),
+        conversationType:
+            _firstNonEmpty(
+              acceptedData['contextType'],
+              acceptedData['conversationType'],
+              acceptedData['context_type'],
+            ) ??
+            'direct',
+        mode: _firstNonEmpty(acceptedData['mode']) ?? 'voice',
+        roomId: _firstNonEmpty(acceptedData['roomId'], acceptedData['room_id']),
+        callId: incomingCallId,
       ),
     );
+  }
+
+  Future<Map<String, dynamic>> _recoverAcceptedCallData(
+    Map<String, dynamic> data,
+  ) async {
+    final merged = <String, dynamic>{...data};
+    final callId = _firstNonEmpty(data['callId'], data['id']);
+    final hasConversation =
+        _firstNonEmpty(data['conversationId'], data['conversation_id']) != null;
+    final hasRoom = _firstNonEmpty(data['roomId'], data['room_id']) != null;
+    if (callId == null || (hasConversation && hasRoom)) return merged;
+    try {
+      final calls = await RealtimeCallService(_apiClient).activeCalls();
+      Map<String, dynamic>? match;
+      for (final call in calls) {
+        if (_firstNonEmpty(call['id'], call['callId']) == callId) {
+          match = call;
+          break;
+        }
+      }
+      if (match == null) return merged;
+      merged['conversationId'] ??=
+          match['conversation_id'] ?? match['conversationId'];
+      merged['roomId'] ??= match['room_id'] ?? match['roomId'];
+      merged['contextType'] ??= match['context_type'] ?? match['contextType'];
+      merged['mode'] ??= match['mode'];
+    } catch (error) {
+      debugPrint('NativeCallService: accepted-call recovery deferred: $error');
+    }
+    return merged;
+  }
+
+  String? _firstNonEmpty(Object? first, [Object? second, Object? third]) {
+    for (final value in [first, second, third]) {
+      final text = value?.toString().trim();
+      if (text != null && text.isNotEmpty) return text;
+    }
+    return null;
   }
 
   @override
@@ -372,6 +440,14 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
       return;
     }
 
+    // A scheduled Campfire becoming due is only a reminder for its creator.
+    // Keep the user on the Campfires list so they must press Start manually;
+    // opening the call route would violate the scheduled-start rule.
+    if (type == 'campfire_scheduled_ready') {
+      AppRouter.router.go('/campfires');
+      return;
+    }
+
     // Campfire activity belongs to the Campfires shell. Use `go` instead of
     // pushing another copy of the stateful shell (which can leave a broken
     // nested navigator when the notification is tapped from a call screen or
@@ -418,6 +494,87 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
       AppRouter.router.go('/notifications');
       return;
     }
+
+    // Mining notifications belong to the Miner shell. Older payloads used
+    // `/mining`, while current payloads use `/miner`; handle both explicitly
+    // and replace the shell location instead of pushing a nested copy. This
+    // keeps the session-complete notification from landing on a stale page or
+    // closing without opening the mining screen.
+    if (type == 'mining_session_complete' ||
+        type == 'mining_settlement' ||
+        route == '/mining' ||
+        route == '/miner') {
+      AppRouter.router.go('/miner');
+      return;
+    }
+
+    // Group/channel notification payloads have historically used several
+    // route shapes (`/group/...`, `/channel/...`, and `/chat/...`) and some
+    // payloads only include conversationId. Normalize them to the canonical
+    // conversation route and pass the cached Conversation so GoRouter can
+    // select the correct group or channel screen instead of assuming DM.
+    final notificationConversationId =
+        (data['conversationId'] ??
+                data['conversation_id'] ??
+                data['groupId'] ??
+                data['group_id'] ??
+                data['channelId'] ??
+                data['channel_id'])
+            ?.toString()
+            .trim();
+    final lowerRoute = route.toLowerCase();
+    final explicitConversationType =
+        (data['conversationType'] ??
+                data['conversation_type'] ??
+                data['contextType'] ??
+                data['context_type'])
+            ?.toString()
+            .toLowerCase();
+    final notificationConversationType =
+        explicitConversationType ??
+        ((data['groupId'] ?? data['group_id']) != null
+            ? 'group'
+            : (data['channelId'] ?? data['channel_id']) != null
+            ? 'channel'
+            : null);
+    final cachedNotificationConversation = AppRouter
+        .router
+        .routerDelegate
+        .navigatorKey
+        .currentContext
+        ?.read<MessagingProvider>()
+        .conversations
+        .where((item) => item.id == notificationConversationId)
+        .firstOrNull;
+    final cachedConversationType =
+        cachedNotificationConversation?.type == ConversationType.group
+        ? 'group'
+        : cachedNotificationConversation?.type == ConversationType.channel
+        ? 'channel'
+        : null;
+    final isGroupOrChannelNotification =
+        type.contains('group') ||
+        type.contains('channel') ||
+        notificationConversationType == 'group' ||
+        notificationConversationType == 'channel' ||
+        cachedConversationType != null ||
+        lowerRoute.startsWith('/group/') ||
+        lowerRoute.startsWith('/channel/') ||
+        lowerRoute.startsWith('/chat/groups/') ||
+        lowerRoute.startsWith('/chat/channels/');
+    if (isGroupOrChannelNotification &&
+        notificationConversationId != null &&
+        notificationConversationId.isNotEmpty) {
+      unawaited(
+        _openConversationNotification(
+          conversationId: notificationConversationId,
+          conversationType:
+              notificationConversationType ?? cachedConversationType,
+        ),
+      );
+      return;
+    }
+
     if (route.startsWith('/')) {
       AppRouter.router.push(route);
       return;
@@ -439,9 +596,6 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
         AppRouter.router.push('/wallet?tab=activity');
       case 'call_log':
         AppRouter.router.push('/notifications');
-      case 'mining_session_complete':
-      case 'mining_settlement':
-        AppRouter.router.push('/miner');
       case 'plus_gift_received':
       case 'plus_activated':
         AppRouter.router.push('/notifications');
@@ -450,12 +604,72 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
     }
   }
 
+  Future<void> _openConversationNotification({
+    required String conversationId,
+    String? conversationType,
+  }) async {
+    final context = AppRouter.router.routerDelegate.navigatorKey.currentContext;
+    final messaging = context?.read<MessagingProvider>();
+    Conversation? conversation;
+    if (messaging != null) {
+      conversation = messaging.conversations
+          .where((item) => item.id == conversationId)
+          .firstOrNull;
+    }
+
+    final normalizedType = conversationType?.trim().toLowerCase();
+    // A notification can arrive before the conversation cache has hydrated.
+    // Resolve shared conversations by their type so a group/channel never
+    // falls through to the DM screen.
+    if (conversation == null &&
+        (normalizedType == 'group' || normalizedType == 'channel')) {
+      try {
+        conversation = normalizedType == 'group'
+            ? await _messagingApiService.getGroup(conversationId)
+            : await _messagingApiService.getChannel(conversationId);
+      } catch (error) {
+        debugPrint(
+          'Push: unable to resolve conversation $conversationId: $error',
+        );
+      }
+    }
+
+    if (!mounted || !_routerHasMatch()) return;
+    AppRouter.router.push('/conversation/$conversationId', extra: conversation);
+  }
+
   void _showForegroundPush(RemoteMessage message) {
     final context = AppRouter.router.routerDelegate.navigatorKey.currentContext;
     if (context == null) return;
 
     final data = message.data;
     final type = data['type']?.toString() ?? '';
+    // Campfire push events are meaningful only while the user is actively in
+    // that exact room. Hosts, speakers, and co-hosts who have left must not
+    // receive foreground join/leave/status toasts for a room they exited.
+    const campfirePushTypes = {
+      'campfire_started',
+      'campfire_scheduled',
+      'campfire_joined',
+      'campfire_speaker_request',
+      'campfire_ended',
+    };
+    if (campfirePushTypes.contains(type)) {
+      final spaceId =
+          (data['spaceId'] ?? data['space_id'] ?? data['campfireId'])
+              ?.toString()
+              .trim();
+      final active = ActiveCallController.instance.request;
+      final path = _safeCurrentRoutePath();
+      final inExactCampfire =
+          spaceId != null &&
+          spaceId.isNotEmpty &&
+          path == '/calls/$spaceId' &&
+          !ActiveCallController.instance.closing &&
+          active?.conversationType == 'space' &&
+          active?.conversationId == spaceId;
+      if (!inExactCampfire) return;
+    }
     final status = data['status']?.toString().toLowerCase();
     if (type == 'call_log' &&
         const {'ended', 'declined', 'missed', 'failed'}.contains(status)) {
@@ -615,6 +829,7 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
     'tip_sent' => 'Tip confirmed',
     'campfire_started' => 'Campfire is burning',
     'campfire_scheduled' => 'Campfire scheduled',
+    'campfire_scheduled_ready' => 'Your Campfire is ready',
     'campfire_joined' => 'Someone joined your Campfire',
     'campfire_speaker_request' => 'Join the Fire request',
     'campfire_ended' => 'Campfire ended',
@@ -640,6 +855,8 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
     'tip_sent' => 'Your tip was confirmed on Griot.',
     'campfire_started' => 'A Campfire you may know about is live now.',
     'campfire_scheduled' => 'A Campfire you may know about is coming up.',
+    'campfire_scheduled_ready' =>
+      'Your scheduled Campfire is ready. Open Campfires and press Start when you are ready.',
     'campfire_joined' => 'A listener joined your Campfire.',
     'campfire_speaker_request' => 'A listener wants to join the conversation.',
     'campfire_ended' => 'The Campfire has ended.',
@@ -662,6 +879,7 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
     'tip_received' || 'tip_sent' => Icons.volunteer_activism_outlined,
     'campfire_started' ||
     'campfire_scheduled' ||
+    'campfire_scheduled_ready' ||
     'campfire_joined' ||
     'campfire_speaker_request' ||
     'campfire_ended' => Icons.local_fire_department_rounded,
@@ -912,16 +1130,21 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
 
                 return AnnotatedRegion<SystemUiOverlayStyle>(
                   value: overlayStyle,
-                  child: UpgradeAlert(
-                    child: TipNotificationListener(
-                      child: CampfireNotificationListener(
-                        child: Stack(
-                          children: [
-                            ?child,
-                            const ActiveCallHost(),
-                            const _ActiveCallBanner(),
-                            const _AppLockOverlay(),
-                          ],
+                  child: MediaQuery(
+                    data: MediaQuery.of(context).copyWith(
+                      textScaler: TextScaler.linear(_themeController.textScale),
+                    ),
+                    child: UpgradeAlert(
+                      child: TipNotificationListener(
+                        child: CampfireNotificationListener(
+                          child: Stack(
+                            children: [
+                              ?child,
+                              const ActiveCallHost(),
+                              const _ActiveCallBanner(),
+                              const _AppLockOverlay(),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -936,8 +1159,25 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
   }
 }
 
-class _ActiveCallBanner extends StatelessWidget {
+class _ActiveCallBanner extends StatefulWidget {
   const _ActiveCallBanner();
+
+  @override
+  State<_ActiveCallBanner> createState() => _ActiveCallBannerState();
+}
+
+class _ActiveCallBannerState extends State<_ActiveCallBanner> {
+  Offset _offset = Offset.zero;
+
+  void _move(DragUpdateDetails details) {
+    setState(() {
+      _offset = Offset(
+        (_offset.dx + details.delta.dx).clamp(-160.0, 160.0),
+        (_offset.dy + details.delta.dy).clamp(-40.0, 520.0),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: ActiveCallController.instance,
@@ -947,27 +1187,133 @@ class _ActiveCallBanner extends StatelessWidget {
       if (call == null || !owner.minimized || owner.closing) {
         return const SizedBox.shrink();
       }
+      final liveTitle = call.title?.trim().isNotEmpty == true
+          ? call.title!.trim()
+          : (call.conversationType == 'space' ? 'Campfire' : 'Call');
       return SafeArea(
         child: Align(
           alignment: Alignment.topCenter,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 64, 12, 0),
-            child: Material(
-              elevation: 8,
-              borderRadius: BorderRadius.circular(18),
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              child: ListTile(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
+          child: Transform.translate(
+            offset: _offset,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 58, 12, 0),
+              child: GestureDetector(
+                onPanUpdate: _move,
+                child: Semantics(
+                  button: true,
+                  label: '$liveTitle. Tap to return to the live call.',
+                  child: Material(
+                    elevation: 10,
+                    color: Theme.of(context).colorScheme.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(22),
+                      side: BorderSide(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onPrimary.withValues(alpha: 0.2),
+                        width: 1,
+                      ),
+                    ),
+                    child: InkWell(
+                      onTap: owner.expand,
+                      borderRadius: BorderRadius.circular(22),
+                      child: SizedBox(
+                        width: 292,
+                        height: 78,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Row(
+                            children: [
+                              DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.onPrimary
+                                      .withValues(alpha: 0.18),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: SizedBox.square(
+                                  dimension: 48,
+                                  child: Icon(
+                                    call.conversationType == 'space'
+                                        ? Icons.local_fire_department_rounded
+                                        : call.mode == 'video'
+                                        ? Icons.videocam_rounded
+                                        : Icons.phone_in_talk_rounded,
+                                    size: 25,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onPrimary,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      liveTitle,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onPrimary,
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 15,
+                                      ),
+                                    ),
+                                    Row(
+                                      children: [
+                                        DecoratedBox(
+                                          decoration: BoxDecoration(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.onPrimary,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const SizedBox.square(
+                                            dimension: 6,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 5),
+                                        Flexible(
+                                          child: Text(
+                                            call.conversationType == 'space'
+                                                ? 'Campfire · Live now'
+                                                : call.mode == 'video'
+                                                ? 'Video call · Live now'
+                                                : 'Voice call · Live now',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .onPrimary
+                                                  .withValues(alpha: 0.78),
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Icon(
+                                Icons.keyboard_arrow_up_rounded,
+                                size: 22,
+                                color: Theme.of(context).colorScheme.onPrimary,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-                leading: const Icon(Icons.phone_in_talk_rounded),
-                title: Text(
-                  call.conversationType == 'space'
-                      ? 'Campfire in progress'
-                      : 'Call in progress',
-                ),
-                trailing: const Text('Return'),
-                onTap: owner.expand,
               ),
             ),
           ),
@@ -1053,6 +1399,10 @@ class _IncomingCallProviderBindingState
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _onUserChanged();
     if (state == AppLifecycleState.resumed) {
+      // Compact iOS CallKit answers may be delivered through the background
+      // callback while the app is suspended. Consume that event when Flutter
+      // becomes interactive so the accepted call is not immediately dropped.
+      unawaited(NativeCallService.instance.consumePendingAcceptedCall());
       unawaited(NativeCallService.instance.syncVoipTokenWithBackend());
     }
   }
@@ -1170,8 +1520,20 @@ class _CampfireNotificationListenerState
         ?.toString()
         .trim();
     final path = _safeCurrentRoutePath();
-    final inCampfireShell = path == '/campfires' || path.startsWith('/calls/');
-    if (!inCampfireShell) return;
+    final onCampfireDiscovery = path == '/campfires';
+    // A call route is shared by direct, group, and Campfire calls. Only treat
+    // it as a Campfire context when the event carries a concrete space id;
+    // otherwise a public Campfire update must never interrupt a normal call,
+    // chat, wallet, or any other screen.
+    final onCampfireCall =
+        path.startsWith('/calls/') && spaceId != null && spaceId.isNotEmpty;
+    final activeCall = ActiveCallController.instance.request;
+    final activeCampfireCall =
+        onCampfireCall &&
+        !ActiveCallController.instance.closing &&
+        activeCall?.conversationType == 'space' &&
+        activeCall?.conversationId == spaceId;
+    if (!onCampfireDiscovery && !activeCampfireCall) return;
 
     // Socket Campfire events are broadcast to the messages namespace. Only
     // show participant/request activity for the room currently being viewed;
@@ -1181,10 +1543,28 @@ class _CampfireNotificationListenerState
         : null;
     if ((type == 'campfire_participants_changed' ||
             type == 'campfire_speaker_requested' ||
-            type == 'campfire_ended') &&
-        // On the Campfires discovery screen there is no current room yet;
-        // the host must still receive the realtime request/update toast.
-        (spaceId == null || (currentRoom != null && currentRoom != spaceId))) {
+            type == 'campfire_ended' ||
+            type == 'campfire_joined') &&
+        // Participant activity is only relevant inside that exact Campfire.
+        // Do not show join/leave/mute traffic on the discovery screen or for
+        // another Campfire the user is not currently attending.
+        (!activeCampfireCall ||
+            currentRoom == null ||
+            currentRoom != spaceId)) {
+      return;
+    }
+
+    // The live room already reflects these events through its call-state
+    // listeners. Keep the room quiet instead of stacking a toast on every
+    // attendee; users outside the room can still receive the notification.
+    if (activeCampfireCall &&
+        currentRoom == spaceId &&
+        const {
+          'campfire_participants_changed',
+          'campfire_speaker_requested',
+          'campfire_ended',
+          'campfire_joined',
+        }.contains(type)) {
       return;
     }
 
@@ -1228,6 +1608,9 @@ class _CampfireNotificationListenerState
         message = 'The host ended this Campfire.';
         icon = Icons.call_end_rounded;
       case 'campfire_created':
+        // New public Campfires are discovery activity, not activity for an
+        // already-open call. Keep this toast on the Campfires screen only.
+        if (!onCampfireDiscovery) return;
         title = 'New Campfire live';
         message = 'A new public Campfire is available to join.';
         icon = Icons.local_fire_department_rounded;

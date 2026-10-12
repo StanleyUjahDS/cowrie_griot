@@ -19,10 +19,7 @@ class FloatingComposerButton extends StatelessWidget {
     return Material(
       color: background,
       shape: CircleBorder(
-        side: BorderSide(
-          color: foreground.withValues(alpha: 0.1),
-          width: 1,
-        ),
+        side: BorderSide(color: foreground.withValues(alpha: 0.1), width: 1),
       ),
       elevation: 2,
       shadowColor: Colors.black.withValues(alpha: 0.1),

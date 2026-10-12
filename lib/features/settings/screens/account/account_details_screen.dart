@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/ui/scaffolds/gradient_scaffold.dart';
@@ -19,7 +20,10 @@ import 'widgets/profile_field.dart';
 import 'widgets/section_label.dart';
 import 'widgets/settings_container.dart';
 import '../../../../core/ui/widgets/griot_loader.dart';
+import '../../../../core/ui/widgets/griot_plus_badge.dart';
+import '../../../../core/ui/widgets/griot_pioneer_badge.dart';
 import '../../../../core/services/notification_service.dart';
+import '../../../../core/services/share_link_service.dart';
 
 class AccountDetailsScreen extends StatefulWidget {
   const AccountDetailsScreen({super.key});
@@ -120,6 +124,28 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
         '${value.substring(value.length - 8)}';
   }
 
+  Future<void> _shareMyProfile(BuildContext context) async {
+    final user = context.read<UserProvider>().user;
+    if (user == null) {
+      NotificationService.showError(context, 'Your profile is not ready yet');
+      return;
+    }
+
+    final link = ShareLinkService.profile(user);
+    if (link == null) {
+      NotificationService.showError(context, 'Profile link unavailable');
+      return;
+    }
+
+    await SharePlus.instance.share(
+      ShareParams(
+        text:
+            'View ${user.displayName ?? (user.formattedUsername.isNotEmpty ? user.formattedUsername : 'my profile')} on Griot\n$link',
+        subject: 'My Griot profile',
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -193,13 +219,18 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
         children:
             [
                   GriotBrandedContainer(
-                    padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 24,
+                      horizontal: 16,
+                    ),
                     borderRadius: 28,
                     child: _ProfileHero(
                       avatarUrl: avatarUrl,
                       displayName: displayName,
                       username: username,
                       reputation: user?.reputation,
+                      isPlus: user?.isPlus == true,
+                      isPioneer: user?.isPioneer == true,
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -236,6 +267,14 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
                             : rawBio,
                         trailingIcon: Icons.edit_rounded,
                         onTap: () => _editBio(context, rawBio),
+                      ),
+                      const SettingsDivider(),
+                      ProfileField(
+                        icon: Icons.share_rounded,
+                        title: 'Share Profile',
+                        value: 'Share your Griot profile link',
+                        trailingIcon: Icons.ios_share_rounded,
+                        onTap: () => _shareMyProfile(context),
                       ),
                     ],
                   ),
@@ -303,12 +342,16 @@ class _ProfileHero extends StatelessWidget {
   final String displayName;
   final String username;
   final UserReputationBadge? reputation;
+  final bool isPlus;
+  final bool isPioneer;
 
   const _ProfileHero({
     required this.avatarUrl,
     required this.displayName,
     required this.username,
     this.reputation,
+    this.isPlus = false,
+    this.isPioneer = false,
   });
 
   @override
@@ -339,13 +382,28 @@ class _ProfileHero extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 15),
-        Text(
-          displayName,
-          textAlign: TextAlign.center,
-          style: text.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w900,
-            letterSpacing: -0.4,
-          ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text(
+                displayName,
+                textAlign: TextAlign.center,
+                style: text.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.4,
+                ),
+              ),
+            ),
+            if (isPlus) ...[
+              const SizedBox(width: 6),
+              const GriotPlusBadge(isPlus: true, compact: true),
+            ],
+            if (isPioneer) ...[
+              const SizedBox(width: 4),
+              const GriotPioneerBadge(compact: true),
+            ],
+          ],
         ),
 
         if (reputation != null) ...[

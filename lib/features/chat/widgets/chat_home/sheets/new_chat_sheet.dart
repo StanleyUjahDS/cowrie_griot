@@ -6,6 +6,7 @@ import '../../../../users/models/user_model.dart';
 import '../../../../users/services/user_api_service.dart';
 import '../../../../../core/ui/widgets/griot_loader.dart';
 import '../../../../../core/ui/widgets/griot_plus_badge.dart';
+import '../../../../../core/ui/widgets/griot_pioneer_badge.dart';
 
 class NewChatSheet extends StatefulWidget {
   final void Function(String username, String walletAddress) onSendRequest;
@@ -248,6 +249,10 @@ class _UserSearchItem extends StatelessWidget {
           if (user.isPlus) ...[
             const SizedBox(width: 6),
             const GriotPlusBadge(isPlus: true, compact: true),
+          ],
+          if (user.isPioneer) ...[
+            const SizedBox(width: 4),
+            const GriotPioneerBadge(compact: true),
           ],
         ],
       ),

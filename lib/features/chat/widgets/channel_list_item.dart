@@ -6,6 +6,7 @@ import 'conversation_actions_sheet.dart';
 
 class ChannelListItem extends StatelessWidget {
   final Conversation conversation;
+  final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final VoidCallback? onPinToggle;
   final VoidCallback? onRemove;
@@ -15,6 +16,7 @@ class ChannelListItem extends StatelessWidget {
   const ChannelListItem({
     super.key,
     required this.conversation,
+    this.onTap,
     this.onLongPress,
     this.onPinToggle,
     this.onRemove,
@@ -30,6 +32,12 @@ class ChannelListItem extends StatelessWidget {
 
     final imageUrl = conversation.imageUrl;
     final hasImage = imageUrl != null && imageUrl.trim().isNotEmpty;
+    final preview = conversation.lastMessage?.previewText ?? '';
+    final subscriberTotal = conversation.subscriberCount > 0
+        ? conversation.subscriberCount
+        : (conversation.memberCount > 0
+              ? conversation.memberCount
+              : conversation.memberIds.length);
 
     final bool isDark = theme.brightness == Brightness.dark;
 
@@ -59,16 +67,18 @@ class ChannelListItem extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () {
-            context.push(
-              '/conversation/${conversation.id}',
-              extra: conversation,
-            );
-          },
+          onTap:
+              onTap ??
+              () {
+                context.push(
+                  '/conversation/${conversation.id}',
+                  extra: conversation,
+                );
+              },
           onLongPress: onLongPress,
           borderRadius: BorderRadius.circular(24),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             child: Row(
               children: [
                 // ==========================================================
@@ -92,6 +102,22 @@ class ChannelListItem extends StatelessWidget {
                         ? Image.network(
                             imageUrl,
                             fit: BoxFit.cover,
+                            frameBuilder:
+                                (
+                                  context,
+                                  child,
+                                  frame,
+                                  wasSynchronouslyLoaded,
+                                ) {
+                                  if (wasSynchronouslyLoaded || frame != null) {
+                                    return child;
+                                  }
+                                  return Icon(
+                                    Icons.sensors_rounded,
+                                    color: colorScheme.primary,
+                                    size: 30,
+                                  );
+                                },
                             errorBuilder: (context, error, stackTrace) => Icon(
                               Icons.sensors_rounded,
                               color: colorScheme.primary,
@@ -105,7 +131,7 @@ class ChannelListItem extends StatelessWidget {
                           ),
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
 
                 // ==========================================================
                 // INFO CONTENT
@@ -122,9 +148,8 @@ class ChannelListItem extends StatelessWidget {
                               conversation.name ?? 'Unknown Channel',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: textTheme.titleMedium?.copyWith(
+                              style: textTheme.bodyLarge?.copyWith(
                                 fontWeight: FontWeight.w900,
-                                fontSize: 16,
                               ),
                             ),
                           ),
@@ -145,10 +170,9 @@ class ChannelListItem extends StatelessWidget {
                               color: colorScheme.primary.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: const Text(
-                              'CHANNEL',
-                              style: TextStyle(
-                                fontSize: 8,
+                            child: Text(
+                              'CH',
+                              style: textTheme.labelSmall?.copyWith(
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 0.5,
                               ),
@@ -158,18 +182,28 @@ class ChannelListItem extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        conversation.lastMessage?.previewText ??
-                            '${conversation.subscriberCount} subscribers',
+                        _formatSubscriberCount(subscriberTotal),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant.withValues(
-                            alpha: 0.6,
-                          ),
-                          fontWeight: FontWeight.w600,
-                          fontSize: 12,
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
+                      if (preview.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          preview,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant.withValues(
+                              alpha: 0.6,
+                            ),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -190,7 +224,6 @@ class ChannelListItem extends StatelessWidget {
                           alpha: 0.4,
                         ),
                         fontWeight: FontWeight.w700,
-                        fontSize: 10,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -215,7 +248,9 @@ class ChannelListItem extends StatelessWidget {
                     icon: Icon(
                       Icons.more_vert_rounded,
                       size: 20,
-                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.55),
+                      color: colorScheme.onSurfaceVariant.withValues(
+                        alpha: 0.55,
+                      ),
                     ),
                   ),
                 ],
@@ -234,6 +269,16 @@ class ChannelListItem extends StatelessWidget {
     if (diff.inHours < 24) return '${diff.inHours}h';
     return '${time.day}/${time.month}';
   }
+
+  String _formatSubscriberCount(int count) {
+    if (count >= 1000000) {
+      return '${(count / 1000000).toStringAsFixed(1)}M subscribers';
+    }
+    if (count >= 1000) {
+      return '${(count / 1000).toStringAsFixed(1)}K subscribers';
+    }
+    return '$count subscribers';
+  }
 }
 
 class _UnreadBadge extends StatelessWidget {
@@ -244,8 +289,18 @@ class _UnreadBadge extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: colors.primary, borderRadius: BorderRadius.circular(10)),
-      child: Text(count > 99 ? '99+' : '$count', style: TextStyle(color: colors.onPrimary, fontSize: 10, fontWeight: FontWeight.w900)),
+      decoration: BoxDecoration(
+        color: colors.primary,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        count > 99 ? '99+' : '$count',
+        style: TextStyle(
+          color: colors.onPrimary,
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
     );
   }
 }

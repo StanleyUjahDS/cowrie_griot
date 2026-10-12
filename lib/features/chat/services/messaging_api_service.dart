@@ -148,8 +148,8 @@ class MessagingApiService {
     String? description,
     String mode = 'voice',
     String regionCode = 'GLOBAL',
-    bool recordingEnabled = false,
     DateTime? scheduledAt,
+    String? conversationId,
   }) async {
     final response = await _apiClient.post(
       ApiConfig.messagingCampfiresCreate,
@@ -159,16 +159,68 @@ class MessagingApiService {
           'description': description.trim(),
         'mode': mode,
         'regionCode': regionCode,
-        'recordingEnabled': recordingEnabled,
+        if (conversationId != null && conversationId.trim().isNotEmpty)
+          'conversationId': conversationId.trim(),
         if (scheduledAt != null)
           'scheduledAt': scheduledAt.toUtc().toIso8601String(),
       },
     );
-    return Map<String, dynamic>.from(_getData(response));
+    // Different deployed API revisions have returned the created Campfire as
+    // the response data itself or under `campfire`/`space`. Normalize those
+    // shapes here so the create screen always receives an id and schedule.
+    dynamic data = _getData(response);
+    for (var depth = 0; depth < 3 && data is Map; depth++) {
+      final map = Map<String, dynamic>.from(data);
+      final nested = map['campfire'] ?? map['space'] ?? map['item'];
+      if (nested is Map) {
+        data = nested;
+        continue;
+      }
+      final nestedData = map['data'];
+      if (nestedData is Map) {
+        data = nestedData;
+        continue;
+      }
+      return map;
+    }
+    if (data is Map) return Map<String, dynamic>.from(data);
+    throw StateError(
+      'The Campfire was created but no Campfire data was returned.',
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getConversationCampfires(
+    String conversationId,
+  ) async {
+    final response = await _apiClient.get(
+      ApiConfig.messagingCampfiresConversation(conversationId),
+      forceRefresh: true,
+    );
+    final data = _getData(response);
+    final raw = data is Map
+        ? (data['items'] ?? data['spaces'] ?? data['campfires'])
+        : data;
+    if (raw is! List) return <Map<String, dynamic>>[];
+    return raw
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
   }
 
   Future<void> joinCampfire(String id) async {
-    await _apiClient.post(ApiConfig.messagingCampfireJoin(id));
+    try {
+      await _apiClient.post(ApiConfig.messagingCampfireJoin(id));
+    } on ApiException catch (error) {
+      // Creation may already insert the host as a participant. Treat that
+      // duplicate membership response as success so the creator can still
+      // enter the newly created Campfire across backend revisions.
+      final message = error.message.toLowerCase();
+      final alreadyJoined =
+          message.contains('already joined') ||
+          message.contains('already a participant') ||
+          message.contains('already in');
+      if (!alreadyJoined) rethrow;
+    }
   }
 
   Future<void> leaveCampfire(String id) async {
@@ -215,6 +267,14 @@ class MessagingApiService {
 
   Future<void> endCampfire(String id) async {
     await _apiClient.post(ApiConfig.messagingCampfireEnd(id));
+  }
+
+  Future<void> addCampfireReminder(String id) async {
+    await _apiClient.post(ApiConfig.messagingCampfireReminder(id));
+  }
+
+  Future<void> removeCampfireReminder(String id) async {
+    await _apiClient.delete(ApiConfig.messagingCampfireReminder(id));
   }
 
   Future<Conversation> getGroup(String conversationId) async {
@@ -375,9 +435,23 @@ class MessagingApiService {
     _checkSuccess(response);
   }
 
+  Future<void> deleteGroup(String conversationId) async {
+    final response = await _apiClient.delete(
+      ApiConfig.messagingGroupDelete(conversationId),
+    );
+    _checkSuccess(response);
+  }
+
   Future<void> deleteConversation(String conversationId) async {
     final response = await _apiClient.delete(
       ApiConfig.messagingConversationById(conversationId),
+    );
+    _checkSuccess(response);
+  }
+
+  Future<void> clearDirectMessages(String conversationId) async {
+    final response = await _apiClient.delete(
+      '${ApiConfig.messagingDirectById(conversationId)}/messages',
     );
     _checkSuccess(response);
   }
@@ -573,10 +647,55 @@ class MessagingApiService {
     _checkSuccess(response);
   }
 
+  Future<ChatMessage> editMessage({
+    required String messageId,
+    required String content,
+  }) async {
+    final response = await _apiClient.patch(
+      ApiConfig.messagingMessageById(messageId),
+      body: {'content': content},
+    );
+    return ChatMessage.fromJson(Map<String, dynamic>.from(_getData(response)));
+  }
+
   Future<void> deleteMessageForMe(String messageId) async {
     final response = await _apiClient.delete(
       ApiConfig.messagingMessageById(messageId),
       body: {'scope': 'me'},
+    );
+    _checkSuccess(response);
+  }
+
+  Future<void> pinMessage({
+    required String conversationId,
+    required String messageId,
+  }) async {
+    final response = await _apiClient.post(
+      ApiConfig.messagingConversationMessagePin(conversationId, messageId),
+    );
+    _checkSuccess(response);
+  }
+
+  Future<List<Map<String, dynamic>>> getPinnedMessages(
+    String conversationId,
+  ) async {
+    final response = await _apiClient.get(
+      ApiConfig.messagingConversationPinned(conversationId),
+    );
+    final data = _getData(response);
+    if (data is! List) return [];
+    return data
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
+  Future<void> unpinMessage({
+    required String conversationId,
+    required String messageId,
+  }) async {
+    final response = await _apiClient.delete(
+      ApiConfig.messagingConversationMessagePin(conversationId, messageId),
     );
     _checkSuccess(response);
   }
@@ -902,6 +1021,26 @@ class MessagingApiService {
     return ChatMessage.fromJson(Map<String, dynamic>.from(data));
   }
 
+  Future<Map<String, List<String>>> toggleChannelPostReaction({
+    required String conversationId,
+    required String postId,
+    required String reaction,
+  }) async {
+    final response = await _apiClient.post(
+      ApiConfig.messagingChannelPostReactions(conversationId, postId),
+      body: {'reaction': reaction},
+    );
+    final data = _getData(response);
+    final raw = data is Map ? data['reactions'] : null;
+    if (raw is! Map) return {};
+    return raw.map(
+      (key, value) => MapEntry(
+        key.toString(),
+        value is List ? value.map((id) => id.toString()).toList() : <String>[],
+      ),
+    );
+  }
+
   Future<List<Map<String, dynamic>>> getChannelComments(
     String conversationId,
     String postId,
@@ -924,7 +1063,14 @@ class MessagingApiService {
   }) async {
     final response = await _apiClient.post(
       ApiConfig.messagingChannelComments(conversationId, postId),
-      body: {'content': content, 'replyToCommentId': replyToCommentId},
+      body: {
+        'content': content,
+        // Keep both spellings while older channel deployments are still in
+        // rotation. The current API reads camelCase, while older clients and
+        // socket payloads used snake_case.
+        'replyToCommentId': replyToCommentId,
+        'reply_to_comment_id': replyToCommentId,
+      },
     );
     final data = _getData(response);
     return Map<String, dynamic>.from(data);

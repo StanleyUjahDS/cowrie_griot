@@ -18,12 +18,30 @@ class AdService extends ChangeNotifier {
 
   RewardedAd? _rewardedAd;
   bool _isRewardedAdLoading = false;
+  bool _canRequestAds = false;
+  bool _initializationStarted = false;
   Timer? _retryTimer;
   int _retryAttempt = 0;
+
+  /// True only after UMP has completed and the Mobile Ads SDK is initialized.
+  /// Ad widgets use this gate so a failed/unfinished consent flow cannot emit
+  /// requests without a current consent signal.
+  bool get canRequestAds => !AppConfig.adsEnabled || _canRequestAds;
 
   /// Initializes the ads SDK only when ads have been enabled for this build.
   Future<void> initialize() async {
     if (!AppConfig.adsEnabled) return;
+    if (_initializationStarted) return;
+    _initializationStarted = true;
+
+    // Google requires a certified consent flow for personalised ads in the
+    // EEA/UK. Request/update consent before initializing Mobile Ads so no ad
+    // request is sent without a valid UMP decision.
+    final consentReady = await _requestConsent();
+    if (!consentReady) {
+      debugPrint('Ads consent is not ready; delaying ad initialization.');
+      return;
+    }
 
     // Keep Ad Inspector available on the registered development devices.
     // These IDs are only applied to debug/profile builds; release builds use
@@ -33,7 +51,9 @@ class AdService extends ChangeNotifier {
         RequestConfiguration(
           testDeviceIds: <String>[
             'b36fb7f5-cca7-4f57-b76f-a7d8f2fb500b', // Pixel 7 Pro Advertising ID
+            '6F24A7711508A0271F405095108D2D53', // Google Mobile Ads SDK test ID
             '4d313a79b92adca39dcedc95ab09a99f', // iPhone
+            '209421EB-92BB-4B01-A5A2-BA066F31128D', // iPhone IDFA
           ],
         ),
       );
@@ -46,6 +66,8 @@ class AdService extends ChangeNotifier {
       debugPrint('Mobile Ads initialization failed: $error\n$stackTrace');
       return;
     }
+    _canRequestAds = true;
+    notifyListeners();
     // This is intentionally logged in debug builds: it is the quickest way to
     // confirm that the Unity adapter was bundled and initialized on a device.
     // A successful adapter initialization does not, by itself, guarantee a
@@ -59,10 +81,35 @@ class AdService extends ChangeNotifier {
     loadRewardedAd();
   }
 
+  Future<bool> _requestConsent() async {
+    final information = ConsentInformation.instance;
+    final updated = Completer<void>();
+    information.requestConsentInfoUpdate(
+      ConsentRequestParameters(),
+      () => updated.complete(),
+      (error) {
+        debugPrint('Ads consent update failed: ${error.message}');
+        if (!updated.isCompleted) updated.complete();
+      },
+    );
+    await updated.future;
+    try {
+      await ConsentForm.loadAndShowConsentFormIfRequired((error) {
+        if (error != null) {
+          debugPrint('Ads consent form failed: ${error.message}');
+        }
+      });
+      return await information.canRequestAds();
+    } catch (error, stackTrace) {
+      debugPrint('Ads consent flow failed: $error\n$stackTrace');
+      return false;
+    }
+  }
+
   /// Opens Google's Ad Inspector on a real test device.  The inspector shows
   /// the mediation adapters, waterfall, and the adapter that actually filled.
   void openAdInspector() {
-    if (!AppConfig.adsEnabled) return;
+    if (!canRequestAds) return;
     MobileAds.instance.openAdInspector((error) {
       if (error != null) {
         debugPrint(
@@ -77,7 +124,7 @@ class AdService extends ChangeNotifier {
 
   /// Loads a rewarded ad.
   void loadRewardedAd() {
-    if (!AppConfig.adsEnabled) return;
+    if (!canRequestAds) return;
     if (_isRewardedAdLoading || _rewardedAd != null) return;
 
     _isRewardedAdLoading = true;

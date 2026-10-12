@@ -14,6 +14,8 @@ class MessageInput extends StatelessWidget {
   final VoidCallback onCamera;
   final VoidCallback onMicTap;
   final bool hasText;
+  final bool isEditing;
+  final VoidCallback? onCancelEdit;
 
   const MessageInput({
     super.key,
@@ -25,6 +27,8 @@ class MessageInput extends StatelessWidget {
     required this.onCamera,
     required this.onMicTap,
     required this.hasText,
+    this.isEditing = false,
+    this.onCancelEdit,
   });
 
   @override
@@ -62,6 +66,36 @@ class MessageInput extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
+                if (isEditing)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 4, 4),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.edit_rounded,
+                          size: 15,
+                          color: colorScheme.primary,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Editing message',
+                            style: textTheme.labelMedium?.copyWith(
+                              color: colorScheme.primary,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        if (onCancelEdit != null)
+                          IconButton(
+                            tooltip: 'Cancel editing',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: onCancelEdit,
+                            icon: const Icon(Icons.close_rounded, size: 18),
+                          ),
+                      ],
+                    ),
+                  ),
                 if (showWarning)
                   Padding(
                     padding: const EdgeInsets.only(right: 60, bottom: 6),
@@ -86,7 +120,9 @@ class MessageInput extends StatelessWidget {
                           ? const SizedBox.shrink()
                           : ComposerIconButton(
                               icon: Icons.add_rounded,
-                              color: colorScheme.primary.withValues(alpha: 0.08),
+                              color: colorScheme.primary.withValues(
+                                alpha: 0.08,
+                              ),
                               iconColor: colorScheme.primary,
                               onTap: onAttachment,
                             ),

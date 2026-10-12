@@ -5,7 +5,6 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:flutter_svg/flutter_svg.dart';
 import '../../users/models/user_model.dart';
 import '../../users/services/user_api_service.dart';
 import '../providers/messaging_provider.dart';
@@ -14,6 +13,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
+import '../../../core/ui/widgets/griot_avatar.dart';
 
 class UserDiscoveryScreen extends StatefulWidget {
   const UserDiscoveryScreen({super.key});
@@ -824,19 +824,11 @@ class _Avatar extends StatelessWidget {
     return Stack(
       alignment: Alignment.bottomRight,
       children: [
-        CircleAvatar(
+        GriotAvatar(
+          avatarUrl: user.avatarUrl,
           radius: 28,
           backgroundColor: colors.surfaceContainerHighest,
-          backgroundImage: user.avatarUrl != null
-              ? NetworkImage(user.avatarUrl!)
-              : null,
-          child: user.avatarUrl == null
-              ? SvgPicture.asset(
-                  'assets/coins_logo/hbadger_logo.svg',
-                  width: 32,
-                  height: 32,
-                )
-              : null,
+          iconColor: colors.primary,
         ),
         if (isOnline)
           Positioned(
@@ -865,7 +857,7 @@ class _Avatar extends StatelessWidget {
               ),
               child: Icon(
                 reputation!.tierName.toLowerCase().contains('ultimate')
-                    ? Icons.stars_rounded
+                    ? Icons.workspace_premium_rounded
                     : Icons.workspace_premium_rounded,
                 size: 10,
                 color: colors.onPrimary,

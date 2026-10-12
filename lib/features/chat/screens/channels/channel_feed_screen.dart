@@ -15,6 +15,7 @@ import '../../widgets/chatting/attachment_sheet.dart';
 import '../../widgets/chatting/media_preview_sheet.dart';
 import '../../widgets/chatting/message_input.dart';
 import '../../widgets/chatting/voice_recording_sheet.dart';
+import '../../widgets/chatting/reaction_picker.dart';
 import '../../widgets/chatting/audio_player_widget.dart';
 import '../../widgets/chatting/video_player_widget.dart';
 import '../../widgets/chat_wallpaper.dart';
@@ -92,9 +93,12 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
             orElse: () => _currentConversation,
           );
 
-          // Merge to ensure we have ownerId and latest counts from _currentConversation
-          // while keeping role and status from provider.
+          // Merge fresh provider metadata so a channel avatar/name updated
+          // elsewhere is reflected in the feed immediately.
           final conv = _currentConversation.copyWith(
+            name: providerConv.name ?? _currentConversation.name,
+            imageUrl: providerConv.imageUrl ?? _currentConversation.imageUrl,
+            ownerId: providerConv.ownerId ?? _currentConversation.ownerId,
             role: providerConv.role,
             status: providerConv.status,
             unreadCount: providerConv.unreadCount,
@@ -117,6 +121,8 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
               conv.status == 'active' || conv.memberIds.contains(userId);
 
           return GradientScaffold(
+            useSafeArea: true,
+            resizeToAvoidBottomInset: true,
             appBar: AppBar(
               toolbarHeight: 64,
               title: InkWell(
@@ -137,10 +143,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
                     children: [
                       Text(
                         conv.title ?? 'Channel',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 16,
-                        ),
+                        style: const TextStyle(fontWeight: FontWeight.w900),
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -148,7 +151,6 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
                           color: Theme.of(context).colorScheme.primary,
                           fontWeight: FontWeight.w800,
-                          fontSize: 10,
                         ),
                       ),
                     ],
@@ -275,26 +277,31 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
         : RefreshIndicator(
             onRefresh: () => provider.loadChannelPosts(conversationId),
             child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+              // The composer is part of the page layout (rather than an
+              // overlay), so the feed only needs a small breathing space at
+              // the bottom. This keeps channel posts aligned with DM/group
+              // messages and prevents a large empty gap above the composer.
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
               itemCount: posts.length,
               itemBuilder: (context, index) {
                 final post = posts[index];
-                return _PostCard(post: post, conversationId: conversationId);
+                return _PostCard(
+                  post: post,
+                  conversationId: conversationId,
+                  canPin: canPost,
+                );
               },
             ),
           );
 
     return ChatWallpaper(
-      child: Stack(
+      // Keep the composer in normal layout flow, just like direct and group
+      // chats. This lets Scaffold resize the feed above the keyboard and
+      // avoids the composer floating over the final post or gesture inset.
+      child: Column(
         children: [
-          Positioned.fill(child: content),
-          if (canPost)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: _ChannelComposer(conversationId: conversationId),
-            ),
+          Expanded(child: content),
+          if (canPost) _ChannelComposer(conversationId: conversationId),
         ],
       ),
     );
@@ -457,11 +464,37 @@ class _ChannelComposerState extends State<_ChannelComposer> {
   }
 }
 
-class _PostCard extends StatelessWidget {
+class _PostCard extends StatefulWidget {
   final ChatMessage post;
   final String conversationId;
+  final bool canPin;
 
-  const _PostCard({required this.post, required this.conversationId});
+  const _PostCard({
+    required this.post,
+    required this.conversationId,
+    required this.canPin,
+  });
+
+  @override
+  State<_PostCard> createState() => _PostCardState();
+}
+
+class _PostCardState extends State<_PostCard> {
+  ChatMessage get post => widget.post;
+  String get conversationId => widget.conversationId;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<MessagingProvider>().loadPostComments(
+          conversationId,
+          post.id,
+        );
+      }
+    });
+  }
 
   Widget _buildAuthorInfo(
     BuildContext context,
@@ -488,9 +521,9 @@ class _PostCard extends StatelessWidget {
             border: Border.all(color: colors.primary.withValues(alpha: 0.1)),
           ),
           child: ClipOval(
-            child: avatarUrl != null
+            child: avatarUrl?.trim().isNotEmpty == true
                 ? Image.network(
-                    avatarUrl,
+                    avatarUrl!,
                     fit: BoxFit.cover,
                     errorBuilder: (_, _, _) => Icon(
                       Icons.sensors_rounded,
@@ -553,6 +586,36 @@ class _PostCard extends StatelessWidget {
     );
   }
 
+  void _tipAuthor(BuildContext context) {
+    final provider = context.read<MessagingProvider>();
+    final friend = provider.friends.where((f) => f.id == post.senderId);
+    final recipients = friend.isEmpty
+        ? <ChatUser>[]
+        : [ChatUser.fromUserModel(friend.first)];
+    TipSheet.show(
+      context,
+      recipients: recipients,
+      conversationId: conversationId,
+      conversationType: ConversationType.channel,
+    );
+  }
+
+  Future<void> _showReactionPicker(BuildContext context) async {
+    final selected = await EmojiReactionPicker.show(context);
+    if (!context.mounted || selected == null) return;
+    try {
+      await context.read<MessagingProvider>().toggleChannelPostReaction(
+        conversationId: conversationId,
+        postId: post.id,
+        reaction: selected,
+      );
+    } catch (_) {
+      if (context.mounted) {
+        NotificationService.showError(context, 'Could not add reaction');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -611,10 +674,39 @@ class _PostCard extends StatelessWidget {
             ),
           ),
           const Divider(height: 1, indent: 20, endIndent: 20),
+          if (post.reactions.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: post.reactions.entries.map((entry) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colors.primary.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Text('${entry.key} ${entry.value.length}'),
+                  );
+                }).toList(),
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Row(
               children: [
+                IconButton(
+                  tooltip: 'Add reaction',
+                  onPressed: () => _showReactionPicker(context),
+                  icon: Icon(
+                    Icons.add_reaction_outlined,
+                    color: colors.primary,
+                  ),
+                ),
                 TextButton.icon(
                   onPressed: () =>
                       CommentSheet.show(context, conversationId, post.id),
@@ -639,6 +731,45 @@ class _PostCard extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
+                if (widget.canPin)
+                  IconButton(
+                    tooltip: 'Pin message',
+                    onPressed: () async {
+                      try {
+                        await context.read<MessagingProvider>().pinMessage(
+                          conversationId: conversationId,
+                          messageId: post.id,
+                        );
+                        if (context.mounted) {
+                          NotificationService.showSuccess(
+                            context,
+                            'Message pinned',
+                          );
+                        }
+                      } catch (_) {
+                        if (context.mounted) {
+                          NotificationService.showError(
+                            context,
+                            'Could not pin message',
+                          );
+                        }
+                      }
+                    },
+                    icon: Icon(
+                      Icons.push_pin_outlined,
+                      size: 18,
+                      color: colors.primary,
+                    ),
+                  ),
+                IconButton(
+                  tooltip: 'Tip author',
+                  onPressed: () => _tipAuthor(context),
+                  icon: Icon(
+                    Icons.volunteer_activism_outlined,
+                    size: 18,
+                    color: colors.primary,
+                  ),
+                ),
                 IconButton(
                   onPressed: () => SharePlus.instance.share(
                     ShareParams(

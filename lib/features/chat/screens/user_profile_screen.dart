@@ -17,6 +17,7 @@ import '../../../core/services/share_link_service.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
 import '../../../core/ui/widgets/griot_avatar.dart';
 import '../../../core/ui/widgets/griot_plus_badge.dart';
+import '../../../core/ui/widgets/griot_pioneer_badge.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../widgets/chatting/fullscreen_media_viewer.dart';
 import '../widgets/chatting/report_content_sheet.dart';
@@ -591,6 +592,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                   isPlus: true,
                                   compact: true,
                                 ),
+                              ],
+                              if (user.isPioneer) ...[
+                                const SizedBox(width: 4),
+                                const GriotPioneerBadge(compact: true),
                               ],
                             ],
                           ),

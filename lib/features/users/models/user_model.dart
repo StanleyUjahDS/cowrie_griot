@@ -38,6 +38,7 @@ class UserModel {
   final String? relationshipStatus;
   final bool isOnline;
   final bool isPlus;
+  final bool isPioneer;
 
   const UserModel({
     required this.id,
@@ -52,6 +53,7 @@ class UserModel {
     this.relationshipStatus,
     this.isOnline = false,
     this.isPlus = false,
+    this.isPioneer = false,
   });
 
   String get effectiveName {
@@ -135,6 +137,14 @@ class UserModel {
           json['isPlus'] == true ||
           json['is_plus'] == true ||
           json['other_is_plus'] == true,
+      isPioneer:
+          json['isPioneer'] == true ||
+          json['is_pioneer'] == true ||
+          json['pioneer'] == true ||
+          json['is_pioneer_user'] == true ||
+          json['author_is_pioneer'] == true ||
+          json['sender_is_pioneer'] == true ||
+          json['receiver_is_pioneer'] == true,
     );
   }
 
@@ -152,6 +162,7 @@ class UserModel {
       'relationshipStatus': relationshipStatus,
       'isOnline': isOnline,
       'isPlus': isPlus,
+      'isPioneer': isPioneer,
     };
   }
 

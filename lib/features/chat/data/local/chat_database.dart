@@ -7,7 +7,7 @@ import 'tables/local_profiles_table.dart';
 
 class ChatDatabase {
   static String get _dbName => 'griot_chat_${ApiConfig.cacheNamespace}_v2.db';
-  static const int _dbVersion = 5;
+  static const int _dbVersion = 6;
 
   Database? _db;
 
@@ -53,6 +53,11 @@ class ChatDatabase {
         'ALTER TABLE cached_messages ADD COLUMN client_message_id TEXT',
       );
       await db.execute('ALTER TABLE cached_messages ADD COLUMN tip_data TEXT');
+    }
+    if (oldVersion < 6) {
+      await db.execute(
+        'ALTER TABLE ${LocalProfilesTable.tableName} ADD COLUMN ${LocalProfilesTable.columnIsPioneer} INTEGER NOT NULL DEFAULT 0',
+      );
     }
   }
 

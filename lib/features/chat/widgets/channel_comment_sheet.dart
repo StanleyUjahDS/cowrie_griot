@@ -3,9 +3,20 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/messaging_provider.dart';
 import '../models/chat_user.dart';
+import '../models/conversation_model.dart';
 import '../../users/providers/user_provider.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
 import '../../../core/services/notification_service.dart';
+import 'chatting/tip_sheet.dart';
+
+String _channelCommentId(Map<String, dynamic> comment) {
+  return (comment['id'] ??
+              comment['comment_id'] ??
+              comment['commentId'] ??
+              comment['_id'])
+          ?.toString() ??
+      '';
+}
 
 class CommentSheet extends StatefulWidget {
   final String conversationId;
@@ -34,6 +45,7 @@ class CommentSheet extends StatefulWidget {
 
 class _CommentSheetState extends State<CommentSheet> {
   final TextEditingController _commentController = TextEditingController();
+  final FocusNode _commentFocusNode = FocusNode();
   String? _replyToId;
   String? _replyToName;
 
@@ -51,6 +63,7 @@ class _CommentSheetState extends State<CommentSheet> {
   @override
   void dispose() {
     _commentController.dispose();
+    _commentFocusNode.dispose();
     super.dispose();
   }
 
@@ -58,12 +71,14 @@ class _CommentSheetState extends State<CommentSheet> {
     final content = _commentController.text.trim();
     if (content.isEmpty) return;
 
+    final replyToId = _replyToId;
+
     try {
       await context.read<MessagingProvider>().submitChannelComment(
         conversationId: widget.conversationId,
         postId: widget.postId,
         content: content,
-        replyToCommentId: _replyToId,
+        replyToCommentId: replyToId,
       );
       _commentController.clear();
       setState(() {
@@ -143,6 +158,8 @@ class _CommentSheetState extends State<CommentSheet> {
                 }
 
                 return ListView.builder(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
                   itemCount: comments.length,
                   itemBuilder: (context, index) {
@@ -173,6 +190,7 @@ class _CommentSheetState extends State<CommentSheet> {
 
                     return _CommentTile(
                       comment: comment,
+                      conversationId: widget.conversationId,
                       canDelete: canDelete,
                       onDelete: () async {
                         final confirmed = await showDialog<bool>(
@@ -204,7 +222,7 @@ class _CommentSheetState extends State<CommentSheet> {
                             await provider.deleteChannelComment(
                               widget.conversationId,
                               widget.postId,
-                              comment['id']?.toString() ?? '',
+                              _channelCommentId(comment),
                             );
                           } catch (_) {
                             if (context.mounted) {
@@ -217,9 +235,19 @@ class _CommentSheetState extends State<CommentSheet> {
                         }
                       },
                       onReply: (id, name) {
+                        if (id.trim().isEmpty) {
+                          NotificationService.showError(
+                            context,
+                            'This comment cannot be replied to yet',
+                          );
+                          return;
+                        }
                         setState(() {
                           _replyToId = id;
                           _replyToName = name;
+                        });
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) _commentFocusNode.requestFocus();
                         });
                       },
                     );
@@ -252,7 +280,9 @@ class _CommentSheetState extends State<CommentSheet> {
                     16,
                     20,
                     16,
-                    MediaQuery.of(context).viewInsets.bottom + 40,
+                    MediaQuery.of(context).viewInsets.bottom +
+                        MediaQuery.paddingOf(context).bottom +
+                        52,
                   ),
                   decoration: BoxDecoration(
                     color: colors.surface,
@@ -274,13 +304,20 @@ class _CommentSheetState extends State<CommentSheet> {
               }
 
               return Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                padding: EdgeInsets.fromLTRB(
+                  12,
+                  8,
+                  12,
+                  MediaQuery.paddingOf(context).bottom + 12,
+                ),
                 child: Container(
                   padding: EdgeInsets.fromLTRB(
                     16,
                     8,
                     16,
-                    MediaQuery.of(context).viewInsets.bottom + 8,
+                    MediaQuery.of(context).viewInsets.bottom +
+                        MediaQuery.paddingOf(context).bottom +
+                        12,
                   ),
                   decoration: BoxDecoration(
                     color: colors.surface,
@@ -328,6 +365,9 @@ class _CommentSheetState extends State<CommentSheet> {
                           Expanded(
                             child: TextField(
                               controller: _commentController,
+                              focusNode: _commentFocusNode,
+                              onTapOutside: (_) =>
+                                  FocusScope.of(context).unfocus(),
                               maxLines: null,
                               decoration: InputDecoration(
                                 hintText: 'Add a comment...',
@@ -367,12 +407,14 @@ class _CommentSheetState extends State<CommentSheet> {
 
 class _CommentTile extends StatelessWidget {
   final Map<String, dynamic> comment;
+  final String conversationId;
   final bool canDelete;
   final VoidCallback onDelete;
   final Function(String id, String name) onReply;
 
   const _CommentTile({
     required this.comment,
+    required this.conversationId,
     required this.canDelete,
     required this.onDelete,
     required this.onReply,
@@ -396,8 +438,17 @@ class _CommentTile extends StatelessWidget {
     final role = comment['role']?.toString();
     final username = author?.username;
 
+    final replyToId =
+        (comment['reply_to_comment_id'] ??
+                comment['replyToCommentId'] ??
+                comment['reply_to_id'])
+            ?.toString();
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
+      padding: EdgeInsets.only(
+        left: replyToId?.isNotEmpty == true ? 28 : 0,
+        bottom: 20,
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -416,6 +467,26 @@ class _CommentTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (replyToId?.isNotEmpty == true) ...[
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.subdirectory_arrow_right_rounded,
+                        size: 14,
+                        color: colors.primary.withValues(alpha: 0.75),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Reply',
+                        style: textTheme.labelSmall?.copyWith(
+                          color: colors.primary.withValues(alpha: 0.8),
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                ],
                 Row(
                   children: [
                     Flexible(
@@ -481,7 +552,7 @@ class _CommentTile extends StatelessWidget {
                   children: [
                     GestureDetector(
                       onTap: () => onReply(
-                        comment['id'] ?? '',
+                        _channelCommentId(comment),
                         author?.effectiveDisplayName ?? 'User',
                       ),
                       child: Text(
@@ -490,6 +561,38 @@ class _CommentTile extends StatelessWidget {
                           color: colors.primary,
                           fontWeight: FontWeight.w900,
                         ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    GestureDetector(
+                      onTap: () {
+                        final recipient = author;
+                        TipSheet.show(
+                          context,
+                          recipients: recipient == null
+                              ? const []
+                              : [recipient],
+                          conversationId: conversationId,
+                          conversationType: ConversationType.channel,
+                        );
+                      },
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.volunteer_activism_outlined,
+                            size: 14,
+                            color: colors.primary,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            'Tip',
+                            style: textTheme.labelSmall?.copyWith(
+                              color: colors.primary,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     if (canDelete) ...[

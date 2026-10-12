@@ -359,30 +359,33 @@ class _WalletScreenState extends State<WalletScreen> {
           const SizedBox(width: 12),
         ],
       ),
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          FloatingActionButton(
-            heroTag: 'dapp_browser_fab',
-            backgroundColor: colors.secondaryContainer,
-            foregroundColor: colors.onSecondaryContainer,
-            elevation: 6,
-            tooltip: 'DApp Browser',
-            onPressed: () => context.push('/wallet/browser'),
-            child: const Icon(Icons.public_rounded, size: 24),
-          ),
-          const SizedBox(height: 12),
-          FloatingActionButton(
-            heroTag: 'easy_buy_fab',
-            backgroundColor: colors.primary,
-            foregroundColor: colors.onPrimary,
-            elevation: 6,
-            tooltip: 'Flash exchange',
-            onPressed: () => context.push('/wallet/flash'),
-            child: const Icon(Icons.currency_exchange_rounded, size: 24),
-          ),
-        ],
+      floatingActionButton: HeroMode(
+        enabled: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            FloatingActionButton(
+              heroTag: 'dapp_browser_fab',
+              backgroundColor: colors.secondaryContainer,
+              foregroundColor: colors.onSecondaryContainer,
+              elevation: 6,
+              tooltip: 'DApp Browser',
+              onPressed: () => context.push('/wallet/browser'),
+              child: const Icon(Icons.public_rounded, size: 24),
+            ),
+            const SizedBox(height: 12),
+            FloatingActionButton(
+              heroTag: 'easy_buy_fab',
+              backgroundColor: colors.primary,
+              foregroundColor: colors.onPrimary,
+              elevation: 6,
+              tooltip: 'Flash exchange',
+              onPressed: () => context.push('/wallet/flash'),
+              child: const Icon(Icons.currency_exchange_rounded, size: 24),
+            ),
+          ],
+        ),
       ),
       floatingActionButtonLocation: const RaisedEndFloatLocation(
         bottomDistance: 125,

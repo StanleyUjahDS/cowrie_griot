@@ -18,7 +18,7 @@ Future<void> showConversationActionsSheet({
     pageBuilder: (sheetContext, animation, secondaryAnimation) {
       final theme = Theme.of(sheetContext);
       final colorScheme = theme.colorScheme;
-      final width = math.min(MediaQuery.sizeOf(sheetContext).width * 0.88, 360.0);
+      final width = math.min(MediaQuery.sizeOf(sheetContext).width * 0.74, 300.0);
 
       Widget action({
         required IconData icon,

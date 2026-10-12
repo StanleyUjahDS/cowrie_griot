@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/ui/widgets/griot_branded_container.dart';
+import '../../../core/services/notification_service.dart';
 import '../services/auth_session_service.dart';
 import '../auth_controller.dart';
 
@@ -43,8 +44,9 @@ class _LoginScreenState extends State<LoginScreen> {
       mode: LaunchMode.externalApplication,
     );
     if (!opened && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to open Terms and Conditions.')),
+      NotificationService.showError(
+        context,
+        'Unable to open Terms and Conditions.',
       );
     }
   }

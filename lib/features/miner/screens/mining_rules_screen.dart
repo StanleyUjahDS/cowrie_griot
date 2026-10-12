@@ -254,26 +254,85 @@ class MiningRulesScreen extends StatelessWidget {
   }
 
   List<ReputationTier> _defaultTiers() => const [
-        ReputationTier(name: 'Starter Badger', minPoints: 0, maxPoints: 49, badgeColor: '#64748B', miningMultiplier: 1),
-        ReputationTier(name: 'Rookie Badger', minPoints: 50, maxPoints: 149, badgeColor: '#22C55E', miningMultiplier: 1.056),
-        ReputationTier(name: 'Rising Badger', minPoints: 150, maxPoints: 299, badgeColor: '#3B82F6', miningMultiplier: 1.111),
-        ReputationTier(name: 'Active Badger', minPoints: 300, maxPoints: 599, badgeColor: '#A855F7', miningMultiplier: 1.167),
-        ReputationTier(name: 'Guardian Badger', minPoints: 600, maxPoints: 999, badgeColor: '#14B8A6', miningMultiplier: 1.222),
-        ReputationTier(name: 'Warden Badger', minPoints: 1000, maxPoints: 1499, badgeColor: '#F97316', miningMultiplier: 1.278),
-        ReputationTier(name: 'Elder Badger', minPoints: 1500, maxPoints: 1999, badgeColor: '#EF4444', miningMultiplier: 1.333),
-        ReputationTier(name: 'Ancient Badger', minPoints: 2000, maxPoints: 2399, badgeColor: '#4F46E5', miningMultiplier: 1.389),
-        ReputationTier(name: 'Legendary Badger', minPoints: 2400, maxPoints: 2999, badgeColor: '#EAB308', miningMultiplier: 1.444),
-        ReputationTier(name: 'Ultimate Badger', minPoints: 3000, maxPoints: null, badgeColor: '#67E8F9', miningMultiplier: 1.5),
-      ];
+    ReputationTier(
+      name: 'Starter Badger',
+      minPoints: 0,
+      maxPoints: 49,
+      badgeColor: '#64748B',
+      miningMultiplier: 1,
+    ),
+    ReputationTier(
+      name: 'Rookie Badger',
+      minPoints: 50,
+      maxPoints: 149,
+      badgeColor: '#22C55E',
+      miningMultiplier: 1.056,
+    ),
+    ReputationTier(
+      name: 'Rising Badger',
+      minPoints: 150,
+      maxPoints: 299,
+      badgeColor: '#3B82F6',
+      miningMultiplier: 1.111,
+    ),
+    ReputationTier(
+      name: 'Active Badger',
+      minPoints: 300,
+      maxPoints: 599,
+      badgeColor: '#A855F7',
+      miningMultiplier: 1.167,
+    ),
+    ReputationTier(
+      name: 'Guardian Badger',
+      minPoints: 600,
+      maxPoints: 999,
+      badgeColor: '#14B8A6',
+      miningMultiplier: 1.222,
+    ),
+    ReputationTier(
+      name: 'Warden Badger',
+      minPoints: 1000,
+      maxPoints: 1499,
+      badgeColor: '#F97316',
+      miningMultiplier: 1.278,
+    ),
+    ReputationTier(
+      name: 'Elder Badger',
+      minPoints: 1500,
+      maxPoints: 1999,
+      badgeColor: '#EF4444',
+      miningMultiplier: 1.333,
+    ),
+    ReputationTier(
+      name: 'Ancient Badger',
+      minPoints: 2000,
+      maxPoints: 2399,
+      badgeColor: '#4F46E5',
+      miningMultiplier: 1.389,
+    ),
+    ReputationTier(
+      name: 'Legendary Badger',
+      minPoints: 2400,
+      maxPoints: 2999,
+      badgeColor: '#EAB308',
+      miningMultiplier: 1.444,
+    ),
+    ReputationTier(
+      name: 'Ultimate Badger',
+      minPoints: 3000,
+      maxPoints: null,
+      badgeColor: '#67E8F9',
+      miningMultiplier: 1.5,
+    ),
+  ];
 
   Widget _buildTierRules(BuildContext context, List<ReputationTier> tiers) {
     final colors = Theme.of(context).colorScheme;
     return Column(
       children: tiers.map((tier) {
-        final color = Color(int.parse(tier.badgeColor.replaceFirst('#', '0xff')));
-        final range = tier.maxPoints == null
-            ? '${tier.minPoints}+'
-            : '${tier.minPoints}–${tier.maxPoints}';
+        final color = Color(
+          int.parse(tier.badgeColor.replaceFirst('#', '0xff')),
+        );
         return Container(
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.all(16),
@@ -284,16 +343,42 @@ class MiningRulesScreen extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+              Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
               const SizedBox(width: 12),
               Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(tier.name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-                  const SizedBox(height: 3),
-                  Text('$range points  •  ${tier.miningMultiplier.toStringAsFixed(3)}× mining weight', style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12)),
-                ]),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      tier.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${tier.miningMultiplier.toStringAsFixed(3)}× mining multiplier',
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              Text(tier.reputationBonusLabel, style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 12)),
+              Text(
+                tier.reputationBonusLabel,
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
+                ),
+              ),
             ],
           ),
         );

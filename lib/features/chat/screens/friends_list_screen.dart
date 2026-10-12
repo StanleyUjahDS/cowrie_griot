@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:griot_cowrie/features/chat/providers/messaging_provider.dart';
@@ -13,6 +12,8 @@ import 'package:griot_cowrie/features/chat/widgets/chat_loading.dart';
 import 'package:griot_cowrie/core/ui/scaffolds/gradient_scaffold.dart';
 import 'package:griot_cowrie/core/ui/widgets/griot_loader.dart';
 import 'package:griot_cowrie/core/ui/widgets/griot_plus_badge.dart';
+import 'package:griot_cowrie/core/ui/widgets/griot_pioneer_badge.dart';
+import 'package:griot_cowrie/core/ui/widgets/griot_avatar.dart';
 import 'package:griot_cowrie/features/chat/widgets/user_profile_sheet.dart';
 
 class FriendsListScreen extends StatefulWidget {
@@ -372,15 +373,11 @@ class _FriendTile extends StatelessWidget {
         onTap: onProfileTap,
         child: Stack(
           children: [
-            CircleAvatar(
+            GriotAvatar(
+              avatarUrl: user.avatarUrl,
               radius: 24,
               backgroundColor: colors.primary.withValues(alpha: 0.1),
-              backgroundImage: user.avatarUrl != null
-                  ? NetworkImage(user.avatarUrl!)
-                  : null,
-              child: user.avatarUrl == null
-                  ? SvgPicture.asset('assets/coins_logo/hbadger_logo.svg')
-                  : null,
+              iconColor: colors.primary,
             ),
             if (isOnline)
               Positioned(
@@ -415,6 +412,10 @@ class _FriendTile extends StatelessWidget {
           if (user.isPlus) ...[
             const SizedBox(width: 8),
             const GriotPlusBadge(isPlus: true, compact: true),
+          ],
+          if (user.isPioneer) ...[
+            const SizedBox(width: 4),
+            const GriotPioneerBadge(compact: true),
           ],
         ],
       ),

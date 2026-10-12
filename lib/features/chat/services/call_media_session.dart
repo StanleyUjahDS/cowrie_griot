@@ -14,7 +14,15 @@ class CallMediaSession {
       throw StateError('Realtime calling is not configured.');
     }
     await ZegoExpressEngine.createEngineWithProfile(
-      ZegoEngineProfile(session.appId, ZegoScenario.HighQualityChatroom),
+      ZegoEngineProfile(
+        session.appId,
+        // Campfires are one-to-many rooms: listeners should receive streams,
+        // while only hosts/speakers publish. Keep ordinary calls on the
+        // chatroom profile.
+        session.contextType == 'space'
+            ? ZegoScenario.Broadcast
+            : ZegoScenario.HighQualityChatroom,
+      ),
     );
     created = true;
   }
@@ -34,15 +42,19 @@ class CallMediaSession {
     }
   }
 
-  Future<void> publish(String userId) =>
-      ZegoExpressEngine.instance.startPublishingStream(
-        'griot-$userId-${DateTime.now().millisecondsSinceEpoch}',
-      );
+  Future<String> publish(String userId) async {
+    final streamId = 'griot-$userId-${DateTime.now().millisecondsSinceEpoch}';
+    await ZegoExpressEngine.instance.startPublishingStream(streamId);
+    return streamId;
+  }
 
   Future<void> close() => _closing ??= _close();
   Future<void> _close() async {
     if (!created) return;
     ZegoExpressEngine.onRoomStreamUpdate = null;
+    ZegoExpressEngine.onPublisherStateUpdate = null;
+    ZegoExpressEngine.onPlayerStateUpdate = null;
+    ZegoExpressEngine.onAudioRouteChange = null;
     for (final stream in streams.toList()) {
       try {
         await ZegoExpressEngine.instance.stopPlayingStream(stream);

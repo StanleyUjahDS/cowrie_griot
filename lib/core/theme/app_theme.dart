@@ -23,6 +23,7 @@ class AppTheme {
     final dark = brightness == Brightness.dark;
 
     final colors = _colors(style, dark);
+    final secondaryAccent = Color.lerp(colors.primary, colors.variant, 0.55)!;
 
     return ThemeData(
       useMaterial3: true,
@@ -50,9 +51,11 @@ class AppTheme {
             ? Colors.black87
             : Colors.white,
 
-        secondary: colors.primary,
+        // Keep the secondary accent distinct from the main bubble accent.
+        // Receipts and alternate message states use this color.
+        secondary: secondaryAccent,
 
-        onSecondary: colors.primary.computeLuminance() > 0.4
+        onSecondary: secondaryAccent.computeLuminance() > 0.4
             ? Colors.black87
             : Colors.white,
 
@@ -225,22 +228,6 @@ class AppTheme {
       dialogTheme: DialogThemeData(
         backgroundColor: colors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-      ),
-
-      // ============================================================
-      // SNACKBAR
-      // ============================================================
-      snackBarTheme: SnackBarThemeData(
-        backgroundColor: colors.variant,
-
-        contentTextStyle: TextStyle(
-          color: dark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
-          fontFamily: AppText.fontFamily,
-        ),
-
-        actionTextColor: colors.primary,
-
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
 
       // ============================================================

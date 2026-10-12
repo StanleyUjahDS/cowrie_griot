@@ -17,6 +17,7 @@ import '../services/wallet_service.dart';
 import '../utils/chain_assets.dart';
 import '../utils/dapp_provider_js.dart';
 import '../utils/dapp_network_registry.dart';
+import '../../../core/services/notification_service.dart';
 
 class DAppBrowserScreen extends StatefulWidget {
   final String initialUrl;
@@ -278,7 +279,11 @@ class _DAppBrowserScreenState extends State<DAppBrowserScreen> {
                   ),
                 ),
               ),
-              child: Icon(Icons.arrow_back_rounded, size: 18, color: colors.primary),
+              child: Icon(
+                Icons.arrow_back_rounded,
+                size: 18,
+                color: colors.primary,
+              ),
             ),
           ),
         ),
@@ -947,8 +952,9 @@ class _DAppBrowserScreenState extends State<DAppBrowserScreen> {
                     await cookieManager.deleteAllCookies();
 
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Browser data cleared')),
+                      NotificationService.showSuccess(
+                        context,
+                        'Browser data cleared',
                       );
                       setState(() {
                         _showDiscovery = true;

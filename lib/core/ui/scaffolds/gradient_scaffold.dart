@@ -79,6 +79,10 @@ class GradientScaffold extends StatelessWidget {
       bottomNavigationBar: bottomNavigationBar,
       floatingActionButton: floatingActionButton,
       floatingActionButtonLocation: floatingActionButtonLocation,
+      // Keep persistent action buttons stable on route entry and during
+      // provider-driven rebuilds. Interaction and state changes still update
+      // normally; only Scaffold's entrance/location animation is disabled.
+      floatingActionButtonAnimator: FloatingActionButtonAnimator.noAnimation,
     );
   }
 }

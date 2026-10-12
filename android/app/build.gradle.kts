@@ -42,13 +42,23 @@ android {
                 storePassword = keystoreProperties.getProperty("storePassword")
             }
         }
-        buildTypes {
-            getByName("release") {
+    } else {
+        logger.warn("No android/key.properties found; configure a release keystore before publishing.")
+    }
+
+    // ZEGO Express exposes several Android bridge methods and native helper
+    // classes through reflection. R8 shrinking/obfuscation removes or renames
+    // those classes in release builds, causing calls to end immediately while
+    // debug builds continue to work. Keep the release runtime unshrunk until
+    // the ZEGO plugin ships complete consumer rules for its bridge.
+    buildTypes {
+        getByName("release") {
+            isMinifyEnabled = false
+            isShrinkResources = false
+            if (keystorePropertiesFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")
             }
         }
-    } else {
-        logger.warn("No android/key.properties found; configure a release keystore before publishing.")
     }
 
 

@@ -1,15 +1,20 @@
 class ApiConfig {
   ApiConfig._();
 
-  // Production API. Keep the app on the HTTPS public API for release builds.
-  static const String _baseUrl =
-      'https://api.griot.network/api';
+  // Production backend. Staging remains available explicitly through
+  // --dart-define=API_BASE_URL=... for development builds.
+  static const String _baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'https://api.griot.network/api',
+  );
   static String get baseUrl => _baseUrl;
 
   /// Namespace for local caches. Staging and production must never share
   /// account/session snapshots on the same device.
   static String get cacheNamespace =>
-      'production';
+      _baseUrl == 'https://api.griot.network/api'
+      ? 'production'
+      : 'test-${_baseUrl.hashCode}';
 
   // ==========================================================
   // AUTHENTICATION
@@ -332,6 +337,15 @@ class ApiConfig {
   static String messagingMessageById(String messageId) =>
       '$messagingMessages/$messageId';
 
+  static String messagingConversationMessagePin(
+    String conversationId,
+    String messageId,
+  ) =>
+      '$messagingMessages/conversation/$conversationId/messages/$messageId/pin';
+
+  static String messagingConversationPinned(String conversationId) =>
+      '$messagingMessages/conversation/$conversationId/pinned';
+
   static String get messagingRequests => '$messagingBase/requests';
 
   static String get messagingRequestsReceived => '$messagingRequests/received';
@@ -416,6 +430,8 @@ class ApiConfig {
       )
       .toString();
   static String get messagingCampfiresCreate => '$messagingBase/campfires';
+  static String messagingCampfiresConversation(String conversationId) =>
+      '$messagingBase/campfires/conversation/${Uri.encodeComponent(conversationId)}';
   static String messagingCampfiresUpcoming({
     int limit = 10,
     int offset = 0,
@@ -441,7 +457,10 @@ class ApiConfig {
     String campfireId,
     String userId,
   ) => '$messagingBase/campfires/$campfireId/participants/$userId';
-  static String messagingCampfireEnd(String id) => '$messagingBase/campfires/$id/end';
+  static String messagingCampfireEnd(String id) =>
+      '$messagingBase/campfires/$id/end';
+  static String messagingCampfireReminder(String id) =>
+      '$messagingBase/campfires/$id/reminder';
 
   static String messagingConversationById(String conversationId) =>
       '$messagingBase/conversations/$conversationId';
@@ -465,6 +484,9 @@ class ApiConfig {
 
   static String messagingGroupLeave(String conversationId) =>
       '$messagingGroups/$conversationId/leave';
+
+  static String messagingGroupDelete(String conversationId) =>
+      '$messagingGroups/$conversationId';
 
   static String messagingGroupsDiscover(
     String query, {
@@ -490,6 +512,11 @@ class ApiConfig {
 
   static String messagingChannelPosts(String conversationId) =>
       '$messagingChannels/$conversationId/posts';
+
+  static String messagingChannelPostReactions(
+    String conversationId,
+    String postId,
+  ) => '$messagingChannels/$conversationId/posts/$postId/reactions';
 
   static String messagingChannelComments(
     String conversationId,

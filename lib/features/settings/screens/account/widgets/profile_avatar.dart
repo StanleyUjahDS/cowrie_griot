@@ -3,7 +3,6 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -19,15 +18,10 @@ class ProfileAvatar extends StatefulWidget {
   /// The image is NOT uploaded automatically when selected.
   final Future Function(File image)? onImageSelected;
 
-  const ProfileAvatar({
-    super.key,
-    this.avatarUrl,
-    this.onImageSelected,
-  });
+  const ProfileAvatar({super.key, this.avatarUrl, this.onImageSelected});
 
   @override
-  State<ProfileAvatar> createState() =>
-      _ProfileAvatarState();
+  State<ProfileAvatar> createState() => _ProfileAvatarState();
 }
 
 class _ProfileAvatarState extends State<ProfileAvatar> {
@@ -46,15 +40,11 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
   // DEFAULT PROFILE IMAGE
   // ============================================================
 
-  static const String _defaultProfileImage =
-      'assets/chains/Hbadger.svg';
-
   // ============================================================
   // HAS PENDING IMAGE
   // ============================================================
 
-  bool get _hasPendingImage =>
-      _pendingImage != null;
+  bool get _hasPendingImage => _pendingImage != null;
 
   // ============================================================
   // OPEN PROFILE PHOTO OPTIONS
@@ -76,15 +66,12 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
 
         return SafeArea(
           child: Container(
-            padding: const EdgeInsets.fromLTRB(
-              18,
-              12,
-              18,
-              18,
-            ),
+            padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
             decoration: BoxDecoration(
               color: colorScheme.surface,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(32),
+              ),
               border: Border(
                 top: BorderSide(
                   color: colorScheme.primary.withValues(alpha: 0.6),
@@ -103,10 +90,8 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: colorScheme.onSurfaceVariant
-                        .withValues(alpha: 0.25),
-                    borderRadius:
-                    BorderRadius.circular(20),
+                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(20),
                   ),
                 ),
 
@@ -115,17 +100,14 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
                 // ==================================================
                 // TITLE
                 // ==================================================
-
                 Row(
                   children: [
                     Container(
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: colorScheme.primary
-                            .withValues(alpha: 0.09),
-                        borderRadius:
-                        BorderRadius.circular(14),
+                        color: colorScheme.primary.withValues(alpha: 0.09),
+                        borderRadius: BorderRadius.circular(14),
                       ),
                       child: Icon(
                         Icons.account_circle_outlined,
@@ -136,8 +118,7 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
                     Expanded(
                       child: Text(
                         'Profile Photo',
-                        style: theme.textTheme.titleLarge
-                            ?.copyWith(
+                        style: theme.textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -150,7 +131,6 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
                 // ==================================================
                 // VIEW PHOTO
                 // ==================================================
-
                 _option(
                   context: sheetContext,
                   icon: Icons.visibility_outlined,
@@ -167,7 +147,6 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
                 // ==================================================
                 // CHANGE PHOTO
                 // ==================================================
-
                 _option(
                   context: sheetContext,
                   icon: Icons.photo_library_outlined,
@@ -219,9 +198,7 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    final color = destructive
-        ? colorScheme.error
-        : colorScheme.primary;
+    final color = destructive ? colorScheme.error : colorScheme.primary;
 
     return Material(
       color: Colors.transparent,
@@ -229,10 +206,7 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
         onTap: onTap,
         borderRadius: BorderRadius.circular(18),
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 8,
-            vertical: 10,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
           child: Row(
             children: [
               Container(
@@ -240,35 +214,26 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
                 height: 46,
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.08),
-                  borderRadius:
-                  BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(
-                  icon,
-                  color: color,
-                  size: 21,
-                ),
+                child: Icon(icon, color: color, size: 21),
               ),
               const SizedBox(width: 13),
               Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                  CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       title,
-                      style: theme.textTheme.bodyLarge
-                          ?.copyWith(
+                      style: theme.textTheme.bodyLarge?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       subtitle,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(
-                        color:
-                        colorScheme.onSurfaceVariant,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -276,8 +241,7 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
               ),
               Icon(
                 Icons.chevron_right_rounded,
-                color: colorScheme.onSurfaceVariant
-                    .withValues(alpha: 0.65),
+                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.65),
               ),
             ],
           ),
@@ -291,12 +255,10 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
   // ============================================================
 
   void _viewPhoto() {
-    final image =
-        _pendingImage ?? _savedLocalImage;
+    final image = _pendingImage ?? _savedLocalImage;
 
     final hasUrl =
-        widget.avatarUrl != null &&
-            widget.avatarUrl!.trim().isNotEmpty;
+        widget.avatarUrl != null && widget.avatarUrl!.trim().isNotEmpty;
 
     showDialog<void>(
       context: context,
@@ -312,40 +274,24 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
                 minScale: 0.8,
                 maxScale: 4.0,
                 child: ClipRRect(
-                  borderRadius:
-                  BorderRadius.circular(22),
+                  borderRadius: BorderRadius.circular(22),
                   child: image != null
-                      ? Image.file(
-                    image,
-                    fit: BoxFit.contain,
-                  )
+                      ? Image.file(image, fit: BoxFit.contain)
                       : hasUrl
                       ? Image.network(
-                    widget.avatarUrl!,
-                    fit: BoxFit.contain,
-                    errorBuilder:
-                        (
-                        context,
-                        error,
-                        stackTrace,
-                        ) {
-                      return SvgPicture.asset(
-                        _defaultProfileImage,
-                        fit: BoxFit.contain,
-                      );
-                    },
-                  )
-                      : SvgPicture.asset(
-                    _defaultProfileImage,
-                    fit: BoxFit.contain,
-                  ),
+                          widget.avatarUrl!,
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const SizedBox.expand();
+                          },
+                        )
+                      : const SizedBox.expand(),
                 ),
               ),
 
               // ==================================================
               // CLOSE
               // ==================================================
-
               Positioned(
                 top: 10,
                 right: 10,
@@ -353,8 +299,7 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
                   color: Colors.black.withValues(alpha: 0.55),
                   shape: const CircleBorder(),
                   child: InkWell(
-                    customBorder:
-                    const CircleBorder(),
+                    customBorder: const CircleBorder(),
                     onTap: () {
                       Navigator.pop(dialogContext);
                     },
@@ -390,8 +335,7 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
     });
 
     try {
-      final XFile? pickedFile =
-      await _picker.pickImage(
+      final XFile? pickedFile = await _picker.pickImage(
         source: ImageSource.gallery,
         imageQuality: 95,
       );
@@ -400,17 +344,13 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
         return;
       }
 
-      final CroppedFile? croppedFile =
-      await _cropImage(
-        pickedFile.path,
-      );
+      final CroppedFile? croppedFile = await _cropImage(pickedFile.path);
 
       if (croppedFile == null) {
         return;
       }
 
-      final File image =
-      File(croppedFile.path);
+      final File image = File(croppedFile.path);
 
       if (!mounted) {
         return;
@@ -444,37 +384,27 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
   // CROP IMAGE
   // ============================================================
 
-  Future<CroppedFile?> _cropImage(
-      String imagePath,
-      ) async {
-    final colorScheme =
-        Theme.of(context).colorScheme;
+  Future<CroppedFile?> _cropImage(String imagePath) async {
+    final colorScheme = Theme.of(context).colorScheme;
 
     return ImageCropper().cropImage(
       sourcePath: imagePath,
-      compressFormat:
-      ImageCompressFormat.jpg,
+      compressFormat: ImageCompressFormat.jpg,
       compressQuality: 90,
       maxWidth: 1000,
       maxHeight: 1000,
       uiSettings: [
         AndroidUiSettings(
-          toolbarTitle:
-          'Adjust Profile Photo',
-          toolbarColor:
-          colorScheme.surface,
-          toolbarWidgetColor:
-          colorScheme.onSurface,
-          activeControlsWidgetColor:
-          colorScheme.primary,
-          initAspectRatio:
-          CropAspectRatioPreset.square,
+          toolbarTitle: 'Adjust Profile Photo',
+          toolbarColor: colorScheme.surface,
+          toolbarWidgetColor: colorScheme.onSurface,
+          activeControlsWidgetColor: colorScheme.primary,
+          initAspectRatio: CropAspectRatioPreset.square,
           lockAspectRatio: true,
           hideBottomControls: false,
         ),
         IOSUiSettings(
-          title:
-          'Adjust Profile Photo',
+          title: 'Adjust Profile Photo',
           aspectRatioLockEnabled: true,
           resetAspectRatioEnabled: false,
           aspectRatioPickerButtonHidden: true,
@@ -487,10 +417,8 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
   // PENDING IMAGE ACTIONS
   // ============================================================
 
-  Future<void>
-  _showPendingImageActions() async {
-    if (!mounted ||
-        _pendingImage == null) {
+  Future<void> _showPendingImageActions() async {
+    if (!mounted || _pendingImage == null) {
       return;
     }
 
@@ -499,26 +427,18 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
       useRootNavigator: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
-        final theme =
-        Theme.of(sheetContext);
+        final theme = Theme.of(sheetContext);
 
-        final colorScheme =
-            theme.colorScheme;
+        final colorScheme = theme.colorScheme;
 
         return SafeArea(
           child: Container(
-            padding:
-            const EdgeInsets.fromLTRB(
-              18,
-              12,
-              18,
-              18,
-            ),
-            decoration:
-            BoxDecoration(
-              color:
-              colorScheme.surface,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+            padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(32),
+              ),
               border: Border(
                 top: BorderSide(
                   color: colorScheme.primary.withValues(alpha: 0.6),
@@ -527,117 +447,75 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
               ),
             ),
             child: Column(
-              mainAxisSize:
-              MainAxisSize.min,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
                   width: 40,
                   height: 4,
-                  decoration:
-                  BoxDecoration(
-                    color: colorScheme
-                        .onSurfaceVariant
-                        .withValues(alpha: 0.25),
-                    borderRadius:
-                    BorderRadius.circular(
-                      20,
-                    ),
+                  decoration: BoxDecoration(
+                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(20),
                   ),
                 ),
 
-                const SizedBox(
-                  height: 18,
-                ),
+                const SizedBox(height: 18),
 
                 Text(
                   'New Profile Photo',
-                  style: theme
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(
-                    fontWeight:
-                    FontWeight.w800,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
 
-                const SizedBox(
-                  height: 6,
-                ),
+                const SizedBox(height: 6),
 
                 Text(
                   'This photo has not been saved yet.',
-                  textAlign:
-                  TextAlign.center,
-                  style: theme
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(
-                    color: colorScheme
-                        .onSurfaceVariant,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
 
-                const SizedBox(
-                  height: 18,
-                ),
+                const SizedBox(height: 18),
 
                 // ==================================================
                 // PREVIEW
                 // ==================================================
-
                 Container(
                   width: 110,
                   height: 110,
-                  padding:
-                  const EdgeInsets.all(3),
-                  decoration:
-                  BoxDecoration(
-                    shape:
-                    BoxShape.circle,
-                    gradient:
-                    LinearGradient(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
                       colors: [
-                        colorScheme
-                            .primary,
-                        colorScheme
-                            .primary
-                            .withValues(alpha: 0.35),
+                        colorScheme.primary,
+                        colorScheme.primary.withValues(alpha: 0.35),
                       ],
                     ),
                   ),
                   child: ClipOval(
-                    child:
-                    Image.file(
-                      _pendingImage!,
-                      fit: BoxFit.cover,
-                    ),
+                    child: Image.file(_pendingImage!, fit: BoxFit.cover),
                   ),
                 ),
 
-                const SizedBox(
-                  height: 20,
-                ),
+                const SizedBox(height: 20),
 
                 // ==================================================
                 // SAVE
                 // ==================================================
-
                 SizedBox(
-                  width:
-                  double.infinity,
+                  width: double.infinity,
                   height: 52,
-                  child:
-                  FilledButton(
-                    onPressed:
-                    _isSaving
+                  child: FilledButton(
+                    onPressed: _isSaving
                         ? null
                         : () async {
-                      Navigator.pop(
-                        sheetContext,
-                      );
+                            Navigator.pop(sheetContext);
 
-                      await _savePendingImage();
-                    },
+                            await _savePendingImage();
+                          },
                     child: _isSaving
                         ? const GriotLoader(
                             size: 22,
@@ -645,41 +523,27 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
                             color: Colors.white,
                           )
                         : const Text(
-                      'Use This Photo',
-                      style:
-                      TextStyle(
-                        fontWeight:
-                        FontWeight.w800,
-                      ),
-                    ),
+                            'Use This Photo',
+                            style: TextStyle(fontWeight: FontWeight.w800),
+                          ),
                   ),
                 ),
 
-                const SizedBox(
-                  height: 8,
-                ),
+                const SizedBox(height: 8),
 
                 // ==================================================
                 // DISCARD
                 // ==================================================
-
                 SizedBox(
-                  width:
-                  double.infinity,
+                  width: double.infinity,
                   height: 48,
-                  child:
-                  TextButton(
+                  child: TextButton(
                     onPressed: () {
-                      Navigator.pop(
-                        sheetContext,
-                      );
+                      Navigator.pop(sheetContext);
 
                       _discardPendingImage();
                     },
-                    child:
-                    const Text(
-                      'Discard',
-                    ),
+                    child: const Text('Discard'),
                   ),
                 ),
               ],
@@ -695,11 +559,9 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
   // ============================================================
 
   Future<void> _savePendingImage() async {
-    final image =
-        _pendingImage;
+    final image = _pendingImage;
 
-    if (image == null ||
-        _isSaving) {
+    if (image == null || _isSaving) {
       return;
     }
 
@@ -709,9 +571,7 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
 
     try {
       if (widget.onImageSelected != null) {
-        await widget.onImageSelected!(
-          image,
-        );
+        await widget.onImageSelected!(image);
       }
 
       if (!mounted) {
@@ -769,12 +629,9 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
   }
 
   String _cleanError(Object error) {
-    final message =
-    error.toString();
+    final message = error.toString();
 
-    if (message.startsWith(
-      'Exception: ',
-    )) {
+    if (message.startsWith('Exception: ')) {
       return message.substring(11);
     }
 
@@ -786,22 +643,16 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
   // ============================================================
 
   @override
-  Widget build(
-      BuildContext context,
-      ) {
-    final theme =
-    Theme.of(context);
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
 
-    final colorScheme =
-        theme.colorScheme;
+    final colorScheme = theme.colorScheme;
 
     return Center(
       child: GestureDetector(
-        onTap:
-        _openPhotoOptions,
+        onTap: _openPhotoOptions,
         child: Stack(
-          alignment:
-          Alignment.bottomRight,
+          alignment: Alignment.bottomRight,
           children: [
             // ==================================================
             // AVATAR
@@ -810,55 +661,37 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
             Container(
               width: 100,
               height: 100,
-              padding:
-              const EdgeInsets.all(2),
-              decoration:
-              BoxDecoration(
-                shape:
-                BoxShape.circle,
-                gradient:
-                LinearGradient(
-                  begin:
-                  Alignment.topLeft,
-                  end:
-                  Alignment.bottomRight,
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                   colors: [
-                    colorScheme
-                        .primary
-                        .withValues(alpha: 0.30),
-                    colorScheme
-                        .primary
-                        .withValues(alpha: 0.08),
+                    colorScheme.primary.withValues(alpha: 0.30),
+                    colorScheme.primary.withValues(alpha: 0.08),
                   ],
                 ),
               ),
               child: Container(
-                decoration:
-                BoxDecoration(
-                  shape:
-                  BoxShape.circle,
-                  color:
-                  colorScheme.surface,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: colorScheme.surface,
                 ),
-                child:
-                ClipOval(
+                child: ClipOval(
                   child: _isPicking
                       ? const Center(
-                    child:
-                    GriotLoader(
-                      size: 28,
-                      strokeWidth: 2.5,
-                    ),
-                  )
+                          child: GriotLoader(size: 28, strokeWidth: 2.5),
+                        )
                       : _pendingImage != null
-                        ? Image.file(_pendingImage!, fit: BoxFit.cover)
-                        : _savedLocalImage != null
-                          ? Image.file(_savedLocalImage!, fit: BoxFit.cover)
-                          : GriotAvatar(
-                              avatarUrl: widget.avatarUrl,
-                              radius: 50,
-                              backgroundColor: Colors.transparent,
-                            ),
+                      ? Image.file(_pendingImage!, fit: BoxFit.cover)
+                      : _savedLocalImage != null
+                      ? Image.file(_savedLocalImage!, fit: BoxFit.cover)
+                      : GriotAvatar(
+                          avatarUrl: widget.avatarUrl,
+                          radius: 50,
+                          backgroundColor: Colors.transparent,
+                        ),
                 ),
               ),
             ),
@@ -866,42 +699,28 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
             // ==================================================
             // CAMERA BUTTON
             // ==================================================
-
             Container(
               width: 32,
               height: 32,
-              decoration:
-              BoxDecoration(
-                color:
-                colorScheme.primary,
-                shape:
-                BoxShape.circle,
-                border:
-                Border.all(
-                  color: theme
-                      .scaffoldBackgroundColor,
+              decoration: BoxDecoration(
+                color: colorScheme.primary,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: theme.scaffoldBackgroundColor,
                   width: 3,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors
-                        .black
-                        .withValues(alpha: 0.16),
+                    color: Colors.black.withValues(alpha: 0.16),
                     blurRadius: 8,
-                    offset:
-                    const Offset(
-                      0,
-                      3,
-                    ),
+                    offset: const Offset(0, 3),
                   ),
                 ],
               ),
               child: Icon(
-                Icons
-                    .camera_alt_rounded,
+                Icons.camera_alt_rounded,
                 size: 15,
-                color:
-                colorScheme.onPrimary,
+                color: colorScheme.onPrimary,
               ),
             ),
           ],

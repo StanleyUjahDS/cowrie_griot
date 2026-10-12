@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 class GriotAvatar extends StatelessWidget {
   final String? avatarUrl;
@@ -28,35 +27,38 @@ class GriotAvatar extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: backgroundColor ?? colorScheme.primary.withValues(alpha: 0.10),
-        border: Border.all(
-          color: colorScheme.primary.withValues(alpha: 0.16),
-        ),
+        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.16)),
       ),
       child: ClipOval(
         child: hasUrl
-            ? Image.network(
-                avatarUrl!,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => _buildFallback(colorScheme),
+            ? Padding(
+                padding: EdgeInsets.all((radius * 0.09).clamp(2.5, 5.0)),
+                child: ClipOval(
+                  child: Image.network(
+                    avatarUrl!,
+                    fit: BoxFit.cover,
+                    frameBuilder:
+                        (context, child, frame, wasSynchronouslyLoaded) {
+                          if (wasSynchronouslyLoaded || frame != null) {
+                            return child;
+                          }
+                          return _buildEmpty(colorScheme);
+                        },
+                    errorBuilder: (context, error, stackTrace) =>
+                        _buildEmpty(colorScheme),
+                  ),
+                ),
               )
-            : _buildFallback(colorScheme),
+            : _buildEmpty(colorScheme),
       ),
     );
   }
 
-  Widget _buildFallback(ColorScheme colorScheme) {
-    return Center(
-      child: SvgPicture.asset(
-        'assets/coins_logo/hbadger_logo.svg',
-        width: radius * 2,
-        height: radius * 2,
-        fit: BoxFit.cover,
-        placeholderBuilder: (context) => Icon(
-          Icons.person_outline_rounded,
-          color: iconColor ?? colorScheme.primary,
-          size: radius,
-        ),
-      ),
+  Widget _buildEmpty(ColorScheme colorScheme) {
+    return Container(
+      color: colorScheme.surfaceContainerHighest,
+      alignment: Alignment.center,
+      child: const SizedBox.expand(),
     );
   }
 }

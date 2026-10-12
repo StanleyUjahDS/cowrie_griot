@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/services/navigation_scroll_service.dart';
+import '../../../core/services/push_notification_service.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/widgets/griot_avatar.dart';
@@ -131,6 +134,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
+        unawaited(
+          PushNotificationService.instance.clearDeliveredNotifications(),
+        );
         provider.refreshNotifications();
         provider.markNotificationsSeen();
       }

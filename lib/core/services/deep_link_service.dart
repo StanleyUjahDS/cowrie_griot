@@ -29,7 +29,12 @@ class DeepLinkService {
 
   bool _routerHasMatch() {
     try {
-      return AppRouter.router.routerDelegate.currentConfiguration.matches.isNotEmpty;
+      return AppRouter
+          .router
+          .routerDelegate
+          .currentConfiguration
+          .matches
+          .isNotEmpty;
     } catch (_) {
       // During Router restoration GoRouter briefly exposes an empty match
       // list. Navigation in that window triggers RouteMatchList.last and
@@ -88,7 +93,11 @@ class DeepLinkService {
     if (path.isEmpty || (!force && _isDuplicate(canonicalUri, path))) return;
 
     if (normalizedPath == '/call/join') {
-      final invite = uri.queryParameters['invite']?.trim();
+      final invite =
+          (uri.queryParameters['invite'] ??
+                  uri.queryParameters['token'] ??
+                  uri.queryParameters['code'])
+              ?.trim();
       if (invite == null || invite.isEmpty) return;
       await _savePendingDestination(canonicalUri);
       _openCallWhenReady(invite);
@@ -355,7 +364,8 @@ class DeepLinkService {
         if (contextAttempt < 25) {
           Future<void>.delayed(
             const Duration(milliseconds: 200),
-            () => _openCallWhenReady(invite, contextAttempt: contextAttempt + 1),
+            () =>
+                _openCallWhenReady(invite, contextAttempt: contextAttempt + 1),
           );
         }
         return;
@@ -397,7 +407,11 @@ class DeepLinkService {
     }
 
     if (normalizedPath == '/call/join') {
-      final invite = uri.queryParameters['invite']?.trim();
+      final invite =
+          (uri.queryParameters['invite'] ??
+                  uri.queryParameters['token'] ??
+                  uri.queryParameters['code'])
+              ?.trim();
       if (invite == null || invite.isEmpty) return;
       if (savePending) await _savePendingDestination(uri);
       _openCallWhenReady(invite);
@@ -468,8 +482,11 @@ class DeepLinkService {
     }
     if (forceHomeBase || _isPublicLinkLocation()) {
       AppRouter.router.go('/chat');
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        AppRouter.router.push(location, extra: extra);
+      // Let the shell commit before pushing the destination. A single
+      // post-frame push can race GoRouter restoration and leave the call-link
+      // screen on the public recovery route instead of opening the call.
+      Future<void>.delayed(const Duration(milliseconds: 80), () {
+        _pushWithStableBackStack(location, extra: extra);
       });
       return;
     }
@@ -498,8 +515,8 @@ class DeepLinkService {
     // home page beneath the destination so Back never returns to the resolver.
     if (_isPublicLinkLocation()) {
       AppRouter.router.go('/chat');
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        AppRouter.router.push(location, extra: extra);
+      Future<void>.delayed(const Duration(milliseconds: 80), () {
+        _pushWithStableBackStack(location, extra: extra);
       });
       return;
     }
@@ -548,7 +565,10 @@ class DeepLinkService {
       // Keep the originating screen underneath the temporary resolver. This
       // lets Back cancel the lookup and return to where the user came from.
       try {
-        final result = await messagingProvider.resolveConversationByUsername(username, type);
+        final result = await messagingProvider.resolveConversationByUsername(
+          username,
+          type,
+        );
         unawaited(_clearPendingDestination());
         _openResolvedDestination('/chat/community/${result.id}', extra: result);
       } catch (error) {

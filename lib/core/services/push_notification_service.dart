@@ -4,6 +4,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:flutter/services.dart';
 
 import '../network/api_client.dart';
 import '../network/api_config.dart';
@@ -93,6 +94,21 @@ class PushNotificationService {
   }
 
   Future<String?> getToken() => _fcm.getToken();
+
+  /// Removes delivered OS notifications after the user has opened them in
+  /// Griot. Native call notifications are kept alive by the platform layer.
+  Future<void> clearDeliveredNotifications() async {
+    if (kIsWeb) return;
+    try {
+      await const MethodChannel('griot/notifications').invokeMethod<void>(
+        'clearDeliveredNotifications',
+      );
+    } on MissingPluginException {
+      // Desktop/test targets do not provide the native notification bridge.
+    } catch (error) {
+      debugPrint('PushNotifications: unable to clear delivered notifications: $error');
+    }
+  }
 
   Future<void> _logTokenReadiness() async {
     try {
@@ -234,6 +250,7 @@ class PushNotificationService {
   }
 
   void _handleNotificationTap(Map<String, dynamic> data) {
+    unawaited(clearDeliveredNotifications());
     final handler = _onNotificationTap;
     if (handler == null) {
       _pendingNotificationTap = data;

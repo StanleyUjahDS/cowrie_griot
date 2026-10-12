@@ -439,7 +439,7 @@ class _MinerScreenState extends State<MinerScreen> {
                         Expanded(
                           child: _StatCard(
                             label: 'Mining Weight',
-                            value: status.pointsToday.toStringAsFixed(0),
+                            value: status.pointsToday.toStringAsFixed(2),
                             icon: Icons.auto_awesome_rounded,
                           ),
                         ),
@@ -726,11 +726,11 @@ class _ReputationSection extends StatelessWidget {
         children: [
           Row(
             children: [
-              SvgPicture.asset(
-                'assets/coins_logo/hbadger_logo.svg',
-                width: 32,
-                height: 32,
-                colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+              Image.asset(
+                'assets/coins_logo/hbadger_loader.png',
+                width: 22,
+                height: 22,
+                color: color,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -745,7 +745,7 @@ class _ReputationSection extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '${reputation.points} points',
+                      '${reputation.points.toStringAsFixed(2)} points',
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: colors.onSurfaceVariant,
                         fontWeight: FontWeight.bold,

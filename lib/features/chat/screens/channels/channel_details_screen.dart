@@ -9,11 +9,14 @@ import '../../models/conversation_model.dart';
 import '../../models/chat_user.dart';
 import '../../services/media_api_service.dart';
 import '../../widgets/chatting/tip_sheet.dart';
+import '../../widgets/conversation_campfire_button.dart';
+import '../../widgets/conversation_members_sheet.dart';
 import '../../../users/providers/user_provider.dart';
 import '../../../../core/services/notification_service.dart';
 import '../../../../core/services/share_link_service.dart';
 import '../../../../core/ui/widgets/griot_loader.dart';
 import '../../../../core/ui/widgets/griot_plus_badge.dart';
+import '../../../../core/ui/widgets/griot_pioneer_badge.dart';
 
 class ChannelDetailsScreen extends StatefulWidget {
   final Conversation conversation;
@@ -27,10 +30,20 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
   List<Map<String, dynamic>> _members = [];
   bool _isLoadingMembers = false;
   bool _isActionLoading = false;
+  Conversation? _updatedConversation;
 
   late final TextEditingController _nameController;
   late final TextEditingController _usernameController;
   late final TextEditingController _bioController;
+
+  Color _hexColor(String? value, Color fallback) {
+    final raw = value?.trim().replaceFirst('#', '');
+    if (raw == null || (raw.length != 6 && raw.length != 8)) return fallback;
+    final parsed = int.tryParse(raw, radix: 16);
+    return parsed == null
+        ? fallback
+        : Color(raw.length == 6 ? 0xFF000000 | parsed : parsed);
+  }
 
   @override
   void initState() {
@@ -342,6 +355,29 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
                               const SizedBox(width: 6),
                               const GriotPlusBadge(isPlus: true, compact: true),
                             ],
+                            if (member['is_pioneer'] == true ||
+                                member['isPioneer'] == true) ...[
+                              const SizedBox(width: 4),
+                              const GriotPioneerBadge(compact: true),
+                            ],
+                            if ((member['reputation_tier_name'] ?? '')
+                                .toString()
+                                .isNotEmpty) ...[
+                              const SizedBox(width: 6),
+                              Tooltip(
+                                message: member['reputation_tier_name']
+                                    .toString(),
+                                child: Icon(
+                                  Icons.workspace_premium_rounded,
+                                  size: 16,
+                                  color: _hexColor(
+                                    member['reputation_badge_color']
+                                        ?.toString(),
+                                    colors.primary,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                         const SizedBox(height: 2),
@@ -467,6 +503,175 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
     );
   }
 
+  // Kept as a compatibility fallback for older navigation state.
+  // ignore: unused_element
+  void _showAllSubscribers({
+    required bool iAmOwner,
+    required bool iAmAdmin,
+    required String? currentUserId,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => FractionallySizedBox(
+        heightFactor: 0.82,
+        child: Container(
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border(
+              top: BorderSide(
+                color: colors.primary.withValues(alpha: 0.6),
+                width: 1.5,
+              ),
+            ),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              children: [
+                const SizedBox(height: 12),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: colors.onSurfaceVariant.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 12, 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Subscribers (${_members.length})',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Close',
+                        onPressed: () => Navigator.of(sheetContext).pop(),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                    itemCount: _members.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 4),
+                    itemBuilder: (context, index) {
+                      final member = _members[index];
+                      final isMe = member['user_id'] == currentUserId;
+                      final role = member['role']?.toString() ?? 'member';
+                      final isMemberOwner = role == 'owner';
+                      final isMemberAdmin = role == 'admin';
+                      final displayName =
+                          (member['display_name'] ??
+                                  member['username'] ??
+                                  'Griot User')
+                              .toString();
+                      final avatarUrl = member['avatar_url']?.toString();
+
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 2,
+                        ),
+                        leading: CircleAvatar(
+                          radius: 23,
+                          backgroundImage:
+                              avatarUrl != null && avatarUrl.isNotEmpty
+                              ? NetworkImage(avatarUrl)
+                              : null,
+                          child: avatarUrl == null || avatarUrl.isEmpty
+                              ? const Icon(Icons.person_rounded)
+                              : null,
+                        ),
+                        title: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                '$displayName${isMe ? ' (You)' : ''}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            if (member['is_plus'] == true ||
+                                member['isPlus'] == true) ...[
+                              const SizedBox(width: 6),
+                              const GriotPlusBadge(isPlus: true, compact: true),
+                            ],
+                            if (member['is_pioneer'] == true ||
+                                member['isPioneer'] == true) ...[
+                              const SizedBox(width: 4),
+                              const GriotPioneerBadge(compact: true),
+                            ],
+                          ],
+                        ),
+                        subtitle: isMemberOwner || isMemberAdmin
+                            ? Text(
+                                role.toUpperCase(),
+                                style: TextStyle(
+                                  color: colors.primary,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              )
+                            : null,
+                        trailing:
+                            iAmOwner || iAmAdmin || (isMe && !isMemberOwner)
+                            ? const Icon(Icons.more_vert_rounded)
+                            : const Icon(Icons.chevron_right_rounded),
+                        onTap: () => _showSubscriberOptions(
+                          member,
+                          iAmOwner,
+                          iAmAdmin,
+                          currentUserId,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showSubscriberDirectory({
+    required bool iAmOwner,
+    required bool iAmAdmin,
+    required String? currentUserId,
+  }) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => ConversationMembersSheet(
+        title: 'Subscribers',
+        members: _members,
+        currentUserId: currentUserId,
+        canManage: iAmOwner || iAmAdmin,
+        onMemberTap: (member) =>
+            _showSubscriberOptions(member, iAmOwner, iAmAdmin, currentUserId),
+      ),
+    );
+  }
+
   Future<void> _handleAddAdmin(String userId) async {
     setState(() => _isActionLoading = true);
     try {
@@ -504,11 +709,12 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
   }
 
   Future<void> _editChannelSettings() async {
-    _nameController.text = widget.conversation.name ?? '';
-    _usernameController.text = widget.conversation.username ?? '';
-    _bioController.text = widget.conversation.description ?? '';
-    var visibility = widget.conversation.visibility;
-    var commentsLocked = widget.conversation.commentsLocked;
+    final currentConversation = _updatedConversation ?? widget.conversation;
+    _nameController.text = currentConversation.name ?? '';
+    _usernameController.text = currentConversation.username ?? '';
+    _bioController.text = currentConversation.description ?? '';
+    var visibility = currentConversation.visibility;
+    var commentsLocked = currentConversation.commentsLocked;
     File? selectedImage;
 
     final result = await showModalBottomSheet<Map<String, dynamic>>(
@@ -607,9 +813,9 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
                                       selectedImage!,
                                       fit: BoxFit.cover,
                                     )
-                                  : (widget.conversation.avatarUrl != null
+                                  : (currentConversation.avatarUrl != null
                                         ? Image.network(
-                                            widget.conversation.avatarUrl!,
+                                            currentConversation.avatarUrl!,
                                             fit: BoxFit.cover,
                                             errorBuilder: (_, _, _) => Icon(
                                               Icons.campaign_rounded,
@@ -846,18 +1052,29 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
           conversationId: widget.conversation.id,
         );
         imageUrl = uploadResult['mediaUrl'];
+        if (imageUrl == null || imageUrl.trim().isEmpty) {
+          throw StateError(
+            'The channel image upload did not return a media URL.',
+          );
+        }
       }
 
       if (!mounted) return;
-      await context.read<MessagingProvider>().updateChannel(
-        widget.conversation.id,
-        name: result['name'],
-        username: result['username'],
-        description: result['description'],
-        visibility: result['visibility'],
-        commentsLocked: result['commentsLocked'] as bool?,
-        imageUrl: imageUrl,
-      );
+      final updatedConversation = await context
+          .read<MessagingProvider>()
+          .updateChannel(
+            widget.conversation.id,
+            name: result['name'],
+            username: result['username'],
+            description: result['description'],
+            visibility: result['visibility'],
+            commentsLocked: result['commentsLocked'] as bool?,
+            imageUrl: imageUrl,
+          );
+      if (mounted) {
+        setState(() => _updatedConversation = updatedConversation);
+        await context.read<MessagingProvider>().loadConversations(force: true);
+      }
       if (mounted) {
         NotificationService.showSuccess(context, 'Channel updated');
       }
@@ -887,13 +1104,23 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
         );
 
         // Merge to ensure we have the most complete data
-        final conversation = widget.conversation.copyWith(
+        final savedConversation = _updatedConversation;
+        final baseConversation = savedConversation ?? providerConv;
+        final conversation = baseConversation.copyWith(
+          name:
+              savedConversation?.name ??
+              providerConv.name ??
+              widget.conversation.name,
+          imageUrl:
+              savedConversation?.imageUrl ??
+              providerConv.imageUrl ??
+              widget.conversation.imageUrl,
           role: providerConv.role,
           status: providerConv.status,
           unreadCount: providerConv.unreadCount,
           subscriberCount: providerConv.subscriberCount > 0
               ? providerConv.subscriberCount
-              : widget.conversation.subscriberCount,
+              : baseConversation.subscriberCount,
         );
 
         final isOwner = conversation.role == 'owner';
@@ -966,7 +1193,7 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
                   background: SafeArea(
                     child: Align(
                       alignment: Alignment.bottomCenter,
-                        child: Padding(
+                      child: Padding(
                         padding: const EdgeInsets.only(bottom: 82),
                         child: Container(
                           width: 72,
@@ -983,10 +1210,10 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
                           ),
                           clipBehavior: Clip.antiAlias,
                           child:
-                              widget.conversation.avatarUrl != null &&
-                                  widget.conversation.avatarUrl!.isNotEmpty
+                              conversation.avatarUrl != null &&
+                                  conversation.avatarUrl!.isNotEmpty
                               ? Image.network(
-                                  widget.conversation.avatarUrl!,
+                                  conversation.avatarUrl!,
                                   fit: BoxFit.cover,
                                   errorBuilder: (_, _, _) => Icon(
                                     Icons.campaign_rounded,
@@ -1004,7 +1231,7 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
                     ),
                   ),
                   title: Text(
-                    widget.conversation.name ?? 'Channel',
+                    conversation.name ?? 'Channel',
                     style: TextStyle(
                       color: colorScheme.onSurface,
                       fontWeight: FontWeight.w900,
@@ -1019,6 +1246,36 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Keep a channel-scoped Campfire visible at the top of
+                      // the overview while the live call is in progress.
+                      ConversationCampfireStatusCard(
+                        conversationId: widget.conversation.id,
+                        conversationType: 'channel',
+                        canCreate: isOwner || isAdmin,
+                      ),
+                      if (isOwner || isAdmin) ...[
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: () => ConversationCampfireButton(
+                              conversationId: conversation.id,
+                              conversationType: 'channel',
+                              canCreate: true,
+                            ).open(context),
+                            icon: const Icon(
+                              Icons.local_fire_department_rounded,
+                            ),
+                            label: const Text('Start a Campfire'),
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 15),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
                       // Channel Identity
                       _buildSectionLabel('CHANNEL IDENTITY'),
                       const SizedBox(height: 12),
@@ -1106,6 +1363,11 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
                             final role = member['role']?.toString() ?? 'member';
                             final isMemberOwner = role == 'owner';
                             final isMemberAdmin = role == 'admin';
+                            final reputation =
+                                member['reputation_tier_name']
+                                    ?.toString()
+                                    .trim() ??
+                                '';
 
                             return InkWell(
                               onTap: () => _showSubscriberOptions(
@@ -1159,6 +1421,15 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
                                                   compact: true,
                                                 ),
                                               ],
+                                              if (member['is_pioneer'] ==
+                                                      true ||
+                                                  member['isPioneer'] ==
+                                                      true) ...[
+                                                const SizedBox(width: 4),
+                                                const GriotPioneerBadge(
+                                                  compact: true,
+                                                ),
+                                              ],
                                             ],
                                           ),
                                           if (isMemberOwner || isMemberAdmin)
@@ -1169,6 +1440,22 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
                                                 color: colorScheme.primary,
                                                 fontWeight: FontWeight.w900,
                                                 letterSpacing: 0.5,
+                                              ),
+                                            ),
+                                          if (reputation.isNotEmpty)
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: 3,
+                                              ),
+                                              child: Text(
+                                                reputation,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: colorScheme.primary,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
                                               ),
                                             ),
                                         ],
@@ -1200,7 +1487,11 @@ class _ChannelDetailsScreenState extends State<ChannelDetailsScreen> {
                       if (_members.length > 5)
                         Center(
                           child: TextButton(
-                            onPressed: () {},
+                            onPressed: () => _showSubscriberDirectory(
+                              iAmOwner: isOwner,
+                              iAmAdmin: isAdmin,
+                              currentUserId: currentUserId,
+                            ),
                             child: Text(
                               'View all ${_members.length} subscribers',
                               style: const TextStyle(
@@ -1408,7 +1699,6 @@ class _ChannelActionsCard extends StatelessWidget {
               label: 'Tip Author',
               onTap: onTip,
               colors: colors,
-              isPrimary: true,
             ),
           ),
         ],
@@ -1422,14 +1712,12 @@ class _ActionButton extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
   final ColorScheme colors;
-  final bool isPrimary;
 
   const _ActionButton({
     required this.icon,
     required this.label,
     required this.onTap,
     required this.colors,
-    this.isPrimary = false,
   });
 
   @override
@@ -1442,24 +1730,18 @@ class _ActionButton extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 16),
           decoration: BoxDecoration(
-            color: isPrimary ? colors.primary : colors.surface,
+            color: colors.surface,
             borderRadius: BorderRadius.circular(18),
-            border: isPrimary
-                ? null
-                : Border.all(color: colors.outline.withValues(alpha: 0.1)),
+            border: Border.all(color: colors.outline.withValues(alpha: 0.1)),
           ),
           child: Column(
             children: [
-              Icon(
-                icon,
-                color: isPrimary ? colors.onPrimary : colors.primary,
-                size: 20,
-              ),
+              Icon(icon, color: colors.primary, size: 20),
               const SizedBox(height: 8),
               Text(
                 label,
                 style: TextStyle(
-                  color: isPrimary ? colors.onPrimary : colors.onSurface,
+                  color: colors.onSurface,
                   fontWeight: FontWeight.w900,
                   fontSize: 12,
                 ),

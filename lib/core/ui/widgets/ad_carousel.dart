@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../../config/app_config.dart';
+import '../../services/ad_service.dart';
 
 enum CarouselItemType { ad, feature }
 
@@ -49,14 +50,21 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
   Color? _lastPrimaryColor;
   Color? _lastSurfaceColor;
 
-  List<CarouselItem> get _displayItems => AppConfig.adsEnabled
+  List<CarouselItem> get _displayItems =>
+      AppConfig.adsEnabled && AdService.instance.canRequestAds
       ? widget.items
       : widget.items.where((item) => item.type != CarouselItemType.ad).toList();
 
   @override
   void initState() {
     super.initState();
+    AdService.instance.addListener(_onAdsReady);
     _startAutoSwipe();
+  }
+
+  void _onAdsReady() {
+    if (!mounted || !AdService.instance.canRequestAds) return;
+    setState(() {});
   }
 
   @override
@@ -86,6 +94,7 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
 
   @override
   void dispose() {
+    AdService.instance.removeListener(_onAdsReady);
     _stopAutoSwipe();
     _pageController.dispose();
     for (var ad in _loadedAds.values) {
@@ -114,7 +123,7 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
   }
 
   void _loadAd(int index) {
-    if (!AppConfig.adsEnabled) {
+    if (!AdService.instance.canRequestAds) {
       return;
     }
     if (_loadedAds.containsKey(index) || _loadingIndices.contains(index)) {
@@ -145,7 +154,9 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
             _loadedAds[index] = ad as NativeAd;
             _loadingIndices.remove(index);
           });
-          debugPrint('Carousel NativeAd[$index] loaded. Response: ${ad.responseInfo}');
+          debugPrint(
+            'Carousel NativeAd[$index] loaded. Response: ${ad.responseInfo}',
+          );
         },
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
@@ -153,7 +164,9 @@ class _GriotAdCarouselState extends State<GriotAdCarousel> {
           debugPrint('Carousel NativeAd at index $index failed: $error');
         },
         onAdImpression: (ad) {
-          debugPrint('Carousel NativeAd[$index] impression. Response: ${ad.responseInfo}');
+          debugPrint(
+            'Carousel NativeAd[$index] impression. Response: ${ad.responseInfo}',
+          );
         },
       ),
     ).load();

@@ -21,6 +21,7 @@ import '../../../core/services/navigation_scroll_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/services/ad_service.dart';
 import '../../../core/ui/widgets/griot_branded_container.dart';
+import '../../../core/ui/widgets/griot_plus_badge.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -355,19 +356,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.all(18),
             child: Row(
               children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: colors.primary.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: Icon(
-                    Icons.auto_awesome_rounded,
-                    color: colors.primary,
-                    size: 24,
-                  ),
-                ),
+                const GriotPlusBadge(isPlus: true),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -536,7 +525,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 _settingTile(
                   context: context,
-                  icon: Icons.stars_rounded,
+                  icon: Icons.workspace_premium_rounded,
                   title: 'Reputation',
                   subtitle: 'View your network tier and points',
                   onTap: () => context.push('/settings/reputation'),

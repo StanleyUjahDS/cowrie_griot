@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="com.griotcowrie.griot_cowrie">
 
     <!-- Internet and Network -->
@@ -77,6 +78,8 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="griot" android:host="join" />
                 <data android:scheme="griot" android:host="plus" />
+                <!-- Call links are also used for Campfires and group calls. -->
+                <data android:scheme="griot" android:host="call" />
                 <data android:scheme="griot" android:host="profile" />
                 <data android:scheme="griot" android:host="group" />
                 <data android:scheme="griot" android:host="circle" />
@@ -90,6 +93,8 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="griot.network" android:pathPrefix="/join" />
                 <data android:scheme="https" android:host="www.griot.network" android:pathPrefix="/join" />
+                <data android:scheme="https" android:host="griot.network" android:pathPrefix="/call/join" />
+                <data android:scheme="https" android:host="www.griot.network" android:pathPrefix="/call/join" />
             </intent-filter>
 
             <!-- Receive content shared from WhatsApp, Telegram, browsers, and other apps. -->
@@ -147,7 +152,8 @@
 
         <activity
             android:name="com.yalantis.ucrop.UCropActivity"
-            android:screenOrientation="portrait"
+            android:screenOrientation="unspecified"
+            tools:replace="android:screenOrientation"
             android:theme="@style/Theme.AppCompat.Light.NoActionBar" />
 
         <meta-data
@@ -156,7 +162,7 @@
 
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-8536613969303259~8291757202"/>
+            android:value="ca-app-pub-8536613969303259~3557722110"/>
 
         <!-- FCM Notification Metadata -->
         <meta-data

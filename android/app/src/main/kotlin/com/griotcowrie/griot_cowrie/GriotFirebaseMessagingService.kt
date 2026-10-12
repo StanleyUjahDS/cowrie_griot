@@ -40,9 +40,9 @@ class GriotFirebaseMessagingService : FirebaseMessagingService() {
         val callId = data["callId"]?.takeIf { it.isNotBlank() } ?: return
         val bundle = Bundle().apply {
             putString("EXTRA_CALLKIT_ID", callId)
-            putString("EXTRA_CALLKIT_NAME_CALLER", data["callerName"] ?: "Griot contact")
+            putString("EXTRA_CALLKIT_NAME_CALLER", compactCallLabel(data["callerName"] ?: "Griot contact"))
             putString("EXTRA_CALLKIT_APP_NAME", "Griot")
-            putString("EXTRA_CALLKIT_HANDLE", data["callerHandle"] ?: data["callerName"] ?: "Griot contact")
+            putString("EXTRA_CALLKIT_HANDLE", compactCallLabel(data["callerHandle"] ?: data["callerName"] ?: "Griot contact"))
             putInt("EXTRA_CALLKIT_TYPE", if (data["mode"] == "video") 1 else 0)
             putLong("EXTRA_CALLKIT_DURATION", 45000L)
             putString("EXTRA_CALLKIT_TEXT_ACCEPT", "Answer")
@@ -74,12 +74,21 @@ class GriotFirebaseMessagingService : FirebaseMessagingService() {
         }
     }
 
+    private fun compactCallLabel(value: String): String {
+        val normalized = value.trim().replace(Regex("\\s+"), " ")
+        return if (normalized.length <= 32) normalized else normalized.take(29).trimEnd() + "…"
+    }
+
     private fun showNativeIncomingCall(
         callId: String,
         data: Bundle,
         rawData: Map<String, String>,
     ) {
-        val channelId = "griot_incoming_calls"
+        // Keep this ID aligned with MainActivity's configured call channel.
+        // Android persists channel sound/importance per ID; using a second
+        // ID meant users could allow the visible channel while background
+        // calls were posted to a different, potentially silent channel.
+        val channelId = "incoming_calls"
         val notificationManager =
             getSystemService(NotificationManager::class.java)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {

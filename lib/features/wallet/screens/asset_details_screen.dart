@@ -15,10 +15,7 @@ import '../../../core/ui/widgets/banner_ad.dart';
 class AssetDetailsScreen extends StatelessWidget {
   final TokenModel token;
 
-  const AssetDetailsScreen({
-    super.key,
-    required this.token,
-  });
+  const AssetDetailsScreen({super.key, required this.token});
 
   String _getExplorerUrl(String? walletAddress) {
     final chain = token.chain.toLowerCase();
@@ -55,7 +52,13 @@ class AssetDetailsScreen extends StatelessWidget {
     if (c == 'solana' || c == 'sol') return 'SPL';
     if (c == 'bsc' || c == 'binance') return 'BEP-20';
     if (c == 'polygon' || c == 'matic') return 'ERC-20';
-    if (c == 'arbitrum' || c == 'optimism' || c == 'base' || c == 'eth' || c == 'ethereum') return 'ERC-20';
+    if (c == 'arbitrum' ||
+        c == 'optimism' ||
+        c == 'base' ||
+        c == 'eth' ||
+        c == 'ethereum') {
+      return 'ERC-20';
+    }
     return 'Token';
   }
 
@@ -90,13 +93,6 @@ class AssetDetailsScreen extends StatelessWidget {
         elevation: 0,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
-        actions: [
-          IconButton(
-            onPressed: () => _copyContractAddress(context),
-            icon: const Icon(Icons.copy_rounded),
-            tooltip: 'Copy contract address',
-          ),
-        ],
       ),
       child: SafeArea(
         child: Column(
@@ -138,7 +134,9 @@ class AssetDetailsScreen extends StatelessWidget {
                         Text(
                           '${WalletFormatters.formatBalance(token.balance)} ${token.symbol}',
                           style: text.bodyLarge?.copyWith(
-                            color: colors.onSurfaceVariant.withValues(alpha: 0.7),
+                            color: colors.onSurfaceVariant.withValues(
+                              alpha: 0.7,
+                            ),
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -156,7 +154,9 @@ class AssetDetailsScreen extends StatelessWidget {
                           child: Text(
                             '${isPositive ? '+' : ''}${(token.changePercent ?? 0).toStringAsFixed(2)}%',
                             style: text.labelSmall?.copyWith(
-                              color: isPositive ? colors.tertiary : colors.error,
+                              color: isPositive
+                                  ? colors.tertiary
+                                  : colors.error,
                               fontWeight: FontWeight.w900,
                             ),
                           ),
@@ -175,7 +175,13 @@ class AssetDetailsScreen extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        if (isEcosystem) ...[
+                        if (token.isSpam) ...[
+                          _Tag(
+                            label: 'Potential spam',
+                            color: colors.error,
+                            icon: Icons.warning_amber_rounded,
+                          ),
+                        ] else if (isEcosystem) ...[
                           _Tag(
                             label: 'Ecosystem',
                             color: colors.primary,
@@ -189,6 +195,40 @@ class AssetDetailsScreen extends StatelessWidget {
                       ],
                     ),
 
+                    if (token.isSpam) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: colors.error.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: colors.error.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.warning_amber_rounded,
+                              color: colors.error,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'This asset was flagged by a security provider. It is shown because it is in your wallet, but swapping is disabled. Do not interact with links or contracts unless you trust the source.',
+                                style: text.bodySmall?.copyWith(
+                                  color: colors.onSurface,
+                                  height: 1.35,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
                     const SizedBox(height: 40),
 
                     // Quick Actions
@@ -197,19 +237,27 @@ class AssetDetailsScreen extends StatelessWidget {
                         _ActionButton(
                           label: 'Send',
                           icon: Icons.north_east_rounded,
-                          onTap: () => context.push('/wallet/send', extra: token),
+                          onTap: () =>
+                              context.push('/wallet/send', extra: token),
                         ),
                         const SizedBox(width: 12),
                         _ActionButton(
                           label: 'Receive',
                           icon: Icons.south_west_rounded,
-                          onTap: () => context.push('/wallet/receive', extra: token),
+                          onTap: () =>
+                              context.push('/wallet/receive', extra: token),
                         ),
                         const SizedBox(width: 12),
                         _ActionButton(
                           label: 'Swap',
                           icon: Icons.swap_horiz_rounded,
-                          onTap: () => context.push('/wallet/swap', extra: token),
+                          onTap: token.isSpam
+                              ? () => NotificationService.showError(
+                                  context,
+                                  'Swap is disabled for potential spam assets',
+                                )
+                              : () =>
+                                    context.push('/wallet/swap', extra: token),
                         ),
                       ],
                     ),
@@ -227,33 +275,49 @@ class AssetDetailsScreen extends StatelessWidget {
                     const SizedBox(height: 16),
                     Consumer<WalletProvider>(
                       builder: (context, provider, _) {
-                        final explorerUrl = _getExplorerUrl(provider.wallet?.address);
-                        final backendExplorer = token.externalLinks['explorer'] ?? '';
+                        final explorerUrl = _getExplorerUrl(
+                          provider.wallet?.address,
+                        );
+                        final backendExplorer =
+                            token.externalLinks['explorer'] ?? '';
                         final dexUrl = token.externalLinks['dexScreener'] ?? '';
-                        final securityUrl = token.externalLinks['goPlus'] ?? token.externalLinks['defiScanner'] ?? '';
-                        final honeypotUrl = token.externalLinks['honeypot'] ?? '';
+                        final securityUrl =
+                            token.externalLinks['goPlus'] ??
+                            token.externalLinks['defiScanner'] ??
+                            '';
+                        final honeypotUrl =
+                            token.externalLinks['honeypot'] ?? '';
                         return _buildLinkCard(
                           context,
                           links: [
-                            if (backendExplorer.isNotEmpty || explorerUrl.isNotEmpty)
+                            if (backendExplorer.isNotEmpty ||
+                                explorerUrl.isNotEmpty)
                               _LinkItem(
                                 title: 'Block Explorer',
                                 subtitle: 'View transactions on-chain',
                                 icon: Icons.explore_outlined,
-                                onTap: () => _launchUrl(context, backendExplorer.isNotEmpty ? backendExplorer : explorerUrl),
+                                onTap: () => _launchUrl(
+                                  context,
+                                  backendExplorer.isNotEmpty
+                                      ? backendExplorer
+                                      : explorerUrl,
+                                ),
                               ),
-                            if (securityUrl.isNotEmpty) _LinkItem(
-                              title: 'Web3 Security (Rewards)',
-                              subtitle: 'Scan token security with GoPlus',
-                              icon: Icons.verified_user_rounded,
-                              onTap: () => _launchUrl(context, securityUrl),
-                            ),
-                            if (dexUrl.isNotEmpty) _LinkItem(
-                              title: 'Market Analysis',
-                              subtitle: 'Check price & liquidity on DEX Screener',
-                              icon: Icons.bar_chart_rounded,
-                              onTap: () => _launchUrl(context, dexUrl),
-                            ),
+                            if (securityUrl.isNotEmpty)
+                              _LinkItem(
+                                title: 'Web3 Security (Rewards)',
+                                subtitle: 'Scan token security with GoPlus',
+                                icon: Icons.verified_user_rounded,
+                                onTap: () => _launchUrl(context, securityUrl),
+                              ),
+                            if (dexUrl.isNotEmpty)
+                              _LinkItem(
+                                title: 'Market Analysis',
+                                subtitle:
+                                    'Check price & liquidity on DEX Screener',
+                                icon: Icons.bar_chart_rounded,
+                                onTap: () => _launchUrl(context, dexUrl),
+                              ),
                             if (honeypotUrl.isNotEmpty)
                               _LinkItem(
                                 title: 'Contract Security',
@@ -280,17 +344,6 @@ class AssetDetailsScreen extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  void _copyContractAddress(BuildContext context) async {
-    final address = token.isNative ? 'Native Asset' : token.contractAddress;
-    if (address == 'Native Asset') {
-       NotificationService.showInfo(context, 'Native asset on ${token.chain}');
-       return;
-    }
-    await Clipboard.setData(ClipboardData(text: address));
-    if (!context.mounted) return;
-    NotificationService.showSuccess(context, 'Contract address copied');
   }
 
   Widget _buildSectionHeader(BuildContext context, String title) {
@@ -332,7 +385,11 @@ class AssetDetailsScreen extends StatelessWidget {
         children: [
           _infoRow(context, 'Network', token.chain.toUpperCase()),
           const Divider(height: 32),
-          _infoRow(context, 'Type', token.isNative ? 'Native' : _getTokenType(token.chain)),
+          _infoRow(
+            context,
+            'Type',
+            token.isNative ? 'Native' : _getTokenType(token.chain),
+          ),
           const Divider(height: 32),
           _infoRow(context, 'Decimals', (token.decimals ?? 18).toString()),
           if (!token.isNative) ...[
@@ -342,10 +399,21 @@ class AssetDetailsScreen extends StatelessWidget {
               'Contract',
               WalletFormatters.shortenAddress(token.contractAddress),
               onTap: () async {
-                await Clipboard.setData(ClipboardData(text: token.contractAddress));
-                if (context.mounted) NotificationService.showSuccess(context, 'Contract address copied');
+                await Clipboard.setData(
+                  ClipboardData(text: token.contractAddress),
+                );
+                if (context.mounted) {
+                  NotificationService.showSuccess(
+                    context,
+                    'Contract address copied',
+                  );
+                }
               },
-              trailing: Icon(Icons.copy_rounded, size: 16, color: Theme.of(context).colorScheme.primary),
+              trailing: Icon(
+                Icons.copy_rounded,
+                size: 16,
+                color: Theme.of(context).colorScheme.primary,
+              ),
             ),
           ],
         ],
@@ -353,7 +421,13 @@ class AssetDetailsScreen extends StatelessWidget {
     );
   }
 
-  Widget _infoRow(BuildContext context, String label, String value, {VoidCallback? onTap, Widget? trailing}) {
+  Widget _infoRow(
+    BuildContext context,
+    String label,
+    String value, {
+    VoidCallback? onTap,
+    Widget? trailing,
+  }) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     return InkWell(
@@ -362,15 +436,22 @@ class AssetDetailsScreen extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant)),
+          Text(
+            label,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colors.onSurfaceVariant,
+            ),
+          ),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(value, style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
-              if (trailing != null) ...[
-                const SizedBox(width: 8),
-                trailing,
-              ],
+              Text(
+                value,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (trailing != null) ...[const SizedBox(width: 8), trailing],
             ],
           ),
         ],
@@ -378,7 +459,10 @@ class AssetDetailsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildLinkCard(BuildContext context, {required List<_LinkItem> links}) {
+  Widget _buildLinkCard(
+    BuildContext context, {
+    required List<_LinkItem> links,
+  }) {
     final colors = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
@@ -405,10 +489,15 @@ class AssetDetailsScreen extends StatelessWidget {
                 onTap: item.onTap,
                 borderRadius: BorderRadius.vertical(
                   top: index == 0 ? const Radius.circular(20) : Radius.zero,
-                  bottom: index == links.length - 1 ? const Radius.circular(20) : Radius.zero,
+                  bottom: index == links.length - 1
+                      ? const Radius.circular(20)
+                      : Radius.zero,
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   child: Row(
                     children: [
                       Container(
@@ -428,17 +517,15 @@ class AssetDetailsScreen extends StatelessWidget {
                               item.title,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                              style: Theme.of(context).textTheme.bodyLarge
+                                  ?.copyWith(fontWeight: FontWeight.w600),
                             ),
                             Text(
                               item.subtitle,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: colors.onSurfaceVariant,
-                                  ),
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: colors.onSurfaceVariant),
                             ),
                           ],
                         ),

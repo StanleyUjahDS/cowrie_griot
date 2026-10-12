@@ -102,9 +102,14 @@ class AttachmentSheet extends StatelessWidget {
                 child: AttachmentOption(
                   icon: Icons.person_add_rounded,
                   label: 'Contact',
-                  onTap: onContact ?? () {
-                    NotificationService.showInfo(context, 'Contact sharing coming soon!');
-                  },
+                  onTap:
+                      onContact ??
+                      () {
+                        NotificationService.showInfo(
+                          context,
+                          'Contact sharing coming soon!',
+                        );
+                      },
                 ),
               ),
               if (onTip != null)

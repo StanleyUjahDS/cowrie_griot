@@ -45,7 +45,7 @@ class ReputationTier {
 }
 
 class ReputationData {
-  final int points;
+  final double points;
   final ReputationTier tier;
   final ReputationTier? nextTier;
   final List<ReputationTier> tiers;
@@ -67,7 +67,7 @@ class ReputationData {
             'badgeColor': '#64748B',
           };
     return ReputationData(
-      points: int.tryParse(json['points']?.toString() ?? '0') ?? 0,
+      points: double.tryParse(json['points']?.toString() ?? '0') ?? 0,
       tier: ReputationTier.fromJson(tierJson),
       nextTier: json['nextTier'] == null
           ? null

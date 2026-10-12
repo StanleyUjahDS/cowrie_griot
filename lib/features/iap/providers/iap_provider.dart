@@ -21,6 +21,7 @@ class IapProvider extends ChangeNotifier {
   bool _isStoreAvailable = false;
   bool _isLoading = true;
   bool _isVerifying = false;
+  bool _initialStoreRestoreRequested = false;
   String? _error;
 
   PlusStatus get status => _status;
@@ -75,6 +76,14 @@ class IapProvider extends ChangeNotifier {
         } else {
           _products = response.productDetails;
           _products.sort((a, b) => a.id.contains('monthly') ? -1 : 1);
+          if ((Platform.isIOS || Platform.isAndroid) &&
+              !_initialStoreRestoreRequested) {
+            _initialStoreRestoreRequested = true;
+            // Store restores replay existing transactions to purchaseStream,
+            // allowing the backend to re-verify subscribers after an update
+            // or reinstall.
+            unawaited(_restoreStorePurchases());
+          }
         }
       } else {
         _handleStoreFailure('The app store is unavailable.');
@@ -139,6 +148,16 @@ class IapProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> _restoreStorePurchases() async {
+    try {
+      await _iap.restorePurchases();
+    } catch (error) {
+      // Restore is best-effort during startup. The user can retry from the
+      // explicit Restore Purchases action without losing the backend status.
+      debugPrint('IAP: automatic restore failed: $error');
+    }
+  }
+
   Future<void> restorePurchases() async {
     _isLoading = true;
     _error = null;
@@ -190,10 +209,16 @@ class IapProvider extends ChangeNotifier {
       String? originalTransactionId;
 
       if (Platform.isIOS) {
-        final skDetails = purchase as AppStorePurchaseDetails;
-        receipt = skDetails.verificationData.serverVerificationData;
-        originalTransactionId =
-            skDetails.skPaymentTransaction.transactionIdentifier;
+        receipt = purchase.verificationData.serverVerificationData;
+        if (purchase is AppStorePurchaseDetails) {
+          originalTransactionId = purchase
+              .skPaymentTransaction
+              .originalTransaction
+              ?.transactionIdentifier;
+        }
+        // StoreKit 2 exposes the current transaction ID through purchaseID;
+        // the backend derives the subscription's original ID from the
+        // verified receipt when StoreKit does not expose one locally.
       } else if (Platform.isAndroid) {
         final googleDetails = purchase as GooglePlayPurchaseDetails;
         purchaseToken = googleDetails.verificationData.serverVerificationData;

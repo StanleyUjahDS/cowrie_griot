@@ -17,6 +17,7 @@ class ChatUser {
   final bool phoneDiscoveryEnabled;
   final UserReputationBadge? reputation;
   final bool isPlus;
+  final bool isPioneer;
 
   const ChatUser({
     required this.id,
@@ -35,6 +36,7 @@ class ChatUser {
     this.phoneDiscoveryEnabled = false,
     this.reputation,
     this.isPlus = false,
+    this.isPioneer = false,
   });
 
   static String? _normaliseAvatarUrl(dynamic value) {
@@ -86,6 +88,7 @@ class ChatUser {
       reputation: reputation,
       relationshipStatus: relationshipStatus,
       isPlus: isPlus,
+      isPioneer: isPioneer,
     );
   }
 
@@ -101,10 +104,39 @@ class ChatUser {
       relationshipStatus: user.relationshipStatus,
       timestamp: DateTime.now(),
       isPlus: user.isPlus,
+      isPioneer: user.isPioneer,
     );
   }
 
   factory ChatUser.fromJson(Map<String, dynamic> json) {
+    final rawReputation =
+        json['reputation'] ??
+        json['other_reputation'] ??
+        json['reputationBadge'] ??
+        json['reputation_badge'];
+    final reputationMap = rawReputation is Map
+        ? Map<String, dynamic>.from(rawReputation)
+        : ((json['reputation_tier_name'] ??
+                      json['reputationTierName'] ??
+                      json['other_reputation_tier_name'] ??
+                      json['otherReputationTierName']) !=
+                  null
+              ? <String, dynamic>{
+                  'tierName':
+                      json['reputation_tier_name'] ??
+                      json['reputationTierName'] ??
+                      json['other_reputation_tier_name'] ??
+                      json['otherReputationTierName'],
+                  'badgeColor':
+                      json['reputation_badge_color'] ??
+                      json['reputationBadgeColor'] ??
+                      json['reputation_color'] ??
+                      json['reputationColor'] ??
+                      json['other_reputation_badge_color'] ??
+                      json['otherReputationBadgeColor'],
+                }
+              : null);
+
     return ChatUser(
       // Conversation member responses contain both the membership row id and
       // the actual user id. Tipping must use the user id, not the membership
@@ -165,10 +197,8 @@ class ChatUser {
       phoneDiscoveryEnabled:
           json['phoneDiscoveryEnabled'] == true ||
           json['phone_discovery_enabled'] == true,
-      reputation: json['reputation'] != null
-          ? UserReputationBadge.fromJson(
-              Map<String, dynamic>.from(json['reputation']),
-            )
+      reputation: reputationMap != null
+          ? UserReputationBadge.fromJson(reputationMap)
           : null,
       isPlus:
           json['isPlus'] == true ||
@@ -177,6 +207,15 @@ class ChatUser {
           json['author_is_plus'] == true ||
           json['sender_is_plus'] == true ||
           json['receiver_is_plus'] == true,
+      isPioneer:
+          json['isPioneer'] == true ||
+          json['is_pioneer'] == true ||
+          json['pioneer'] == true ||
+          json['is_pioneer_user'] == true ||
+          json['other_is_pioneer'] == true ||
+          json['author_is_pioneer'] == true ||
+          json['sender_is_pioneer'] == true ||
+          json['receiver_is_pioneer'] == true,
     );
   }
 
@@ -198,6 +237,7 @@ class ChatUser {
       'phoneDiscoveryEnabled': phoneDiscoveryEnabled,
       'reputation': reputation?.toJson(),
       'isPlus': isPlus,
+      'isPioneer': isPioneer,
     };
   }
 
@@ -218,6 +258,7 @@ class ChatUser {
     bool? phoneDiscoveryEnabled,
     UserReputationBadge? reputation,
     bool? isPlus,
+    bool? isPioneer,
   }) {
     return ChatUser(
       id: id ?? this.id,
@@ -238,6 +279,7 @@ class ChatUser {
           phoneDiscoveryEnabled ?? this.phoneDiscoveryEnabled,
       reputation: reputation ?? this.reputation,
       isPlus: isPlus ?? this.isPlus,
+      isPioneer: isPioneer ?? this.isPioneer,
     );
   }
 }

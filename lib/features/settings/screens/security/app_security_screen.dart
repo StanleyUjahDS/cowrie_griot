@@ -9,6 +9,7 @@ import '../account/widgets/section_label.dart';
 import '../account/widgets/settings_container.dart';
 import '../account/widgets/profile_field.dart';
 import '../../../../core/ui/widgets/griot_bottom_sheet.dart';
+import '../../../../core/services/notification_service.dart';
 
 class AppSecurityScreen extends StatelessWidget {
   const AppSecurityScreen({super.key});
@@ -85,12 +86,9 @@ class AppSecurityScreen extends StatelessWidget {
                                   await lockProvider.setBiometricEnabled(true);
                                 }
                               } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Biometrics not available on this device',
-                                    ),
-                                  ),
+                                NotificationService.showInfo(
+                                  context,
+                                  'Biometrics not available on this device',
                                 );
                               }
                             } else {

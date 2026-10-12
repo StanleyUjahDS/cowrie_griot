@@ -34,12 +34,7 @@ class FullscreenMediaViewer extends StatelessWidget {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Downloading...'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+    NotificationService.showInfo(context, 'Downloading...');
 
     try {
       final response = await http.get(Uri.parse(url));

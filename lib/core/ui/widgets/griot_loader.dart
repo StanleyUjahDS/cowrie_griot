@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 class GriotLoader extends StatelessWidget {
   final double size;
@@ -30,26 +29,29 @@ class GriotLoader extends StatelessWidget {
           children: [
             // Outer glow/ring
             Container(
-              width: size,
-              height: size,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: loaderColor.withValues(alpha: 0.1),
-                  width: strokeWidth,
-                ),
-              ),
-            )
+                  width: size,
+                  height: size,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: loaderColor.withValues(alpha: 0.1),
+                      width: strokeWidth,
+                    ),
+                  ),
+                )
                 .animate(onPlay: (c) => c.repeat())
-                .shimmer(duration: 2.seconds, color: loaderColor.withValues(alpha: 0.2)),
+                .shimmer(
+                  duration: 2.seconds,
+                  color: loaderColor.withValues(alpha: 0.2),
+                ),
 
             // Brand Logo Pulsing
-            SvgPicture.asset(
-              'assets/coins_logo/hbadger_logo.svg',
-              width: size * 0.7,
-              height: size * 0.7,
-              colorFilter: ColorFilter.mode(loaderColor, BlendMode.srcIn),
-            )
+            Image.asset(
+                  'assets/coins_logo/hbadger_loader.png',
+                  width: size * 0.6,
+                  height: size * 0.6,
+                  color: loaderColor,
+                )
                 .animate(onPlay: (c) => c.repeat(reverse: true))
                 .scale(
                   begin: const Offset(0.8, 0.8),
@@ -61,22 +63,22 @@ class GriotLoader extends StatelessWidget {
 
             // Orbital dot
             Positioned(
-              top: 0,
-              child: Container(
-                width: strokeWidth * 1.5,
-                height: strokeWidth * 1.5,
-                decoration: BoxDecoration(
-                  color: loaderColor,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: loaderColor.withValues(alpha: 0.5),
-                      blurRadius: 4,
+                  top: 0,
+                  child: Container(
+                    width: strokeWidth * 1.5,
+                    height: strokeWidth * 1.5,
+                    decoration: BoxDecoration(
+                      color: loaderColor,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: loaderColor.withValues(alpha: 0.5),
+                          blurRadius: 4,
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-            )
+                  ),
+                )
                 .animate(onPlay: (c) => c.repeat())
                 .rotate(duration: 2.seconds, curve: Curves.linear),
           ],
@@ -177,28 +179,29 @@ class GriotPulseIndicator extends StatelessWidget {
         children: List.generate(dotCount, (index) {
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 1.5),
-            child: Container(
-              width: size * 0.25,
-              height: size * 0.25,
-              decoration: BoxDecoration(
-                color: dotColor.withValues(alpha: 0.8),
-                shape: BoxShape.circle,
-              ),
-            )
-                .animate(onPlay: (c) => c.repeat(reverse: true))
-                .scale(
-                  begin: const Offset(0.6, 0.6),
-                  end: const Offset(1.4, 1.4),
-                  delay: (index * 200).ms,
-                  duration: 600.ms,
-                  curve: Curves.easeInOut,
-                )
-                .fade(
-                  begin: 0.4,
-                  end: 1.0,
-                  delay: (index * 200).ms,
-                  duration: 600.ms,
-                ),
+            child:
+                Container(
+                      width: size * 0.25,
+                      height: size * 0.25,
+                      decoration: BoxDecoration(
+                        color: dotColor.withValues(alpha: 0.8),
+                        shape: BoxShape.circle,
+                      ),
+                    )
+                    .animate(onPlay: (c) => c.repeat(reverse: true))
+                    .scale(
+                      begin: const Offset(0.6, 0.6),
+                      end: const Offset(1.4, 1.4),
+                      delay: (index * 200).ms,
+                      duration: 600.ms,
+                      curve: Curves.easeInOut,
+                    )
+                    .fade(
+                      begin: 0.4,
+                      end: 1.0,
+                      delay: (index * 200).ms,
+                      duration: 600.ms,
+                    ),
           );
         }),
       ),

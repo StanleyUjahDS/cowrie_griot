@@ -41,8 +41,7 @@ class ChatGroup {
   }
 
   bool get hasImage {
-    return imageUrl != null &&
-        imageUrl!.trim().isNotEmpty;
+    return imageUrl != null && imageUrl!.trim().isNotEmpty;
   }
 
   // ==========================================================
@@ -65,25 +64,15 @@ class ChatGroup {
     return ChatGroup(
       id: id ?? this.id,
       name: name ?? this.name,
-      description:
-      description ?? this.description,
-      ownerWalletAddress:
-      ownerWalletAddress ??
-          this.ownerWalletAddress,
-      imageUrl:
-      imageUrl ?? this.imageUrl,
-      lastMessage:
-      lastMessage ?? this.lastMessage,
-      lastMessageAt:
-      lastMessageAt ?? this.lastMessageAt,
-      memberCount:
-      memberCount ?? this.memberCount,
-      unreadCount:
-      unreadCount ?? this.unreadCount,
-      isPrivate:
-      isPrivate ?? this.isPrivate,
-      isMuted:
-      isMuted ?? this.isMuted,
+      description: description ?? this.description,
+      ownerWalletAddress: ownerWalletAddress ?? this.ownerWalletAddress,
+      imageUrl: imageUrl ?? this.imageUrl,
+      lastMessage: lastMessage ?? this.lastMessage,
+      lastMessageAt: lastMessageAt ?? this.lastMessageAt,
+      memberCount: memberCount ?? this.memberCount,
+      unreadCount: unreadCount ?? this.unreadCount,
+      isPrivate: isPrivate ?? this.isPrivate,
+      isMuted: isMuted ?? this.isMuted,
     );
   }
 
@@ -91,52 +80,31 @@ class ChatGroup {
   // FROM JSON
   // ==========================================================
 
-  factory ChatGroup.fromJson(
-      Map<String, dynamic> json,
-      ) {
+  factory ChatGroup.fromJson(Map<String, dynamic> json) {
     return ChatGroup(
       id: json['id']?.toString() ?? '',
 
-      name:
-      json['name']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
 
-      description:
-      json['description']?.toString() ?? '',
+      description: json['description']?.toString() ?? '',
 
-      ownerWalletAddress:
-      json['ownerWalletAddress']
-          ?.toString() ??
-          '',
+      ownerWalletAddress: json['ownerWalletAddress']?.toString() ?? '',
 
-      imageUrl:
-      json['imageUrl']?.toString(),
+      imageUrl: json['imageUrl']?.toString(),
 
-      lastMessage:
-      json['lastMessage']?.toString() ?? '',
+      lastMessage: json['lastMessage']?.toString() ?? '',
 
-      lastMessageAt:
-      json['lastMessageAt'] != null
-          ? DateTime.tryParse(
-        json['lastMessageAt']
-            .toString(),
-      )
+      lastMessageAt: json['lastMessageAt'] != null
+          ? DateTime.tryParse(json['lastMessageAt'].toString())
           : null,
 
-      memberCount:
-      _parseInt(
-        json['memberCount'],
-      ),
+      memberCount: _parseInt(json['memberCount']),
 
-      unreadCount:
-      _parseInt(
-        json['unreadCount'],
-      ),
+      unreadCount: _parseInt(json['unreadCount']),
 
-      isPrivate:
-      json['isPrivate'] ?? true,
+      isPrivate: json['isPrivate'] ?? true,
 
-      isMuted:
-      json['isMuted'] ?? false,
+      isMuted: json['isMuted'] ?? false,
     );
   }
 
@@ -149,12 +117,10 @@ class ChatGroup {
       'id': id,
       'name': name,
       'description': description,
-      'ownerWalletAddress':
-      ownerWalletAddress,
+      'ownerWalletAddress': ownerWalletAddress,
       'imageUrl': imageUrl,
       'lastMessage': lastMessage,
-      'lastMessageAt':
-      lastMessageAt?.toIso8601String(),
+      'lastMessageAt': lastMessageAt?.toIso8601String(),
       'memberCount': memberCount,
       'unreadCount': unreadCount,
       'isPrivate': isPrivate,
@@ -171,10 +137,7 @@ class ChatGroup {
       return value;
     }
 
-    return int.tryParse(
-      value?.toString() ?? '',
-    ) ??
-        0;
+    return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 
   // ==========================================================
@@ -182,15 +145,12 @@ class ChatGroup {
   // ==========================================================
 
   @override
-  bool operator ==(
-      Object other,
-      ) {
+  bool operator ==(Object other) {
     if (identical(this, other)) {
       return true;
     }
 
-    return other is ChatGroup &&
-        other.id == id;
+    return other is ChatGroup && other.id == id;
   }
 
   @override

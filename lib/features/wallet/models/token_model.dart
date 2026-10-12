@@ -31,6 +31,10 @@ class TokenModel {
   final num? volume24hUsd;
   final num? liquidityUsd;
   final DateTime? priceUpdatedAt;
+  final bool isSpam;
+  final bool isTradeable;
+  final String securityStatus;
+  final List<String> securityReasons;
 
   const TokenModel({
     required this.name,
@@ -61,23 +65,34 @@ class TokenModel {
     this.volume24hUsd,
     this.liquidityUsd,
     this.priceUpdatedAt,
+    this.isSpam = false,
+    this.isTradeable = true,
+    this.securityStatus = '',
+    this.securityReasons = const [],
   });
 
   String get identity {
     // CONTRACT: use network + tokenAddress as token identity
     // Always use the canonical chain key.  The API may return `bnb`, `bsc`,
     // or `binance`, which otherwise makes the same native asset appear twice.
-    final net = ChainAssets.normalize(rawNetwork.isNotEmpty ? rawNetwork : chain);
+    final net = ChainAssets.normalize(
+      rawNetwork.isNotEmpty ? rawNetwork : chain,
+    );
     if (isNative) return '$net:native';
     return '$net:${contractAddress.toLowerCase().trim()}';
   }
 
   bool get isNative {
     final address = contractAddress.trim().toLowerCase();
-    final network = ChainAssets.normalize(rawNetwork.isNotEmpty ? rawNetwork : chain);
+    final network = ChainAssets.normalize(
+      rawNetwork.isNotEmpty ? rawNetwork : chain,
+    );
     final normalizedSymbol = symbol.trim().toLowerCase();
     final nativeAlias = switch (network) {
-      'ethereum' || 'arbitrum' || 'optimism' || 'base' => normalizedSymbol == 'eth',
+      'ethereum' ||
+      'arbitrum' ||
+      'optimism' ||
+      'base' => normalizedSymbol == 'eth',
       'bsc' => normalizedSymbol == 'bnb',
       'polygon' => normalizedSymbol == 'pol' || normalizedSymbol == 'matic',
       'avalanche' => normalizedSymbol == 'avax',
@@ -86,7 +101,8 @@ class TokenModel {
     return address.isEmpty ||
         address == '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' ||
         address == '0x0000000000000000000000000000000000000000' ||
-        (network == 'polygon' && address == '0x0000000000000000000000000000000000001010') ||
+        (network == 'polygon' &&
+            address == '0x0000000000000000000000000000000000001010') ||
         nativeAlias;
   }
 
@@ -147,6 +163,17 @@ class TokenModel {
           )
         : <String, String>{};
 
+    final classification = json['classification'] is Map
+        ? Map<String, dynamic>.from(json['classification'] as Map)
+        : const <String, dynamic>{};
+    final security = json['security'] is Map
+        ? Map<String, dynamic>.from(json['security'] as Map)
+        : const <String, dynamic>{};
+    final reasonsRaw = classification['reasons'] ?? security['reasons'];
+    final securityReasons = reasonsRaw is List
+        ? reasonsRaw.map((reason) => reason.toString()).toList()
+        : <String>[];
+
     return TokenModel(
       name: _string(json['name']),
       symbol: _string(json['symbol']),
@@ -195,6 +222,18 @@ class TokenModel {
       priceUpdatedAt: json['priceUpdatedAt'] != null
           ? DateTime.tryParse(json['priceUpdatedAt'].toString())
           : null,
+      isSpam:
+          json['isSpam'] == true ||
+          classification['isSpam'] == true ||
+          security['isSpam'] == true,
+      isTradeable: json['isTradeable'] is bool
+          ? json['isTradeable'] as bool
+          : classification['isTradeable'] is bool
+          ? classification['isTradeable'] as bool
+          : true,
+      securityStatus: (classification['status'] ?? security['status'] ?? '')
+          .toString(),
+      securityReasons: securityReasons,
     );
   }
 
@@ -228,6 +267,10 @@ class TokenModel {
       'volume24hUsd': volume24hUsd,
       'liquidityUsd': liquidityUsd,
       'priceUpdatedAt': priceUpdatedAt?.toIso8601String(),
+      'isSpam': isSpam,
+      'isTradeable': isTradeable,
+      'securityStatus': securityStatus,
+      'securityReasons': securityReasons,
     };
   }
 

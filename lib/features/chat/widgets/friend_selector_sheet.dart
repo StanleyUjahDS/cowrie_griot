@@ -5,6 +5,8 @@ import '../../users/models/user_model.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
 import '../../../core/ui/widgets/griot_bottom_sheet.dart';
 import '../../../core/ui/widgets/griot_plus_badge.dart';
+import '../../../core/ui/widgets/griot_pioneer_badge.dart';
+import '../../../core/ui/widgets/griot_avatar.dart';
 
 class FriendSelectorSheet extends StatefulWidget {
   final List<String> initialSelectedIds;
@@ -23,17 +25,38 @@ class FriendSelectorSheet extends StatefulWidget {
     List<String> initialSelectedIds = const [],
     List<String> disabledIds = const [],
     String title = 'Select Friends',
+    bool asDialog = false,
   }) {
+    final selector = FriendSelectorSheet(
+      initialSelectedIds: initialSelectedIds,
+      disabledIds: disabledIds,
+      title: title,
+    );
+    if (asDialog) {
+      return showDialog<List<UserModel>>(
+        context: context,
+        useRootNavigator: true,
+        barrierDismissible: true,
+        builder: (context) => Dialog(
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 24,
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: selector,
+        ),
+      );
+    }
     return showModalBottomSheet<List<UserModel>>(
       context: context,
       isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
+      useSafeArea: true,
+      requestFocus: false,
       useRootNavigator: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => FriendSelectorSheet(
-        initialSelectedIds: initialSelectedIds,
-        disabledIds: disabledIds,
-        title: title,
-      ),
+      builder: (context) => selector,
     );
   }
 
@@ -42,9 +65,11 @@ class FriendSelectorSheet extends StatefulWidget {
 }
 
 class _FriendSelectorSheetState extends State<FriendSelectorSheet> {
+  static const _pageSize = 30;
   late List<UserModel> _selectedFriends;
   String _searchQuery = '';
   bool _initialSelectionApplied = false;
+  int _visibleCount = _pageSize;
 
   @override
   void initState() {
@@ -115,8 +140,10 @@ class _FriendSelectorSheetState extends State<FriendSelectorSheet> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               child: TextField(
-                onChanged: (v) =>
-                    setState(() => _searchQuery = v.trim().toLowerCase()),
+                onChanged: (v) => setState(() {
+                  _searchQuery = v.trim().toLowerCase();
+                  _visibleCount = _pageSize;
+                }),
                 decoration: InputDecoration(
                   hintText: 'Search friends...',
                   prefixIcon: const Icon(Icons.search_rounded),
@@ -169,11 +196,32 @@ class _FriendSelectorSheetState extends State<FriendSelectorSheet> {
                     );
                   }
 
+                  final visibleFriends = filteredFriends
+                      .take(_visibleCount)
+                      .toList();
+
                   return ListView.builder(
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 100),
-                    itemCount: filteredFriends.length,
+                    itemCount:
+                        visibleFriends.length +
+                        (visibleFriends.length < filteredFriends.length
+                            ? 1
+                            : 0),
                     itemBuilder: (context, index) {
-                      final friend = filteredFriends[index];
+                      if (index == visibleFriends.length) {
+                        return Center(
+                          child: TextButton.icon(
+                            onPressed: () =>
+                                setState(() => _visibleCount += _pageSize),
+                            icon: const Icon(Icons.expand_more_rounded),
+                            label: Text(
+                              'Load more (${filteredFriends.length - visibleFriends.length} remaining)',
+                            ),
+                          ),
+                        );
+                      }
+
+                      final friend = visibleFriends[index];
                       final isSelected = _selectedFriends.any(
                         (f) => f.id == friend.id,
                       );
@@ -201,6 +249,10 @@ class _FriendSelectorSheetState extends State<FriendSelectorSheet> {
                             ),
                             if (friend.isPlus)
                               const GriotPlusBadge(isPlus: true, compact: true),
+                            if (friend.isPioneer) ...[
+                              const SizedBox(width: 4),
+                              const GriotPioneerBadge(compact: true),
+                            ],
                           ],
                         ),
                         subtitle: Text(
@@ -215,13 +267,9 @@ class _FriendSelectorSheetState extends State<FriendSelectorSheet> {
                         ),
                         secondary: Opacity(
                           opacity: isDisabled ? 0.5 : 1.0,
-                          child: CircleAvatar(
-                            backgroundImage: friend.avatarUrl != null
-                                ? NetworkImage(friend.avatarUrl!)
-                                : null,
-                            child: friend.avatarUrl == null
-                                ? const Icon(Icons.person)
-                                : null,
+                          child: GriotAvatar(
+                            avatarUrl: friend.avatarUrl,
+                            radius: 20,
                           ),
                         ),
                         checkboxShape: RoundedRectangleBorder(

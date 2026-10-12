@@ -7,11 +7,7 @@ class LinkPreviewWidget extends StatelessWidget {
   final String url;
   final bool isMe;
 
-  const LinkPreviewWidget({
-    super.key,
-    required this.url,
-    required this.isMe,
-  });
+  const LinkPreviewWidget({super.key, required this.url, required this.isMe});
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +15,8 @@ class LinkPreviewWidget extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     final uri = Uri.tryParse(url);
-    final isGriotLink = uri != null &&
+    final isGriotLink =
+        uri != null &&
         (uri.host.toLowerCase() == 'griot.network' ||
             uri.host.toLowerCase() == 'www.griot.network');
     if (isGriotLink) {
@@ -43,8 +40,8 @@ class LinkPreviewWidget extends StatelessWidget {
         child: AnyLinkPreview(
           link: url,
           cache: const Duration(hours: 24),
-          backgroundColor: isMe 
-              ? colorScheme.onPrimary.withValues(alpha: 0.1) 
+          backgroundColor: isMe
+              ? colorScheme.onPrimary.withValues(alpha: 0.1)
               : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
           placeholderWidget: Container(
             height: 100,
@@ -66,9 +63,10 @@ class LinkPreviewWidget extends StatelessWidget {
                     url,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isMe ? colorScheme.onPrimary.withValues(alpha: 0.7) : colorScheme.onSurface,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: isMe
+                          ? colorScheme.onPrimary.withValues(alpha: 0.7)
+                          : colorScheme.onSurface,
                     ),
                   ),
                 ),
@@ -80,9 +78,12 @@ class LinkPreviewWidget extends StatelessWidget {
             color: isMe ? colorScheme.onPrimary : colorScheme.onSurface,
           ),
           bodyStyle: theme.textTheme.labelSmall?.copyWith(
-            color: isMe ? colorScheme.onPrimary.withValues(alpha: 0.7) : colorScheme.onSurfaceVariant,
+            color: isMe
+                ? colorScheme.onPrimary.withValues(alpha: 0.7)
+                : colorScheme.onSurfaceVariant,
           ),
-          onTap: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+          onTap: () =>
+              launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
         ),
       ),
     );
@@ -93,27 +94,36 @@ class LinkPreviewWidget extends StatelessWidget {
     Uri uri,
     ColorScheme colorScheme,
   ) {
+    final theme = Theme.of(context);
     final segments = uri.pathSegments;
     final kind = segments.isNotEmpty ? segments.first.toLowerCase() : '';
     final value = segments.length > 1 ? segments[1] : null;
     final (String title, String subtitle, IconData icon) = switch (kind) {
       'group' || 'circle' => (
-          value == null ? 'Griot group' : 'Griot group · @$value',
-          'Open this group in Griot',
-          Icons.groups_rounded,
-        ),
+        value == null ? 'Griot group' : 'Griot group · @$value',
+        'Open this group in Griot',
+        Icons.groups_rounded,
+      ),
       'channel' => (
-          value == null ? 'Griot channel' : 'Griot channel · @$value',
-          'Open this channel in Griot',
-          Icons.campaign_rounded,
-        ),
+        value == null ? 'Griot channel' : 'Griot channel · @$value',
+        'Open this channel in Griot',
+        Icons.campaign_rounded,
+      ),
       'profile' => (
-          value == null ? 'Griot profile' : 'Griot profile · @$value',
-          'View this profile in Griot',
-          Icons.person_rounded,
-        ),
-      'join' => ('Join Griot Network', 'Open your invitation in Griot', Icons.link_rounded),
-      'plus' => ('Griot Plus', 'Open Griot Plus in the app', Icons.star_rounded),
+        value == null ? 'Griot profile' : 'Griot profile · @$value',
+        'View this profile in Griot',
+        Icons.person_rounded,
+      ),
+      'join' => (
+        'Join Griot Network',
+        'Open your invitation in Griot',
+        Icons.link_rounded,
+      ),
+      'plus' => (
+        'Griot Plus',
+        'Open Griot Plus in the app',
+        Icons.star_rounded,
+      ),
       _ => ('Griot Network', 'Open in Griot', Icons.public_rounded),
     };
 
@@ -146,18 +156,36 @@ class LinkPreviewWidget extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontWeight: FontWeight.w700,
-                            color: isMe ? colorScheme.onPrimary : colorScheme.onSurface)),
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: isMe
+                            ? colorScheme.onPrimary
+                            : colorScheme.onSurface,
+                      ),
+                    ),
                     const SizedBox(height: 3),
-                    Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 12,
-                            color: isMe ? colorScheme.onPrimary.withValues(alpha: 0.72) : colorScheme.onSurfaceVariant)),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: isMe
+                            ? colorScheme.onPrimary.withValues(alpha: 0.72)
+                            : colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                   ],
                 ),
               ),
-              Icon(Icons.arrow_forward_ios_rounded, size: 14,
-                  color: isMe ? colorScheme.onPrimary : colorScheme.primary),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 14,
+                color: isMe ? colorScheme.onPrimary : colorScheme.primary,
+              ),
             ],
           ),
         ),

@@ -556,6 +556,21 @@ class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: () => context.go('/welcome_one'),
+                    icon: const Icon(
+                      Icons.add_circle_outline_rounded,
+                      size: 18,
+                    ),
+                    label: const Text('First time here? Create a new wallet'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: colors.primary,
+                      textStyle: text.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),

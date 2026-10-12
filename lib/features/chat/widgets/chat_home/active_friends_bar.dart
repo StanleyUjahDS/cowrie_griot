@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../../providers/messaging_provider.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/ui/widgets/griot_avatar.dart';
 import '../../../../core/ui/widgets/griot_plus_badge.dart';
+import '../../../../core/ui/widgets/griot_pioneer_badge.dart';
 
 class ActiveFriendsBar extends StatelessWidget {
   const ActiveFriendsBar({super.key});
@@ -50,20 +51,9 @@ class ActiveFriendsBar extends StatelessWidget {
                       children: [
                         Stack(
                           children: [
-                            CircleAvatar(
+                            GriotAvatar(
                               radius: 28,
-                              backgroundColor: colors.primary.withValues(
-                                alpha: 0.1,
-                              ),
-                              backgroundImage: user.avatarUrl != null
-                                  ? NetworkImage(user.avatarUrl!)
-                                  : null,
-                              child: user.avatarUrl == null
-                                  ? SvgPicture.asset(
-                                      'assets/coins_logo/hbadger_logo.svg',
-                                      width: 32,
-                                    )
-                                  : null,
+                              avatarUrl: user.avatarUrl,
                             ),
                             Positioned(
                               right: 2,
@@ -106,6 +96,10 @@ class ActiveFriendsBar extends StatelessWidget {
                                   isPlus: true,
                                   compact: true,
                                 ),
+                              if (user.isPioneer) ...[
+                                const SizedBox(width: 4),
+                                const GriotPioneerBadge(compact: true),
+                              ],
                             ],
                           ),
                         ),

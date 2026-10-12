@@ -7,6 +7,7 @@ import android.view.View
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
+import kotlin.math.roundToInt
 import com.griotcowrie.griot_cowrie.R
 import com.google.android.gms.ads.nativead.NativeAd
 import com.google.android.gms.ads.nativead.NativeAdView
@@ -27,6 +28,10 @@ class GriotNativeAdFactory(private val layoutInflater: LayoutInflater) : NativeA
         var surfaceColor = 0xFF0D231D.toInt()
         var onSurfaceColor = 0xFFF5F7FA.toInt()
         var onSurfaceVariantColor = 0xFFB6BEC9.toInt()
+        val compact = customOptions?.get("compact") as? Boolean ?: false
+
+        fun dp(value: Int): Int =
+            (value * adView.resources.displayMetrics.density).roundToInt()
 
         // Extract colors from customOptions with robust parsing
         customOptions?.let { options ->
@@ -60,7 +65,7 @@ class GriotNativeAdFactory(private val layoutInflater: LayoutInflater) : NativeA
         // Body
         adView.bodyView = adView.findViewById(R.id.ad_body)
         (adView.bodyView as? TextView)?.let {
-            if (nativeAd.body == null) {
+            if (compact || nativeAd.body == null) {
                 it.visibility = View.GONE
             } else {
                 it.visibility = View.VISIBLE
@@ -71,6 +76,8 @@ class GriotNativeAdFactory(private val layoutInflater: LayoutInflater) : NativeA
 
         // Call to action
         adView.callToActionView = adView.findViewById(R.id.ad_call_to_action)
+        adView.findViewById<View>(R.id.ad_compact_spacer)?.visibility =
+            if (compact) View.VISIBLE else View.GONE
         (adView.callToActionView as? Button)?.let {
             if (nativeAd.callToAction == null) {
                 it.visibility = View.INVISIBLE
@@ -84,6 +91,12 @@ class GriotNativeAdFactory(private val layoutInflater: LayoutInflater) : NativeA
                 shape.setColor(primaryColor)
                 it.background = shape
                 it.setTextColor(onPrimaryColor)
+            }
+            if (compact) {
+                it.layoutParams = it.layoutParams.apply {
+                    height = dp(30)
+                }
+                it.setPadding(dp(8), 0, dp(8), 0)
             }
         }
 
@@ -111,8 +124,37 @@ class GriotNativeAdFactory(private val layoutInflater: LayoutInflater) : NativeA
             }
         }
 
+        if (compact) {
+            (adView.iconView as? ImageView)?.layoutParams =
+                (adView.iconView as? ImageView)?.layoutParams?.apply {
+                    width = dp(32)
+                    height = dp(32)
+                    (this as? android.widget.LinearLayout.LayoutParams)?.marginEnd = dp(8)
+                }
+        }
+
         // Media
         adView.mediaView = adView.findViewById(R.id.ad_media)
+        if (compact) {
+            (adView.mediaView?.layoutParams as? android.widget.LinearLayout.LayoutParams)?.let {
+                // The Game Center placement is a full-width tile. Let the
+                // media panel use that width so video does not look like a
+                // small square floating in unused side space.
+                it.width = android.widget.LinearLayout.LayoutParams.MATCH_PARENT
+                it.height = dp(190)
+                it.weight = 0f
+                it.gravity = android.view.Gravity.CENTER_HORIZONTAL
+                it.topMargin = dp(8)
+                it.marginStart = dp(2)
+                it.marginEnd = dp(2)
+                adView.mediaView?.layoutParams = it
+            }
+        }
+
+        if (compact) {
+            (adView.findViewById<View>(R.id.ad_call_to_action)?.layoutParams
+                as? android.widget.LinearLayout.LayoutParams)?.topMargin = dp(6)
+        }
 
         // Advertiser
         adView.advertiserView = adView.findViewById(R.id.ad_advertiser)

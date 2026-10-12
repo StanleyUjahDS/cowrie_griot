@@ -10,7 +10,7 @@ class MessageSyncService {
   final MessageCacheService _cache;
   final MessagingApiService _api;
   final Connectivity _connectivity;
-  
+
   bool _isSyncing = false;
   StreamSubscription? _connectivitySubscription;
 
@@ -18,12 +18,14 @@ class MessageSyncService {
     required MessageCacheService cache,
     required MessagingApiService api,
     Connectivity? connectivity,
-  })  : _cache = cache,
-        _api = api,
-        _connectivity = connectivity ?? Connectivity();
+  }) : _cache = cache,
+       _api = api,
+       _connectivity = connectivity ?? Connectivity();
 
   void initialize() {
-    _connectivitySubscription = _connectivity.onConnectivityChanged.listen((results) {
+    _connectivitySubscription = _connectivity.onConnectivityChanged.listen((
+      results,
+    ) {
       if (results.any((result) => result != ConnectivityResult.none)) {
         retryPendingMessages();
       }
@@ -57,11 +59,10 @@ class MessageSyncService {
 
           // Delete the temporary local message
           await _cache.deleteLocalMessage(message.id);
-          
+
           // Save the real server message
           await _cache.saveMessage(realMessage);
           await _cache.markSynced(realMessage.id);
-          
         } catch (e) {
           debugPrint('Sync: Failed to send pending message ${message.id}: $e');
           // We keep it in the cache for next retry
@@ -84,7 +85,7 @@ class MessageSyncService {
   Future<void> saveIncomingMessage(ChatMessage message) async {
     await _cache.saveMessage(message);
     await _cache.markSynced(message.id);
-    
+
     // Automatically send delivered receipt if it's not our own message
     // We don't have currentUserId here, so we might need it passed in or handle it elsewhere.
   }

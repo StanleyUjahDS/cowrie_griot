@@ -21,9 +21,12 @@ import '../widgets/chatting/attachment_sheet.dart';
 import '../widgets/chatting/media_preview_sheet.dart';
 import '../widgets/chatting/day_separator.dart';
 import '../widgets/chatting/message_bubble.dart';
+import '../widgets/chatting/reply_swipe.dart';
 import '../widgets/chatting/message_input.dart';
+import '../widgets/chatting/pinned_messages_banner.dart';
 import '../widgets/chatting/tip_sheet.dart';
 import '../widgets/chatting/voice_recording_sheet.dart';
+import '../widgets/conversation_campfire_button.dart';
 import '../widgets/conversation_call_button.dart';
 import '../widgets/friend_selector_sheet.dart';
 import '../widgets/chat_wallpaper.dart';
@@ -31,11 +34,13 @@ import '../widgets/chat_wallpaper.dart';
 class GroupChatScreen extends StatefulWidget {
   final String conversationId;
   final Conversation? initialConversation;
+  final String? initialMessageId;
 
   const GroupChatScreen({
     super.key,
     required this.conversationId,
     this.initialConversation,
+    this.initialMessageId,
   });
 
   @override
@@ -50,6 +55,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   Conversation? _conversation;
   Map<String, ChatUser> _groupMembers = <String, ChatUser>{};
   ChatMessage? _replyingTo;
+  ChatMessage? _editingMessage;
   Timer? _typingTimer;
   Timer? _highlightTimer;
   String? _highlightedMessageId;
@@ -61,6 +67,14 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<MessagingProvider>().markNotificationsSeen();
+    });
+    if (widget.initialMessageId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _jumpToMessage(widget.initialMessageId!);
+      });
+    }
     controller.addListener(_onComposerChanged);
     scrollController.addListener(_onScrollChanged);
     _conversation = widget.initialConversation;
@@ -76,7 +90,27 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
         (_) => _loadActiveGroupCall(),
       );
       provider.loadTipConfig();
+      if (widget.initialMessageId == null) {
+        Future.delayed(
+          const Duration(milliseconds: 700),
+          _positionAtUnreadBoundary,
+        );
+      }
     });
+  }
+
+  void _positionAtUnreadBoundary() {
+    if (!mounted || !scrollController.hasClients || _conversation == null) {
+      return;
+    }
+    final unread = _conversation!.unreadCount;
+    if (unread <= 0) return;
+    final target = (unread * 76.0).clamp(
+      0.0,
+      scrollController.position.maxScrollExtent,
+    );
+    scrollController.jumpTo(target);
+    if (!_showScrollToBottom) setState(() => _showScrollToBottom = true);
   }
 
   Future<void> _loadActiveGroupCall() async {
@@ -102,6 +136,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     final provider = Provider.of<MessagingProvider>(context, listen: false);
     provider.joinConversation(widget.conversationId);
     provider.loadMessages(widget.conversationId, refresh: true);
+    provider.loadPinnedMessages(widget.conversationId);
 
     if (_conversation == null) {
       if (!mounted) return;
@@ -285,11 +320,135 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     }
   }
 
+  Future<void> _showMessageSearch() async {
+    final provider = context.read<MessagingProvider>();
+    final messages = provider.getMessagesForConversation(widget.conversationId);
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        var query = '';
+        var visibleCount = 40;
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final results = messages
+                .where(
+                  (m) =>
+                      m.text.toLowerCase().contains(query.toLowerCase().trim()),
+                )
+                .toList(growable: false);
+            return Dialog.fullscreen(
+              child: Scaffold(
+                appBar: AppBar(
+                  title: const Text('Search messages'),
+                  leading: IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => Navigator.pop(dialogContext),
+                  ),
+                ),
+                body: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: Column(
+                    children: [
+                      TextField(
+                        autofocus: true,
+                        textInputAction: TextInputAction.search,
+                        decoration: const InputDecoration(
+                          hintText: 'Search this group',
+                          prefixIcon: Icon(Icons.search_rounded),
+                        ),
+                        onChanged: (value) => setState(() {
+                          query = value;
+                          visibleCount = 40;
+                        }),
+                      ),
+                      const SizedBox(height: 12),
+                      Expanded(
+                        child: query.trim().isEmpty
+                            ? const Center(
+                                child: Text('Search messages in this group'),
+                              )
+                            : results.isEmpty
+                            ? const Center(child: Text('No messages found'))
+                            : ListView.builder(
+                                itemCount:
+                                    results.take(visibleCount).length +
+                                    (results.length > visibleCount ? 1 : 0),
+                                itemBuilder: (_, index) {
+                                  if (index >= visibleCount) {
+                                    return Center(
+                                      child: TextButton.icon(
+                                        onPressed: () => setState(() {
+                                          visibleCount += 40;
+                                        }),
+                                        icon: const Icon(
+                                          Icons.expand_more_rounded,
+                                        ),
+                                        label: Text(
+                                          'View more (${results.length - visibleCount} remaining)',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                  final result = results[index];
+                                  return Card(
+                                    margin: const EdgeInsets.only(bottom: 10),
+                                    child: ListTile(
+                                      leading: const Icon(Icons.forum_outlined),
+                                      title: Text(
+                                        result.text,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      subtitle: Text(
+                                        '${result.createdAt.hour.toString().padLeft(2, '0')}:${result.createdAt.minute.toString().padLeft(2, '0')}',
+                                      ),
+                                      onTap: () => Navigator.pop(
+                                        dialogContext,
+                                        result.id,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+    if (selected != null && mounted) await _jumpToMessage(selected);
+  }
+
   Future<void> _sendMessage() async {
     final text = controller.text.trim();
     if (text.isEmpty || text.length > 4000) return;
 
     final provider = Provider.of<MessagingProvider>(context, listen: false);
+
+    if (_editingMessage != null) {
+      final message = _editingMessage!;
+      if (text == message.text) {
+        _cancelEditing();
+        return;
+      }
+      try {
+        await provider.editMessage(message.id, text);
+        if (mounted) {
+          _cancelEditing();
+          NotificationService.showSuccess(context, 'Message edited');
+        }
+      } catch (_) {
+        if (mounted) {
+          NotificationService.showError(context, 'Could not edit message');
+        }
+      }
+      return;
+    }
+
     controller.clear();
     final replyId = _replyingTo?.id;
     setState(() => _replyingTo = null);
@@ -306,6 +465,25 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
         NotificationService.showError(context, 'Message failed to send');
       }
     }
+  }
+
+  void _beginEditing(ChatMessage message) {
+    setState(() {
+      _editingMessage = message;
+      _replyingTo = null;
+      controller.text = message.text;
+      controller.selection = TextSelection.collapsed(
+        offset: controller.text.length,
+      );
+    });
+  }
+
+  void _cancelEditing() {
+    if (!mounted) return;
+    setState(() {
+      _editingMessage = null;
+      controller.clear();
+    });
   }
 
   void _showChatOptionsSheet(
@@ -345,6 +523,14 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                   color: colorScheme.onSurfaceVariant.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(2),
                 ),
+              ),
+              _buildOptionTile(
+                icon: Icons.search_rounded,
+                label: 'Search Messages',
+                onTap: () {
+                  Navigator.pop(context);
+                  _showMessageSearch();
+                },
               ),
               _buildOptionTile(
                 icon: Icons.people_rounded,
@@ -468,7 +654,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
         ),
       ),
       child: ClipOval(
-        child: conversation.imageUrl != null
+        child: conversation.imageUrl?.trim().isNotEmpty == true
             ? Image.network(
                 conversation.imageUrl!,
                 fit: BoxFit.cover,
@@ -494,10 +680,28 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
       },
       child: Consumer<MessagingProvider>(
         builder: (context, provider, child) {
-          final currentConversation = provider.conversations.firstWhere(
-            (c) => c.id == widget.conversationId,
-            orElse: () => _conversation!,
+          final providerConversation = provider.conversations
+              .where((c) => c.id == widget.conversationId)
+              .firstOrNull;
+          // The detail response contains the authoritative member role. Keep
+          // it ahead of the lightweight conversation-list row so owners and
+          // admins do not lose the pin action while the list is stale.
+          final seedConversation = _conversation ?? providerConversation!;
+          // Conversation-list rows can be stale when the group avatar was
+          // just updated. Prefer the provider's refreshed image/name while
+          // retaining the detail response for fields it does not include.
+          final currentConversation = seedConversation.copyWith(
+            imageUrl:
+                providerConversation?.imageUrl ?? seedConversation.imageUrl,
+            name: providerConversation?.name ?? seedConversation.name,
+            role: providerConversation?.role ?? seedConversation.role,
+            ownerId: providerConversation?.ownerId ?? seedConversation.ownerId,
           );
+          final currentUserId = context.read<UserProvider>().user?.id;
+          final canManageMessages =
+              currentConversation.role == 'owner' ||
+              currentConversation.role == 'admin' ||
+              currentConversation.ownerId == currentUserId;
 
           final typingUsers = provider.typingUsers[widget.conversationId] ?? {};
 
@@ -507,20 +711,23 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
               useSafeArea: true,
               resizeToAvoidBottomInset: true,
               floatingActionButton: _showScrollToBottom
-                  ? Padding(
-                      padding: const EdgeInsets.only(bottom: 60),
-                      child: FloatingActionButton.small(
-                        heroTag: 'group-scroll-to-bottom-fab',
-                        onPressed: _scrollToBottom,
-                        backgroundColor: colorScheme.surface.withValues(
-                          alpha: 0.9,
-                        ),
-                        foregroundColor: colorScheme.primary,
-                        elevation: 4,
-                        shape: const CircleBorder(),
-                        child: const Icon(
-                          Icons.arrow_downward_rounded,
-                          size: 18,
+                  ? HeroMode(
+                      enabled: false,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 84),
+                        child: FloatingActionButton.small(
+                          heroTag: 'group-scroll-to-bottom-fab',
+                          onPressed: _scrollToBottom,
+                          backgroundColor: colorScheme.surface.withValues(
+                            alpha: 0.9,
+                          ),
+                          foregroundColor: colorScheme.primary,
+                          elevation: 4,
+                          shape: const CircleBorder(),
+                          child: const Icon(
+                            Icons.arrow_downward_rounded,
+                            size: 18,
+                          ),
                         ),
                       ),
                     )
@@ -571,9 +778,13 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                   ),
                 ),
                 actions: [
-                  ConversationCallButton(
+                  GroupConversationCallButton(
                     conversationId: widget.conversationId,
-                    conversationType: 'group',
+                    canCreateCampfire:
+                        currentConversation.role == 'owner' ||
+                        currentConversation.role == 'admin' ||
+                        currentConversation.ownerId ==
+                            context.read<UserProvider>().user?.id,
                   ),
                   IconButton(
                     onPressed: () => TipSheet.show(
@@ -596,6 +807,13 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
               child: ChatWallpaper(
                 child: Column(
                   children: [
+                    // Keep the conversation-scoped Campfire visible in the
+                    // chat itself, not only on the group details page.
+                    ConversationCampfireStatusCard(
+                      conversationId: widget.conversationId,
+                      conversationType: 'group',
+                      canCreate: canManageMessages,
+                    ),
                     if (_activeGroupCall != null)
                       MaterialBanner(
                         leading: Icon(
@@ -625,6 +843,43 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                           ),
                         ],
                       ),
+                    Builder(
+                      builder: (context) {
+                        final pinnedIds = provider.pinnedMessageIds(
+                          widget.conversationId,
+                        );
+                        final pinned =
+                            provider
+                                .getMessagesForConversation(
+                                  widget.conversationId,
+                                )
+                                .where(
+                                  (message) =>
+                                      pinnedIds.contains(message.id) ||
+                                      (message.clientMessageId != null &&
+                                          pinnedIds.contains(
+                                            message.clientMessageId,
+                                          )),
+                                )
+                                .toList()
+                              ..sort((a, b) {
+                                int indexOf(ChatMessage message) {
+                                  final index = pinnedIds.indexOf(message.id);
+                                  if (index >= 0) return index;
+                                  final clientId = message.clientMessageId;
+                                  return clientId == null
+                                      ? pinnedIds.length
+                                      : pinnedIds.indexOf(clientId);
+                                }
+
+                                return indexOf(a).compareTo(indexOf(b));
+                              });
+                        return PinnedMessagesBanner(
+                          messages: pinned,
+                          onMessageTap: (message) => _jumpToMessage(message.id),
+                        );
+                      },
+                    ),
                     Expanded(
                       child: ListView.builder(
                         controller: scrollController,
@@ -672,30 +927,44 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                                     date: message.createdAt,
                                     colorScheme: colorScheme,
                                   ),
-                                MessageBubble(
-                                  key: ValueKey(message.id),
-                                  message: message,
-                                  isMe: isMe,
-                                  isDark: isDark,
-                                  colorScheme: colorScheme,
-                                  onReply: (m) =>
-                                      setState(() => _replyingTo = m),
-                                  sender: _groupMembers[message.senderId],
-                                  onSenderTap: isMe
-                                      ? null
-                                      : () => _openSenderProfile(
-                                          message.senderId,
-                                        ),
-                                  onReplyTap: message.replyToMessageId == null
-                                      ? null
-                                      : () => _jumpToMessage(
-                                          message.replyToMessageId!,
-                                        ),
-                                  isHighlighted:
-                                      _highlightedMessageId == message.id,
-                                  conversation: currentConversation,
-                                  isFirstInGroup: isFirstInGroup,
-                                  isLastInGroup: isLastInGroup,
+                                ReplySwipe(
+                                  key: ValueKey('reply-${message.id}'),
+                                  background: _replySwipeBackground(
+                                    colorScheme,
+                                  ),
+                                  onReply: () =>
+                                      setState(() => _replyingTo = message),
+                                  child: MessageBubble(
+                                    key: ValueKey(message.id),
+                                    message: message,
+                                    isMe: isMe,
+                                    isDark: isDark,
+                                    colorScheme: colorScheme,
+                                    onReply: (m) =>
+                                        setState(() => _replyingTo = m),
+                                    sender: _groupMembers[message.senderId],
+                                    memberDirectory: _groupMembers,
+                                    onSenderTap: isMe
+                                        ? null
+                                        : () => _openSenderProfile(
+                                            message.senderId,
+                                          ),
+                                    onReplyTap: message.replyToMessageId == null
+                                        ? null
+                                        : () => _jumpToMessage(
+                                            message.replyToMessageId!,
+                                          ),
+                                    isHighlighted:
+                                        _highlightedMessageId == message.id,
+                                    conversation: currentConversation,
+                                    canPinMessage: canManageMessages,
+                                    isPinned: provider
+                                        .pinnedMessageIds(widget.conversationId)
+                                        .contains(message.id),
+                                    onEdit: () => _beginEditing(message),
+                                    isFirstInGroup: isFirstInGroup,
+                                    isLastInGroup: isLastInGroup,
+                                  ),
                                 ),
                               ],
                             ),
@@ -739,6 +1008,14 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     );
   }
 
+  Widget _replySwipeBackground(ColorScheme colors) => Align(
+    alignment: Alignment.centerLeft,
+    child: Padding(
+      padding: const EdgeInsets.only(left: 20),
+      child: Icon(Icons.reply_rounded, color: colors.primary),
+    ),
+  );
+
   Widget _buildComposer(Conversation conversation, MessagingProvider provider) {
     final role = conversation.role;
     final currentUserId = context.read<UserProvider>().user?.id;
@@ -768,6 +1045,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (_replyingTo != null) _buildReplyPreview(),
+        if (_editingMessage != null) const SizedBox(height: 0),
         MessageInput(
           controller: controller,
           colorScheme: Theme.of(context).colorScheme,
@@ -781,6 +1059,8 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
             replyToMessageId: _replyingTo?.id,
           ),
           hasText: _hasText,
+          isEditing: _editingMessage != null,
+          onCancelEdit: _cancelEditing,
         ),
       ],
     );
@@ -805,7 +1085,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Replying to',
+                  'Replying to ${_groupMembers[_replyingTo!.senderId]?.effectiveDisplayName ?? 'member'}',
                   style: textTheme.labelSmall?.copyWith(
                     color: colors.primary,
                     fontWeight: FontWeight.bold,

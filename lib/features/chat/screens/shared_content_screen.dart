@@ -115,16 +115,19 @@ class _SharedContentScreenState extends State<SharedContentScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _selected == null || _sending ? null : _send,
-        icon: _sending
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Icon(Icons.send_rounded),
-        label: Text(_sending ? 'Sending…' : 'Send'),
+      floatingActionButton: HeroMode(
+        enabled: false,
+        child: FloatingActionButton.extended(
+          onPressed: _selected == null || _sending ? null : _send,
+          icon: _sending
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.send_rounded),
+          label: Text(_sending ? 'Sending…' : 'Send'),
+        ),
       ),
       child: SafeArea(
         child: Column(

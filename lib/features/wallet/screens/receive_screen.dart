@@ -4,6 +4,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:share_plus/share_plus.dart';
 import '../models/token_model.dart';
 import '../providers/wallet_provider.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
@@ -287,6 +288,87 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
                         ),
                       );
                     }),
+                  ],
+
+                  if (widget.token != null) ...[
+                    const SizedBox(height: 8),
+                    GriotBrandedContainer(
+                      padding: const EdgeInsets.all(18),
+                      child: Column(
+                        children: [
+                          Text(
+                            'Your ${widget.token!.symbol} receive address',
+                            style: text.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            child: QrImageView(
+                              data: address,
+                              size: 210,
+                              eyeStyle: QrEyeStyle(
+                                eyeShape: QrEyeShape.circle,
+                                color: colors.primary,
+                              ),
+                              dataModuleStyle: QrDataModuleStyle(
+                                dataModuleShape: QrDataModuleShape.circle,
+                                color: colors.primary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          SelectableText(
+                            _formatAddress(address),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () async {
+                                    await Clipboard.setData(
+                                      ClipboardData(text: address),
+                                    );
+                                    if (context.mounted) {
+                                      NotificationService.showSuccess(
+                                        context,
+                                        'Address copied',
+                                      );
+                                    }
+                                  },
+                                  icon: const Icon(Icons.copy_rounded),
+                                  label: const Text('Copy'),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: FilledButton.icon(
+                                  onPressed: () => SharePlus.instance.share(
+                                    ShareParams(
+                                      text:
+                                          'My ${widget.token!.symbol} receive address on ${widget.token!.chain}: $address',
+                                    ),
+                                  ),
+                                  icon: const Icon(Icons.share_rounded),
+                                  label: const Text('Share'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
 
                   const SizedBox(height: 16),

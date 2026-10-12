@@ -71,7 +71,7 @@ class TokenListItem extends StatelessWidget {
           onLongPress: onLongPress,
           borderRadius: BorderRadius.circular(24),
           child: Padding(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             child: Row(
               children: [
                 Container(
@@ -93,7 +93,7 @@ class TokenListItem extends StatelessWidget {
                     radius: 22,
                   ),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -112,7 +112,14 @@ class TokenListItem extends StatelessWidget {
                               ),
                             ),
                           ),
-                          if (isEcosystem || isNative) ...[
+                          if (token.isSpam) ...[
+                            const SizedBox(width: 6),
+                            _Tag(
+                              label: 'Potential spam',
+                              color: colors.error,
+                              icon: Icons.warning_amber_rounded,
+                            ),
+                          ] else if (isEcosystem || isNative) ...[
                             const SizedBox(width: 6),
                             if (isEcosystem)
                               _Tag(

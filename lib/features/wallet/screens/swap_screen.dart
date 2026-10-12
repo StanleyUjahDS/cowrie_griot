@@ -961,7 +961,9 @@ class _SwapScreenState extends State<SwapScreen> {
       final funded = context
           .read<WalletProvider>()
           .filteredTokens
-          .where((token) => (num.tryParse(token.balance) ?? 0) > 0)
+          .where(
+            (token) => !token.isSpam && (num.tryParse(token.balance) ?? 0) > 0,
+          )
           .toList();
       selected = await showModalBottomSheet<TokenModel>(
         context: context,

@@ -1,7 +1,1 @@
-enum RelationshipStatus {
-  none,
-  pendingSent,
-  pendingReceived,
-  friends,
-  blocked,
-}
+enum RelationshipStatus { none, pendingSent, pendingReceived, friends, blocked }

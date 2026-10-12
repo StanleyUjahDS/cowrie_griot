@@ -11,6 +11,7 @@ class LocalProfilesTable {
   static const String columnReputationColor = 'reputation_color';
   static const String columnRelationshipStatus = 'relationship_status';
   static const String columnIsPlus = 'is_plus';
+  static const String columnIsPioneer = 'is_pioneer';
   static const String columnLastSeenAt = 'last_seen_at';
 
   static const String createTable =
@@ -26,6 +27,7 @@ class LocalProfilesTable {
       $columnReputationColor TEXT,
       $columnRelationshipStatus TEXT,
       $columnIsPlus INTEGER NOT NULL DEFAULT 0,
+      $columnIsPioneer INTEGER NOT NULL DEFAULT 0,
       $columnLastSeenAt TEXT
     )
   ''';

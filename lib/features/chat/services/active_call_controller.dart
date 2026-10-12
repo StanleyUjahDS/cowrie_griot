@@ -5,6 +5,7 @@ import '../../../core/services/native_call_service.dart';
 import 'messaging_api_service.dart';
 import 'realtime_call_service.dart';
 import 'call_media_session.dart';
+import 'ringback_tone.dart';
 import '../models/space_model.dart';
 
 class CallRequest {
@@ -15,10 +16,12 @@ class CallRequest {
     this.callId,
     this.session,
     this.roomId,
+    this.title,
     this.openParticipants = false,
   });
   final String conversationId, conversationType, mode;
   final String? callId, roomId;
+  final String? title;
   final RealtimeCallSession? session;
   final bool openParticipants;
 }
@@ -34,6 +37,7 @@ class ActiveCallController extends ChangeNotifier {
   bool _closing = false;
   bool get closing => _closing;
   CallMediaSession? _media;
+  RingbackTone? _ringback;
   CallMediaSession get media => _media!;
   final List<StreamSubscription<Map<String, dynamic>>> _subscriptions = [];
   Future<void>? _termination;
@@ -80,6 +84,7 @@ class ActiveCallController extends ChangeNotifier {
     final media = _media;
     if (request == null || media == null) return;
     beginClose();
+    await _ringback?.stop();
     try {
       for (final subscription in _subscriptions) {
         await subscription.cancel();
@@ -130,6 +135,12 @@ class ActiveCallController extends ChangeNotifier {
     _request = request;
     _termination = null;
     _media = CallMediaSession();
+    _ringback = request.session == null && request.conversationType != 'space'
+        ? RingbackTone()
+        : null;
+    if (_ringback != null) {
+      unawaited(_ringback!.start());
+    }
     callId = request.callId ?? request.session?.callId;
     audioEnabled = request.conversationType != 'space';
     videoCallActive = request.mode == 'video';
@@ -152,15 +163,22 @@ class ActiveCallController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> stopRingback() async {
+    await _ringback?.stop();
+  }
+
   bool beginClose() {
     if (_closing || _request == null) return false;
     _closing = true;
+    unawaited(_ringback?.stop() ?? Future<void>.value());
     _minimized = true;
     notifyListeners();
     return true;
   }
 
   void finishClose() {
+    unawaited(_ringback?.dispose() ?? Future<void>.value());
+    _ringback = null;
     _request = null;
     _media = null;
     callId = null;

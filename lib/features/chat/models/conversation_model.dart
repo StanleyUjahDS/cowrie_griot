@@ -1,5 +1,6 @@
 import 'chat_user.dart';
 import 'chat_message.dart';
+import '../../users/models/user_model.dart';
 
 enum ConversationType { dm, group, channel }
 
@@ -65,6 +66,50 @@ class Conversation {
     return 0;
   }
 
+  static bool _boolValue(dynamic value) {
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    return value?.toString().toLowerCase() == 'true';
+  }
+
+  static String? _firstNonEmptyString(Iterable<dynamic> values) {
+    for (final value in values) {
+      final text = value?.toString().trim();
+      if (text != null && text.isNotEmpty) return text;
+    }
+    return null;
+  }
+
+  static UserReputationBadge? _reputationFromJson(Map<String, dynamic> json) {
+    final raw =
+        json['other_reputation'] ??
+        json['reputation'] ??
+        json['otherReputation'] ??
+        json['reputationBadge'] ??
+        json['reputation_badge'];
+    if (raw is Map) {
+      return UserReputationBadge.fromJson(Map<String, dynamic>.from(raw));
+    }
+
+    final tierName =
+        json['other_reputation_tier_name'] ??
+        json['otherReputationTierName'] ??
+        json['reputation_tier_name'] ??
+        json['reputationTierName'];
+    if (tierName == null || tierName.toString().trim().isEmpty) return null;
+
+    return UserReputationBadge.fromJson({
+      'tierName': tierName,
+      'badgeColor':
+          json['other_reputation_badge_color'] ??
+          json['otherReputationBadgeColor'] ??
+          json['reputation_badge_color'] ??
+          json['reputationBadgeColor'] ??
+          json['other_reputation_color'] ??
+          json['reputationColor'],
+    });
+  }
+
   factory Conversation.fromJson(Map<String, dynamic> json) {
     final typeString =
         ((json['type'] ?? json['conversation_type'] ?? json['conversationType'])
@@ -83,6 +128,13 @@ class Conversation {
       otherUser = ChatUser.fromJson(
         Map<String, dynamic>.from(json['otherUser']),
       );
+      // Some conversation endpoints return the participant object separately
+      // and keep reputation in flat `other_*` fields. Merge both shapes so a
+      // refresh cannot make the reputation badge disappear from the card.
+      final topLevelReputation = _reputationFromJson(json);
+      if (otherUser.reputation == null && topLevelReputation != null) {
+        otherUser = otherUser.copyWith(reputation: topLevelReputation);
+      }
     } else if (json['other_user_id'] != null || json['otherUserId'] != null) {
       otherUser = ChatUser(
         id: (json['other_user_id'] ?? json['otherUserId']).toString(),
@@ -103,6 +155,13 @@ class Conversation {
         relationshipStatus:
             (json['relationship_status'] ?? json['relationshipStatus'])
                 ?.toString(),
+        reputation: _reputationFromJson(json),
+        isPlus: json['other_is_plus'] == true || json['is_plus'] == true,
+        isPioneer:
+            json['other_is_pioneer'] == true ||
+            json['otherIsPioneer'] == true ||
+            json['is_pioneer'] == true ||
+            json['isPioneer'] == true,
         timestamp:
             (json['last_message_at'] ??
                     json['lastMessageAt'] ??
@@ -126,30 +185,71 @@ class Conversation {
         ? rawMemberIds.map((value) => value.toString()).toList()
         : <String>[];
 
+    final nestedGroup = json['group'] is Map
+        ? Map<String, dynamic>.from(json['group'] as Map)
+        : null;
+    final nestedChannel = json['channel'] is Map
+        ? Map<String, dynamic>.from(json['channel'] as Map)
+        : null;
+    final communityImage = _firstNonEmptyString([
+      json['image_url'],
+      json['imageUrl'],
+      json['avatar_url'],
+      json['avatarUrl'],
+      nestedGroup?['image_url'],
+      nestedGroup?['imageUrl'],
+      nestedGroup?['avatar_url'],
+      nestedGroup?['avatarUrl'],
+      nestedChannel?['image_url'],
+      nestedChannel?['imageUrl'],
+      nestedChannel?['avatar_url'],
+      nestedChannel?['avatarUrl'],
+      json['other_avatar_url'],
+      json['otherAvatarUrl'],
+    ]);
+
     return Conversation(
       id: json['id']?.toString() ?? '',
       type: type,
       name: json['name']?.toString() ?? json['title']?.toString(),
-      imageUrl:
-          json['image_url']?.toString() ??
-          json['imageUrl']?.toString() ??
-          json['avatarUrl']?.toString() ??
-          json['other_avatar_url']?.toString() ??
-          json['otherAvatarUrl']?.toString(),
+      imageUrl: communityImage,
       memberIds: memberIds,
       ownerId: (json['owner_id'] ?? json['ownerId'] ?? json['created_by'])
           ?.toString(),
       visibility: (json['visibility'] ?? 'public').toString(),
-      messagesLocked:
-          json['messages_locked'] == true || json['messagesLocked'] == true,
-      commentsLocked:
-          json['comments_locked'] == true || json['commentsLocked'] == true,
+      messagesLocked: _boolValue(
+        json['messages_locked'] ?? json['messagesLocked'],
+      ),
+      commentsLocked: _boolValue(
+        json['comments_locked'] ?? json['commentsLocked'],
+      ),
       role: json['role']?.toString(),
       status: json['status']?.toString(),
-      memberCount: _intValue(json['member_count'] ?? json['memberCount']),
+      memberCount: _intValue(
+        json['member_count'] ?? json['memberCount'] ?? memberIds.length,
+      ),
       subscriberCount: _intValue(
         json['subscriber_count'] ??
             json['subscriberCount'] ??
+            json['subscribers'] ??
+            json['subscribers_count'] ??
+            json['subscriber_total'] ??
+            (json['channel'] is Map
+                ? (json['channel']['subscriber_count'] ??
+                      json['channel']['subscriberCount'] ??
+                      json['channel']['subscribers'] ??
+                      json['channel']['subscribers_count'])
+                : null) ??
+            (json['stats'] is Map
+                ? (json['stats']['subscriber_count'] ??
+                      json['stats']['subscriberCount'] ??
+                      json['stats']['subscribers'])
+                : null) ??
+            (json['metadata'] is Map
+                ? (json['metadata']['subscriber_count'] ??
+                      json['metadata']['subscriberCount'] ??
+                      json['metadata']['subscribers'])
+                : null) ??
             (type == ConversationType.channel
                 ? (json['member_count'] ?? json['memberCount'])
                 : null) ??

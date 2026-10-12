@@ -9,10 +9,13 @@ import '../../iap/widgets/plus_required_dialog.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../core/ui/widgets/griot_branded_container.dart';
+import '../../../core/ui/widgets/griot_avatar.dart';
+import '../../../core/services/notification_service.dart';
 import '../models/space_model.dart';
 import '../providers/messaging_provider.dart';
 import '../services/realtime_call_service.dart';
 import '../services/messaging_api_service.dart';
+import '../services/active_call_controller.dart';
 
 /// Home for public Campfires and lightweight status updates.
 ///
@@ -26,7 +29,7 @@ class SpacesStatusScreen extends StatefulWidget {
 }
 
 class _SpacesStatusScreenState extends State<SpacesStatusScreen>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   final List<SpaceModel> _spaces = [];
   final List<SpaceModel> _upcomingSpaces = [];
   final TextEditingController _searchController = TextEditingController();
@@ -36,6 +39,9 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
   int _offset = 0;
   int _spacesRequestId = 0;
   int _campfireRevision = 0;
+  int _campfireTab = 0;
+  late final TabController _campfireTabs;
+  final Set<String> _campfireReminders = <String>{};
   String _region = 'GLOBAL';
   String? _error;
   String _searchQuery = '';
@@ -60,6 +66,14 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
   @override
   void initState() {
     super.initState();
+    _campfireTabs = TabController(length: 2, vsync: this);
+    _campfireTabs.addListener(() {
+      if (!_campfireTabs.indexIsChanging &&
+          _campfireTab != _campfireTabs.index &&
+          mounted) {
+        setState(() => _campfireTab = _campfireTabs.index);
+      }
+    });
     WidgetsBinding.instance.addObserver(this);
     _searchFocusNode = FocusNode();
     _feedScrollController.addListener(_onFeedScroll);
@@ -75,6 +89,7 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
 
   @override
   void dispose() {
+    _campfireTabs.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
     _feedScrollController.dispose();
@@ -101,7 +116,10 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
   }
 
   void _onFeedScroll() {
-    if (!_feedScrollController.hasClients || _loading || !_hasMore || _searchQuery.trim().isNotEmpty) {
+    if (!_feedScrollController.hasClients ||
+        _loading ||
+        !_hasMore ||
+        _searchQuery.trim().isNotEmpty) {
       return;
     }
     if (_feedScrollController.position.extentAfter < 500) {
@@ -124,13 +142,20 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
           .getUpcomingCampfires(region: _region, forceRefresh: forceRefresh);
       final raw = result['items'] ?? result['spaces'] ?? [];
       if (!mounted || raw is! List) return;
+      final parsed = raw
+          .whereType<Map>()
+          .map((item) => SpaceModel.fromJson(Map<String, dynamic>.from(item)))
+          .toList(growable: false);
       setState(() {
         _upcomingSpaces
           ..clear()
+          ..addAll(parsed);
+        _campfireReminders
+          ..removeWhere((id) => parsed.every((space) => space.id != id))
           ..addAll(
-            raw.whereType<Map>().map(
-              (item) => SpaceModel.fromJson(Map<String, dynamic>.from(item)),
-            ),
+            parsed
+                .where((space) => space.reminderEnabled)
+                .map((space) => space.id),
           );
       });
     } catch (_) {
@@ -236,11 +261,14 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
         elevation: 0,
         scrolledUnderElevation: 0,
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'campfire-start-fab',
-        onPressed: _showCreateSpace,
-        icon: const Icon(Icons.local_fire_department_rounded),
-        label: const Text('Start a Campfire'),
+      floatingActionButton: HeroMode(
+        enabled: false,
+        child: FloatingActionButton.extended(
+          heroTag: 'campfire-start-fab',
+          onPressed: _showCreateSpace,
+          icon: const Icon(Icons.local_fire_department_rounded),
+          label: const Text('Start a Campfire'),
+        ),
       ),
       floatingActionButtonLocation: _CampfireFabLocation(
         keyboardInset: _windowKeyboardInset(context),
@@ -248,6 +276,18 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTap: () => _searchFocusNode.unfocus(),
+        onHorizontalDragEnd: (details) {
+          final velocity = details.primaryVelocity ?? 0;
+          if (velocity.abs() < 80) return;
+          final next = velocity < 0 ? 1 : 0;
+          if (next != _campfireTab) {
+            _campfireTabs.animateTo(
+              next,
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeOutCubic,
+            );
+          }
+        },
         child: RefreshIndicator(
           onRefresh: () async {
             await Future.wait([
@@ -256,30 +296,54 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
             ]);
           },
           child: ListView(
-          controller: _feedScrollController,
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 140),
-          children: [
-            _searchField(context),
-            const SizedBox(height: 16),
-            Text(
-              'Happening Now',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Campfires happening right now',
-              style: TextStyle(color: colors.onSurfaceVariant),
-            ),
-            const SizedBox(height: 18),
-            if (_upcomingSpaces.isNotEmpty) ...[
-              _upcomingSection(context),
-              const SizedBox(height: 22),
+            controller: _feedScrollController,
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 140),
+            children: [
+              _searchField(context),
+              const SizedBox(height: 16),
+              TabBar(
+                controller: _campfireTabs,
+                onTap: (index) => _campfireTabs.animateTo(
+                  index,
+                  duration: const Duration(milliseconds: 280),
+                  curve: Curves.easeOutCubic,
+                ),
+                tabs: const [
+                  Tab(text: 'Happening now'),
+                  Tab(text: 'Upcoming'),
+                ],
+              ),
+              const SizedBox(height: 18),
+              AnimatedSwitcher(
+                duration: Duration.zero,
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (child, animation) => child,
+                child: _campfireTab == 0
+                    ? Column(
+                        key: const ValueKey('live-campfires'),
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'Campfires happening right now',
+                            style: TextStyle(color: colors.onSurfaceVariant),
+                          ),
+                          const SizedBox(height: 18),
+                          _spacesSection(context, visibleSpaces),
+                        ],
+                      )
+                    : Column(
+                        key: const ValueKey('upcoming-campfires'),
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _upcomingSpaces.isNotEmpty
+                              ? _upcomingSection(context)
+                              : _emptyUpcomingSection(context),
+                        ],
+                      ),
+              ),
             ],
-            _spacesSection(context, visibleSpaces),
-          ],
           ),
         ),
       ),
@@ -311,14 +375,11 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
               borderRadius: 18,
               child: Row(
                 children: [
-                  CircleAvatar(
+                  GriotAvatar(
+                    avatarUrl: space.hostAvatarUrl,
+                    radius: 20,
                     backgroundColor: colors.primary.withValues(alpha: .14),
-                    foregroundColor: colors.primary,
-                    child: Icon(
-                      space.mode == 'video'
-                          ? Icons.videocam_rounded
-                          : Icons.graphic_eq_rounded,
-                    ),
+                    iconColor: colors.primary,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -336,14 +397,62 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                           _formatScheduledTime(space.scheduledAt),
                           style: TextStyle(color: colors.primary),
                         ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Hosted by ${space.hostName}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: colors.onSurfaceVariant,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (space.description != null &&
+                            space.description!.trim().isNotEmpty) ...[
+                          const SizedBox(height: 3),
+                          Text(
+                            space.description!.trim(),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: colors.onSurfaceVariant.withValues(
+                                alpha: .78,
+                              ),
+                              fontSize: 12,
+                              height: 1.2,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
-                  IconButton.filledTonal(
-                    tooltip: 'Add reminder',
-                    onPressed: () => _showReminderInfo(context),
-                    icon: const Icon(Icons.event_available_rounded),
-                  ),
+                  if (space.isHost &&
+                      space.scheduledAt != null &&
+                      !space.scheduledAt!.isAfter(DateTime.now()))
+                    FilledButton.icon(
+                      onPressed: () => _joinSpace(context, space),
+                      icon: const Icon(Icons.play_arrow_rounded),
+                      label: const Text('Start'),
+                    )
+                  else
+                    IconButton.filledTonal(
+                      tooltip: _reminderActive(space)
+                          ? 'Reminder enabled'
+                          : 'Notify me',
+                      onPressed: () => _toggleReminder(context, space),
+                      icon: Icon(
+                        _reminderActive(space)
+                            ? Icons.notifications_active_rounded
+                            : Icons.notifications_none_rounded,
+                      ),
+                    ),
+                  if (space.isHost)
+                    IconButton(
+                      tooltip: 'Manage scheduled Campfire',
+                      onPressed: () => _removeScheduledSpace(context, space),
+                      icon: const Icon(Icons.more_vert_rounded),
+                    ),
                 ],
               ),
             ),
@@ -351,6 +460,86 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
         ),
       ],
     );
+  }
+
+  Widget _emptyUpcomingSection(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return GriotBrandedContainer(
+      padding: const EdgeInsets.all(24),
+      borderRadius: 22,
+      child: Column(
+        children: [
+          Icon(Icons.event_available_rounded, size: 42, color: colors.primary),
+          const SizedBox(height: 10),
+          const Text(
+            'No upcoming Campfires yet',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Scheduled community spaces will appear here.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: colors.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _removeScheduledSpace(
+    BuildContext context,
+    SpaceModel space,
+  ) async {
+    final messagingApi = context.read<MessagingApiService>();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          space.scheduledAt != null &&
+                  space.scheduledAt!.isAfter(DateTime.now())
+              ? 'Cancel scheduled Campfire?'
+              : 'End Campfire?',
+        ),
+        content: Text('“${space.title}” will no longer appear in Upcoming.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Keep'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    // Remove it immediately so a stale/cached upcoming response cannot make
+    // a successful cancellation look like it failed.
+    final previousIndex = _upcomingSpaces.indexWhere(
+      (item) => item.id == space.id,
+    );
+    if (previousIndex >= 0 && mounted) {
+      setState(() => _upcomingSpaces.removeAt(previousIndex));
+    }
+    try {
+      await messagingApi.endCampfire(space.id);
+      await _loadUpcomingSpaces(forceRefresh: true);
+    } catch (error) {
+      if (mounted && previousIndex >= 0) {
+        setState(() {
+          final insertAt = previousIndex
+              .clamp(0, _upcomingSpaces.length)
+              .toInt();
+          _upcomingSpaces.insert(insertAt, space);
+        });
+      }
+      if (!context.mounted) return;
+      NotificationService.showError(
+        context,
+        'Could not cancel Campfire: $error',
+      );
+    }
   }
 
   String _formatScheduledTime(DateTime? value) {
@@ -367,14 +556,46 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
     return '$day at $hour:$minute ${local.hour >= 12 ? 'PM' : 'AM'}';
   }
 
-  void _showReminderInfo(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Calendar reminders will be connected in the next update.',
-        ),
-      ),
-    );
+  bool _reminderActive(SpaceModel space) {
+    final scheduledAt = space.scheduledAt;
+    if (scheduledAt != null && scheduledAt.isBefore(DateTime.now())) {
+      _campfireReminders.remove(space.id);
+      return false;
+    }
+    return _campfireReminders.contains(space.id);
+  }
+
+  Future<void> _toggleReminder(BuildContext context, SpaceModel space) async {
+    final enabled = _reminderActive(space);
+    try {
+      final api = context.read<MessagingApiService>();
+      if (enabled) {
+        await api.removeCampfireReminder(space.id);
+      } else {
+        await api.addCampfireReminder(space.id);
+      }
+      if (!context.mounted) return;
+      setState(() {
+        if (enabled) {
+          _campfireReminders.remove(space.id);
+        } else {
+          _campfireReminders.add(space.id);
+        }
+      });
+      NotificationService.showInfo(
+        context,
+        enabled
+            ? 'Reminder removed for ${space.title}'
+            : 'You will be notified when ${space.title} is ready',
+      );
+    } catch (error) {
+      if (context.mounted) {
+        NotificationService.showError(
+          context,
+          'Could not update reminder: $error',
+        );
+      }
+    }
   }
 
   Widget _spacesSection(BuildContext context, List<SpaceModel> visibleSpaces) {
@@ -540,31 +761,54 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
       return;
     }
     if (!mounted) return;
-    final created = await context.push<Map<String, dynamic>>('/campfires/create');
+    final created = await context.push<Map<String, dynamic>>(
+      '/campfires/create',
+    );
     if (created != null && mounted) {
       _loadSpaces(forceRefresh: true);
       _loadUpcomingSpaces(forceRefresh: true);
       final campfireId = created['id']?.toString();
       if (campfireId != null && campfireId.isNotEmpty) {
-        final scheduledRaw = created['scheduledAt'];
+        // The API returns snake_case while older clients returned camelCase.
+        // Treat either shape as a reservation so scheduled Campfires never
+        // auto-join or open the media screen before the host explicitly
+        // starts them.
+        final scheduledRaw = created['scheduledAt'] ?? created['scheduled_at'];
         final scheduledAt = scheduledRaw == null
             ? null
             : DateTime.tryParse(scheduledRaw.toString());
         if (scheduledAt != null && scheduledAt.isAfter(DateTime.now())) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Campfire scheduled for ${_formatScheduledTime(scheduledAt)}.',
-              ),
-            ),
+          NotificationService.showCampfireScheduled(
+            context,
+            campfireId: campfireId,
+            scheduledAt: scheduledAt,
+            title: created['title']?.toString(),
           );
           return;
         }
+        // Creation and membership are separate backend operations on some
+        // deployments. Joining explicitly is idempotent on the server and
+        // guarantees the creator appears as host/self before CallScreen starts
+        // its participant reconciliation.
+        try {
+          await context.read<MessagingApiService>().joinCampfire(campfireId);
+        } catch (error) {
+          if (mounted) {
+            NotificationService.showError(
+              context,
+              'Could not join the new Campfire: $error',
+            );
+          }
+          return;
+        }
+        if (!mounted) return;
         context.push(
           '/calls/$campfireId',
           extra: {
             'type': 'space',
             'mode': created['mode']?.toString() ?? 'voice',
+            'title':
+                created['title']?.toString() ?? created['name']?.toString(),
           },
         );
       }
@@ -727,10 +971,9 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                         );
                         if (!selected.isAfter(DateTime.now())) {
                           if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Choose a future start time.'),
-                              ),
+                            NotificationService.showInfo(
+                              context,
+                              'Choose a future start time.',
                             );
                           }
                           return;
@@ -762,12 +1005,9 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                             ? null
                             : () async {
                                 if (title.text.trim().isEmpty) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Add a Campfire name first.',
-                                      ),
-                                    ),
+                                  NotificationService.showInfo(
+                                    context,
+                                    'Add a Campfire name first.',
                                   );
                                   return;
                                 }
@@ -789,12 +1029,9 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                                 } catch (error) {
                                   if (context.mounted) {
                                     setSheetState(() => creating = false);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Could not start Campfire: $error',
-                                        ),
-                                      ),
+                                    NotificationService.showError(
+                                      context,
+                                      'Could not start Campfire: $error',
                                     );
                                   }
                                 }
@@ -830,7 +1067,6 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
     }
   }
   */
-
   }
 
   Widget _spaceCard(BuildContext context, SpaceModel space) {
@@ -846,7 +1082,7 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
         borderRadius: 24,
         child: InkWell(
           borderRadius: BorderRadius.circular(24),
-          onTap: () => _joinSpace(context, space),
+          onTap: () => _previewCampfire(context, space),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -880,19 +1116,23 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                       child: Text(
                         'BURNING NOW',
                         style: TextStyle(
-                        color: Colors.white,
+                          color: Colors.white,
                           fontWeight: FontWeight.w900,
                           letterSpacing: .8,
                           fontSize: 12,
                         ),
                       ),
                     ),
-                    if (space.isHost) IconButton(
-                      visualDensity: VisualDensity.compact,
-                      tooltip: 'Campfire options',
-                      onPressed: () => _showCampfireOptions(context, space),
-                      icon: const Icon(Icons.more_horiz_rounded, color: Colors.white),
-                    ),
+                    if (space.isHost)
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        tooltip: 'Campfire options',
+                        onPressed: () => _showCampfireOptions(context, space),
+                        icon: const Icon(
+                          Icons.more_horiz_rounded,
+                          color: Colors.white,
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -923,16 +1163,11 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        CircleAvatar(
+                        GriotAvatar(
+                          avatarUrl: space.hostAvatarUrl,
                           radius: 15,
                           backgroundColor: colors.surfaceContainerHighest,
-                          child: Icon(
-                            space.mode == 'video'
-                                ? Icons.videocam_rounded
-                                : Icons.graphic_eq_rounded,
-                            size: 16,
-                            color: colors.primary,
-                          ),
+                          iconColor: colors.primary,
                         ),
                         const SizedBox(width: 8),
                         Expanded(
@@ -946,14 +1181,20 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: colors.surfaceContainerHighest,
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: const Text(
                             'Host',
-                            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                            ),
                           ),
                         ),
                       ],
@@ -976,8 +1217,8 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                         ],
                         const Spacer(),
                         FilledButton(
-                          onPressed: () => _joinSpace(context, space),
-                          child: const Text('Join'),
+                          onPressed: () => _previewCampfire(context, space),
+                          child: const Text('View'),
                         ),
                       ],
                     ),
@@ -991,18 +1232,143 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
     );
   }
 
+  /// Shows the room details before changing membership or opening realtime.
+  /// A card tap is intentionally non-joining so users can inspect a Campfire
+  /// and decide whether to spend network/audio resources entering it.
+  Future<void> _previewCampfire(BuildContext context, SpaceModel space) async {
+    // Returning to a minimized Campfire must never reopen the join preview or
+    // issue a second membership request. The app-level call host already owns
+    // the live media session; simply restore it.
+    final activeCall = ActiveCallController.instance.request;
+    if (activeCall != null &&
+        !ActiveCallController.instance.closing &&
+        activeCall.conversationType == 'space' &&
+        activeCall.conversationId == space.id) {
+      ActiveCallController.instance.expand();
+      return;
+    }
+    final colors = Theme.of(context).colorScheme;
+    final shouldJoin = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: GriotBrandedContainer(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+          borderRadius: 26,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  GriotAvatar(
+                    avatarUrl: space.hostAvatarUrl,
+                    radius: 28,
+                    backgroundColor: colors.primary.withValues(alpha: .14),
+                    iconColor: colors.primary,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          space.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w900),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          'Hosted by ${space.hostName}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: colors.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.pop(dialogContext, false),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: colors.primary.withValues(alpha: .10),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.local_fire_department_rounded,
+                      color: colors.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${space.participantCount} ${space.participantCount == 1 ? 'listener' : 'listeners'} · ${space.mode == 'video' ? 'Video' : 'Voice'} Campfire',
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (space.description?.trim().isNotEmpty == true) ...[
+                const SizedBox(height: 14),
+                Text(
+                  space.description!.trim(),
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 20),
+              FilledButton.icon(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                icon: const Icon(Icons.login_rounded),
+                label: const Text('Join Campfire'),
+              ),
+              const SizedBox(height: 6),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Not now'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (shouldJoin == true && context.mounted) {
+      await _joinSpace(context, space);
+    }
+  }
+
   Future<void> _joinSpace(BuildContext context, SpaceModel space) async {
     try {
       await context.read<MessagingApiService>().joinCampfire(space.id);
       if (!context.mounted) return;
       context.push(
         '/calls/${space.id}',
-        extra: {'type': 'space', 'mode': space.mode},
+        extra: {'type': 'space', 'mode': space.mode, 'title': space.title},
       );
     } catch (error) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not join this Campfire: $error')),
+        NotificationService.showError(
+          context,
+          'Could not join this Campfire: $error',
         );
       }
     }
@@ -1012,27 +1378,26 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
     BuildContext context,
     SpaceModel space,
   ) async {
-    await showModalBottomSheet<void>(
+    await showDialog<void>(
       context: context,
-      showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.ios_share_rounded),
-              title: const Text('Share Campfire'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _shareCampfire(context, space);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.flag_outlined),
-              title: const Text('Report Campfire'),
-              onTap: () => Navigator.pop(sheetContext),
-            ),
-          ],
-        ),
+      builder: (dialogContext) => AlertDialog(
+        title: Text(space.title),
+        content: const Text('Choose an action for this Campfire.'),
+        actions: [
+          TextButton.icon(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              _shareCampfire(context, space);
+            },
+            icon: const Icon(Icons.ios_share_rounded),
+            label: const Text('Share'),
+          ),
+          TextButton.icon(
+            onPressed: () => Navigator.pop(dialogContext),
+            icon: const Icon(Icons.flag_outlined),
+            label: const Text('Report'),
+          ),
+        ],
       ),
     );
   }
@@ -1055,8 +1420,9 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
       );
     } catch (error) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not share this Campfire: $error')),
+        NotificationService.showError(
+          context,
+          'Could not share this Campfire: $error',
         );
       }
     }

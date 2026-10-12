@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:convert';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -22,6 +23,7 @@ import '../../../users/models/user_model.dart';
 import '../../../users/providers/user_provider.dart';
 import '../../../../core/services/notification_service.dart';
 import '../../../../core/ui/widgets/griot_loader.dart';
+import '../../../../core/ui/widgets/griot_avatar.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/services/deep_link_service.dart';
 import 'audio_player_widget.dart';
@@ -30,6 +32,7 @@ import 'fullscreen_media_viewer.dart';
 import 'link_preview_widget.dart';
 import 'message_status.dart';
 import 'report_content_sheet.dart';
+import 'reaction_picker.dart';
 
 class MessageBubble extends StatelessWidget {
   final ChatMessage message;
@@ -39,11 +42,15 @@ class MessageBubble extends StatelessWidget {
   final Function(ChatMessage) onReply;
   final Conversation? conversation;
   final ChatUser? sender;
+  final Map<String, ChatUser>? memberDirectory;
   final VoidCallback? onSenderTap;
   final VoidCallback? onReplyTap;
   final bool isHighlighted;
   final bool isFirstInGroup;
   final bool isLastInGroup;
+  final bool canPinMessage;
+  final bool isPinned;
+  final VoidCallback? onEdit;
 
   const MessageBubble({
     super.key,
@@ -54,11 +61,15 @@ class MessageBubble extends StatelessWidget {
     required this.onReply,
     this.conversation,
     this.sender,
+    this.memberDirectory,
     this.onSenderTap,
     this.onReplyTap,
     this.isHighlighted = false,
     this.isFirstInGroup = true,
     this.isLastInGroup = true,
+    this.canPinMessage = false,
+    this.isPinned = false,
+    this.onEdit,
   });
 
   @override
@@ -78,6 +89,8 @@ class MessageBubble extends StatelessWidget {
 
     return GestureDetector(
       onLongPress: () => _showMessageOptions(context),
+      onDoubleTap: () =>
+          context.read<MessagingProvider>().toggleReaction(message.id, '❤️'),
       child: Padding(
         padding: EdgeInsets.only(
           bottom: isLastInGroup
@@ -92,17 +105,37 @@ class MessageBubble extends StatelessWidget {
                 ? CrossAxisAlignment.end
                 : CrossAxisAlignment.start,
             children: [
-              if (!isMe &&
-                  isFirstInGroup &&
-                  conversation?.type == ConversationType.group)
-                _buildGroupSenderInfo(context),
-
               Stack(
                 clipBehavior: Clip.none,
                 children: [
+                  if (!isMe &&
+                      isFirstInGroup &&
+                      conversation?.type == ConversationType.group)
+                    Positioned(
+                      // Keep the sender portrait outside the bubble, like
+                      // modern group chats. It anchors the message without
+                      // stealing horizontal space from the text.
+                      left: 2,
+                      top: 18,
+                      child: _buildGroupSenderAvatar(context),
+                    ),
                   Container(
+                    margin: EdgeInsets.only(
+                      left:
+                          !isMe &&
+                              isFirstInGroup &&
+                              conversation?.type == ConversationType.group
+                          ? 50
+                          : 0,
+                    ),
                     constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.78,
+                      maxWidth:
+                          MediaQuery.of(context).size.width * 0.78 -
+                          (!isMe &&
+                                  isFirstInGroup &&
+                                  conversation?.type == ConversationType.group
+                              ? 50
+                              : 0),
                       minWidth: 60,
                     ),
                     decoration: BoxDecoration(
@@ -126,24 +159,30 @@ class MessageBubble extends StatelessWidget {
                         // group, which made earlier bubbles disappear into
                         // patterned/light backgrounds.
                         BoxShadow(
-                          color: Colors.black.withValues(
-                            alpha: isDark ? 0.30 : 0.14,
+                          color: colorScheme.shadow.withValues(
+                            alpha: isDark ? 0.38 : 0.20,
                           ),
-                          blurRadius: isLastInGroup ? 9 : 6,
-                          spreadRadius: isLastInGroup ? 0.4 : 0,
-                          offset: Offset(0, isLastInGroup ? 3 : 2),
+                          blurRadius: isLastInGroup ? 14 : 10,
+                          spreadRadius: isLastInGroup ? 0.7 : 0.2,
+                          offset: Offset(0, isLastInGroup ? 4 : 3),
                         ),
                       ],
                     ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
+                    padding: EdgeInsets.only(
+                      left: 14,
+                      right: 14,
+                      top: 10,
+                      bottom: 10,
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        if (!isMe &&
+                            isFirstInGroup &&
+                            conversation?.type == ConversationType.group)
+                          _buildGroupSenderInfo(context),
                         if (message.hasReply) _buildReplyHeader(context),
                         _buildMessageText(context),
                         const SizedBox(height: 4),
@@ -232,143 +271,543 @@ class MessageBubble extends StatelessWidget {
     final colors = theme.colorScheme;
     final currentUserId = context.read<UserProvider>().user?.id;
 
-    showModalBottomSheet(
+    showGeneralDialog(
       context: context,
       useRootNavigator: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 20),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 30,
-              offset: const Offset(0, -5),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
-                color: colors.onSurfaceVariant.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            // Quick Reactions
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: ['👍', '❤️', '😂', '😮', '😢', '🔥'].map((emoji) {
-                  final hasReacted =
-                      message.reactions[emoji]?.contains(currentUserId) ??
-                      false;
-                  return GestureDetector(
-                    onTap: () {
-                      context.read<MessagingProvider>().toggleReaction(
-                        message.id,
-                        emoji,
-                      );
-                      Navigator.pop(context);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: hasReacted
-                            ? colorScheme.primary.withValues(alpha: 0.2)
-                            : (isMe
-                                  ? colorScheme.onPrimary.withValues(alpha: 0.1)
-                                  : colorScheme.primary.withValues(
-                                      alpha: 0.05,
-                                    )),
-                        shape: BoxShape.circle,
+      barrierDismissible: true,
+      barrierLabel: 'Message actions',
+      barrierColor: Colors.black54,
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (context, animation, secondaryAnimation) => Align(
+        alignment: Alignment.centerRight,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: SizedBox(
+              width: double.infinity,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: SizedBox(
+                      width: math.min(
+                        MediaQuery.sizeOf(context).width * 0.84,
+                        360.0,
                       ),
-                      child: Text(emoji, style: const TextStyle(fontSize: 26)),
+                      child: _buildFloatingReactionTray(
+                        context,
+                        colors,
+                        currentUserId,
+                      ),
                     ),
-                  );
-                }).toList(),
+                  ),
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: SizedBox(
+                      width: math.min(
+                        MediaQuery.sizeOf(context).width * 0.74,
+                        300.0,
+                      ),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: MediaQuery.sizeOf(context).height * 0.78,
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: Container(
+                            padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
+                            decoration: BoxDecoration(
+                              color: colors.surface,
+                              borderRadius: const BorderRadius.horizontal(
+                                left: Radius.circular(24),
+                              ),
+                              border: Border(
+                                left: BorderSide(
+                                  color: colors.primary.withValues(alpha: 0.55),
+                                ),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.2),
+                                  blurRadius: 24,
+                                  offset: const Offset(-8, 0),
+                                ),
+                              ],
+                            ),
+                            child: SingleChildScrollView(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          'Message actions',
+                                          style: theme.textTheme.titleMedium
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                        ),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Close',
+                                        onPressed: () =>
+                                            Navigator.of(context).pop(),
+                                        icon: const Icon(Icons.close_rounded),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Offstage(
+                                    offstage: true,
+                                    child: ExpansionTile(
+                                      initiallyExpanded: true,
+                                      tilePadding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                      ),
+                                      childrenPadding:
+                                          const EdgeInsets.fromLTRB(
+                                            14,
+                                            0,
+                                            14,
+                                            12,
+                                          ),
+                                      backgroundColor: colors
+                                          .surfaceContainerHighest
+                                          .withValues(alpha: 0.92),
+                                      collapsedBackgroundColor: colors
+                                          .surfaceContainerHighest
+                                          .withValues(alpha: 0.92),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(28),
+                                        side: BorderSide(
+                                          color: colors.outline.withValues(
+                                            alpha: 0.28,
+                                          ),
+                                        ),
+                                      ),
+                                      collapsedShape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(28),
+                                        side: BorderSide(
+                                          color: colors.outline.withValues(
+                                            alpha: 0.28,
+                                          ),
+                                        ),
+                                      ),
+                                      title: Text(
+                                        'React to message',
+                                        style: theme.textTheme.labelLarge
+                                            ?.copyWith(
+                                              color: colors.onSurfaceVariant,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                      ),
+                                      leading: Icon(
+                                        Icons.emoji_emotions_outlined,
+                                        color: colors.primary,
+                                      ),
+                                      children: [
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 8,
+                                          children:
+                                              ['👍', '❤️', '😂', '😮', '😢', '🔥'].map((
+                                                emoji,
+                                              ) {
+                                                final hasReacted =
+                                                    message.reactions[emoji]
+                                                        ?.contains(
+                                                          currentUserId,
+                                                        ) ??
+                                                    false;
+                                                return Material(
+                                                  color: Colors.transparent,
+                                                  child: InkWell(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          14,
+                                                        ),
+                                                    onTap: () {
+                                                      context
+                                                          .read<
+                                                            MessagingProvider
+                                                          >()
+                                                          .toggleReaction(
+                                                            message.id,
+                                                            emoji,
+                                                          );
+                                                      Navigator.pop(context);
+                                                    },
+                                                    child: Container(
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 12,
+                                                            vertical: 8,
+                                                          ),
+                                                      decoration: BoxDecoration(
+                                                        color: hasReacted
+                                                            ? colorScheme
+                                                                  .primary
+                                                                  .withValues(
+                                                                    alpha: 0.2,
+                                                                  )
+                                                            : (isMe
+                                                                  ? colorScheme
+                                                                        .onPrimary
+                                                                        .withValues(
+                                                                          alpha:
+                                                                              0.1,
+                                                                        )
+                                                                  : colorScheme
+                                                                        .primary
+                                                                        .withValues(
+                                                                          alpha:
+                                                                              0.05,
+                                                                        )),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              14,
+                                                            ),
+                                                        border: Border.all(
+                                                          color: hasReacted
+                                                              ? colorScheme
+                                                                    .primary
+                                                              : colors.outline
+                                                                    .withValues(
+                                                                      alpha:
+                                                                          0.22,
+                                                                    ),
+                                                        ),
+                                                      ),
+                                                      child: emoji == '❤️'
+                                                          ? const Icon(
+                                                              Icons
+                                                                  .favorite_rounded,
+                                                              color: Colors.red,
+                                                              size: 22,
+                                                            )
+                                                          : Text(
+                                                              emoji,
+                                                              style:
+                                                                  const TextStyle(
+                                                                    fontSize:
+                                                                        22,
+                                                                  ),
+                                                            ),
+                                                    ),
+                                                  ),
+                                                );
+                                              }).toList()..add(
+                                                Material(
+                                                  color: Colors.transparent,
+                                                  child: InkWell(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          14,
+                                                        ),
+                                                    onTap: () async {
+                                                      final customEmoji =
+                                                          await _pickCustomReaction(
+                                                            context,
+                                                          );
+                                                      if (context.mounted &&
+                                                          customEmoji != null &&
+                                                          customEmoji
+                                                              .isNotEmpty) {
+                                                        await context
+                                                            .read<
+                                                              MessagingProvider
+                                                            >()
+                                                            .toggleReaction(
+                                                              message.id,
+                                                              customEmoji,
+                                                            );
+                                                        if (context.mounted) {
+                                                          Navigator.pop(
+                                                            context,
+                                                          );
+                                                        }
+                                                      }
+                                                    },
+                                                    child: Container(
+                                                      width: 44,
+                                                      height: 42,
+                                                      alignment:
+                                                          Alignment.center,
+                                                      decoration: BoxDecoration(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              14,
+                                                            ),
+                                                        border: Border.all(
+                                                          color: colors.outline
+                                                              .withValues(
+                                                                alpha: 0.3,
+                                                              ),
+                                                        ),
+                                                      ),
+                                                      child: Icon(
+                                                        Icons
+                                                            .add_reaction_outlined,
+                                                        color: colors.primary,
+                                                        size: 21,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 14),
+                                  Divider(
+                                    color: colors.outline.withValues(
+                                      alpha: 0.18,
+                                    ),
+                                  ),
+                                  _buildOptionTile(
+                                    context,
+                                    icon: Icons.reply_rounded,
+                                    label: 'Reply',
+                                    onTap: () {
+                                      Navigator.pop(context);
+                                      onReply(message);
+                                    },
+                                  ),
+                                  _buildOptionTile(
+                                    context,
+                                    icon: Icons.copy_rounded,
+                                    label: 'Copy Text',
+                                    onTap: () {
+                                      Clipboard.setData(
+                                        ClipboardData(text: message.text),
+                                      );
+                                      Navigator.pop(context);
+                                      NotificationService.showSuccess(
+                                        context,
+                                        'Copied to clipboard',
+                                      );
+                                    },
+                                  ),
+                                  if (isMe &&
+                                      message.isText &&
+                                      !message.isDeleted &&
+                                      onEdit != null)
+                                    _buildOptionTile(
+                                      context,
+                                      icon: Icons.edit_outlined,
+                                      label: 'Edit message',
+                                      onTap: () async {
+                                        Navigator.pop(context);
+                                        onEdit!();
+                                      },
+                                    ),
+                                  if (conversation?.id != null && canPinMessage)
+                                    _buildOptionTile(
+                                      context,
+                                      icon: isPinned
+                                          ? Icons.push_pin
+                                          : Icons.push_pin_outlined,
+                                      label: isPinned
+                                          ? 'Unpin message'
+                                          : 'Pin message',
+                                      onTap: () async {
+                                        Navigator.pop(context);
+                                        try {
+                                          final provider = parentContext
+                                              .read<MessagingProvider>();
+                                          if (isPinned) {
+                                            await provider.unpinMessage(
+                                              conversationId: conversation!.id,
+                                              messageId: message.id,
+                                            );
+                                          } else {
+                                            await provider.pinMessage(
+                                              conversationId: conversation!.id,
+                                              messageId: message.id,
+                                            );
+                                          }
+                                          if (parentContext.mounted) {
+                                            NotificationService.showSuccess(
+                                              parentContext,
+                                              isPinned
+                                                  ? 'Message unpinned'
+                                                  : 'Message pinned',
+                                            );
+                                          }
+                                        } catch (error) {
+                                          if (parentContext.mounted) {
+                                            NotificationService.showError(
+                                              parentContext,
+                                              'Could not pin message',
+                                            );
+                                          }
+                                        }
+                                      },
+                                    ),
+                                  if (!isMe)
+                                    _buildOptionTile(
+                                      context,
+                                      icon: Icons.flag_outlined,
+                                      label: 'Report Message',
+                                      color: colors.error,
+                                      onTap: () {
+                                        Navigator.pop(context);
+                                        ReportContentSheet.show(
+                                          context: context,
+                                          targetType: 'message',
+                                          targetId: message.id,
+                                          subjectLabel: 'message',
+                                        );
+                                      },
+                                    ),
+                                  if (message.mediaUrl != null &&
+                                      !message.mediaUrl!.startsWith(
+                                        'file',
+                                      )) ...[
+                                    _buildOptionTile(
+                                      context,
+                                      icon: Icons.download_rounded,
+                                      label: 'Save to Device',
+                                      onTap: () async {
+                                        Navigator.pop(context);
+                                        await _downloadMedia(
+                                          context,
+                                          message.mediaUrl!,
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                  if (isMe)
+                                    _buildOptionTile(
+                                      context,
+                                      icon: Icons.delete_outline_rounded,
+                                      label:
+                                          conversation?.type ==
+                                              ConversationType.dm
+                                          ? 'Delete for both of us'
+                                          : 'Delete for everyone',
+                                      color: colors.error,
+                                      onTap: () {
+                                        Navigator.pop(context);
+                                        _confirmDelete(
+                                          parentContext,
+                                          forEveryone: true,
+                                        );
+                                      },
+                                    ),
+                                  _buildOptionTile(
+                                    context,
+                                    icon: Icons.remove_circle_outline_rounded,
+                                    label: 'Delete for me',
+                                    color: colors.error,
+                                    onTap: () {
+                                      Navigator.pop(context);
+                                      _confirmDelete(
+                                        parentContext,
+                                        forEveryone: false,
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(height: 20),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 12),
-            const Divider(),
-            _buildOptionTile(
-              context,
-              icon: Icons.reply_rounded,
-              label: 'Reply',
-              onTap: () {
-                Navigator.pop(context);
-                onReply(message);
-              },
-            ),
-            if (isMe)
-              _buildOptionTile(
-                context,
-                icon: Icons.delete_outline_rounded,
-                label: conversation?.type == ConversationType.dm
-                    ? 'Delete for both of us'
-                    : 'Delete for everyone',
-                color: colors.error,
+          ),
+        ),
+      ),
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final curve = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+        );
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1, 0),
+            end: Offset.zero,
+          ).animate(curve),
+          child: child,
+        );
+      },
+    );
+  }
+
+  Future<String?> _pickCustomReaction(BuildContext context) async {
+    return EmojiReactionPicker.show(context);
+  }
+
+  Widget _buildFloatingReactionTray(
+    BuildContext context,
+    ColorScheme colors,
+    String? currentUserId,
+  ) {
+    const emojis = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
+    return Material(
+      color: colors.surfaceContainerHighest,
+      elevation: 8,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            ...emojis.map(
+              (emoji) => InkWell(
+                borderRadius: BorderRadius.circular(22),
                 onTap: () {
-                  Navigator.pop(context);
-                  _confirmDelete(parentContext, forEveryone: true);
-                },
-              ),
-            _buildOptionTile(
-              context,
-              icon: Icons.remove_circle_outline_rounded,
-              label: 'Delete for me',
-              color: colors.error,
-              onTap: () {
-                Navigator.pop(context);
-                _confirmDelete(parentContext, forEveryone: false);
-              },
-            ),
-            _buildOptionTile(
-              context,
-              icon: Icons.copy_rounded,
-              label: 'Copy Text',
-              onTap: () {
-                Clipboard.setData(ClipboardData(text: message.text));
-                Navigator.pop(context);
-                NotificationService.showSuccess(context, 'Copied to clipboard');
-              },
-            ),
-            if (!isMe)
-              _buildOptionTile(
-                context,
-                icon: Icons.flag_outlined,
-                label: 'Report Message',
-                color: colors.error,
-                onTap: () {
-                  Navigator.pop(context);
-                  ReportContentSheet.show(
-                    context: context,
-                    targetType: 'message',
-                    targetId: message.id,
-                    subjectLabel: 'message',
+                  context.read<MessagingProvider>().toggleReaction(
+                    message.id,
+                    emoji,
                   );
-                },
-              ),
-            if (message.mediaUrl != null &&
-                !message.mediaUrl!.startsWith('file')) ...[
-              _buildOptionTile(
-                context,
-                icon: Icons.download_rounded,
-                label: 'Save to Device',
-                onTap: () async {
                   Navigator.pop(context);
-                  await _downloadMedia(context, message.mediaUrl!);
                 },
+                child: Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: emoji == '❤️'
+                      ? const Icon(
+                          Icons.favorite_rounded,
+                          color: Colors.red,
+                          size: 26,
+                        )
+                      : Text(emoji, style: const TextStyle(fontSize: 25)),
+                ),
               ),
-            ],
-            const SizedBox(height: 20),
+            ),
+            InkWell(
+              borderRadius: BorderRadius.circular(22),
+              onTap: () async {
+                final emoji = await _pickCustomReaction(context);
+                if (!context.mounted || emoji == null || emoji.trim().isEmpty) {
+                  return;
+                }
+                await context.read<MessagingProvider>().toggleReaction(
+                  message.id,
+                  emoji.trim(),
+                );
+                if (context.mounted) Navigator.of(context).pop();
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: Icon(
+                  Icons.emoji_emotions_outlined,
+                  color: colors.onSurfaceVariant,
+                  size: 27,
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -384,36 +823,38 @@ class MessageBubble extends StatelessWidget {
   }) {
     return Material(
       color: Colors.transparent,
-      child: ListTile(
-        leading: Icon(icon, color: color ?? colorScheme.primary),
-        title: Text(
-          label,
-          style: TextStyle(
-            color: color,
-            fontWeight: FontWeight.w600,
-            fontSize: 15,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Row(
+            children: [
+              Icon(icon, color: color ?? colorScheme.onSurface, size: 22),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: color ?? colorScheme.onSurface,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: (color ?? colorScheme.onSurface).withValues(alpha: 0.45),
+              ),
+            ],
           ),
         ),
-        onTap: onTap,
       ),
     );
   }
 
   Future<void> _downloadMedia(BuildContext context, String url) async {
-    // Show a non-blocking snackbar with progress if possible,
-    // but for now a simple loader in the UI is fine.
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            GriotLoader(size: 20, strokeWidth: 2, color: colorScheme.primary),
-            const SizedBox(width: 16),
-            const Text('Downloading media...'),
-          ],
-        ),
-        duration: const Duration(days: 1), // Semi-permanent until dismissed
-      ),
-    );
+    NotificationService.showInfo(context, 'Downloading media...');
 
     try {
       final response = await http
@@ -441,8 +882,6 @@ class MessageBubble extends StatelessWidget {
       await file.writeAsBytes(response.bodyBytes, flush: true);
 
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
       NotificationService.showSuccess(
         context,
         'Media saved to ${Platform.isAndroid ? "Downloads" : "Documents"}',
@@ -454,7 +893,6 @@ class MessageBubble extends StatelessWidget {
       );
     } catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
       NotificationService.showError(
         context,
         'Download failed: ${error.toString().split(":").last}',
@@ -523,9 +961,9 @@ class MessageBubble extends StatelessWidget {
   Widget _buildStatusIcon() {
     return GriotMessageStatus(
       status: message.status,
-      color: isMe
-          ? colorScheme.onPrimary
-          : colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+      // Receipts intentionally use the theme accent, rather than neutral
+      // foreground white, so sent/read states remain recognizably Griot.
+      color: colorScheme.secondary,
     );
   }
 
@@ -538,11 +976,41 @@ class MessageBubble extends StatelessWidget {
       orElse: () => const UserModel(id: '', walletAddress: ''),
     );
 
-    String? name = sender?.effectiveDisplayName;
-    if (name == 'Griot User') name = null;
-    name ??= friend.id.isNotEmpty
-        ? (friend.displayName ?? friend.username)
-        : null;
+    final directoryMember = memberDirectory?[message.senderId];
+    String? name;
+    bool usable(String? value) {
+      final text = value?.trim() ?? '';
+      return text.isNotEmpty &&
+          !{
+            'griot user',
+            'griot contact',
+            'participant',
+            'caller',
+            'user',
+          }.contains(text.toLowerCase());
+    }
+
+    // Prefer the real display name, then username, across every directory
+    // source. Placeholder names must never be shown when a real identity is
+    // available in the group member payload.
+    for (final candidate in [
+      sender?.displayName,
+      sender?.username,
+      directoryMember?.displayName,
+      directoryMember?.username,
+      friend.displayName,
+      friend.username,
+    ]) {
+      if (usable(candidate)) {
+        name = candidate!.trim();
+        if (candidate == sender?.username ||
+            candidate == directoryMember?.username ||
+            candidate == friend.username) {
+          name = name.startsWith('@') ? name : '@$name';
+        }
+        break;
+      }
+    }
 
     name ??= message.senderId.length >= 4
         ? 'User ${message.senderId.substring(0, 4)}'
@@ -567,6 +1035,45 @@ class MessageBubble extends StatelessWidget {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGroupSenderAvatar(BuildContext context) {
+    final provider = context.read<MessagingProvider>();
+    final friend = provider.friends.firstWhere(
+      (f) => f.id == message.senderId,
+      orElse: () => const UserModel(id: '', walletAddress: ''),
+    );
+    final avatarUrl =
+        sender?.profileUrl ??
+        memberDirectory?[message.senderId]?.profileUrl ??
+        (friend.id.isNotEmpty ? friend.avatarUrl : null);
+    final accent = _groupSenderColor(context);
+    final colors = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onSenderTap,
+      customBorder: const CircleBorder(),
+      child: Container(
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: colors.surface,
+          border: Border.all(color: accent.withValues(alpha: 0.8), width: 1.4),
+          boxShadow: [
+            BoxShadow(
+              color: colors.shadow.withValues(alpha: 0.24),
+              blurRadius: 7,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: GriotAvatar(
+          avatarUrl: avatarUrl,
+          radius: 20,
+          backgroundColor: accent.withValues(alpha: 0.14),
+          iconColor: accent,
         ),
       ),
     );
@@ -614,6 +1121,7 @@ class MessageBubble extends StatelessWidget {
 
   Widget _buildReplyHeader(BuildContext context) {
     final provider = context.read<MessagingProvider>();
+    final currentUserId = context.read<UserProvider>().user?.id;
     final parent = provider
         .getMessagesForConversation(message.conversationId)
         .firstWhere(
@@ -654,9 +1162,7 @@ class MessageBubble extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                parent.senderId == context.read<UserProvider>().user?.id
-                    ? 'You'
-                    : 'Friend',
+                _replySenderName(parent.senderId, provider, currentUserId),
                 style: TextStyle(
                   color: isMe
                       ? colorScheme.onPrimary.withValues(alpha: 0.9)
@@ -683,6 +1189,23 @@ class MessageBubble extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _replySenderName(
+    String senderId,
+    MessagingProvider provider,
+    String? currentUserId,
+  ) {
+    if (senderId == currentUserId) return 'You';
+    if (sender != null && sender!.id == senderId) {
+      return sender!.effectiveDisplayName;
+    }
+    final member = memberDirectory?[senderId];
+    if (member != null) return member.effectiveDisplayName;
+    for (final friend in provider.friends) {
+      if (friend.id == senderId) return friend.effectiveName;
+    }
+    return 'Griot User';
   }
 
   Widget _buildReactions(BuildContext context) {
@@ -821,14 +1344,14 @@ class MessageBubble extends StatelessWidget {
     final textStyle =
         theme.textTheme.bodyMedium?.copyWith(
           color: textColor,
-          fontSize: 15,
-          height: 1.3,
+          fontSize: 16,
+          height: 1.32,
           fontWeight: FontWeight.w600,
         ) ??
         TextStyle(
           color: textColor,
-          fontSize: 15,
-          height: 1.3,
+          fontSize: 16,
+          height: 1.32,
           fontWeight: FontWeight.w600,
         );
 
@@ -836,7 +1359,13 @@ class MessageBubble extends StatelessWidget {
     final matches = linkRegex.allMatches(message.text);
 
     if (matches.isEmpty) {
-      return Text(message.text, style: textStyle, textAlign: TextAlign.start);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(message.text, style: textStyle, textAlign: TextAlign.start),
+          if (message.isEdited) _buildEditedLabel(),
+        ],
+      );
     }
 
     final children = <TextSpan>[];
@@ -918,11 +1447,25 @@ class MessageBubble extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text.rich(TextSpan(children: children, style: textStyle)),
+        if (message.isEdited) _buildEditedLabel(),
         if (firstUrl != null && !message.isMedia && !message.isFile)
           LinkPreviewWidget(url: firstUrl, isMe: isMe),
       ],
     );
   }
+
+  Widget _buildEditedLabel() => Padding(
+    padding: const EdgeInsets.only(top: 3),
+    child: Text(
+      'edited',
+      style: TextStyle(
+        fontSize: 10,
+        fontStyle: FontStyle.italic,
+        color: (isMe ? colorScheme.onPrimary : colorScheme.onSurface)
+            .withValues(alpha: 0.62),
+      ),
+    ),
+  );
 
   bool get _isCallSystemMessage {
     final value = message.text.trim().toLowerCase();
@@ -959,8 +1502,8 @@ class MessageBubble extends StatelessWidget {
               missed
                   ? Icons.call_missed_rounded
                   : video
-                      ? Icons.videocam_rounded
-                      : Icons.call_rounded,
+                  ? Icons.videocam_rounded
+                  : Icons.call_rounded,
               color: accent,
               size: 20,
             ),

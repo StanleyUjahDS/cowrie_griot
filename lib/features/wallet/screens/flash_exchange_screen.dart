@@ -11,6 +11,7 @@ import '../models/flash_token_result.dart';
 import '../providers/wallet_provider.dart';
 import '../utils/wallet_formatters.dart';
 import '../utils/chain_assets.dart';
+import '../../../core/services/notification_service.dart';
 
 class FlashExchangeScreen extends StatefulWidget {
   const FlashExchangeScreen({super.key});
@@ -50,14 +51,11 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
 
     if (url == null || url.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              key == 'explorer'
-                  ? 'No block explorer link is available.'
-                  : 'No chart link is available.',
-            ),
-          ),
+        NotificationService.showInfo(
+          context,
+          key == 'explorer'
+              ? 'No block explorer link is available.'
+              : 'No chart link is available.',
         );
       }
       return;
@@ -67,9 +65,7 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
     if (uri == null ||
         !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open this link.')),
-        );
+        NotificationService.showError(context, 'Could not open this link.');
       }
     }
   }
@@ -223,8 +219,9 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
       );
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No native token is available on $chain.')),
+        NotificationService.showInfo(
+          context,
+          'No native token is available on $chain.',
         );
       }
       return;
@@ -630,23 +627,32 @@ class _FlashExchangeScreenState extends State<FlashExchangeScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-              fontSize: 13,
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                fontSize: 13,
+              ),
             ),
           ),
-          Text(
-            value,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 13,
-              color: valueColor,
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              value,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: valueColor,
+              ),
             ),
           ),
         ],

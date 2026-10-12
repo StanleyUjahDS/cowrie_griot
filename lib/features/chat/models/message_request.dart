@@ -44,6 +44,9 @@ class MessageRequest {
 
   final bool senderIsOnline;
   final bool senderIsPlus;
+  final bool senderIsPioneer;
+  final bool receiverIsPlus;
+  final bool receiverIsPioneer;
 
   // ==========================================================
   // TIMESTAMP
@@ -79,6 +82,9 @@ class MessageRequest {
     this.message = '',
     this.senderIsOnline = false,
     this.senderIsPlus = false,
+    this.senderIsPioneer = false,
+    this.receiverIsPlus = false,
+    this.receiverIsPioneer = false,
     required this.createdAt,
     this.respondedAt,
     this.status = RequestStatus.pending,
@@ -187,12 +193,13 @@ class MessageRequest {
       senderDisplayName:
           (json['senderDisplayName'] ?? json['sender_display_name'])
               ?.toString(),
-      senderProfileUrl: (json['senderProfileUrl'] ??
-              json['sender_avatar_url'] ??
-              json['senderAvatarUrl'] ??
-              json['avatarUrl'] ??
-              json['avatar_url'])
-          ?.toString(),
+      senderProfileUrl:
+          (json['senderProfileUrl'] ??
+                  json['sender_avatar_url'] ??
+                  json['senderAvatarUrl'] ??
+                  json['avatarUrl'] ??
+                  json['avatar_url'])
+              ?.toString(),
 
       receiverUsername:
           (json['receiverUsername'] ??
@@ -216,6 +223,12 @@ class MessageRequest {
           false,
       senderIsPlus:
           json['senderIsPlus'] == true || json['sender_is_plus'] == true,
+      senderIsPioneer:
+          json['senderIsPioneer'] == true || json['sender_is_pioneer'] == true,
+      receiverIsPlus:
+          json['receiverIsPlus'] == true || json['receiver_is_plus'] == true,
+      receiverIsPioneer: json['receiverIsPioneer'] == true ||
+          json['receiver_is_pioneer'] == true,
 
       createdAt: DateTime.parse(
         (json['createdAt'] ??
@@ -256,6 +269,9 @@ class MessageRequest {
       'receiverDisplayName': receiverDisplayName,
       'receiverProfileUrl': receiverProfileUrl,
       'senderIsPlus': senderIsPlus,
+      'senderIsPioneer': senderIsPioneer,
+      'receiverIsPlus': receiverIsPlus,
+      'receiverIsPioneer': receiverIsPioneer,
     };
   }
 
@@ -274,6 +290,7 @@ class MessageRequest {
       receiverDisplayName: receiverDisplayName,
       receiverProfileUrl: receiverProfileUrl,
       senderIsPlus: senderIsPlus,
+      senderIsPioneer: senderIsPioneer,
       requestType: requestType,
       message: message,
       senderIsOnline: senderIsOnline,

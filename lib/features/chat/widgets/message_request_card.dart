@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../models/message_request.dart';
 import '../../users/models/user_model.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/ui/widgets/griot_plus_badge.dart';
+import '../../../../core/ui/widgets/griot_pioneer_badge.dart';
+import '../../../../core/ui/widgets/griot_avatar.dart';
 
 class MessageRequestCard extends StatelessWidget {
   final MessageRequest request;
@@ -25,7 +26,6 @@ class MessageRequestCard extends StatelessWidget {
     final text = theme.textTheme;
 
     final profileUrl = request.senderProfileUrl;
-    final hasProfileImage = profileUrl != null && profileUrl.trim().isNotEmpty;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -53,6 +53,7 @@ class MessageRequestCard extends StatelessWidget {
               avatarUrl: request.senderProfileUrl,
               relationshipStatus: 'request_received',
               isPlus: request.senderIsPlus,
+              isPioneer: request.senderIsPioneer,
             );
             context.push('/user/profile', extra: user);
           },
@@ -64,19 +65,10 @@ class MessageRequestCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    CircleAvatar(
+                    GriotAvatar(
+                      avatarUrl: profileUrl,
                       radius: 26,
                       backgroundColor: colors.surfaceContainerHighest,
-                      backgroundImage: hasProfileImage
-                          ? NetworkImage(profileUrl)
-                          : null,
-                      child: !hasProfileImage
-                          ? SvgPicture.asset(
-                              'assets/coins_logo/hbadger_logo.svg',
-                              width: 32,
-                              height: 32,
-                            )
-                          : null,
                     ),
                     const SizedBox(width: 14),
                     Expanded(
@@ -102,6 +94,10 @@ class MessageRequestCard extends StatelessWidget {
                                   isPlus: true,
                                   compact: true,
                                 ),
+                              ],
+                              if (request.senderIsPioneer) ...[
+                                const SizedBox(width: 4),
+                                const GriotPioneerBadge(compact: true),
                               ],
                             ],
                           ),

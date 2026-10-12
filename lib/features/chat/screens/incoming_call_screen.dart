@@ -88,12 +88,17 @@ class IncomingCallScreen extends StatelessWidget {
                       : null,
                 ),
                 const SizedBox(height: 22),
-                Text(
-                  resolvedCallerName,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-                  textAlign: TextAlign.center,
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 280),
+                  child: Text(
+                    resolvedCallerName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(

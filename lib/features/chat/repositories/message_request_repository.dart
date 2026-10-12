@@ -5,8 +5,12 @@ import '../../../core/network/api_client.dart';
 class MessageRequestOperations {
   final MessagingApiService _apiService;
 
-  MessageRequestOperations({MessagingApiService? apiService, ApiClient? apiClient})
-      : _apiService = apiService ?? MessagingApiService(apiClient: apiClient ?? ApiClient());
+  MessageRequestOperations({
+    MessagingApiService? apiService,
+    ApiClient? apiClient,
+  }) : _apiService =
+           apiService ??
+           MessagingApiService(apiClient: apiClient ?? ApiClient());
 
   // ==========================================================
   // GET ALL REQUESTS
@@ -46,9 +50,7 @@ class MessageRequestOperations {
   // SEND REQUEST
   // ==========================================================
 
-  Future<MessageRequest> sendRequest({
-    required String recipientId,
-  }) async {
+  Future<MessageRequest> sendRequest({required String recipientId}) async {
     return _apiService.sendDirectMessageRequest(recipientId);
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../../config/app_config.dart';
+import '../../services/ad_service.dart';
 
 class GriotBannerAd extends StatefulWidget {
   const GriotBannerAd({super.key});
@@ -16,11 +17,19 @@ class _GriotBannerAdState extends State<GriotBannerAd> {
   @override
   void initState() {
     super.initState();
+    AdService.instance.addListener(_onAdsReady);
+    _loadAd();
+  }
+
+  void _onAdsReady() {
+    if (!mounted || !AdService.instance.canRequestAds || _bannerAd != null) {
+      return;
+    }
     _loadAd();
   }
 
   void _loadAd() {
-    if (!AppConfig.adsEnabled) return;
+    if (!AdService.instance.canRequestAds) return;
 
     _bannerAd = BannerAd(
       adUnitId: AppConfig.bannerAdUnitId,
@@ -50,13 +59,14 @@ class _GriotBannerAdState extends State<GriotBannerAd> {
 
   @override
   void dispose() {
+    AdService.instance.removeListener(_onAdsReady);
     _bannerAd?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!AppConfig.adsEnabled) return const SizedBox.shrink();
+    if (!AdService.instance.canRequestAds) return const SizedBox.shrink();
 
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -70,7 +80,9 @@ class _GriotBannerAdState extends State<GriotBannerAd> {
       margin: const EdgeInsets.symmetric(vertical: 16),
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLow.withValues(alpha: isDark ? 0.3 : 0.5),
+        color: colorScheme.surfaceContainerLow.withValues(
+          alpha: isDark ? 0.3 : 0.5,
+        ),
         border: Border.symmetric(
           horizontal: BorderSide(
             color: colorScheme.outline.withValues(alpha: 0.08),

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -10,6 +9,9 @@ import '../../users/models/user_model.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/ui/widgets/griot_avatar.dart';
+import '../../../core/ui/widgets/griot_plus_badge.dart';
+import '../../../core/ui/widgets/griot_pioneer_badge.dart';
 
 class MessageRequestsScreen extends StatefulWidget {
   const MessageRequestsScreen({super.key});
@@ -234,6 +236,12 @@ class _RequestCardState extends State<_RequestCard> {
     final String? targetProfileUrl = isReceived
         ? request.senderProfileUrl
         : request.receiverProfileUrl;
+    final bool targetIsPlus = isReceived
+        ? request.senderIsPlus
+        : request.receiverIsPlus;
+    final bool targetIsPioneer = isReceived
+        ? request.senderIsPioneer
+        : request.receiverIsPioneer;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -271,39 +279,43 @@ class _RequestCardState extends State<_RequestCard> {
               children: [
                 Row(
                   children: [
-                    CircleAvatar(
+                    GriotAvatar(
+                      avatarUrl: targetProfileUrl,
                       radius: 26,
                       backgroundColor: colors.surfaceContainerHighest,
-                      backgroundImage:
-                          targetProfileUrl != null &&
-                              targetProfileUrl.trim().isNotEmpty
-                          ? NetworkImage(targetProfileUrl)
-                          : null,
-                      child:
-                          targetProfileUrl == null ||
-                              targetProfileUrl.trim().isEmpty
-                          ? SvgPicture.asset(
-                              'assets/coins_logo/hbadger_logo.svg',
-                              width: 32,
-                              height: 32,
-                            )
-                          : null,
                     ),
                     const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            targetDisplayName ??
-                                targetUsername ??
-                                _formatAddress(targetWallet),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 16,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  targetDisplayName ??
+                                      targetUsername ??
+                                      _formatAddress(targetWallet),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 16,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (targetIsPlus) ...[
+                                const SizedBox(width: 6),
+                                const GriotPlusBadge(
+                                  isPlus: true,
+                                  compact: true,
+                                ),
+                              ],
+                              if (targetIsPioneer) ...[
+                                const SizedBox(width: 4),
+                                const GriotPioneerBadge(compact: true),
+                              ],
+                            ],
                           ),
                           if (targetUsername != null &&
                               targetUsername.isNotEmpty)

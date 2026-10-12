@@ -10,6 +10,7 @@ class RealtimeCallSession {
   final String contextType;
   final String? conversationId;
   final String mode;
+  final bool campfireL3Enabled;
 
   const RealtimeCallSession({
     required this.appId,
@@ -20,6 +21,7 @@ class RealtimeCallSession {
     this.contextType = 'direct',
     this.conversationId,
     this.mode = 'voice',
+    this.campfireL3Enabled = false,
   });
 }
 
@@ -107,6 +109,7 @@ class RealtimeCallService {
       contextType: data['contextType']?.toString() ?? 'direct',
       conversationId: data['conversationId']?.toString(),
       mode: data['mode']?.toString() == 'video' ? 'video' : 'voice',
+      campfireL3Enabled: data['campfireL3Enabled'] == true,
     );
   }
 
@@ -166,6 +169,7 @@ class RealtimeCallService {
       contextType: data['contextType']?.toString() ?? contextType,
       conversationId: data['conversationId']?.toString() ?? conversationId,
       mode: data['mode']?.toString() == 'video' ? 'video' : 'voice',
+      campfireL3Enabled: data['campfireL3Enabled'] == true,
     );
   }
 }

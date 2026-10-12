@@ -8,7 +8,7 @@ enum TipStatus {
   confirmed,
   failed,
   cancelled,
-  unknown
+  unknown,
 }
 
 class TipEvent {
@@ -65,7 +65,8 @@ class TipEvent {
       assetType: json['assetType']?.toString() ?? 'native',
       tokenAddress: json['tokenAddress']?.toString(),
       senderAddress: json['senderAddress']?.toString() ?? '',
-      recipientAddresses: (json['recipientAddresses'] as List?)
+      recipientAddresses:
+          (json['recipientAddresses'] as List?)
               ?.map((e) => e.toString())
               .toList() ??
           [],

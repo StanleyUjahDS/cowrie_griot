@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:toastification/toastification.dart';
+import '../ui/widgets/griot_avatar.dart';
 
 class NotificationService {
+  static DateTime? _lastCampfireScheduledAt;
+
   static void _replaceActiveToast() {
     toastification.dismissAll(delayForAnimation: false);
   }
@@ -181,6 +184,40 @@ class NotificationService {
     );
   }
 
+  /// Shows the single confirmation used by every Campfire scheduling flow.
+  ///
+  /// Scheduling can be observed by both the screen that created the room and
+  /// the Campfires feed refresh listener. Keep the confirmation idempotent so
+  /// those paths cannot produce two different banners for the same room.
+  static void showCampfireScheduled(
+    BuildContext context, {
+    required String campfireId,
+    required DateTime scheduledAt,
+    String? title,
+  }) {
+    final now = DateTime.now();
+    // A scheduling flow can refresh both the creating screen and the
+    // conversation/feed screen. Treat callbacks arriving within this short
+    // window as one user action, even if one callback has a different ID
+    // representation.
+    if (_lastCampfireScheduledAt != null &&
+        now.difference(_lastCampfireScheduledAt!).inSeconds < 5) {
+      return;
+    }
+    _lastCampfireScheduledAt = now;
+
+    final localTime = scheduledAt.toLocal();
+    final timeLabel =
+        '${MaterialLocalizations.of(context).formatMediumDate(localTime)} at '
+        '${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(localTime))}';
+    final trimmedTitle = title?.trim();
+    showSuccess(
+      context,
+      '${trimmedTitle == null || trimmedTitle.isEmpty ? 'Campfire' : trimmedTitle} '
+      'scheduled for $timeLabel. It will not start early.',
+    );
+  }
+
   // ============================================================
   // ERROR
   // ============================================================
@@ -287,15 +324,11 @@ class NotificationService {
             ),
             child: Row(
               children: [
-                CircleAvatar(
+                GriotAvatar(
+                  avatarUrl: avatarUrl,
                   radius: 20,
                   backgroundColor: colors.primary.withValues(alpha: 0.1),
-                  backgroundImage: avatarUrl != null
-                      ? NetworkImage(avatarUrl)
-                      : null,
-                  child: avatarUrl == null
-                      ? Icon(Icons.person_rounded, color: colors.primary)
-                      : null,
+                  iconColor: colors.primary,
                 ),
                 const SizedBox(width: 12),
                 Expanded(

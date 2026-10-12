@@ -54,8 +54,21 @@ import flutter_callkit_incoming
     guard type == .voIP else { completion(); return }
     let body = payload.dictionaryPayload
     let id = body["id"] as? String ?? UUID().uuidString
-    let caller = body["nameCaller"] as? String ?? "Griot contact"
-    let handle = body["handle"] as? String ?? caller
+    // CallKit's incoming banner is intentionally compact. A long profile
+    // name can otherwise be clipped into the header on iPhone; the complete
+    // payload is still retained in `extra` for the in-app call screen.
+    let caller = compactCallLabel(
+      (body["callerName"] as? String)
+        ?? (body["nameCaller"] as? String)
+        ?? (body["caller_name"] as? String)
+        ?? "Griot contact"
+    )
+    let handle = compactCallLabel(
+      (body["callerHandle"] as? String)
+        ?? (body["handle"] as? String)
+        ?? (body["caller_handle"] as? String)
+        ?? caller
+    )
     let isVideo = body["isVideo"] as? Bool ?? false
     let callData = flutter_callkit_incoming.Data(
       id: id,
@@ -91,6 +104,15 @@ import flutter_callkit_incoming
   func didDeactivateAudioSession(_ audioSession: AVAudioSession) {}
   func providerDidReset() {}
 
+  private func compactCallLabel(_ value: String) -> String {
+    let normalized = value
+      .split(whereSeparator: { $0.isWhitespace })
+      .joined(separator: " ")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard normalized.count > 32 else { return normalized }
+    return String(normalized.prefix(29)).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
+  }
+
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
 
@@ -108,6 +130,16 @@ import flutter_callkit_incoming
     methodChannel.setMethodCallHandler { [weak self] call, result in
       guard call.method == "getInitialShare" else { result(FlutterMethodNotImplemented); return }
       result(self?.consumePendingShare())
+    }
+    let notificationChannel = FlutterMethodChannel(name: "griot/notifications", binaryMessenger: messenger)
+    notificationChannel.setMethodCallHandler { call, result in
+      guard call.method == "clearDeliveredNotifications" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+      UIApplication.shared.applicationIconBadgeNumber = 0
+      result(nil)
     }
     let eventChannel = FlutterEventChannel(name: "griot/share_receiver/events", binaryMessenger: messenger)
     eventChannel.setStreamHandler(self)

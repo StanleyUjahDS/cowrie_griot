@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../../core/ui/widgets/griot_branded_container.dart';
+import '../../../../core/services/notification_service.dart';
 import '../../../users/services/user_api_service.dart';
 
 class CommunityGuidelinesScreen extends StatefulWidget {
@@ -21,17 +22,15 @@ class _CommunityGuidelinesScreenState extends State<CommunityGuidelinesScreen> {
     try {
       await context.read<UserApiService>().acceptCurrentPolicies();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Terms and Community Guidelines accepted.'),
-        ),
+      NotificationService.showSuccess(
+        context,
+        'Terms and Community Guidelines accepted.',
       );
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not record your acceptance. Please try again.'),
-        ),
+      NotificationService.showError(
+        context,
+        'Could not record your acceptance. Please try again.',
       );
     } finally {
       if (mounted) setState(() => _accepting = false);

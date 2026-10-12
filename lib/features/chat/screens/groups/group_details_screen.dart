@@ -11,12 +11,16 @@ import '../../models/conversation_model.dart';
 import '../../models/chat_user.dart';
 import '../../widgets/friend_selector_sheet.dart';
 import '../../widgets/chatting/tip_sheet.dart';
+import '../../widgets/conversation_members_sheet.dart';
+import '../../widgets/conversation_campfire_button.dart';
+import '../../widgets/conversation_call_button.dart';
 import '../../services/media_api_service.dart';
 import '../../../users/providers/user_provider.dart';
 import '../../../../core/services/notification_service.dart';
 import '../../../../core/services/share_link_service.dart';
 import '../../../../core/ui/widgets/griot_loader.dart';
 import '../../../../core/ui/widgets/griot_plus_badge.dart';
+import '../../../../core/ui/widgets/griot_pioneer_badge.dart';
 
 class GroupDetailsScreen extends StatefulWidget {
   final Conversation conversation;
@@ -30,6 +34,15 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
   List<Map<String, dynamic>> _members = [];
   bool _isLoadingMembers = false;
   bool _isActionLoading = false;
+  Conversation? _updatedConversation;
+
+  Color _hexColor(String? value, Color fallback) {
+    final raw = value?.trim().replaceFirst('#', '');
+    if (raw == null || (raw.length != 6 && raw.length != 8)) return fallback;
+    final parsed = int.tryParse(raw, radix: 16);
+    if (parsed == null) return fallback;
+    return Color(raw.length == 6 ? 0xFF000000 | parsed : parsed);
+  }
 
   late final TextEditingController _nameController;
   late final TextEditingController _usernameController;
@@ -132,7 +145,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
     if (confirm != true || !mounted) return;
     setState(() => _isActionLoading = true);
     try {
-      await context.read<MessagingProvider>().deleteConversation(
+      await context.read<MessagingProvider>().deleteGroup(
         widget.conversation.id,
       );
       if (mounted) {
@@ -308,11 +321,12 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
 
   Future<void> _editGroupSettings() async {
     final theme = Theme.of(context);
-    _nameController.text = widget.conversation.title ?? '';
-    _usernameController.text = widget.conversation.username ?? '';
-    _descriptionController.text = widget.conversation.description ?? '';
-    var visibility = widget.conversation.visibility;
-    var messagesLocked = widget.conversation.messagesLocked;
+    final currentConversation = _updatedConversation ?? widget.conversation;
+    _nameController.text = currentConversation.title ?? '';
+    _usernameController.text = currentConversation.username ?? '';
+    _descriptionController.text = currentConversation.description ?? '';
+    var visibility = currentConversation.visibility;
+    var messagesLocked = currentConversation.messagesLocked;
     File? selectedImage;
 
     final result = await showModalBottomSheet<Map<String, dynamic>>(
@@ -409,9 +423,9 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                                       selectedImage!,
                                       fit: BoxFit.cover,
                                     )
-                                  : (widget.conversation.avatarUrl != null
+                                  : (currentConversation.avatarUrl != null
                                         ? Image.network(
-                                            widget.conversation.avatarUrl!,
+                                            currentConversation.avatarUrl!,
                                             fit: BoxFit.cover,
                                             errorBuilder: (_, _, _) => Icon(
                                               Icons.groups_rounded,
@@ -680,18 +694,31 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
           conversationId: widget.conversation.id,
         );
         imageUrl = uploadResult['mediaUrl'];
+        if (imageUrl == null || imageUrl.trim().isEmpty) {
+          throw StateError(
+            'The group image upload did not return a media URL.',
+          );
+        }
       }
 
       if (!mounted) return;
-      await context.read<MessagingProvider>().updateGroup(
-        widget.conversation.id,
-        name: result['name'],
-        username: result['username'],
-        description: result['description'],
-        visibility: result['visibility'],
-        messagesLocked: result['messagesLocked'] as bool?,
-        imageUrl: imageUrl,
-      );
+      final updatedConversation = await context
+          .read<MessagingProvider>()
+          .updateGroup(
+            widget.conversation.id,
+            name: result['name'],
+            username: result['username'],
+            description: result['description'],
+            visibility: result['visibility'],
+            messagesLocked: result['messagesLocked'] as bool?,
+            imageUrl: imageUrl,
+          );
+      if (mounted) setState(() => _updatedConversation = updatedConversation);
+      // Reconcile the details screen and Chat Home with the server response;
+      // edits must not appear to disappear until a later refresh.
+      if (mounted) {
+        await context.read<MessagingProvider>().loadConversations(force: true);
+      }
       if (mounted) {
         NotificationService.showSuccess(context, 'Group updated');
       }
@@ -819,6 +846,29 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                               const SizedBox(width: 6),
                               const GriotPlusBadge(isPlus: true, compact: true),
                             ],
+                            if (member['is_pioneer'] == true ||
+                                member['isPioneer'] == true) ...[
+                              const SizedBox(width: 4),
+                              const GriotPioneerBadge(compact: true),
+                            ],
+                            if ((member['reputation_tier_name'] ?? '')
+                                .toString()
+                                .isNotEmpty) ...[
+                              const SizedBox(width: 6),
+                              Tooltip(
+                                message: member['reputation_tier_name']
+                                    .toString(),
+                                child: Icon(
+                                  Icons.workspace_premium_rounded,
+                                  size: 16,
+                                  color: _hexColor(
+                                    member['reputation_badge_color']
+                                        ?.toString(),
+                                    colors.primary,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                         const SizedBox(height: 2),
@@ -941,6 +991,26 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
     );
   }
 
+  void _showMemberDirectory({
+    required bool canManage,
+    required String actingRole,
+    required String? currentUserId,
+  }) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => ConversationMembersSheet(
+        title: 'Members',
+        members: _members,
+        currentUserId: currentUserId,
+        canManage: canManage,
+        onMemberTap: (member) =>
+            _showMemberOptions(member, actingRole, currentUserId),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -958,15 +1028,25 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
         );
 
         // Merge data
-        final conversation = widget.conversation.copyWith(
+        final savedConversation = _updatedConversation;
+        final baseConversation = savedConversation ?? providerConv;
+        final conversation = baseConversation.copyWith(
+          name:
+              savedConversation?.name ??
+              providerConv.name ??
+              widget.conversation.name,
+          imageUrl:
+              savedConversation?.imageUrl ??
+              providerConv.imageUrl ??
+              widget.conversation.imageUrl,
           role: providerConv.role,
           status: providerConv.status,
           memberCount: providerConv.memberCount > 0
               ? providerConv.memberCount
-              : widget.conversation.memberCount,
+              : baseConversation.memberCount,
           memberIds: providerConv.memberIds.isNotEmpty
               ? providerConv.memberIds
-              : widget.conversation.memberIds,
+              : baseConversation.memberIds,
         );
 
         final myMember = _members.firstWhere(
@@ -1067,7 +1147,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                   background: SafeArea(
                     child: Align(
                       alignment: Alignment.bottomCenter,
-                        child: Padding(
+                      child: Padding(
                         padding: const EdgeInsets.only(bottom: 82),
                         child: Container(
                           width: 72,
@@ -1082,10 +1162,10 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                           ),
                           clipBehavior: Clip.antiAlias,
                           child:
-                              widget.conversation.avatarUrl != null &&
-                                  widget.conversation.avatarUrl!.isNotEmpty
+                              conversation.avatarUrl != null &&
+                                  conversation.avatarUrl!.isNotEmpty
                               ? Image.network(
-                                  widget.conversation.avatarUrl!,
+                                  conversation.avatarUrl!,
                                   fit: BoxFit.cover,
                                   errorBuilder: (_, _, _) => Icon(
                                     Icons.groups_rounded,
@@ -1118,6 +1198,34 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Keep an active group Campfire visible immediately
+                      // below the header so members know a live call is
+                      // happening without having to search the overview.
+                      ConversationCampfireStatusCard(
+                        conversationId: widget.conversation.id,
+                        conversationType: 'group',
+                        canCreate: canManage,
+                      ),
+                      if (canManage) ...[
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: () => GroupConversationCallButton(
+                              conversationId: conversation.id,
+                              canCreateCampfire: true,
+                            ).open(context),
+                            icon: const Icon(Icons.groups_rounded),
+                            label: const Text('Start group call or Campfire'),
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 15),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
                       // Circle Identity Section
                       _buildSectionLabel('CIRCLE IDENTITY'),
                       const SizedBox(height: 12),
@@ -1126,8 +1234,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                         colors: colors,
                         actualMemberCount: _members.length,
                       ),
-                      const SizedBox(height: 32),
-
+                      const SizedBox(height: 16),
                       if (widget.conversation.description != null &&
                           widget.conversation.description!.isNotEmpty) ...[
                         _buildSectionLabel('ABOUT THIS CIRCLE'),
@@ -1191,13 +1298,20 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                           shrinkWrap: true,
                           padding: EdgeInsets.zero,
                           physics: const NeverScrollableScrollPhysics(),
-                          itemCount: _members.length,
+                          itemCount: _members.take(5).length,
                           itemBuilder: (context, index) {
                             final member = _members[index];
                             final isMe = member['user_id'] == currentUserId;
                             final role = member['role']?.toString() ?? 'member';
                             final isOwner = role == 'owner';
                             final isAdmin = role == 'admin';
+                            final reputation =
+                                member['reputation_tier_name']
+                                    ?.toString()
+                                    .trim() ??
+                                '';
+                            final reputationColor =
+                                member['reputation_badge_color']?.toString();
 
                             return InkWell(
                               onTap: () => _showMemberOptions(
@@ -1252,6 +1366,15 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                                                   compact: true,
                                                 ),
                                               ],
+                                              if (member['is_pioneer'] ==
+                                                      true ||
+                                                  member['isPioneer'] ==
+                                                      true) ...[
+                                                const SizedBox(width: 4),
+                                                const GriotPioneerBadge(
+                                                  compact: true,
+                                                ),
+                                              ],
                                             ],
                                           ),
                                           if (isOwner || isAdmin)
@@ -1262,6 +1385,25 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                                                 color: colors.primary,
                                                 fontWeight: FontWeight.w900,
                                                 letterSpacing: 0.5,
+                                              ),
+                                            ),
+                                          if (reputation.isNotEmpty)
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: 3,
+                                              ),
+                                              child: Text(
+                                                reputation,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: _hexColor(
+                                                    reputationColor,
+                                                    colors.primary,
+                                                  ),
+                                                  fontWeight: FontWeight.w700,
+                                                ),
                                               ),
                                             ),
                                         ],
@@ -1279,6 +1421,25 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                               ),
                             );
                           },
+                        ),
+
+                      if (_members.length > 5)
+                        Center(
+                          child: TextButton(
+                            onPressed: () => _showMemberDirectory(
+                              canManage: canManage,
+                              actingRole: iAmOwner
+                                  ? 'owner'
+                                  : (iAmAdmin ? 'admin' : 'member'),
+                              currentUserId: currentUserId,
+                            ),
+                            child: Text(
+                              'View all ${_members.length} members',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
                         ),
 
                       const SizedBox(height: 48),

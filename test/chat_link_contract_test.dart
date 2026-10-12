@@ -69,6 +69,18 @@ void main() {
         ),
         isTrue,
       );
+      expect(
+        PublicDeepLinkRecoveryScreen.supports(
+          Uri.parse('https://griot.network/call/join?invite=abc123'),
+        ),
+        isTrue,
+      );
+      expect(
+        PublicDeepLinkRecoveryScreen.supports(
+          Uri.parse('griot://call/join?invite=abc123'),
+        ),
+        isTrue,
+      );
     });
   });
 

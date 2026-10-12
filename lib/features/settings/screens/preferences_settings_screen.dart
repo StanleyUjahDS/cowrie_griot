@@ -16,9 +16,9 @@ class ChatSettingsScreen extends StatelessWidget {
         'message_preview',
       ),
       _PreferenceItem(
-        'Read receipts',
-        'Let contacts know when messages are read',
-        'read_receipts',
+        'Chat notifications',
+        'Receive notifications for new messages',
+        'chat_notifications',
       ),
       _PreferenceItem(
         'Typing indicators',
@@ -44,6 +44,11 @@ class ChatPrivacyScreen extends StatelessWidget {
         'Read receipts',
         'Share message read status',
         'read_receipts',
+      ),
+      _PreferenceItem(
+        'Profile discoverability',
+        'Allow your profile to appear in discovery',
+        'profile_discoverability',
       ),
     ],
   );

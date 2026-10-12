@@ -66,7 +66,7 @@ class GroupListItem extends StatelessWidget {
           onLongPress: onLongPress,
           borderRadius: BorderRadius.circular(24),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             child: Row(
               children: [
                 // ==========================================================
@@ -90,6 +90,22 @@ class GroupListItem extends StatelessWidget {
                         ? Image.network(
                             conversation.imageUrl!,
                             fit: BoxFit.cover,
+                            frameBuilder:
+                                (
+                                  context,
+                                  child,
+                                  frame,
+                                  wasSynchronouslyLoaded,
+                                ) {
+                                  if (wasSynchronouslyLoaded || frame != null) {
+                                    return child;
+                                  }
+                                  return Icon(
+                                    Icons.groups_rounded,
+                                    size: 30,
+                                    color: colorScheme.primary,
+                                  );
+                                },
                             errorBuilder: (context, error, stackTrace) => Icon(
                               Icons.groups_rounded,
                               size: 30,
@@ -103,7 +119,7 @@ class GroupListItem extends StatelessWidget {
                           ),
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
 
                 // ==========================================================
                 // INFO CONTENT
@@ -120,9 +136,8 @@ class GroupListItem extends StatelessWidget {
                               conversation.name ?? 'Unknown Group',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: textTheme.titleMedium?.copyWith(
+                              style: textTheme.bodyLarge?.copyWith(
                                 fontWeight: FontWeight.w900,
-                                fontSize: 16,
                               ),
                             ),
                           ),
@@ -149,7 +164,6 @@ class GroupListItem extends StatelessWidget {
                             alpha: 0.6,
                           ),
                           fontWeight: FontWeight.w600,
-                          fontSize: 12,
                         ),
                       ),
                     ],
@@ -186,12 +200,11 @@ class GroupListItem extends StatelessWidget {
                             const SizedBox(width: 4),
                             Text(
                               conversation.memberCount.toString(),
-                              style: TextStyle(
+                              style: textTheme.labelSmall?.copyWith(
                                 color:
                                     colorScheme.primary.computeLuminance() > 0.6
                                     ? colorScheme.onSurface
                                     : colorScheme.primary,
-                                fontSize: 10,
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
@@ -210,7 +223,6 @@ class GroupListItem extends StatelessWidget {
                           alpha: 0.45,
                         ),
                         fontWeight: FontWeight.w700,
-                        fontSize: 10,
                       ),
                     ),
                   ],
@@ -230,7 +242,9 @@ class GroupListItem extends StatelessWidget {
                     icon: Icon(
                       Icons.more_vert_rounded,
                       size: 20,
-                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.55),
+                      color: colorScheme.onSurfaceVariant.withValues(
+                        alpha: 0.55,
+                      ),
                     ),
                   ),
                 ],
@@ -259,8 +273,18 @@ class _UnreadBadge extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: colors.primary, borderRadius: BorderRadius.circular(10)),
-      child: Text(count > 99 ? '99+' : '$count', style: TextStyle(color: colors.onPrimary, fontSize: 10, fontWeight: FontWeight.w900)),
+      decoration: BoxDecoration(
+        color: colors.primary,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        count > 99 ? '99+' : '$count',
+        style: TextStyle(
+          color: colors.onPrimary,
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
     );
   }
 }

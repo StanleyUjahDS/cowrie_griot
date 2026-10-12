@@ -88,6 +88,7 @@ class _ActiveCallHostState extends State<ActiveCallHost> {
                       conversationId: request.conversationId,
                       conversationType: request.conversationType,
                       mode: request.mode,
+                      title: request.title,
                       initialCallId: request.callId,
                       initialSession: request.session,
                       initialRoomId: request.roomId,

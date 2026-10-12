@@ -8,6 +8,7 @@ import 'package:griot_cowrie/features/chat/providers/messaging_provider.dart';
 import 'package:griot_cowrie/core/ui/scaffolds/gradient_scaffold.dart';
 import 'package:griot_cowrie/features/chat/models/conversation_model.dart';
 import 'package:griot_cowrie/features/chat/widgets/chat_list_item.dart';
+import 'package:griot_cowrie/features/chat/widgets/conversation_actions_sheet.dart';
 import 'package:griot_cowrie/features/chat/widgets/chat_loading.dart';
 import 'package:griot_cowrie/features/chat/widgets/group_list_item.dart'
     as group_widgets;
@@ -15,6 +16,7 @@ import 'package:griot_cowrie/features/chat/widgets/channel_list_item.dart';
 import 'package:griot_cowrie/core/router/main_navigation.dart';
 import '../../../core/ui/widgets/griot_branded_container.dart';
 import '../../../core/services/notification_service.dart';
+import '../services/chat_draft_store.dart';
 
 enum HubSection { direct, groups, channels }
 
@@ -55,6 +57,8 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
   };
   late final PageController _pageController;
   late HubSection selectedHub;
+  final ChatDraftStore _draftStore = const ChatDraftStore();
+  Map<String, String> _drafts = const <String, String>{};
 
   @override
   void initState() {
@@ -68,6 +72,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final messaging = Provider.of<MessagingProvider>(context, listen: false);
+      _loadDrafts();
       // Load the cache immediately, then always reconcile it with the server.
       // Otherwise a non-empty stale cache prevents newly-created groups from
       // appearing after returning to the chat screen.
@@ -80,6 +85,11 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
         messaging.loadFriends();
       }
     });
+  }
+
+  Future<void> _loadDrafts() async {
+    final drafts = await _draftStore.readAll();
+    if (mounted) setState(() => _drafts = drafts);
   }
 
   @override
@@ -125,6 +135,195 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
         );
       }
     }
+  }
+
+  Future<void> _openGlobalMessageSearch() async {
+    final provider = context.read<MessagingProvider>();
+    final conversations = provider.conversations;
+    // Reconcile each conversation before indexing so global search is not
+    // limited to whatever happened to be cached on the home screen.
+    await Future.wait(
+      conversations.map((conversation) async {
+        try {
+          await provider.loadMessages(conversation.id);
+        } catch (_) {
+          // Keep already-cached messages searchable if one conversation fails.
+        }
+      }),
+    );
+    final matches = <({Conversation conversation, dynamic message})>[];
+    for (final conversation in conversations) {
+      for (final message in provider.getMessagesForConversation(
+        conversation.id,
+      )) {
+        matches.add((conversation: conversation, message: message));
+      }
+    }
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        var query = '';
+        var visibleCount = 40;
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final results = matches.where((item) {
+              final text = item.message.text?.toString().toLowerCase() ?? '';
+              return query.trim().isNotEmpty &&
+                  text.contains(query.trim().toLowerCase());
+            }).toList();
+            return Dialog.fullscreen(
+              child: Scaffold(
+                appBar: AppBar(
+                  title: const Text('Search all messages'),
+                  leading: IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => Navigator.pop(dialogContext),
+                  ),
+                ),
+                body: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: Column(
+                    children: [
+                      TextField(
+                        autofocus: true,
+                        decoration: const InputDecoration(
+                          hintText: 'Search across all conversations',
+                          prefixIcon: Icon(Icons.search_rounded),
+                        ),
+                        onChanged: (value) => setState(() {
+                          query = value;
+                          visibleCount = 40;
+                        }),
+                      ),
+                      const SizedBox(height: 12),
+                      Expanded(
+                        child: query.trim().isEmpty
+                            ? const Center(child: Text('Search your messages'))
+                            : results.isEmpty
+                            ? const Center(child: Text('No messages found'))
+                            : ListView.builder(
+                                itemCount:
+                                    results.take(visibleCount).length +
+                                    (results.length > visibleCount ? 1 : 0),
+                                itemBuilder: (_, index) {
+                                  if (index >= visibleCount) {
+                                    return Center(
+                                      child: TextButton.icon(
+                                        onPressed: () =>
+                                            setState(() => visibleCount += 40),
+                                        icon: const Icon(
+                                          Icons.expand_more_rounded,
+                                        ),
+                                        label: Text(
+                                          'View more (${results.length - visibleCount} remaining)',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                  final item = results[index];
+                                  final title =
+                                      item.conversation.title ??
+                                      item
+                                          .conversation
+                                          .otherUser
+                                          ?.effectiveDisplayName ??
+                                      'Conversation';
+                                  final colors = Theme.of(context).colorScheme;
+                                  final isGroup =
+                                      item.conversation.type ==
+                                      ConversationType.group;
+                                  final isChannel =
+                                      item.conversation.type ==
+                                      ConversationType.channel;
+                                  final typeLabel = isGroup
+                                      ? 'Group'
+                                      : isChannel
+                                      ? 'Channel'
+                                      : 'Direct';
+                                  final time = item.message.createdAt;
+                                  return Card(
+                                    margin: const EdgeInsets.only(bottom: 10),
+                                    child: ListTile(
+                                      leading: CircleAvatar(
+                                        backgroundColor: colors.secondary
+                                            .withValues(alpha: 0.14),
+                                        child: Icon(
+                                          isGroup
+                                              ? Icons.groups_rounded
+                                              : isChannel
+                                              ? Icons.campaign_rounded
+                                              : Icons.person_rounded,
+                                          color: colors.secondary,
+                                        ),
+                                      ),
+                                      title: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              title,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                          ),
+                                          Text(
+                                            '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}',
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.labelSmall,
+                                          ),
+                                        ],
+                                      ),
+                                      subtitle: Padding(
+                                        padding: const EdgeInsets.only(top: 4),
+                                        child: Row(
+                                          children: [
+                                            Text(
+                                              typeLabel,
+                                              style: TextStyle(
+                                                color: colors.secondary,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                item.message.text.toString(),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      onTap: () {
+                                        Navigator.pop(dialogContext);
+                                        context.push(
+                                          '/conversation/${item.conversation.id}',
+                                          extra: {
+                                            'conversation': item.conversation,
+                                            'messageId': item.message.id,
+                                          },
+                                        );
+                                      },
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   List<Conversation> getFilteredConversations(
@@ -306,8 +505,16 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
         ),
         actions: [
           IconButton(
+            tooltip: 'Search all messages',
+            onPressed: _openGlobalMessageSearch,
+            icon: Icon(Icons.manage_search_rounded, color: colors.primary),
+          ),
+          IconButton(
             tooltip: 'Updates',
-            onPressed: () => context.go('/notifications'),
+            onPressed: () {
+              context.read<MessagingProvider>().markNotificationsSeen();
+              context.go('/notifications');
+            },
             icon: Stack(
               clipBehavior: Clip.none,
               children: [
@@ -599,9 +806,20 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
                       ),
                       lastMessage: conv.lastMessage,
                       time: _formatTime(conv.updatedAt),
+                      isTyping:
+                          provider.typingUsers[conv.id]?.isNotEmpty == true,
+                      draftText: _drafts[conv.id],
                       isPinned: provider.isConversationPinned(conv.id),
                       onTap: () =>
                           context.push('/conversation/${conv.id}', extra: conv),
+                      onLongPress: () => showConversationActionsSheet(
+                        context: context,
+                        isPinned: provider.isConversationPinned(conv.id),
+                        onPinToggle: () =>
+                            provider.toggleConversationPin(conv.id),
+                        onRemove: () => _removeConversation(conv),
+                        removeLabel: 'Delete conversation',
+                      ),
                       onPinToggle: () {
                         provider.toggleConversationPin(conv.id);
                       },
@@ -621,6 +839,8 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
                   } else if (type == ConversationType.channel) {
                     item = ChannelListItem(
                       conversation: conv,
+                      onTap: () =>
+                          context.push('/conversation/${conv.id}', extra: conv),
                       isPinned: provider.isConversationPinned(conv.id),
                       onPinToggle: () {
                         provider.toggleConversationPin(conv.id);
@@ -725,6 +945,7 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
               ),
               lastMessage: conv.lastMessage,
               time: _formatTime(conv.updatedAt),
+              isTyping: provider.typingUsers[conv.id]?.isNotEmpty == true,
               isPinned: provider.isConversationPinned(conv.id),
               onTap: () =>
                   context.push('/conversation/${conv.id}', extra: conv),
@@ -755,6 +976,8 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
           ...channelResults.map(
             (conv) => ChannelListItem(
               conversation: conv,
+              onTap: () =>
+                  context.push('/conversation/${conv.id}', extra: conv),
               isPinned: provider.isConversationPinned(conv.id),
               onPinToggle: () {
                 provider.toggleConversationPin(conv.id);

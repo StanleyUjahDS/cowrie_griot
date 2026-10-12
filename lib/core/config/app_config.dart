@@ -19,9 +19,9 @@ class AppConfig {
   // Replace these with your actual App IDs from AdMob console
   static String get admobAppId {
     if (Platform.isAndroid) {
-      return 'ca-app-pub-8536613969303259~8291757202';
+      return 'ca-app-pub-8536613969303259~3557722110';
     } else if (Platform.isIOS) {
-      return 'ca-app-pub-8536613969303259~7689121976';
+      return 'ca-app-pub-8536613969303259~5222068288';
     }
     return '';
   }
@@ -31,11 +31,11 @@ class AppConfig {
     if (Platform.isAndroid) {
       return _useTestAds
           ? 'ca-app-pub-3940256099942544/6300978111'
-          : 'ca-app-pub-8536613969303259/3650636169';
+          : 'ca-app-pub-8536613969303259/7752117997';
     } else if (Platform.isIOS) {
       return _useTestAds
           ? 'ca-app-pub-3940256099942544/2934735716'
-          : 'ca-app-pub-8536613969303259/6999688388';
+          : 'ca-app-pub-8536613969303259/3241018181';
     }
     return '';
   }

@@ -158,10 +158,14 @@ class ReportContentSheet {
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : const Icon(Icons.flag_rounded),
-                        label: Text(isSubmitting ? 'Submitting...' : 'Submit report'),
+                        label: Text(
+                          isSubmitting ? 'Submitting...' : 'Submit report',
+                        ),
                       ),
                     ),
                   ],

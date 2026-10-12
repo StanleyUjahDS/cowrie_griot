@@ -14,6 +14,7 @@ import '../../../core/services/notification_service.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
 import '../../../core/ui/widgets/griot_avatar.dart';
 import '../../../core/ui/widgets/griot_plus_badge.dart';
+import '../../../core/ui/widgets/griot_pioneer_badge.dart';
 import 'chatting/fullscreen_media_viewer.dart';
 import '../../../core/ui/widgets/griot_bottom_sheet.dart';
 
@@ -280,6 +281,10 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
               const SizedBox(width: 8),
               const GriotPlusBadge(isPlus: true, compact: true),
             ],
+            if (user.isPioneer) ...[
+              const SizedBox(width: 4),
+              const GriotPioneerBadge(compact: true),
+            ],
           ],
         ),
         if (user.username != null)
@@ -324,7 +329,11 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
           width: 4,
         ),
       ),
-      child: const Icon(Icons.stars_rounded, color: Colors.white, size: 20),
+      child: const Icon(
+        Icons.workspace_premium_rounded,
+        color: Colors.white,
+        size: 20,
+      ),
     );
   }
 

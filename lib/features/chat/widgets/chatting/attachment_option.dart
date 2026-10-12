@@ -45,7 +45,9 @@ class AttachmentOption extends StatelessWidget {
                 ),
               ),
               child: Center(
-                child: customIcon ?? Icon(icon, color: colorScheme.primary, size: 28),
+                child:
+                    customIcon ??
+                    Icon(icon, color: colorScheme.primary, size: 28),
               ),
             ),
             const SizedBox(height: 8),

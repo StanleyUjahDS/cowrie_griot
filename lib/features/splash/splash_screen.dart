@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
-import '../../../core/ui/widgets/griot_loader.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/startup/app_startup_service.dart';
 import '../../../core/services/deep_link_service.dart';
@@ -203,7 +202,14 @@ class _SplashScreenState extends State<SplashScreen> {
               // ==================================================
               // LOADER
               // ==================================================
-              const GriotLoader(size: 40),
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: colorScheme.primary,
+                ),
+              ),
 
               const SizedBox(height: 48),
             ],

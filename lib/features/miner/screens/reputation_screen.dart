@@ -325,9 +325,7 @@ class _ReputationScreenState extends State<ReputationScreen> {
                       ],
                     ),
                     child: Icon(
-                      reputation.tier.name.toLowerCase().contains('ultimate')
-                          ? Icons.stars_rounded
-                          : Icons.workspace_premium_rounded,
+                      Icons.workspace_premium_rounded,
                       size: 46,
                       color: Colors.white,
                     ),
@@ -475,6 +473,26 @@ class _ReputationScreenState extends State<ReputationScreen> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 16),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _tierMetaChip(
+                      '${reputation.points.toStringAsFixed(0)} points',
+                      AppColors.parseHexColor(reputation.tier.badgeColor),
+                      colors,
+                      text,
+                    ),
+                    _tierMetaChip(
+                      _multiplierLabel(reputation.tier),
+                      AppColors.parseHexColor(reputation.tier.badgeColor),
+                      colors,
+                      text,
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -583,77 +601,118 @@ class _ReputationScreenState extends State<ReputationScreen> {
         '(${tier.reputationBonusLabel}).';
   }
 
+  List<ReputationTier> _defaultTiers() {
+    return const [
+      ReputationTier(
+        name: 'Starter Badger',
+        minPoints: 0,
+        maxPoints: 49,
+        badgeColor: '#64748B',
+        miningMultiplier: 1,
+      ),
+      ReputationTier(
+        name: 'Rookie Badger',
+        minPoints: 50,
+        maxPoints: 149,
+        badgeColor: '#22C55E',
+        miningMultiplier: 1.056,
+      ),
+      ReputationTier(
+        name: 'Rising Badger',
+        minPoints: 150,
+        maxPoints: 299,
+        badgeColor: '#3B82F6',
+        miningMultiplier: 1.111,
+      ),
+      ReputationTier(
+        name: 'Active Badger',
+        minPoints: 300,
+        maxPoints: 599,
+        badgeColor: '#A855F7',
+        miningMultiplier: 1.167,
+      ),
+      ReputationTier(
+        name: 'Guardian Badger',
+        minPoints: 600,
+        maxPoints: 999,
+        badgeColor: '#14B8A6',
+        miningMultiplier: 1.222,
+      ),
+      ReputationTier(
+        name: 'Warden Badger',
+        minPoints: 1000,
+        maxPoints: 1499,
+        badgeColor: '#F97316',
+        miningMultiplier: 1.278,
+      ),
+      ReputationTier(
+        name: 'Elder Badger',
+        minPoints: 1500,
+        maxPoints: 1999,
+        badgeColor: '#EF4444',
+        miningMultiplier: 1.333,
+      ),
+      ReputationTier(
+        name: 'Ancient Badger',
+        minPoints: 2000,
+        maxPoints: 2399,
+        badgeColor: '#4F46E5',
+        miningMultiplier: 1.389,
+      ),
+      ReputationTier(
+        name: 'Legendary Badger',
+        minPoints: 2400,
+        maxPoints: 2999,
+        badgeColor: '#EAB308',
+        miningMultiplier: 1.444,
+      ),
+      ReputationTier(
+        name: 'Ultimate Badger',
+        minPoints: 3000,
+        badgeColor: '#67E8F9',
+        miningMultiplier: 1.5,
+      ),
+    ];
+  }
+
+  String _multiplierLabel(ReputationTier tier) {
+    return '${tier.miningMultiplier.toStringAsFixed(3)}× mining';
+  }
+
+  Widget _tierMetaChip(
+    String label,
+    Color tierColor,
+    ColorScheme colors,
+    TextTheme text,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: tierColor.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: tierColor.withValues(alpha: 0.28)),
+      ),
+      child: Text(
+        label,
+        style: text.labelSmall?.copyWith(
+          color: tierColor == Colors.transparent
+              ? colors.onSurfaceVariant
+              : tierColor,
+          fontWeight: FontWeight.w800,
+          fontSize: 10,
+        ),
+      ),
+    );
+  }
+
   Widget _buildJourneyGuide(BuildContext context, ReputationData reputation) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final text = theme.textTheme;
 
-    final configuredTiers = reputation.tiers;
-    final tiers = configuredTiers.isNotEmpty
-        ? configuredTiers
-              .map(
-                (tier) => {
-                  'name': tier.name,
-                  'desc': _tierRules(tier),
-                  'color': tier.badgeColor,
-                  'min': tier.minPoints.toString(),
-                  'max': tier.maxPoints?.toString() ?? '∞',
-                  'bonus': tier.reputationBonusLabel,
-                },
-              )
-              .toList()
-        : [
-      {
-        'name': 'Initiate Badger',
-        'desc': 'Your journey begins here.',
-        'color': '#64748B',
-      },
-      {
-        'name': 'Seeker Badger',
-        'desc': 'You are becoming an active member.',
-        'color': '#22C55E',
-      },
-      {
-        'name': 'Scout Badger',
-        'desc': 'Your consistency is being recognized.',
-        'color': '#3B82F6',
-      },
-      {
-        'name': 'Explorer Badger',
-        'desc': 'You are making a meaningful contribution.',
-        'color': '#A855F7',
-      },
-      {
-        'name': 'Builder Badger',
-        'desc': 'You are becoming a trusted community member.',
-        'color': '#14B8A6',
-      },
-      {
-        'name': 'Guardian Badger',
-        'desc': 'You demonstrate strong and consistent participation.',
-        'color': '#F97316',
-      },
-      {
-        'name': 'Master Badger',
-        'desc': 'Your contribution carries significant weight.',
-        'color': '#EF4444',
-      },
-      {
-        'name': 'Champion Badger',
-        'desc': 'You are among the most experienced members.',
-        'color': '#4F46E5',
-      },
-      {
-        'name': 'Legendary Badger',
-        'desc': 'Your reputation stands out across the community.',
-        'color': '#EAB308',
-      },
-      {
-        'name': 'Ultimate Badger',
-        'desc': 'The highest level of Griot recognition.',
-        'color': '#67E8F9',
-      },
-          ];
+    final tiers = reputation.tiers.isNotEmpty
+        ? reputation.tiers
+        : _defaultTiers();
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -697,8 +756,8 @@ class _ReputationScreenState extends State<ReputationScreen> {
             final index = entry.key;
             final tier = entry.value;
             final isCurrent =
-                tier['name']!.toLowerCase() == reputation.tier.name.toLowerCase();
-            final tierColor = AppColors.parseHexColor(tier['color']);
+                tier.name.toLowerCase() == reputation.tier.name.toLowerCase();
+            final tierColor = AppColors.parseHexColor(tier.badgeColor);
             return IntrinsicHeight(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -741,7 +800,7 @@ class _ReputationScreenState extends State<ReputationScreen> {
                                     alpha: isCurrent ? 0.5 : 0.15,
                                   ),
                                   AppColors.parseHexColor(
-                                    tiers[index + 1]['color']!,
+                                    tiers[index + 1].badgeColor,
                                   ).withValues(alpha: 0.15),
                                 ],
                               ),
@@ -760,7 +819,7 @@ class _ReputationScreenState extends State<ReputationScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            tier['name']!.toUpperCase(),
+                            tier.name.toUpperCase(),
                             style: text.labelMedium?.copyWith(
                               fontWeight: isCurrent
                                   ? FontWeight.w900
@@ -774,7 +833,7 @@ class _ReputationScreenState extends State<ReputationScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            tier['desc']!,
+                            _tierRules(tier),
                             style: text.bodySmall?.copyWith(
                               color: colors.onSurfaceVariant,
                               height: 1.35,
@@ -784,17 +843,25 @@ class _ReputationScreenState extends State<ReputationScreen> {
                               fontWeight: isCurrent ? FontWeight.w600 : null,
                             ),
                           ),
-                          if (tier['min'] != null) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              '${tier['min']}–${tier['max']} reputation points  •  ${tier['bonus'] ?? ''}',
-                              style: text.labelSmall?.copyWith(
-                                color: isCurrent
-                                    ? tierColor
-                                    : colors.onSurfaceVariant.withValues(alpha: 0.75),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            children: [
+                              _tierMetaChip(
+                                _multiplierLabel(tier),
+                                tierColor,
+                                colors,
+                                text,
                               ),
-                            ),
-                          ],
+                              _tierMetaChip(
+                                tier.reputationBonusLabel,
+                                tierColor,
+                                colors,
+                                text,
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -983,11 +1050,7 @@ class _PrestigePassport extends StatelessWidget {
                           ),
                         ),
                         child: Icon(
-                          reputation.tier.name.toLowerCase().contains(
-                                'ultimate',
-                              )
-                              ? Icons.stars_rounded
-                              : Icons.workspace_premium_rounded,
+                          Icons.workspace_premium_rounded,
                           size: 75,
                           color: Colors.white,
                         ),
@@ -1188,9 +1251,9 @@ class _PrestigePassport extends StatelessWidget {
       width: 60,
       height: 60,
       color: tierColor.withValues(alpha: 0.1),
-      padding: const EdgeInsets.all(10),
-      child: SvgPicture.asset(
-        'assets/coins_logo/hbadger_logo.svg',
+      padding: const EdgeInsets.all(18),
+      child: Image.asset(
+        'assets/coins_logo/hbadger_loader.png',
         fit: BoxFit.contain,
       ),
     );

@@ -177,13 +177,17 @@ class _DocumentViewerScreenState extends State<DocumentViewerScreen> {
             ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openExternally(),
-        label: const Text('Open Externally'),
-        icon: const Icon(Icons.open_in_new_rounded),
-        backgroundColor: colors.primary,
-        foregroundColor: colors.onPrimary,
+      floatingActionButton: HeroMode(
+        enabled: false,
+        child: FloatingActionButton.extended(
+          onPressed: () => _openExternally(),
+          label: const Text('Open Externally'),
+          icon: const Icon(Icons.open_in_new_rounded),
+          backgroundColor: colors.primary,
+          foregroundColor: colors.onPrimary,
+        ),
       ),
+      floatingActionButtonAnimator: FloatingActionButtonAnimator.noAnimation,
     );
   }
 
@@ -238,9 +242,7 @@ class _DocumentViewerScreenState extends State<DocumentViewerScreen> {
       return;
     }
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Downloading...')));
+    NotificationService.showInfo(context, 'Downloading...');
 
     try {
       final response = await http.get(Uri.parse(widget.url));

@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
+    <!-- Staging currently serves the API/media endpoint over HTTP. Keep this
+         exception limited to the staging ALB; production uses HTTPS. -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">griot-api-alb-1072605846.eu-north-1.elb.amazonaws.com</domain>
+    </domain-config>
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />

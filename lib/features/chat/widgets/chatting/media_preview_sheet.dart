@@ -215,9 +215,12 @@ class _MediaPreviewSheetState extends State<MediaPreviewSheet> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        child: const Text(
+                        child: Text(
                           'Cancel',
-                          style: TextStyle(fontWeight: FontWeight.w700),
+                          style: Theme.of(context)
+                              .textTheme
+                              .labelLarge
+                              ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                       ),
                     ),
@@ -242,7 +245,10 @@ class _MediaPreviewSheetState extends State<MediaPreviewSheet> {
                             : const Icon(Icons.send_rounded),
                         label: Text(
                           _isSending ? 'Sending…' : 'Send',
-                          style: TextStyle(fontWeight: FontWeight.w700),
+                          style: Theme.of(context)
+                              .textTheme
+                              .labelLarge
+                              ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                       ),
                     ),
