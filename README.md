@@ -1,16 +1,48 @@
-# griot_cowrie
+# Griot Network Flutter Client
 
-This is a chat app that operates in a decentralized manner
+Griot is a production cross-platform social application combining messaging,
+groups, channels, live Campfires, voice/video calling, reputation, wallets,
+subscriptions, tipping, and blockchain-enabled payments.
 
-## Getting Started
+This repository contains the Flutter client for iOS and Android. It is a
+non-custodial wallet experience: private keys and recovery phrases remain
+under local device protection and are never sent to the application backend.
 
-This project is a starting point for a Flutter application.
+## Technology
 
-A few resources to get you started if this is your first Flutter project:
+- Flutter/Dart
+- Provider and ChangeNotifier state management
+- GoRouter navigation
+- Socket.IO realtime messaging and presence
+- Firebase Cloud Messaging notifications
+- ZEGO voice/video calling
+- Web3 wallet and EVM integrations
+- Google Mobile Ads and Unity LevelPlay mediation
+- Local caching and secure storage
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+## Product areas
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Chat, groups, channels, Campfires, calls, profiles, wallet assets, swaps,
+tipping, Plus subscriptions, reputation, push notifications, and media.
+
+## Documentation
+
+- [Frontend technical documentation](docs/GRIOT_FRONTEND_TECHNICAL_DOCUMENTATION.md)
+- [Push-notification handover](docs/PUSH_NOTIFICATIONS_HANDOVER.md)
+
+## Links
+
+- Product: https://griot.network
+- Company: https://exodicenterprise.com
+
+## Development
+
+```bash
+flutter pub get
+flutter analyze
+flutter test
+flutter run
+```
+
+Do not commit production secrets, wallet keys, signing credentials, or private
+environment files.
