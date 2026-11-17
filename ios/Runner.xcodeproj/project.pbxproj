@@ -7,22 +7,38 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1017649048DD46FE81EB6B2E /* ReplayKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 25F3507BD8D40AD5E9B789A9 /* ReplayKit.framework */; };
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
 		1E5BC8505041D82A04C8E8AB /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 8E06ECCCD864B98FCED51EC2 /* GoogleService-Info.plist */; };
+		23EC7B121B1AC4F19871FC1E /* SampleHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = B26D51CA88645F3E16E70778 /* SampleHandler.m */; };
+		25E82F2858D7F464B2914AF0 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4E1E02FDE002173C1817D2DA /* Foundation.framework */; };
+		31D5AE9681DADC5603EF0454 /* ZGScreenCaptureManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 7A55EFBACA07ACABAA4298AF /* ZGScreenCaptureManager.m */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
+		3E98F409C13FE1FDA4E1155D /* GriotScreenBroadcastExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D3A207ADD15CB2D4FB121152 /* GriotScreenBroadcastExtension.appex */; };
 		42BD81F071F8BE820A363D35 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7FFFAA4AD947FC11977DFCCC /* Pods_RunnerTests.framework */; };
+		6AABE37662CC47A3838F4236 /* ZGScreenCaptureManager.h in Headers */ = {isa = PBXBuildFile; fileRef = 687522A3189892FC545352B0 /* ZGScreenCaptureManager.h */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
 		78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */ = {isa = PBXBuildFile; productRef = 78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */; };
 		95F1F01B1ED2DC5600515810 /* GriotNativeAdFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95F1F01A1ED2DC5600515810 /* GriotNativeAdFactory.swift */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
+		B00137B4077FF824E0AB78FE /* Pods_GriotScreenBroadcastExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 73C8062DB67E170B6B3DD520 /* Pods_GriotScreenBroadcastExtension.framework */; };
 		B2CFF92130536A010083EE4F /* GriotShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B2CFF91730536A010083EE4F /* GriotShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		C1A100010000000000000001 /* GriotNotificationServiceExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C1A100020000000000000002 /* GriotNotificationServiceExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		BD2EEAD2BF89390C2A48444A /* SampleHandler.h in Headers */ = {isa = PBXBuildFile; fileRef = 5F35D24C5FEAA58AB545133C /* SampleHandler.h */; };
 		D3F72B01BE72A081AFE7BDAA /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 678E20162FD15BD42354410B /* Pods_Runner.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		0B23AD3729695C7354AE3A74 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 97C146E61CF9000F007C117D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 64748682FC7FF6F95A2523CD;
+			remoteInfo = GriotScreenBroadcastExtension;
+		};
 		331C8085294A63A400263BE5 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 97C146E61CF9000F007C117D /* Project object */;
@@ -56,7 +72,9 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
+				3E98F409C13FE1FDA4E1155D /* GriotScreenBroadcastExtension.appex in Embed Foundation Extensions */,
 				B2CFF92130536A010083EE4F /* GriotShareExtension.appex in Embed Foundation Extensions */,
+				C1A100010000000000000001 /* GriotNotificationServiceExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -67,18 +85,27 @@
 		045C2DB8A8A12FAB714CED7C /* Pods-RunnerTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.profile.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.profile.xcconfig"; sourceTree = "<group>"; };
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
+		25F3507BD8D40AD5E9B789A9 /* ReplayKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ReplayKit.framework; path = System/Library/Frameworks/ReplayKit.framework; sourceTree = SDKROOT; };
 		331C807B294A618700263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
 		331C8081294A63A400263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
+		3CDB6C3B404EB71C5A984C20 /* Pods-GriotScreenBroadcastExtension.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GriotScreenBroadcastExtension.profile.xcconfig"; path = "Target Support Files/Pods-GriotScreenBroadcastExtension/Pods-GriotScreenBroadcastExtension.profile.xcconfig"; sourceTree = "<group>"; };
+		3E0762BB28E0557E1435BC60 /* Pods-GriotScreenBroadcastExtension.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GriotScreenBroadcastExtension.debug.xcconfig"; path = "Target Support Files/Pods-GriotScreenBroadcastExtension/Pods-GriotScreenBroadcastExtension.debug.xcconfig"; sourceTree = "<group>"; };
+		4E1E02FDE002173C1817D2DA /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		52A7F5DA2C9E92ADCB50BE4B /* Pods-Runner.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.debug.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"; sourceTree = "<group>"; };
 		5660D07F254B8F3890E1D436 /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
 		57DABF4ECF96B451FDD6E12F /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
+		5F35D24C5FEAA58AB545133C /* SampleHandler.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = SampleHandler.h; sourceTree = "<group>"; };
 		678E20162FD15BD42354410B /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		687522A3189892FC545352B0 /* ZGScreenCaptureManager.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = ZGScreenCaptureManager.h; sourceTree = "<group>"; };
+		73C8062DB67E170B6B3DD520 /* Pods_GriotScreenBroadcastExtension.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_GriotScreenBroadcastExtension.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Runner-Bridging-Header.h"; sourceTree = "<group>"; };
 		74858FAE1ED2DC5600515810 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		78E0A7A72DC9AD7400C4905E /* FlutterGeneratedPluginSwiftPackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = FlutterGeneratedPluginSwiftPackage; path = Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage; sourceTree = "<group>"; };
+		7A55EFBACA07ACABAA4298AF /* ZGScreenCaptureManager.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = ZGScreenCaptureManager.m; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
 		7FFFAA4AD947FC11977DFCCC /* Pods_RunnerTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunnerTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		82CB219577832835452EDC7F /* Pods-Runner-GriotScreenBroadcastExtension.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner-GriotScreenBroadcastExtension.profile.xcconfig"; path = "Target Support Files/Pods-Runner-GriotScreenBroadcastExtension/Pods-Runner-GriotScreenBroadcastExtension.profile.xcconfig"; sourceTree = "<group>"; };
 		8E06ECCCD864B98FCED51EC2 /* GoogleService-Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "Runner/GoogleService-Info.plist"; sourceTree = "<group>"; };
 		95F1F01A1ED2DC5600515810 /* GriotNativeAdFactory.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GriotNativeAdFactory.swift; sourceTree = "<group>"; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Debug.xcconfig; path = Flutter/Debug.xcconfig; sourceTree = "<group>"; };
@@ -89,8 +116,14 @@
 		97C147001CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AB3F252DFF8121708C708E51 /* Pods-RunnerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug.xcconfig"; sourceTree = "<group>"; };
+		AF1DC226BB8D1341C6AE0B23 /* Pods-GriotScreenBroadcastExtension.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GriotScreenBroadcastExtension.release.xcconfig"; path = "Target Support Files/Pods-GriotScreenBroadcastExtension/Pods-GriotScreenBroadcastExtension.release.xcconfig"; sourceTree = "<group>"; };
+		B26D51CA88645F3E16E70778 /* SampleHandler.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = SampleHandler.m; sourceTree = "<group>"; };
 		B2CFF91730536A010083EE4F /* GriotShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = GriotShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		C1A100020000000000000002 /* GriotNotificationServiceExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = GriotNotificationServiceExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D3A207ADD15CB2D4FB121152 /* GriotScreenBroadcastExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = GriotScreenBroadcastExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		E0C25E8F22B6D28013B27FB9 /* Pods-RunnerTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.release.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.release.xcconfig"; sourceTree = "<group>"; };
+		E8F565D14FC24D979BF27AAA /* Pods-Runner-GriotScreenBroadcastExtension.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner-GriotScreenBroadcastExtension.debug.xcconfig"; path = "Target Support Files/Pods-Runner-GriotScreenBroadcastExtension/Pods-Runner-GriotScreenBroadcastExtension.debug.xcconfig"; sourceTree = "<group>"; };
+		FF25391C31F3817FC69CE07D /* Pods-Runner-GriotScreenBroadcastExtension.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner-GriotScreenBroadcastExtension.release.xcconfig"; path = "Target Support Files/Pods-Runner-GriotScreenBroadcastExtension/Pods-Runner-GriotScreenBroadcastExtension.release.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -100,6 +133,13 @@
 				Info.plist,
 			);
 			target = B2CFF91630536A010083EE4F /* GriotShareExtension */;
+		};
+		C1A100030000000000000003 /* Exceptions for "GriotNotificationServiceExtension" folder in "GriotNotificationServiceExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = C1A1000A000000000000000A /* GriotNotificationServiceExtension */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -114,6 +154,18 @@
 			explicitFolders = (
 			);
 			path = GriotShareExtension;
+			sourceTree = "<group>";
+		};
+		C1A100040000000000000004 /* GriotNotificationServiceExtension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				C1A100030000000000000003 /* Exceptions for "GriotNotificationServiceExtension" folder in "GriotNotificationServiceExtension" target */,
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = GriotNotificationServiceExtension;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -143,6 +195,23 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C1A100070000000000000007 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D70B56B08A6E9B975C7F9EF0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				25E82F2858D7F464B2914AF0 /* Foundation.framework in Frameworks */,
+				1017649048DD46FE81EB6B2E /* ReplayKit.framework in Frameworks */,
+				B00137B4077FF824E0AB78FE /* Pods_GriotScreenBroadcastExtension.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -155,6 +224,12 @@
 				AB3F252DFF8121708C708E51 /* Pods-RunnerTests.debug.xcconfig */,
 				E0C25E8F22B6D28013B27FB9 /* Pods-RunnerTests.release.xcconfig */,
 				045C2DB8A8A12FAB714CED7C /* Pods-RunnerTests.profile.xcconfig */,
+				FF25391C31F3817FC69CE07D /* Pods-Runner-GriotScreenBroadcastExtension.release.xcconfig */,
+				E8F565D14FC24D979BF27AAA /* Pods-Runner-GriotScreenBroadcastExtension.debug.xcconfig */,
+				82CB219577832835452EDC7F /* Pods-Runner-GriotScreenBroadcastExtension.profile.xcconfig */,
+				AF1DC226BB8D1341C6AE0B23 /* Pods-GriotScreenBroadcastExtension.release.xcconfig */,
+				3E0762BB28E0557E1435BC60 /* Pods-GriotScreenBroadcastExtension.debug.xcconfig */,
+				3CDB6C3B404EB71C5A984C20 /* Pods-GriotScreenBroadcastExtension.profile.xcconfig */,
 			);
 			path = Pods;
 			sourceTree = "<group>";
@@ -167,11 +242,25 @@
 			path = RunnerTests;
 			sourceTree = "<group>";
 		};
+		41D1CC438335F81588BA8F73 /* GriotScreenBroadcastExtension */ = {
+			isa = PBXGroup;
+			children = (
+				5F35D24C5FEAA58AB545133C /* SampleHandler.h */,
+				B26D51CA88645F3E16E70778 /* SampleHandler.m */,
+				687522A3189892FC545352B0 /* ZGScreenCaptureManager.h */,
+				7A55EFBACA07ACABAA4298AF /* ZGScreenCaptureManager.m */,
+			);
+			path = GriotScreenBroadcastExtension;
+			sourceTree = "<group>";
+		};
 		533261D23C64525B689E0F49 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
 				678E20162FD15BD42354410B /* Pods_Runner.framework */,
 				7FFFAA4AD947FC11977DFCCC /* Pods_RunnerTests.framework */,
+				AC465F9995C79C053D296EEB /* iOS */,
+				25F3507BD8D40AD5E9B789A9 /* ReplayKit.framework */,
+				73C8062DB67E170B6B3DD520 /* Pods_GriotScreenBroadcastExtension.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -194,11 +283,13 @@
 				9740EEB11CF90186004384FC /* Flutter */,
 				97C146F01CF9000F007C117D /* Runner */,
 				B2CFF91830536A010083EE4F /* GriotShareExtension */,
+				C1A100040000000000000004 /* GriotNotificationServiceExtension */,
 				97C146EF1CF9000F007C117D /* Products */,
 				331C8082294A63A400263BE5 /* RunnerTests */,
 				1F99C35CC46582906C6AED57 /* Pods */,
 				8E06ECCCD864B98FCED51EC2 /* GoogleService-Info.plist */,
 				533261D23C64525B689E0F49 /* Frameworks */,
+				41D1CC438335F81588BA8F73 /* GriotScreenBroadcastExtension */,
 			);
 			sourceTree = "<group>";
 		};
@@ -208,6 +299,8 @@
 				97C146EE1CF9000F007C117D /* Runner.app */,
 				331C8081294A63A400263BE5 /* RunnerTests.xctest */,
 				B2CFF91730536A010083EE4F /* GriotShareExtension.appex */,
+				D3A207ADD15CB2D4FB121152 /* GriotScreenBroadcastExtension.appex */,
+				C1A100020000000000000002 /* GriotNotificationServiceExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -228,7 +321,27 @@
 			path = Runner;
 			sourceTree = "<group>";
 		};
+		AC465F9995C79C053D296EEB /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				4E1E02FDE002173C1817D2DA /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
+
+/* Begin PBXHeadersBuildPhase section */
+		7E3BF2EBD8E8E0F7D0C8C2AF /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BD2EEAD2BF89390C2A48444A /* SampleHandler.h in Headers */,
+				6AABE37662CC47A3838F4236 /* ZGScreenCaptureManager.h in Headers */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXHeadersBuildPhase section */
 
 /* Begin PBXNativeTarget section */
 		331C8080294A63A400263BE5 /* RunnerTests */ = {
@@ -250,6 +363,25 @@
 			productReference = 331C8081294A63A400263BE5 /* RunnerTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		64748682FC7FF6F95A2523CD /* GriotScreenBroadcastExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A47892E7D6F6F143E6465767 /* Build configuration list for PBXNativeTarget "GriotScreenBroadcastExtension" */;
+			buildPhases = (
+				B145A9DAB3A674C9B374F0F6 /* [CP] Check Pods Manifest.lock */,
+				429587EA848894DE8EB15FF7 /* Sources */,
+				D70B56B08A6E9B975C7F9EF0 /* Frameworks */,
+				4A4DD7FBFC17BE66F4B7ABC3 /* Resources */,
+				7E3BF2EBD8E8E0F7D0C8C2AF /* Headers */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = GriotScreenBroadcastExtension;
+			productName = GriotScreenBroadcastExtension;
+			productReference = D3A207ADD15CB2D4FB121152 /* GriotScreenBroadcastExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		97C146ED1CF9000F007C117D /* Runner */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 97C147051CF9000F007C117D /* Build configuration list for PBXNativeTarget "Runner" */;
@@ -269,6 +401,7 @@
 			);
 			dependencies = (
 				B2CFF92030536A010083EE4F /* PBXTargetDependency */,
+				333427ED0C1D920F70AB4F23 /* PBXTargetDependency */,
 			);
 			name = Runner;
 			packageProductDependencies = (
@@ -298,6 +431,40 @@
 			productReference = B2CFF91730536A010083EE4F /* GriotShareExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		C1A100080000000000000008 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C1A100090000000000000009 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C1A1000A000000000000000A /* GriotNotificationServiceExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C1A1000B000000000000000B /* Build configuration list for PBXNativeTarget "GriotNotificationServiceExtension" */;
+			buildPhases = (
+				C1A100080000000000000008 /* Sources */,
+				C1A100070000000000000007 /* Frameworks */,
+				C1A100090000000000000009 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				C1A100040000000000000004 /* GriotNotificationServiceExtension */,
+			);
+			name = GriotNotificationServiceExtension;
+			productName = GriotNotificationServiceExtension;
+			productReference = C1A100020000000000000002 /* GriotNotificationServiceExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -316,8 +483,16 @@
 					97C146ED1CF9000F007C117D = {
 						CreatedOnToolsVersion = 7.3.1;
 						LastSwiftMigration = 1100;
+						SystemCapabilities = {
+							com.apple.Push = {
+								enabled = 1;
+							};
+						};
 					};
 					B2CFF91630536A010083EE4F = {
+						CreatedOnToolsVersion = 26.6;
+					};
+					C1A1000A000000000000000A = {
 						CreatedOnToolsVersion = 26.6;
 					};
 				};
@@ -341,12 +516,21 @@
 				97C146ED1CF9000F007C117D /* Runner */,
 				331C8080294A63A400263BE5 /* RunnerTests */,
 				B2CFF91630536A010083EE4F /* GriotShareExtension */,
+				64748682FC7FF6F95A2523CD /* GriotScreenBroadcastExtension */,
+				C1A1000A000000000000000A /* GriotNotificationServiceExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		331C807F294A63A400263BE5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4A4DD7FBFC17BE66F4B7ABC3 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -450,6 +634,28 @@
 			shellPath = /bin/sh;
 			shellScript = "/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" build";
 		};
+		B145A9DAB3A674C9B374F0F6 /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-GriotScreenBroadcastExtension-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
 		E4D675C667393ABF0AFC5C2A /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -495,6 +701,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		429587EA848894DE8EB15FF7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				23EC7B121B1AC4F19871FC1E /* SampleHandler.m in Sources */,
+				31D5AE9681DADC5603EF0454 /* ZGScreenCaptureManager.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		97C146EA1CF9000F007C117D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -519,6 +734,12 @@
 			isa = PBXTargetDependency;
 			target = 97C146ED1CF9000F007C117D /* Runner */;
 			targetProxy = 331C8085294A63A400263BE5 /* PBXContainerItemProxy */;
+		};
+		333427ED0C1D920F70AB4F23 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = GriotScreenBroadcastExtension;
+			target = 64748682FC7FF6F95A2523CD /* GriotScreenBroadcastExtension */;
+			targetProxy = 0B23AD3729695C7354AE3A74 /* PBXContainerItemProxy */;
 		};
 		B2CFF92030536A010083EE4F /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -547,6 +768,31 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
+		1660215A7E78CF974DC16148 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = AF1DC226BB8D1341C6AE0B23 /* Pods-GriotScreenBroadcastExtension.release.xcconfig */;
+			buildSettings = {
+				CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = GriotScreenBroadcastExtension/GriotScreenBroadcastExtension.entitlements;
+				DEVELOPMENT_TEAM = 56682KQSHD;
+				GCC_PREPROCESSOR_DEFINITIONS = "$(inherited)";
+				INFOPLIST_FILE = GriotScreenBroadcastExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleExecutable = "$(EXECUTABLE_NAME)";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.5;
+				OTHER_LDFLAGS = "$(inherited)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.griotcowrie.griotCowrie.GriotScreenBroadcastExtension;
+				PRODUCT_NAME = GriotScreenBroadcastExtension;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+				WRAPPER_NAME = GriotScreenBroadcastExtension.appex;
+			};
+			name = Release;
+		};
 		249021D3217E4FDB00AE95B9 /* Profile */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -605,6 +851,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 7AFA3C8E1D35360C0083082E /* Release.xcconfig */;
 			buildSettings = {
+				APS_ENVIRONMENT = production;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES = YES;
 				CLANG_ENABLE_MODULES = YES;
@@ -801,6 +1048,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 9740EEB21CF90195004384FC /* Debug.xcconfig */;
 			buildSettings = {
+				APS_ENVIRONMENT = development;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES = YES;
 				CLANG_ENABLE_MODULES = YES;
@@ -827,6 +1075,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 7AFA3C8E1D35360C0083082E /* Release.xcconfig */;
 			buildSettings = {
+				APS_ENVIRONMENT = production;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES = YES;
 				CLANG_ENABLE_MODULES = YES;
@@ -847,6 +1096,31 @@
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Release;
+		};
+		A6C90E6FF33C0E0FEF46C6BF /* Profile */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 3CDB6C3B404EB71C5A984C20 /* Pods-GriotScreenBroadcastExtension.profile.xcconfig */;
+			buildSettings = {
+				CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = GriotScreenBroadcastExtension/GriotScreenBroadcastExtension.entitlements;
+				DEVELOPMENT_TEAM = 56682KQSHD;
+				GCC_PREPROCESSOR_DEFINITIONS = "$(inherited)";
+				INFOPLIST_FILE = GriotScreenBroadcastExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleExecutable = "$(EXECUTABLE_NAME)";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.5;
+				OTHER_LDFLAGS = "$(inherited)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.griotcowrie.griotCowrie.GriotScreenBroadcastExtension;
+				PRODUCT_NAME = GriotScreenBroadcastExtension;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+				WRAPPER_NAME = GriotScreenBroadcastExtension.appex;
+			};
+			name = Profile;
 		};
 		B2CFF92330536A010083EE4F /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -974,6 +1248,111 @@
 			};
 			name = Profile;
 		};
+		F39B6CADF1C1807B18694758 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 3E0762BB28E0557E1435BC60 /* Pods-GriotScreenBroadcastExtension.debug.xcconfig */;
+			buildSettings = {
+				CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = GriotScreenBroadcastExtension/GriotScreenBroadcastExtension.entitlements;
+				DEVELOPMENT_TEAM = 56682KQSHD;
+				GCC_PREPROCESSOR_DEFINITIONS = "$(inherited)";
+				INFOPLIST_FILE = GriotScreenBroadcastExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleExecutable = "$(EXECUTABLE_NAME)";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.5;
+				OTHER_LDFLAGS = "$(inherited)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.griotcowrie.griotCowrie.GriotScreenBroadcastExtension;
+				PRODUCT_NAME = GriotScreenBroadcastExtension;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				WRAPPER_NAME = GriotScreenBroadcastExtension.appex;
+			};
+			name = Debug;
+		};
+		C1A1000C000000000000000C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 56682KQSHD;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = GriotNotificationServiceExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.griotcowrie.griotCowrie.GriotNotificationServiceExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				WRAPPER_EXTENSION = appex;
+			};
+			name = Debug;
+		};
+		C1A1000D000000000000000D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 56682KQSHD;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = GriotNotificationServiceExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.griotcowrie.griotCowrie.GriotNotificationServiceExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+				WRAPPER_EXTENSION = appex;
+			};
+			name = Release;
+		};
+		C1A1000E000000000000000E /* Profile */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 56682KQSHD;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = GriotNotificationServiceExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.griotcowrie.griotCowrie.GriotNotificationServiceExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+				WRAPPER_EXTENSION = appex;
+			};
+			name = Profile;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1007,12 +1386,32 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		A47892E7D6F6F143E6465767 /* Build configuration list for PBXNativeTarget "GriotScreenBroadcastExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1660215A7E78CF974DC16148 /* Release */,
+				F39B6CADF1C1807B18694758 /* Debug */,
+				A6C90E6FF33C0E0FEF46C6BF /* Profile */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		B2CFF92730536A010083EE4F /* Build configuration list for PBXNativeTarget "GriotShareExtension" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				B2CFF92330536A010083EE4F /* Debug */,
 				B2CFF92430536A010083EE4F /* Release */,
 				B2CFF92530536A010083EE4F /* Profile */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C1A1000B000000000000000B /* Build configuration list for PBXNativeTarget "GriotNotificationServiceExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C1A1000C000000000000000C /* Debug */,
+				C1A1000D000000000000000D /* Release */,
+				C1A1000E000000000000000E /* Profile */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
