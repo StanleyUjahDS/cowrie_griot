@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -5,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:griot_cowrie/core/services/navigation_scroll_service.dart';
 import 'package:griot_cowrie/features/chat/providers/messaging_provider.dart';
+import 'package:griot_cowrie/features/chat/providers/stories_provider.dart';
 import 'package:griot_cowrie/core/ui/scaffolds/gradient_scaffold.dart';
 import 'package:griot_cowrie/features/chat/models/conversation_model.dart';
 import 'package:griot_cowrie/features/chat/widgets/chat_list_item.dart';
@@ -46,7 +48,8 @@ class _ChatHomeView extends StatefulWidget {
   State<_ChatHomeView> createState() => _ChatHomeViewState();
 }
 
-class _ChatHomeViewState extends State<_ChatHomeView> {
+class _ChatHomeViewState extends State<_ChatHomeView>
+    with SingleTickerProviderStateMixin {
   String searchQuery = '';
   late final TextEditingController _searchController;
   late final FocusNode _searchFocusNode;
@@ -58,7 +61,9 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
   late final PageController _pageController;
   late HubSection selectedHub;
   final ChatDraftStore _draftStore = const ChatDraftStore();
+  int _lastNavRefreshNonce = 0;
   Map<String, String> _drafts = const <String, String>{};
+  late final AnimationController _statusPulseController;
 
   @override
   void initState() {
@@ -67,16 +72,24 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
     _searchFocusNode = FocusNode();
     selectedHub = widget.initialSection;
     _pageController = PageController(initialPage: selectedHub.index);
+    _statusPulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 720),
+      lowerBound: 0.96,
+      upperBound: 1.04,
+    )..repeat(reverse: true);
     NavigationScrollService.instance.addListener(_onNavTap);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final messaging = Provider.of<MessagingProvider>(context, listen: false);
       _loadDrafts();
-      // Load the cache immediately, then always reconcile it with the server.
-      // Otherwise a non-empty stale cache prevents newly-created groups from
-      // appearing after returning to the chat screen.
-      messaging.loadConversations(force: true);
+      // Load cached conversations immediately and let the provider's freshness
+      // window decide whether a network refresh is needed. Forcing a complete
+      // refresh every time this shell remounts makes the list visibly reload
+      // when returning from a conversation. Pull-to-refresh remains explicit.
+      messaging.loadConversations();
+      unawaited(context.read<StoriesProvider>().load());
       if (messaging.receivedRequests.isEmpty &&
           messaging.sentRequests.isEmpty) {
         messaging.loadRequests();
@@ -121,17 +134,25 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
       controller.dispose();
     }
     _pageController.dispose();
+    _statusPulseController.dispose();
     super.dispose();
   }
 
   void _onNavTap() {
-    if (NavigationScrollService.instance.tappedIndex == 0) {
+    final navigation = NavigationScrollService.instance;
+    if (navigation.tappedIndex == 0) {
       final controller = _scrollControllers[selectedHub];
       if (controller != null && controller.hasClients) {
         controller.animateTo(
           0,
           duration: const Duration(milliseconds: 500),
           curve: Curves.easeOutCubic,
+        );
+      }
+      if (navigation.refreshNonce != _lastNavRefreshNonce) {
+        _lastNavRefreshNonce = navigation.refreshNonce;
+        unawaited(
+          context.read<MessagingProvider>().loadConversations(force: true),
         );
       }
     }
@@ -241,21 +262,33 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
                                       : isChannel
                                       ? 'Channel'
                                       : 'Direct';
+                                  final profileUrl = isGroup || isChannel
+                                      ? item.conversation.imageUrl
+                                      : item.conversation.otherUser?.profileUrl;
                                   final time = item.message.createdAt;
                                   return Card(
                                     margin: const EdgeInsets.only(bottom: 10),
                                     child: ListTile(
                                       leading: CircleAvatar(
+                                        backgroundImage:
+                                            profileUrl != null &&
+                                                profileUrl.trim().isNotEmpty
+                                            ? NetworkImage(profileUrl)
+                                            : null,
                                         backgroundColor: colors.secondary
                                             .withValues(alpha: 0.14),
-                                        child: Icon(
-                                          isGroup
-                                              ? Icons.groups_rounded
-                                              : isChannel
-                                              ? Icons.campaign_rounded
-                                              : Icons.person_rounded,
-                                          color: colors.secondary,
-                                        ),
+                                        child:
+                                            profileUrl == null ||
+                                                profileUrl.trim().isEmpty
+                                            ? Icon(
+                                                isGroup
+                                                    ? Icons.groups_rounded
+                                                    : isChannel
+                                                    ? Icons.campaign_rounded
+                                                    : Icons.person_rounded,
+                                                color: colors.secondary,
+                                              )
+                                            : null,
                                       ),
                                       title: Row(
                                         children: [
@@ -561,16 +594,79 @@ class _ChatHomeViewState extends State<_ChatHomeView> {
         // here restarts whenever notifications or presence change and looks
         // like the search icon is flickering.
         enabled: false,
-        child: FloatingActionButton(
-          heroTag: 'chat-search-fab',
-          onPressed: _openPrimaryAction,
-          backgroundColor: colors.primary,
-          foregroundColor: colors.onPrimary,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          elevation: 6,
-          child: const Icon(Icons.search_rounded, size: 30),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Consumer<StoriesProvider>(
+              builder: (context, stories, _) {
+                final hasUnread = stories.stories.any(
+                  (story) => !story.isOwn && !story.viewed,
+                );
+                return AnimatedBuilder(
+                  animation: _statusPulseController,
+                  builder: (context, child) {
+                    return Transform.scale(
+                      scale: hasUnread ? _statusPulseController.value : 1,
+                      child: child,
+                    );
+                  },
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 220),
+                        padding: EdgeInsets.all(hasUnread ? 3 : 0),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: hasUnread
+                              ? Border.all(color: colors.primary, width: 2)
+                              : null,
+                        ),
+                        child: FloatingActionButton.small(
+                          heroTag: 'chat-status-fab',
+                          onPressed: () => context.push('/stories'),
+                          backgroundColor: colors.secondaryContainer,
+                          foregroundColor: colors.onSecondaryContainer,
+                          child: const Icon(Icons.auto_awesome_rounded),
+                        ),
+                      ),
+                      if (hasUnread)
+                        Positioned(
+                          right: -2,
+                          top: -3,
+                          child: IgnorePointer(
+                            child: Container(
+                              width: 11,
+                              height: 11,
+                              decoration: BoxDecoration(
+                                color: colors.error,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: colors.surface,
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 10),
+            FloatingActionButton(
+              heroTag: 'chat-search-fab',
+              onPressed: _openPrimaryAction,
+              backgroundColor: colors.primary,
+              foregroundColor: colors.onPrimary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              elevation: 6,
+              child: const Icon(Icons.search_rounded, size: 30),
+            ),
+          ],
         ),
       ),
       child: GestureDetector(
@@ -1123,7 +1219,7 @@ class _ChatSectionSwitcher extends StatelessWidget {
                     children: [
                       Icon(
                         icon,
-                        size: 14,
+                        size: 16,
                         color: isSelected
                             ? colors.onPrimary
                             : colors.onSurfaceVariant.withValues(alpha: 0.5),
@@ -1138,7 +1234,7 @@ class _ChatSectionSwitcher extends StatelessWidget {
                           fontWeight: isSelected
                               ? FontWeight.w900
                               : FontWeight.w700,
-                          fontSize: 11,
+                          fontSize: 13,
                         ),
                       ),
                     ],

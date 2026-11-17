@@ -2,8 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/mining_provider.dart';
@@ -26,6 +24,7 @@ class _MinerScreenState extends State<MinerScreen> {
   Timer? _countdownTimer;
   String _timeRemaining = '';
   bool _isWatchingAd = false;
+  int _lastNavRefreshNonce = 0;
 
   @override
   void initState() {
@@ -46,7 +45,8 @@ class _MinerScreenState extends State<MinerScreen> {
   }
 
   void _onNavTap() {
-    if (NavigationScrollService.instance.tappedIndex == 2) {
+    final navigation = NavigationScrollService.instance;
+    if (navigation.tappedIndex == 2) {
       // Index 2 is Miner
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
@@ -54,6 +54,10 @@ class _MinerScreenState extends State<MinerScreen> {
           duration: const Duration(milliseconds: 600),
           curve: Curves.easeOutQuart,
         );
+      }
+      if (navigation.refreshNonce != _lastNavRefreshNonce) {
+        _lastNavRefreshNonce = navigation.refreshNonce;
+        unawaited(context.read<MiningProvider>().loadStatus(force: true));
       }
     }
   }
@@ -99,12 +103,12 @@ class _MinerScreenState extends State<MinerScreen> {
     return "${twoDigits(d.inHours)}:$twoDigitMinutes:$twoDigitSeconds";
   }
 
-  Future<void> _startMining(BuildContext context) async {
+  Future<void> _buildReputation(BuildContext context) async {
     final adService = AdService.instance;
 
-    // Mining is ad-supported in this build. Never call the backend unless the
-    // user actually earns the rewarded-ad reward; an unavailable or failed ad
-    // must not silently grant a mining session.
+    // Activity is ad-supported in this build. Never call the backend unless
+    // the user actually earns the rewarded-ad reward; an unavailable or
+    // failed ad must not silently grant reputation activity.
     if (!adService.isRewardedAdAvailable) {
       adService.loadRewardedAd();
       NotificationService.showInfo(
@@ -123,7 +127,7 @@ class _MinerScreenState extends State<MinerScreen> {
       NotificationService.showInfo(
         context,
         adResult == RewardedAdResult.dismissed
-            ? 'Watch the full ad to begin mining.'
+            ? 'Watch the full ad to record reputation activity.'
             : 'The reward ad could not be completed. Please try again.',
       );
       return;
@@ -139,7 +143,7 @@ class _MinerScreenState extends State<MinerScreen> {
       if (!context.mounted) return;
       NotificationService.showSuccess(
         context,
-        'Cloud-miner activated! Session started.',
+        'Reputation activity recorded. Your standing has been updated.',
       );
     } else {
       NotificationService.showError(
@@ -159,7 +163,7 @@ class _MinerScreenState extends State<MinerScreen> {
       useSafeArea: false,
       extendBodyBehindAppBar: false,
       appBar: AppBar(
-        title: const Text('Cloud Miner'),
+        title: const Text('Reputation'),
         centerTitle: true,
         backgroundColor: colors.surface,
         elevation: 0,
@@ -207,7 +211,7 @@ class _MinerScreenState extends State<MinerScreen> {
             const CircularProgressIndicator(),
             const SizedBox(height: 16),
             Text(
-              'Loading Miner…',
+              'Loading reputation…',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
           ],
@@ -227,12 +231,12 @@ class _MinerScreenState extends State<MinerScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Unable to load Miner'),
+            const Text('Unable to load reputation'),
             const SizedBox(height: 16),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Text(
-                provider.error ?? 'Connecting to cloud miner...',
+                provider.error ?? 'Connecting to the reputation service...',
                 textAlign: TextAlign.center,
               ),
             ),
@@ -271,7 +275,7 @@ class _MinerScreenState extends State<MinerScreen> {
                       child: Column(
                         children: [
                           Text(
-                            'AVAILABLE BALANCE',
+                            'YOUR REPUTATION',
                             style: theme.textTheme.labelSmall?.copyWith(
                               color: colors.primary.withValues(alpha: 0.6),
                               fontWeight: FontWeight.w900,
@@ -282,17 +286,18 @@ class _MinerScreenState extends State<MinerScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              SvgPicture.asset(
-                                'assets/cowrie_images/cowriesvg.svg',
-                                width: 44,
-                                height: 44,
+                              Icon(
+                                Icons.workspace_premium_rounded,
+                                size: 46,
+                                color: colors.primary,
                               ),
                               const SizedBox(width: 12),
                               Flexible(
                                 child: FittedBox(
                                   fit: BoxFit.scaleDown,
                                   child: Text(
-                                    '${status.availableBalance.toStringAsFixed(2)} ${status.currency}',
+                                    status.reputation?.tier ??
+                                        'Building your standing',
                                     style: theme.textTheme.headlineMedium
                                         ?.copyWith(fontWeight: FontWeight.w900),
                                   ),
@@ -303,6 +308,10 @@ class _MinerScreenState extends State<MinerScreen> {
                         ],
                       ),
                     ),
+
+                    const SizedBox(height: 24),
+
+                    const _HbadgEcosystemCard(),
 
                     const SizedBox(height: 24),
 
@@ -324,13 +333,13 @@ class _MinerScreenState extends State<MinerScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              Icons.account_balance_wallet_rounded,
+                              Icons.groups_rounded,
                               size: 14,
                               color: colors.primary,
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'Daily Pool: ${status.rewardPool == null ? '—' : NumberFormat.decimalPattern().format(status.rewardPool)} ${status.currency}',
+                              'Community participation · ${status.reputation?.points.toStringAsFixed(0) ?? status.pointsToday.toStringAsFixed(0)} points',
                               style: TextStyle(
                                 color: colors.primary,
                                 fontWeight: FontWeight.w800,
@@ -366,7 +375,7 @@ class _MinerScreenState extends State<MinerScreen> {
 
                           GestureDetector(
                             onTap: (status.canMine && !_isWatchingAd)
-                                ? () => _startMining(context)
+                                ? () => _buildReputation(context)
                                 : null,
                             child: Container(
                               width: 200,
@@ -399,7 +408,7 @@ class _MinerScreenState extends State<MinerScreen> {
                                       children: [
                                         Icon(
                                           status.canMine
-                                              ? Icons.bolt_rounded
+                                              ? Icons.auto_awesome_rounded
                                               : Icons.timer_outlined,
                                           size: 48,
                                           color: status.canMine
@@ -409,7 +418,7 @@ class _MinerScreenState extends State<MinerScreen> {
                                         const SizedBox(height: 12),
                                         Text(
                                           status.canMine
-                                              ? 'ACTIVATE'
+                                              ? 'BUILD\nREPUTATION'
                                               : _timeRemaining,
                                           style: TextStyle(
                                             color: status.canMine
@@ -438,15 +447,17 @@ class _MinerScreenState extends State<MinerScreen> {
                       children: [
                         Expanded(
                           child: _StatCard(
-                            label: 'Mining Weight',
-                            value: status.pointsToday.toStringAsFixed(2),
+                            label: 'Activity points',
+                            value:
+                                status.reputation?.points.toStringAsFixed(0) ??
+                                status.pointsToday.toStringAsFixed(0),
                             icon: Icons.auto_awesome_rounded,
                           ),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
                           child: _StatCard(
-                            label: 'Pool Share',
+                            label: 'Community share',
                             value:
                                 '${status.currentSharePercent.toStringAsFixed(2)}%',
                             icon: Icons.pie_chart_rounded,
@@ -457,72 +468,8 @@ class _MinerScreenState extends State<MinerScreen> {
 
                     const SizedBox(height: 24),
 
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: colors.primary.withValues(alpha: 0.05),
-                        borderRadius: BorderRadius.circular(28),
-                        border: Border(
-                          top: BorderSide(
-                            color: colors.primary.withValues(alpha: 0.6),
-                            width: 1.5,
-                          ),
-                          bottom: BorderSide(
-                            color: colors.primary.withValues(alpha: 0.6),
-                            width: 1.5,
-                          ),
-                        ),
-                      ),
-                      child: Column(
-                        children: [
-                          Text(
-                            status.settled
-                                ? 'FINAL REWARD'
-                                : 'ESTIMATED REWARD',
-                            style: TextStyle(
-                              color: colors.primary,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 12,
-                              letterSpacing: 1.5,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              SvgPicture.asset(
-                                'assets/cowrie_images/cowriesvg.svg',
-                                width: 64,
-                                height: 64,
-                              ),
-                              const SizedBox(width: 16),
-                              Flexible(
-                                child: FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  child: Text(
-                                    '${status.estimatedReward.toStringAsFixed(2)} ${status.currency}',
-                                    style: theme.textTheme.displaySmall
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.w900,
-                                          color: colors.onSurface,
-                                        ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 32),
-
-                    _BalanceOverview(status: status),
-
-                    const SizedBox(height: 32),
-
-                    // 5. Reputation Section
+                    // Reputation is the product outcome; no token balance or
+                    // estimated token reward is shown in this experience.
                     if (status.reputation != null)
                       _ReputationSection(reputation: status.reputation!),
 
@@ -533,11 +480,11 @@ class _MinerScreenState extends State<MinerScreen> {
 
                     const SizedBox(height: 32),
 
-                    _MiningActivities(activities: provider.activities),
+                    _ReputationActivities(activities: provider.activities),
 
                     const SizedBox(height: 32),
 
-                    // 6. Multiplier Breakdown
+                    // Factors that influence reputation progression.
                     _MultiplierBreakdown(multiplier: status.multiplier),
 
                     const SizedBox(height: 40),
@@ -546,6 +493,73 @@ class _MinerScreenState extends State<MinerScreen> {
                   .fade(duration: 400.ms)
                   .slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
         ),
+      ),
+    );
+  }
+}
+
+class _HbadgEcosystemCard extends StatelessWidget {
+  const _HbadgEcosystemCard();
+
+  static const _officialUrl = 'https://hbadgertoken.com/';
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerLow.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colors.outline.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.asset(
+              'assets/coins_logo/hbadger_logo.png',
+              width: 40,
+              height: 40,
+              fit: BoxFit.cover,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'HBADG ecosystem',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Utility and governance token for Griot. Reputation is tracked separately.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          IconButton(
+            tooltip: 'Learn about HBADG',
+            onPressed: () =>
+                context.push('/wallet/browser', extra: _officialUrl),
+            icon: Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 16,
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -608,100 +622,6 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-class _BalanceOverview extends StatelessWidget {
-  const _BalanceOverview({required this.status});
-
-  final MiningStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerLow.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: colors.outline.withValues(alpha: 0.05)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'WALLET OVERVIEW',
-            style: theme.textTheme.labelSmall?.copyWith(
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.5,
-              color: colors.onSurfaceVariant.withValues(alpha: 0.5),
-            ),
-          ),
-          const SizedBox(height: 24),
-          _balanceRow(
-            context,
-            'Lifetime Earned',
-            status.lifetimeEarned,
-            currency: status.currency,
-          ),
-          const Divider(height: 32),
-          _balanceRow(
-            context,
-            'Available Balance',
-            status.availableBalance,
-            currency: status.currency,
-            highlight: true,
-          ),
-          const SizedBox(height: 12),
-          _balanceRow(
-            context,
-            'Pending Settlement',
-            status.pendingBalance,
-            currency: status.currency,
-            isDim: true,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _balanceRow(
-    BuildContext context,
-    String label,
-    double amount, {
-    required String currency,
-    bool highlight = false,
-    bool isDim = false,
-  }) {
-    final colors = Theme.of(context).colorScheme;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: isDim
-                ? colors.onSurfaceVariant.withValues(alpha: 0.6)
-                : colors.onSurfaceVariant,
-            fontWeight: highlight ? FontWeight.w700 : FontWeight.w500,
-          ),
-        ),
-        Text(
-          '${amount.toStringAsFixed(2)} $currency',
-          style: TextStyle(
-            fontWeight: highlight ? FontWeight.w900 : FontWeight.w700,
-            color: highlight
-                ? colors.primary
-                : (isDim
-                      ? colors.onSurface.withValues(alpha: 0.5)
-                      : colors.onSurface),
-            fontFamily: 'Monospace',
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _ReputationSection extends StatelessWidget {
   final MiningReputation reputation;
   const _ReputationSection({required this.reputation});
@@ -726,12 +646,7 @@ class _ReputationSection extends StatelessWidget {
         children: [
           Row(
             children: [
-              Image.asset(
-                'assets/coins_logo/hbadger_loader.png',
-                width: 22,
-                height: 22,
-                color: color,
-              ),
+              Icon(Icons.workspace_premium_rounded, size: 22, color: color),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -914,8 +829,8 @@ class _ReferralSection extends StatelessWidget {
   }
 }
 
-class _MiningActivities extends StatelessWidget {
-  const _MiningActivities({required this.activities});
+class _ReputationActivities extends StatelessWidget {
+  const _ReputationActivities({required this.activities});
 
   final List<Map<String, dynamic>> activities;
 
