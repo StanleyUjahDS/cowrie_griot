@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/splash/splash_screen.dart';
@@ -32,6 +33,9 @@ import '../../features/chat/screens/community_overview_screen.dart';
 import '../../features/chat/screens/message_requests_screen.dart';
 import '../../features/chat/screens/notifications_screen.dart';
 import '../../features/chat/screens/spaces_status_screen.dart';
+import '../../features/chat/screens/create_tale_screen.dart';
+import '../../features/chat/screens/camp_profile_screen.dart';
+import '../../features/chat/screens/camp_profile_connections_screen.dart';
 import '../../features/chat/screens/create_campfire_screen.dart';
 import '../../features/chat/screens/call_entry_screen.dart';
 import '../../features/chat/services/active_call_controller.dart';
@@ -41,6 +45,10 @@ import '../../features/chat/screens/create_call_link_screen.dart';
 import '../../features/chat/services/realtime_call_service.dart';
 import '../../features/chat/screens/friends_list_screen.dart';
 import '../../features/chat/screens/shared_content_screen.dart';
+import '../../features/chat/screens/stories_screen.dart';
+import '../../features/chat/screens/tale_public_screen.dart';
+import '../../features/chat/screens/tale_drafts_screen.dart';
+import '../../features/chat/screens/tale_bookmarks_screen.dart';
 import '../../features/chat/screens/game_center_screen.dart';
 import '../../features/chat/models/shared_content.dart';
 import '../../features/chat/screens/user_profile_screen.dart';
@@ -53,6 +61,7 @@ import '../../features/settings/screens/appearance/theme_settings_screen.dart';
 import '../../features/settings/screens/appearance/accent_color_screen.dart';
 import '../../features/settings/screens/account/account_details_screen.dart';
 import '../../features/settings/screens/account/griot_plus_screen.dart';
+import '../../features/golds/screens/griot_golds_screen.dart';
 import '../../features/settings/screens/account/delete_account_screen.dart';
 import '../../features/settings/screens/preferences_settings_screen.dart';
 import '../../features/settings/screens/general/about_griot_screen.dart';
@@ -103,6 +112,23 @@ class AppRouter {
     themeController = controller;
   }
 
+  /// Shared route motion for chat and deep-link destinations. A full-width
+  /// horizontal slide makes the outgoing page remain visually present while
+  /// the destination paints, instead of looking like a delayed rebuild.
+  static Widget _conversationTransition(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return CupertinoPageTransition(
+      primaryRouteAnimation: animation,
+      secondaryRouteAnimation: secondaryAnimation,
+      linearTransition: false,
+      child: child,
+    );
+  }
+
   // ==========================================================
   // ROUTER
   // ==========================================================
@@ -132,6 +158,22 @@ class AppRouter {
         },
       ),
 
+      // Full-screen status route. It intentionally sits outside the indexed
+      // navigation shell so the bottom navbar cannot cover its actions.
+      GoRoute(
+        path: '/stories',
+        builder: (context, state) => const StoriesScreen(),
+      ),
+      GoRoute(
+        path: '/tale/:taleId',
+        builder: (context, state) => TalePublicScreen(
+          taleId: state.pathParameters['taleId']!,
+          initialTale: state.extra is Map
+              ? Map<String, dynamic>.from(state.extra as Map)
+              : null,
+        ),
+      ),
+
       // Public links may reach GoRouter before app_links emits the platform
       // link. Register their shapes explicitly so a cold start never falls
       // through to GoRouter's red "no routes" screen.
@@ -150,6 +192,42 @@ class AppRouter {
         path: '/profile/:identifier',
         builder: (context, state) => PublicDeepLinkRecoveryScreen(
           uri: Uri(path: '/profile/${state.pathParameters['identifier']}'),
+        ),
+      ),
+      GoRoute(
+        path: '/camp/profile',
+        builder: (context, state) => const CampProfileScreen(),
+      ),
+      GoRoute(
+        path: '/camp/tales/drafts',
+        builder: (context, state) => const TaleDraftsScreen(),
+      ),
+      GoRoute(
+        path: '/camp/tales/bookmarks',
+        builder: (context, state) => const TaleBookmarksScreen(),
+      ),
+      GoRoute(
+        path: '/camp/profile/:identifier',
+        builder: (context, state) => CampProfileScreen(
+          profileIdentifier: state.pathParameters['identifier'],
+          profileUser: state.extra is users.UserModel
+              ? state.extra as users.UserModel
+              : null,
+          isPublic: true,
+        ),
+      ),
+      GoRoute(
+        path: '/camp/profile/:identifier/followers',
+        builder: (context, state) => CampProfileConnectionsScreen(
+          profileIdentifier: state.pathParameters['identifier']!,
+          connectionType: CampConnectionType.followers,
+        ),
+      ),
+      GoRoute(
+        path: '/camp/profile/:identifier/following',
+        builder: (context, state) => CampProfileConnectionsScreen(
+          profileIdentifier: state.pathParameters['identifier']!,
+          connectionType: CampConnectionType.following,
         ),
       ),
       GoRoute(
@@ -176,10 +254,14 @@ class AppRouter {
       // ======================================================
       GoRoute(
         path: '/conversation/:conversationId',
-        builder: (context, state) {
+        pageBuilder: (context, state) {
           final conversationId = state.pathParameters['conversationId'];
           if (conversationId == null || conversationId.isEmpty) {
-            return const _InvalidRoute(message: 'Invalid conversation.');
+            return CustomTransitionPage<void>(
+              key: state.pageKey,
+              child: const _InvalidRoute(message: 'Invalid conversation.'),
+              transitionsBuilder: _conversationTransition,
+            );
           }
 
           final extra = state.extra;
@@ -190,27 +272,36 @@ class AppRouter {
               ? extra
               : null;
           final messageId = extraMap?['messageId']?.toString();
+          Widget destination;
           if (conversationExtra != null) {
             if (conversationExtra.type == ConversationType.channel) {
-              return ChannelFeedScreen(conversation: conversationExtra);
-            }
-            if (conversationExtra.type == ConversationType.group) {
-              return GroupChatScreen(
+              destination = ChannelFeedScreen(conversation: conversationExtra);
+            } else if (conversationExtra.type == ConversationType.group) {
+              destination = GroupChatScreen(
+                conversationId: conversationId,
+                initialConversation: conversationExtra,
+                initialMessageId: messageId,
+              );
+            } else {
+              destination = DMChatScreen(
                 conversationId: conversationId,
                 initialConversation: conversationExtra,
                 initialMessageId: messageId,
               );
             }
-            return DMChatScreen(
-              conversationId: conversationId,
-              initialConversation: conversationExtra,
-              initialMessageId: messageId,
-            );
+          } else {
+            // The screen can still hydrate from the provider when a deep link
+            // has no Conversation object attached.
+            destination = DMChatScreen(conversationId: conversationId);
           }
 
-          // Fallback if extra is not provided, we might need to fetch it or guess.
-          // For now, assume it's a DM or handle it in the screens.
-          return DMChatScreen(conversationId: conversationId);
+          return CustomTransitionPage<void>(
+            key: state.pageKey,
+            transitionDuration: const Duration(milliseconds: 220),
+            reverseTransitionDuration: const Duration(milliseconds: 180),
+            child: destination,
+            transitionsBuilder: _conversationTransition,
+          );
         },
       ),
 
@@ -236,16 +327,36 @@ class AppRouter {
       // Let's use /messages/user/:userId to be safe and clean.
       GoRoute(
         path: '/chat/user/:userId',
-        builder: (context, state) {
+        pageBuilder: (context, state) {
           final userId = state.pathParameters['userId'];
           if (userId == null || userId.isEmpty) {
-            return const _InvalidRoute(message: 'Invalid chat user.');
+            return CustomTransitionPage<void>(
+              key: state.pageKey,
+              child: const _InvalidRoute(message: 'Invalid chat user.'),
+              transitionsBuilder: _conversationTransition,
+            );
           }
-          return DMChatScreen(
-            userId: userId,
-            initialUser: state.extra is ChatUser
-                ? state.extra as ChatUser
-                : null,
+          final routeExtra = state.extra is Map
+              ? Map<String, dynamic>.from(state.extra as Map)
+              : null;
+          return CustomTransitionPage<void>(
+            key: state.pageKey,
+            transitionDuration: const Duration(milliseconds: 220),
+            reverseTransitionDuration: const Duration(milliseconds: 180),
+            child: DMChatScreen(
+              userId: userId,
+              initialUser: state.extra is ChatUser
+                  ? state.extra as ChatUser
+                  : routeExtra?['initialUser'] is ChatUser
+                  ? routeExtra!['initialUser'] as ChatUser
+                  : null,
+              initialStoryReply: routeExtra?['initialStoryReply'] is Map
+                  ? Map<String, dynamic>.from(
+                      routeExtra!['initialStoryReply'] as Map,
+                    )
+                  : null,
+            ),
+            transitionsBuilder: _conversationTransition,
           );
         },
       ),
@@ -660,6 +771,17 @@ class AppRouter {
         builder: (_, _) => const NotificationSettingsScreen(),
       ),
       GoRoute(
+        path: '/settings/notifications/:category',
+        builder: (_, state) {
+          final category = NotificationSettingsScreen.categoryFor(
+            state.pathParameters['category'] ?? '',
+          );
+          return category == null
+              ? const NotificationSettingsScreen()
+              : NotificationCategorySettingsScreen(category: category);
+        },
+      ),
+      GoRoute(
         path: '/settings/about',
         builder: (_, _) => const AboutGriotScreen(),
       ),
@@ -677,6 +799,10 @@ class AppRouter {
         builder: (context, state) {
           return const GriotPlusScreen();
         },
+      ),
+      GoRoute(
+        path: '/settings/griot-golds',
+        builder: (context, state) => const GriotGoldsScreen(),
       ),
 
       GoRoute(
@@ -703,7 +829,11 @@ class AppRouter {
       // push-notification navigation.
       GoRoute(
         path: '/notifications',
-        builder: (context, state) => const NotificationsScreen(),
+        builder: (context, state) {
+          final extra = state.extra;
+          final campOnly = extra is Map && extra['campOnly'] == true;
+          return NotificationsScreen(campOnly: campOnly);
+        },
       ),
       GoRoute(
         path: '/chat/call-link/create',
@@ -791,7 +921,9 @@ class AppRouter {
         path: '/campfires/create',
         builder: (context, state) {
           final extra = state.extra;
-          final options = extra is Map ? Map<String, dynamic>.from(extra) : const <String, dynamic>{};
+          final options = extra is Map
+              ? Map<String, dynamic>.from(extra)
+              : const <String, dynamic>{};
           return CreateCampfireScreen(
             conversationId: options['conversationId']?.toString(),
             conversationType: options['conversationType']?.toString(),
@@ -799,10 +931,44 @@ class AppRouter {
         },
       ),
 
+      GoRoute(
+        path: '/campfires/tales/create',
+        builder: (context, state) {
+          final extra = state.extra;
+          final draftId = extra is Map ? extra['draftId']?.toString() : null;
+          return CreateTaleScreen(
+            draftId: draftId,
+            initialText: extra is Map ? extra['initialText']?.toString() : null,
+            initialThreadId: extra is Map
+                ? extra['initialThreadId']?.toString()
+                : null,
+            initialRetellOfTaleId: extra is Map
+                ? extra['initialRetellOfTaleId']?.toString()
+                : null,
+            initialReferenceText: extra is Map
+                ? extra['initialReferenceText']?.toString()
+                : null,
+            initialReferenceLabel: extra is Map
+                ? extra['initialReferenceLabel']?.toString()
+                : null,
+            initialReferenceMediaUrls:
+                extra is Map && extra['initialReferenceMediaUrls'] is List
+                ? (extra['initialReferenceMediaUrls'] as List)
+                      .map((item) => item.toString())
+                      .where((item) => item.isNotEmpty)
+                      .toList()
+                : const [],
+            composerTitle: extra is Map
+                ? extra['composerTitle']?.toString()
+                : null,
+          );
+        },
+      ),
+
       // ======================================================
       // MAIN NAVIGATION SHELL
       // ======================================================
-      StatefulShellRoute.indexedStack(
+      StatefulShellRoute(
         builder: (context, state, navigationShell) {
           return GradientScaffold(
             useSafeArea: false,
@@ -813,6 +979,11 @@ class AppRouter {
             child: MainNavigationShell(navigationShell: navigationShell),
           );
         },
+        navigatorContainerBuilder: (context, navigationShell, children) =>
+            _AnimatedBranchContainer(
+              currentIndex: navigationShell.currentIndex,
+              children: children,
+            ),
         branches: [
           // ==================================================
           // CHAT
@@ -911,6 +1082,58 @@ class _InvalidRoute extends StatelessWidget {
             message,
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyLarge,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Keeps each branch navigator alive while giving main-section changes the
+/// short horizontal movement users expect from a mobile social app.
+class _AnimatedBranchContainer extends StatelessWidget {
+  const _AnimatedBranchContainer({
+    required this.currentIndex,
+    required this.children,
+  });
+
+  final int currentIndex;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          for (var index = 0; index < children.length; index++)
+            _branch(index, children[index]),
+        ],
+      ),
+    );
+  }
+
+  Widget _branch(int index, Widget child) {
+    final active = index == currentIndex;
+    final direction = index > currentIndex ? 1.0 : -1.0;
+    // Keep inactive navigators mounted for state preservation, but take them
+    // completely out of layout and hit testing. An IgnorePointer around a
+    // live scrollable can still let Flutter traverse a half-detached
+    // RenderViewport during a route transition, which causes the null-check
+    // hit-test exception seen when opening the Tale editor.
+    return Offstage(
+      offstage: !active,
+      child: TickerMode(
+        enabled: active,
+        child: AnimatedSlide(
+          offset: active ? Offset.zero : Offset(direction * 0.035, 0),
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOutCubic,
+          child: AnimatedOpacity(
+            opacity: active ? 1 : 0,
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOut,
+            child: child,
           ),
         ),
       ),
