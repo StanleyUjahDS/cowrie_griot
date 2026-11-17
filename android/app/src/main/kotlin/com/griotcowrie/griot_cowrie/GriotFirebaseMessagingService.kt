@@ -6,9 +6,13 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.media.AudioAttributes
 import android.media.RingtoneManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.app.Person
+import androidx.core.graphics.drawable.IconCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 
@@ -36,7 +40,10 @@ class GriotFirebaseMessagingService : FirebaseMessagingService() {
             }
             return
         }
-        if (data["type"] != "incoming_call") return
+        if (data["type"] != "incoming_call") {
+            showDataNotification(data)
+            return
+        }
         val callId = data["callId"]?.takeIf { it.isNotBlank() } ?: return
         val bundle = Bundle().apply {
             putString("EXTRA_CALLKIT_ID", callId)
@@ -72,6 +79,135 @@ class GriotFirebaseMessagingService : FirebaseMessagingService() {
         } catch (error: Exception) {
             Log.e("GriotFCM", "Unable to present incoming call", error)
         }
+    }
+
+    // Data-only pushes are rendered here so sender avatars remain compact
+    // large icons beside Griot's small app icon, rather than FCM's full-width
+    // BigPicture banner.
+    private fun showDataNotification(data: Map<String, String>) {
+        if (isAppInForeground()) return
+        val channelId = "griot_messages"
+        val notificationManager = getSystemService(NotificationManager::class.java)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                "Griot messages",
+                NotificationManager.IMPORTANCE_HIGH,
+            ).apply {
+                description = "Messages and activity from Griot"
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
+        val title = data["title"]?.takeIf { it.isNotBlank() } ?: "Griot"
+        val body = data["body"]?.takeIf { it.isNotBlank() } ?: "You have a new update."
+        val contentIntent = Intent(applicationContext, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            data.forEach { (key, value) -> putExtra(key, value) }
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            applicationContext,
+            (data["messageId"] ?: data["id"] ?: "$title:$body").hashCode(),
+            contentIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val avatarUrl = listOf(
+            "notificationAvatarUrl",
+            "notification_avatar_url",
+            "senderAvatarUrl",
+            "sender_avatar_url",
+            "senderAvatar",
+            "sender_avatar",
+            "senderProfileImageUrl",
+            "sender_profile_image_url",
+            "profileImageUrl",
+            "profile_image_url",
+            "avatarUrl",
+            "avatar_url",
+            "imageUrl",
+            "image_url",
+            "senderProfileUrl",
+            "sender_profile_url",
+            "conversationAvatarUrl",
+            "conversation_avatar_url",
+        ).asSequence().mapNotNull { data[it] }.firstOrNull { it.startsWith("http") }
+        val notificationId = (data["messageId"] ?: data["id"] ?: "$title:$body").hashCode()
+        Thread {
+            val avatar = avatarUrl?.let(::downloadAvatar)
+            val builder = NotificationCompat.Builder(applicationContext, channelId)
+                .setSmallIcon(com.griotcowrie.griot_cowrie.R.drawable.ic_stat_griot)
+                .setContentTitle(title)
+                .setContentText(body)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+                .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setAutoCancel(true)
+                .setContentIntent(pendingIntent)
+            if (avatar != null) {
+                val cropped = circleCrop(avatar)
+                builder.setLargeIcon(cropped)
+                // Use Android's conversation presentation when a sender
+                // portrait is available. The small icon remains Griot's
+                // identity while the large/person icon represents the actor.
+                val senderName = data["senderName"]
+                    ?: data["sender_name"]
+                    ?: data["senderDisplayName"]
+                    ?: data["sender_display_name"]
+                    ?: data["actorName"]
+                    ?: title
+                val person = Person.Builder()
+                    .setName(senderName)
+                    .setIcon(IconCompat.createWithBitmap(cropped))
+                    .build()
+                builder.setStyle(
+                    NotificationCompat.MessagingStyle(person)
+                        .addMessage(body, System.currentTimeMillis(), person),
+                )
+            }
+            notificationManager.notify(notificationId, builder.build())
+        }.start()
+    }
+
+    private fun isAppInForeground(): Boolean {
+        val manager = getSystemService(android.app.ActivityManager::class.java)
+        val process = manager.runningAppProcesses?.firstOrNull {
+            it.processName == packageName
+        }
+        return process?.importance ==
+            android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
+    }
+
+    private fun downloadAvatar(url: String): Bitmap? {
+        var connection: java.net.HttpURLConnection? = null
+        return try {
+            connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+            connection.connectTimeout = 2500
+            connection.readTimeout = 2500
+            connection.instanceFollowRedirects = true
+            connection.connect()
+            if (connection.responseCode !in 200..299) return null
+            connection.inputStream.use { BitmapFactory.decodeStream(it) }
+        } catch (error: Exception) {
+            Log.w("GriotFCM", "Unable to load notification avatar", error)
+            null
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
+    private fun circleCrop(source: Bitmap): Bitmap {
+        val size = minOf(source.width, source.height)
+        val x = (source.width - size) / 2
+        val y = (source.height - size) / 2
+        val square = Bitmap.createBitmap(source, x, y, size, size)
+        val output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(output)
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+        paint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
+        canvas.drawBitmap(square, 0f, 0f, paint)
+        return output
     }
 
     private fun compactCallLabel(value: String): String {
@@ -129,7 +265,7 @@ class GriotFirebaseMessagingService : FirebaseMessagingService() {
             flags,
         )
         val notification = NotificationCompat.Builder(applicationContext, channelId)
-            .setSmallIcon(applicationInfo.icon)
+            .setSmallIcon(com.griotcowrie.griot_cowrie.R.drawable.ic_stat_griot)
             .setContentTitle(data.getString("EXTRA_CALLKIT_NAME_CALLER", "Griot contact"))
             .setContentText(
                 if (rawData["mode"] == "video") "Incoming video call" else "Incoming voice call",
@@ -193,7 +329,7 @@ class GriotFirebaseMessagingService : FirebaseMessagingService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val notification = NotificationCompat.Builder(applicationContext, channelId)
-            .setSmallIcon(applicationInfo.icon)
+            .setSmallIcon(com.griotcowrie.griot_cowrie.R.drawable.ic_stat_griot)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
