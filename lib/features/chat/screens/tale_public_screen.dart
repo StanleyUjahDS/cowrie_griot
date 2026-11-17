@@ -104,6 +104,10 @@ class _TalePublicScreenState extends State<TalePublicScreen>
     if (initial != null &&
         _threadId(initial) != null &&
         (initialThreadCount ?? 1) > 1) {
+      // A dedicated reader is the full continuity view. Open multi-part
+      // Tales with the linked section visible so Part 1 is never hidden when
+      // the reader was opened from a later part.
+      _threadExpanded = true;
       _threadFuture = context.read<MessagingApiService>().getTaleThread(
         widget.taleId,
       );
@@ -1412,6 +1416,7 @@ class _TalePublicScreenState extends State<TalePublicScreen>
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (!mounted || _threadFuture != null) return;
                     setState(() {
+                      _threadExpanded = true;
                       _threadFuture = context
                           .read<MessagingApiService>()
                           .getTaleThread(widget.taleId);
