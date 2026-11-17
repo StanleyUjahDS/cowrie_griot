@@ -82,6 +82,7 @@ class _CampProfileScreenState extends State<CampProfileScreen>
   int _campfiresOffset = 0;
   final ScrollController _profileScrollController = ScrollController();
   bool _profileChromeVisible = true;
+  bool _profileTabsPinned = false;
   Timer? _profileChromeTimer;
   double _lastProfileOffset = 0;
   late final AnimationController _profileChromeAnimation;
@@ -385,6 +386,10 @@ class _CampProfileScreenState extends State<CampProfileScreen>
         _profileChromeTimer?.cancel();
         _lastProfileOffset = offset;
         _setProfileChromeVisible(true);
+      }
+      final tabsPinned = offset > 180;
+      if (tabsPinned != _profileTabsPinned && mounted) {
+        setState(() => _profileTabsPinned = tabsPinned);
       }
     }
     if (!_profileScrollController.hasClients ||
@@ -744,77 +749,114 @@ class _CampProfileScreenState extends State<CampProfileScreen>
       // compact form so it never covers a Tale card or its action row.
       child: NotificationListener<ScrollNotification>(
         onNotification: (_) => false,
-        child: ListView(
-          controller: _profileScrollController,
-          physics: campScrollPhysics,
-          // Keep the final Camp content clear of the extended FAB, including
-          // on smaller phones and when the keyboard/safe-area inset changes.
-          padding: EdgeInsets.fromLTRB(
-            12,
-            0,
-            12,
-            // Leave room for the extended Camp action while the final card
-            // scrolls above it instead of disappearing underneath the FAB.
-            96 + MediaQuery.viewPaddingOf(context).bottom,
-          ),
+        child: Stack(
           children: [
-            if (_loadingPublicUser) const LinearProgressIndicator(minHeight: 2),
-            _profileCard(context, user, name, username),
-            const SizedBox(height: 16),
-            TabBar(
-              controller: _tabController,
-              isScrollable: false,
-              labelColor: colors.primary,
-              unselectedLabelColor: colors.onSurfaceVariant,
-              indicatorColor: colors.primary,
-              indicatorWeight: 3,
-              tabs: const [
-                Tab(icon: Icon(Icons.menu_book_rounded), text: 'Tales'),
-                Tab(
-                  icon: Icon(Icons.local_fire_department_rounded),
-                  text: 'Campfires',
+            ListView(
+              controller: _profileScrollController,
+              physics: campScrollPhysics,
+              // Keep the final Camp content clear of the extended FAB, including
+              // on smaller phones and when the keyboard/safe-area inset changes.
+              padding: EdgeInsets.fromLTRB(
+                12,
+                0,
+                12,
+                // Leave room for the extended Camp action while the final card
+                // scrolls above it instead of disappearing underneath the FAB.
+                96 + MediaQuery.viewPaddingOf(context).bottom,
+              ),
+              children: [
+                if (_loadingPublicUser)
+                  const LinearProgressIndicator(minHeight: 2),
+                _profileCard(context, user, name, username),
+                const SizedBox(height: 16),
+                TabBar(
+                  controller: _tabController,
+                  isScrollable: false,
+                  labelColor: colors.primary,
+                  unselectedLabelColor: colors.onSurfaceVariant,
+                  indicatorColor: colors.primary,
+                  indicatorWeight: 3,
+                  tabs: const [
+                    Tab(icon: Icon(Icons.menu_book_rounded), text: 'Tales'),
+                    Tab(
+                      icon: Icon(Icons.local_fire_department_rounded),
+                      text: 'Campfires',
+                    ),
+                    Tab(icon: Icon(Icons.forum_outlined), text: 'Interactions'),
+                  ],
                 ),
-                Tab(icon: Icon(Icons.forum_outlined), text: 'Interactions'),
+                const SizedBox(height: 14),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 260),
+                  reverseDuration: const Duration(milliseconds: 180),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  layoutBuilder: (currentChild, previousChildren) => ClipRect(
+                    child: Stack(
+                      alignment: Alignment.topCenter,
+                      clipBehavior: Clip.hardEdge,
+                      children: [...previousChildren, ?currentChild],
+                    ),
+                  ),
+                  transitionBuilder: (child, animation) {
+                    final curved = CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeOutCubic,
+                    );
+                    return FadeTransition(
+                      opacity: curved,
+                      child: SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(.035, 0),
+                          end: Offset.zero,
+                        ).animate(curved),
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: KeyedSubtree(
+                    key: ValueKey(_selectedTab),
+                    child: _selectedTab == 0
+                        ? _talesTab(context)
+                        : _selectedTab == 1
+                        ? _campfiresTab(context)
+                        : _activityTab(context),
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 14),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 260),
-              reverseDuration: const Duration(milliseconds: 180),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeInCubic,
-              layoutBuilder: (currentChild, previousChildren) => ClipRect(
-                child: Stack(
-                  alignment: Alignment.topCenter,
-                  clipBehavior: Clip.hardEdge,
-                  children: [...previousChildren, ?currentChild],
+            if (_profileTabsPinned)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Material(
+                  color: colors.surface,
+                  elevation: 3,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: TabBar(
+                      controller: _tabController,
+                      isScrollable: false,
+                      labelColor: colors.primary,
+                      unselectedLabelColor: colors.onSurfaceVariant,
+                      indicatorColor: colors.primary,
+                      indicatorWeight: 3,
+                      tabs: const [
+                        Tab(icon: Icon(Icons.menu_book_rounded), text: 'Tales'),
+                        Tab(
+                          icon: Icon(Icons.local_fire_department_rounded),
+                          text: 'Campfires',
+                        ),
+                        Tab(
+                          icon: Icon(Icons.forum_outlined),
+                          text: 'Interactions',
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-              transitionBuilder: (child, animation) {
-                final curved = CurvedAnimation(
-                  parent: animation,
-                  curve: Curves.easeOutCubic,
-                );
-                return FadeTransition(
-                  opacity: curved,
-                  child: SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(.035, 0),
-                      end: Offset.zero,
-                    ).animate(curved),
-                    child: child,
-                  ),
-                );
-              },
-              child: KeyedSubtree(
-                key: ValueKey(_selectedTab),
-                child: _selectedTab == 0
-                    ? _talesTab(context)
-                    : _selectedTab == 1
-                    ? _campfiresTab(context)
-                    : _activityTab(context),
-              ),
-            ),
           ],
         ),
       ),
