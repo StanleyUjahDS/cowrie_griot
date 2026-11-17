@@ -21,6 +21,18 @@ class ChatSettingsScreen extends StatelessWidget {
         'chat_notifications',
       ),
       _PreferenceItem(
+        'Message requests',
+        'Notify me about new connection and message requests',
+        'message_requests',
+        section: 'Messages',
+      ),
+      _PreferenceItem(
+        'Message reactions',
+        'Notify me when someone reacts to a message I sent',
+        'message_reactions',
+        section: 'Messages',
+      ),
+      _PreferenceItem(
         'Typing indicators',
         'Show when you are typing',
         'typing_indicators',
@@ -81,14 +93,123 @@ class NotificationSettingsScreen extends StatelessWidget {
     title: 'Notifications',
     items: [
       _PreferenceItem(
+        'Allow push notifications',
+        'Enable or silence all Griot push notifications on this account',
+        'push_notifications',
+      ),
+      _PreferenceItem(
         'Chat notifications',
         'Receive notifications for new messages',
         'chat_notifications',
       ),
       _PreferenceItem(
+        'Call notifications',
+        'Receive incoming and missed call alerts',
+        'call_notifications',
+      ),
+      _PreferenceItem(
+        'Campfire notifications',
+        'Receive Campfire invites, speaker requests and reminders',
+        'campfire_notifications',
+      ),
+      _PreferenceItem(
+        'Social activity',
+        'Receive connection and interaction updates',
+        'social_notifications',
+      ),
+      _PreferenceItem(
+        'Wallet and rewards',
+        'Receive wallet, mining and reward updates',
+        'crypto_notifications',
+      ),
+      _PreferenceItem(
         'Message previews',
         'Include a short preview in notifications',
         'message_preview',
+      ),
+      _PreferenceItem(
+        'Camp Tale likes',
+        'Notify me when someone likes (upvotes) my Tale in Griot Camp',
+        'tale_upvotes',
+        section: 'Griot Camp · Tales',
+      ),
+      _PreferenceItem(
+        'Camp Tale downvotes',
+        'Notify me when someone downvotes my Tale in Griot Camp',
+        'tale_downvotes',
+        section: 'Griot Camp · Tales',
+      ),
+      _PreferenceItem(
+        'Camp Tale comments and replies',
+        'Notify me when someone comments on or replies to my Tale in Griot Camp',
+        'tale_comments',
+        section: 'Griot Camp · Tales',
+      ),
+      _PreferenceItem(
+        'Camp Tale retells',
+        'Notify me when someone retells my Tale in Griot Camp',
+        'tale_retells',
+        section: 'Griot Camp · Tales',
+      ),
+      _PreferenceItem(
+        'Camp Tale co-tells',
+        'Notify me when someone co-tells or continues my Tale',
+        'tale_cotells',
+        section: 'Griot Camp · Tales',
+      ),
+      _PreferenceItem(
+        'Camp Tale mentions and tags',
+        'Notify me when I am mentioned or tagged in a Tale or comment',
+        'tale_mentions',
+        section: 'Griot Camp · Tales',
+      ),
+      _PreferenceItem(
+        'Invitations',
+        'Notify me about Campfire invitations',
+        'campfire_invites',
+        section: 'Campfires',
+      ),
+      _PreferenceItem(
+        'Speaker requests',
+        'Notify me when a host invites or requests me to speak',
+        'campfire_speaker_requests',
+        section: 'Campfires',
+      ),
+      _PreferenceItem(
+        'Scheduled reminders',
+        'Notify me before a Campfire I follow is due to start',
+        'campfire_reminders',
+        section: 'Campfires',
+      ),
+      _PreferenceItem(
+        'Live Campfire activity',
+        'Notify me when a followed Campfire goes live or ends',
+        'campfire_live_activity',
+        section: 'Campfires',
+      ),
+      _PreferenceItem(
+        'Camp profile follows',
+        'Notify me when someone follows my Camp profile',
+        'camp_profile_follows',
+        section: 'Camp profiles',
+      ),
+      _PreferenceItem(
+        'Tips and gifts',
+        'Notify me when someone tips me with crypto or Griot Golds',
+        'camp_tips',
+        section: 'Camp profiles',
+      ),
+      _PreferenceItem(
+        'Status replies',
+        'Notify me when someone replies to my status',
+        'status_replies',
+        section: 'Statuses',
+      ),
+      _PreferenceItem(
+        'Status reactions',
+        'Notify me when someone reacts to my status',
+        'status_reactions',
+        section: 'Statuses',
       ),
     ],
   );
@@ -96,7 +217,13 @@ class NotificationSettingsScreen extends StatelessWidget {
 
 class _PreferenceItem {
   final String title, subtitle, keyName;
-  const _PreferenceItem(this.title, this.subtitle, this.keyName);
+  final String? section;
+  const _PreferenceItem(
+    this.title,
+    this.subtitle,
+    this.keyName, {
+    this.section,
+  });
 }
 
 class _PreferencePage extends StatefulWidget {
@@ -137,15 +264,34 @@ class _PreferencePageState extends State<_PreferencePage> {
             return const Center(child: GriotLoader());
           }
 
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-            itemCount: widget.items.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 12),
-            itemBuilder: (_, i) {
-              final item = widget.items[i];
-              final value = provider.preferences[item.keyName] ?? true;
+          final rows = <Widget>[];
+          String? previousSection;
+          for (final item in widget.items) {
+            if (item.section != null && item.section != previousSection) {
+              rows.add(
+                Padding(
+                  padding: EdgeInsets.only(
+                    top: rows.isEmpty ? 14 : 18,
+                    bottom: 8,
+                    left: 4,
+                  ),
+                  child: Text(
+                    item.section!,
+                    style: TextStyle(
+                      color: colors.primary,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
+              );
+              previousSection = item.section;
+            }
 
-              return Container(
+            final value = provider.preferences[item.keyName] ?? true;
+            rows.add(
+              Container(
                 decoration: BoxDecoration(
                   color: colors.surface,
                   borderRadius: BorderRadius.circular(20),
@@ -194,8 +340,14 @@ class _PreferencePageState extends State<_PreferencePage> {
                     ),
                   ),
                 ),
-              );
-            },
+              ),
+            );
+            rows.add(const SizedBox(height: 12));
+          }
+
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+            children: rows,
           );
         },
       ),
