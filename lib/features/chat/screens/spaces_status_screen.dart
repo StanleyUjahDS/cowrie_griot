@@ -1,5 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:math' as math;
+import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
@@ -7,15 +11,26 @@ import '../../iap/providers/iap_provider.dart';
 import '../../iap/widgets/plus_required_dialog.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/network/api_config.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../core/ui/widgets/griot_branded_container.dart';
 import '../../../core/ui/widgets/griot_avatar.dart';
+import '../../../core/ui/widgets/griot_feed_media.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/services/navigation_scroll_service.dart';
 import '../models/space_model.dart';
+import '../models/chat_user.dart';
 import '../providers/messaging_provider.dart';
 import '../services/realtime_call_service.dart';
 import '../services/messaging_api_service.dart';
 import '../services/active_call_controller.dart';
+import '../widgets/chatting/link_preview_widget.dart';
+import '../widgets/camp_tip_sheet.dart';
+import '../widgets/camp_tale_components.dart';
+import '../widgets/camp_tale_media_gallery.dart';
+import '../widgets/chatting/report_content_sheet.dart';
+import '../../users/providers/user_provider.dart';
+import '../../auth/auth_controller.dart';
 
 /// Home for public Campfires and lightweight status updates.
 ///
@@ -28,26 +43,257 @@ class SpacesStatusScreen extends StatefulWidget {
   State<SpacesStatusScreen> createState() => _SpacesStatusScreenState();
 }
 
+class _LocalTale {
+  final String? id;
+  final String? authorId;
+  final String? authorWalletAddress;
+  final String text;
+  final String category;
+  final DateTime createdAt;
+  final String authorName;
+  final String? authorAvatarUrl;
+  final String? threadId;
+  final int threadPosition;
+  final int threadCount;
+  final String? mediaUrl;
+  final String? mediaType;
+  final List<String> mediaUrls;
+  final String? linkUrl;
+  final int commentCount;
+  final int likeCount;
+  final int downvoteCount;
+  final int viewerVote;
+  final bool viewerUpvoted;
+  final bool viewerDownvoted;
+  final int retellCount;
+  final int coTellCount;
+  final String? retellSourceId;
+  final String? retellSourceContent;
+  final String? retellSourceAuthorId;
+  final String? retellSourceAuthorName;
+  final String? retellSourceAuthorAvatarUrl;
+  final String? threadOriginalAuthorName;
+  final String? threadOriginalAuthorId;
+  final List<String> threadParts;
+  final List<List<String>> threadPartMediaUrls;
+
+  const _LocalTale({
+    this.id,
+    this.authorId,
+    this.authorWalletAddress,
+    required this.text,
+    required this.category,
+    required this.createdAt,
+    this.authorName = 'You',
+    this.authorAvatarUrl,
+    this.threadId,
+    this.threadPosition = 1,
+    this.threadCount = 1,
+    this.mediaUrl,
+    this.mediaType,
+    this.mediaUrls = const [],
+    this.linkUrl,
+    this.commentCount = 0,
+    this.likeCount = 0,
+    this.downvoteCount = 0,
+    this.viewerVote = 0,
+    this.viewerUpvoted = false,
+    this.viewerDownvoted = false,
+    this.retellCount = 0,
+    this.coTellCount = 0,
+    this.retellSourceId,
+    this.retellSourceContent,
+    this.retellSourceAuthorId,
+    this.retellSourceAuthorName,
+    this.retellSourceAuthorAvatarUrl,
+    this.threadOriginalAuthorName,
+    this.threadOriginalAuthorId,
+    this.threadParts = const [],
+    this.threadPartMediaUrls = const [],
+  });
+
+  _LocalTale copyWith({
+    String? text,
+    int? likeCount,
+    int? downvoteCount,
+    int? viewerVote,
+    bool? viewerUpvoted,
+    bool? viewerDownvoted,
+    int? threadPosition,
+    int? threadCount,
+    List<String>? threadParts,
+    List<List<String>>? threadPartMediaUrls,
+  }) => _LocalTale(
+    id: id,
+    authorId: authorId,
+    authorWalletAddress: authorWalletAddress,
+    text: text ?? this.text,
+    category: category,
+    createdAt: createdAt,
+    authorName: authorName,
+    authorAvatarUrl: authorAvatarUrl,
+    threadId: threadId,
+    threadPosition: threadPosition ?? this.threadPosition,
+    threadCount: threadCount ?? this.threadCount,
+    mediaUrl: mediaUrl,
+    mediaType: mediaType,
+    mediaUrls: mediaUrls,
+    linkUrl: linkUrl,
+    commentCount: commentCount,
+    likeCount: likeCount ?? this.likeCount,
+    downvoteCount: downvoteCount ?? this.downvoteCount,
+    viewerVote: viewerVote ?? this.viewerVote,
+    viewerUpvoted: viewerUpvoted ?? this.viewerUpvoted,
+    viewerDownvoted: viewerDownvoted ?? this.viewerDownvoted,
+    retellCount: retellCount,
+    coTellCount: coTellCount,
+    retellSourceId: retellSourceId,
+    retellSourceContent: retellSourceContent,
+    retellSourceAuthorId: retellSourceAuthorId,
+    retellSourceAuthorName: retellSourceAuthorName,
+    retellSourceAuthorAvatarUrl: retellSourceAuthorAvatarUrl,
+    threadOriginalAuthorName: threadOriginalAuthorName,
+    threadOriginalAuthorId: threadOriginalAuthorId,
+    threadParts: threadParts ?? this.threadParts,
+    threadPartMediaUrls: threadPartMediaUrls ?? this.threadPartMediaUrls,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'authorId': authorId,
+    'authorWalletAddress': authorWalletAddress,
+    'content': text,
+    'category': category,
+    'createdAt': createdAt.toIso8601String(),
+    'author': {'displayName': authorName, 'avatarUrl': authorAvatarUrl},
+    'threadId': threadId,
+    'threadPosition': threadPosition,
+    'threadCount': threadCount,
+    'mediaUrl': mediaUrl,
+    'mediaType': mediaType,
+    'mediaUrls': mediaUrls,
+    'linkUrl': linkUrl,
+    'commentCount': commentCount,
+    'upvoteCount': likeCount,
+    'downvoteCount': downvoteCount,
+    'retellCount': retellCount,
+    'coTellCount': coTellCount,
+    'retellSourceId': retellSourceId,
+    'retellSourceContent': retellSourceContent,
+    'retellSourceAuthorId': retellSourceAuthorId,
+    'retellSourceAuthorAvatarUrl': retellSourceAuthorAvatarUrl,
+    'threadOriginalAuthorName': threadOriginalAuthorName,
+    'threadOriginalAuthorId': threadOriginalAuthorId,
+    'threadParts': threadParts,
+    'threadPartMediaUrls': threadPartMediaUrls,
+    'viewerVote': viewerVote,
+    'viewerUpvoted': viewerUpvoted,
+    'viewerDownvoted': viewerDownvoted,
+  };
+}
+
+class _LocalTaleComment {
+  final String text;
+  final String? replyTo;
+  final DateTime createdAt;
+
+  const _LocalTaleComment({
+    required this.text,
+    this.replyTo,
+    required this.createdAt,
+  });
+}
+
 class _SpacesStatusScreenState extends State<SpacesStatusScreen>
-    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
+    with WidgetsBindingObserver, TickerProviderStateMixin {
   final List<SpaceModel> _spaces = [];
   final List<SpaceModel> _upcomingSpaces = [];
+  final List<_LocalTale> _localTales = [];
+  final Map<String, bool> _suggestionFollowing = {};
+  final Set<String> _loadingSuggestionProfiles = {};
+  final Set<String> _followingSuggestions = {};
+  final Set<String> _hiddenSuggestionAuthors = {};
+  final Set<String> _votingTales = <String>{};
+  final Map<String, List<_LocalTaleComment>> _taleComments = {};
+  static const _taleCategories = <String>[
+    'All',
+    'Personal',
+    'Finance',
+    'Crypto',
+    'Football',
+    'Sports',
+    'Technology',
+    'Health',
+    'Education',
+    'Lessons',
+    'Culture',
+    'Community',
+    'Ideas',
+    'History',
+    'Music',
+  ];
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _feedScrollController = ScrollController();
   bool _loading = true;
+  bool _loadingTales = true;
+  bool _initialCampLoadComplete = false;
+  bool _loadingMoreTales = false;
+  String? _talesLoadError;
+  bool _hasMoreTales = false;
+  String? _taleCursor;
   bool _hasMore = true;
   int _offset = 0;
   int _spacesRequestId = 0;
+  int _upcomingRequestId = 0;
   int _campfireRevision = 0;
+  // Camp navigation order: Tales first, Campfires second, then Search.
   int _campfireTab = 0;
+  String _campfireView = 'live';
   late final TabController _campfireTabs;
   final Set<String> _campfireReminders = <String>{};
   String _region = 'GLOBAL';
+  int _lastCampRefreshNonce = 0;
+  int _lastCampScrollNonce = 0;
   String? _error;
   String _searchQuery = '';
+  bool _searchSubmitted = false;
+  bool _searchLoading = false;
+  Map<String, dynamic> _campSearchResults = const {};
+  String _searchScope = 'all';
+  String _selectedTaleCategory = 'All';
+  final Set<String> _campInterests = <String>{};
+  final Set<String> _expandedTaleThreads = <String>{};
+  String _taleFeed = 'public';
   late final FocusNode _searchFocusNode;
   Timer? _socketRefreshTimer;
+  bool _chromeVisible = true;
+  double _lastFeedOffset = 0;
+  late final AnimationController _chromeAnimation;
   MessagingProvider? _messagingProvider;
+
+  Future<void> _runCampSearch(String query) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) {
+      if (mounted) setState(() => _campSearchResults = const {});
+      return;
+    }
+    setState(() => _searchLoading = true);
+    try {
+      final result = await context.read<MessagingApiService>().searchCampside(
+        trimmed,
+      );
+      if (mounted && _searchQuery.trim() == trimmed) {
+        setState(() => _campSearchResults = result);
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => _campSearchResults = const {});
+        NotificationService.showError(context, 'Camp search failed: $error');
+      }
+    } finally {
+      if (mounted) setState(() => _searchLoading = false);
+    }
+  }
 
   List<SpaceModel> _parseSpaces(Object? raw) {
     if (raw is! List) return <SpaceModel>[];
@@ -66,25 +312,569 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
   @override
   void initState() {
     super.initState();
-    _campfireTabs = TabController(length: 2, vsync: this);
+    _chromeAnimation =
+        AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 220),
+          value: 1,
+        )..addListener(() {
+          if (mounted) setState(() {});
+        });
+    _campfireTabs = TabController(length: 3, vsync: this);
     _campfireTabs.addListener(() {
       if (!_campfireTabs.indexIsChanging &&
           _campfireTab != _campfireTabs.index &&
           mounted) {
-        setState(() => _campfireTab = _campfireTabs.index);
+        setState(() {
+          _campfireTab = _campfireTabs.index;
+        });
+        if (_campfireTabs.index == 0) {
+          unawaited(_loadTales());
+        }
       }
     });
     WidgetsBinding.instance.addObserver(this);
     _searchFocusNode = FocusNode();
     _feedScrollController.addListener(_onFeedScroll);
+    NavigationScrollService.instance.addListener(_onNavigationSignal);
     _messagingProvider = context.read<MessagingProvider>();
     _campfireRevision = _messagingProvider!.campfireRevision;
     _messagingProvider!.addListener(_onCampfireSocketEvent);
     _region = 'GLOBAL';
-    // Discovery must start from the server so a newly created public
-    // Campfire is visible immediately on every device.
-    _loadSpaces(forceRefresh: true);
-    _loadUpcomingSpaces(forceRefresh: true);
+    // Let ApiClient serve its short-lived cache first. A background refresh
+    // still reconciles newly-created Campfires, but the cached cards remain
+    // mounted instead of flashing the loading state on every return to this
+    // screen.
+    unawaited(_loadInitialCamp());
+  }
+
+  Future<void> _loadInitialCamp() async {
+    await Future.wait<void>([
+      _loadSpaces(),
+      _loadUpcomingSpaces(),
+      _loadTales(),
+    ]);
+    if (mounted) setState(() => _initialCampLoadComplete = true);
+  }
+
+  Future<void> _loadTales({bool nextPage = false}) async {
+    if (nextPage) {
+      if (_loadingMoreTales || !_hasMoreTales) return;
+      if (mounted) setState(() => _loadingMoreTales = true);
+    } else if (mounted) {
+      setState(() {
+        _loadingTales = true;
+        _taleCursor = null;
+        _hasMoreTales = false;
+        _expandedTaleThreads.clear();
+        // A refreshed feed always starts at the primary Part 1 surface; the
+        // dedicated Tale reader is the place for the full continuity view.
+      });
+    }
+    try {
+      final result = await context.read<MessagingApiService>().getTales(
+        feed: _taleFeed,
+        category: _selectedTaleCategory == 'All' ? null : _selectedTaleCategory,
+        cursor: nextPage ? _taleCursor : null,
+        limit: 20,
+      );
+      final rawItems = result['items'] ?? result['tales'] ?? result['results'];
+      if (!mounted || rawItems is! List) {
+        if (mounted) {
+          setState(() => _talesLoadError = 'Tales could not be loaded yet.');
+        }
+        return;
+      }
+      final remote = rawItems.whereType<Map>().map((raw) {
+        final item = Map<String, dynamic>.from(raw);
+        final author = item['author'] is Map
+            ? Map<String, dynamic>.from(item['author'] as Map)
+            : <String, dynamic>{};
+        final retellSource = item['retellSource'] is Map
+            ? Map<String, dynamic>.from(item['retellSource'] as Map)
+            : <String, dynamic>{};
+        final retellSourceAuthor = retellSource['author'] is Map
+            ? Map<String, dynamic>.from(retellSource['author'] as Map)
+            : <String, dynamic>{};
+        final threadMeta = item['thread'] is Map
+            ? Map<String, dynamic>.from(item['thread'] as Map)
+            : <String, dynamic>{};
+        final rawThreadParts = item['threadParts'] ?? item['thread_parts'];
+        final itemMediaUrls = _mediaUrlList(
+          item['mediaUrls'] ?? item['media_urls'],
+        );
+        final itemMedia = _absoluteMediaValue(
+          item['mediaUrl'] ?? item['media_url'],
+        );
+        final allItemMedia = <String>[
+          ...?itemMedia == null ? null : <String>[itemMedia],
+          ...itemMediaUrls.where((url) => url != itemMedia),
+        ];
+        return _LocalTale(
+          id: (item['id'] ?? item['taleId'] ?? item['tale_id'])?.toString(),
+          authorId:
+              (author['id'] ??
+                      author['userId'] ??
+                      author['user_id'] ??
+                      item['authorId'] ??
+                      item['author_id'] ??
+                      item['userId'] ??
+                      item['user_id'])
+                  ?.toString(),
+          authorWalletAddress:
+              (author['walletAddress'] ??
+                      author['wallet_address'] ??
+                      item['authorWalletAddress'] ??
+                      item['author_wallet_address'] ??
+                      item['walletAddress'] ??
+                      item['wallet_address'])
+                  ?.toString(),
+          text: '${item['content'] ?? ''}',
+          category: '${item['category'] ?? 'Personal'}',
+          createdAt:
+              DateTime.tryParse(
+                '${item['createdAt'] ?? item['created_at'] ?? ''}',
+              ) ??
+              DateTime.now(),
+          authorName:
+              '${author['displayName'] ?? author['display_name'] ?? item['display_name'] ?? item['displayName'] ?? item['username'] ?? 'Griot user'}',
+          authorAvatarUrl:
+              (author['avatarUrl'] ??
+                      author['avatar_url'] ??
+                      item['avatar_url'] ??
+                      item['avatarUrl'])
+                  ?.toString(),
+          threadId:
+              item['threadId']?.toString() ?? item['thread_id']?.toString(),
+          threadPosition:
+              int.tryParse(
+                '${item['threadPosition'] ?? item['thread_position'] ?? 1}',
+              ) ??
+              1,
+          threadCount:
+              int.tryParse(
+                '${item['threadCount'] ?? item['thread_count'] ?? 1}',
+              ) ??
+              1,
+          mediaUrl: itemMedia,
+          mediaType:
+              item['mediaType']?.toString() ?? item['media_type']?.toString(),
+          mediaUrls: itemMediaUrls,
+          linkUrl: item['linkUrl']?.toString() ?? item['link_url']?.toString(),
+          commentCount:
+              int.tryParse(
+                '${item['commentCount'] ?? item['comment_count'] ?? 0}',
+              ) ??
+              0,
+          likeCount:
+              int.tryParse(
+                '${item['upvoteCount'] ?? item['upvote_count'] ?? 0}',
+              ) ??
+              0,
+          downvoteCount:
+              int.tryParse(
+                '${item['downvoteCount'] ?? item['downvote_count'] ?? 0}',
+              ) ??
+              0,
+          viewerVote:
+              int.tryParse(
+                '${item['viewerVote'] ?? item['viewer_vote'] ?? 0}',
+              ) ??
+              0,
+          viewerUpvoted:
+              item['viewerUpvoted'] == true ||
+              item['viewer_upvoted'] == true ||
+              int.tryParse(
+                    '${item['viewerVote'] ?? item['viewer_vote'] ?? 0}',
+                  ) ==
+                  1,
+          viewerDownvoted:
+              item['viewerDownvoted'] == true ||
+              item['viewer_downvoted'] == true ||
+              int.tryParse(
+                    '${item['viewerVote'] ?? item['viewer_vote'] ?? 0}',
+                  ) ==
+                  -1,
+          retellCount:
+              int.tryParse(
+                '${item['retellCount'] ?? item['retell_count'] ?? 0}',
+              ) ??
+              0,
+          coTellCount:
+              int.tryParse(
+                '${item['coTellCount'] ?? item['co_tell_count'] ?? 0}',
+              ) ??
+              0,
+          retellSourceId: (item['retellSourceId'] ?? item['retell_source_id'])
+              ?.toString(),
+          retellSourceContent:
+              (item['retellSourceContent'] ?? item['retell_source_content'])
+                  ?.toString(),
+          retellSourceAuthorId:
+              (item['retellSourceAuthorId'] ??
+                      item['retell_source_author_id'] ??
+                      retellSource['authorId'] ??
+                      retellSource['author_id'] ??
+                      retellSourceAuthor['id'] ??
+                      retellSourceAuthor['userId'] ??
+                      retellSourceAuthor['user_id'])
+                  ?.toString(),
+          retellSourceAuthorName:
+              (item['retellSourceAuthorName'] ??
+                      item['retell_source_author_name'] ??
+                      retellSource['authorName'] ??
+                      retellSource['author_name'] ??
+                      item['originalAuthorName'] ??
+                      item['original_author_name'] ??
+                      threadMeta['authorName'] ??
+                      threadMeta['author_name'] ??
+                      (retellSource['author'] is Map
+                          ? (retellSource['author'] as Map)['displayName']
+                          : null))
+                  ?.toString(),
+          retellSourceAuthorAvatarUrl:
+              (item['retellSourceAuthorAvatarUrl'] ??
+                      item['retell_source_author_avatar_url'] ??
+                      retellSource['authorAvatarUrl'] ??
+                      retellSource['author_avatar_url'] ??
+                      retellSourceAuthor['avatarUrl'] ??
+                      retellSourceAuthor['avatar_url'])
+                  ?.toString(),
+          threadOriginalAuthorName:
+              (item['threadOriginalAuthorName'] ??
+                      item['thread_original_author_name'] ??
+                      threadMeta['originalAuthorName'] ??
+                      threadMeta['original_author_name'])
+                  ?.toString(),
+          threadOriginalAuthorId:
+              (item['threadOriginalAuthorId'] ??
+                      item['thread_original_author_id'] ??
+                      threadMeta['originalAuthorId'] ??
+                      threadMeta['original_author_id'] ??
+                      threadMeta['authorId'] ??
+                      threadMeta['author_id'])
+                  ?.toString(),
+          threadParts: _threadPartList(
+            rawThreadParts,
+            fallback: '${item['content'] ?? ''}',
+          ),
+          threadPartMediaUrls: _threadPartMediaList(
+            rawThreadParts,
+            fallback: allItemMedia,
+          ),
+        );
+      }).toList();
+      final groupedThreads = <String, List<_LocalTale>>{};
+      final standalone = <_LocalTale>[];
+      for (final tale in remote) {
+        final threadId = tale.threadId;
+        if (threadId == null || threadId.isEmpty || tale.threadCount <= 1) {
+          standalone.add(tale);
+        } else {
+          groupedThreads.putIfAbsent(threadId, () => <_LocalTale>[]).add(tale);
+        }
+      }
+      for (final parts in groupedThreads.values) {
+        parts.sort((a, b) => a.threadPosition.compareTo(b.threadPosition));
+        final first = parts.first;
+        standalone.add(
+          first.copyWith(
+            // The feed card represents Part 1 as a normal Tale. The linked
+            // continuation is revealed only after the reader taps View all.
+            text: first.text.trim(),
+            threadPosition: 1,
+            threadCount: parts.length,
+            threadParts: parts.map((part) => part.text.trim()).toList(),
+            threadPartMediaUrls: parts
+                .map(
+                  (part) => <String>[
+                    if (part.mediaUrl != null) part.mediaUrl!,
+                    ...part.mediaUrls.where((url) => url != part.mediaUrl),
+                  ],
+                )
+                .toList(growable: false),
+          ),
+        );
+      }
+      final rankedTales = _rankTales(standalone);
+      final remoteTales = rankedTales;
+      final existingIds = remote
+          .map((tale) => tale.id)
+          .whereType<String>()
+          .toSet();
+      // Materialise this before replacing the backing list. Keeping it lazy
+      // would make local drafts disappear when the list is cleared below.
+      final localOnly = _localTales
+          .where((tale) => tale.id == null || !existingIds.contains(tale.id))
+          .toList(growable: false);
+      final nextCursor =
+          result['nextCursor']?.toString() ??
+          result['next_cursor']?.toString() ??
+          result['cursor']?.toString();
+      final pageHasMore =
+          result['hasMore'] == true ||
+          (nextCursor != null && nextCursor.isNotEmpty);
+      setState(() {
+        _talesLoadError = null;
+        if (nextPage) {
+          final existing = _localTales.map((tale) => tale.id).toSet();
+          _localTales.addAll(
+            remoteTales.where(
+              (tale) => tale.id == null || !existing.contains(tale.id),
+            ),
+          );
+        } else {
+          _localTales
+            ..clear()
+            ..addAll([...remoteTales, ...localOnly]);
+        }
+        final ranked = _rankTales(_localTales);
+        _localTales
+          ..clear()
+          ..addAll(ranked);
+        _taleCursor = nextCursor;
+        _hasMoreTales = pageHasMore;
+        if (!nextPage) _loadingTales = false;
+      });
+      unawaited(_loadSuggestionProfiles());
+    } catch (error) {
+      // Keep locally-created Tales visible if the feed is temporarily offline.
+      if (mounted && _localTales.isEmpty) {
+        setState(() => _talesLoadError = '$error');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loadingTales = false;
+          _loadingMoreTales = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadSuggestionProfiles({String? authorId}) async {
+    if (!mounted) return;
+    final ownId = context.read<UserProvider>().user?.id;
+    final service = context.read<MessagingApiService>();
+    final ids = authorId == null
+        ? _localTales
+              .map((tale) => tale.authorId?.trim())
+              .whereType<String>()
+              .where(
+                (id) =>
+                    id.isNotEmpty &&
+                    id != ownId &&
+                    !_suggestionFollowing.containsKey(id) &&
+                    !_hiddenSuggestionAuthors.contains(id),
+              )
+              .toSet()
+              .take(8)
+              .toList()
+        : <String>[authorId];
+    await Future.wait(
+      ids.map((id) async {
+        if (!_loadingSuggestionProfiles.add(id)) return;
+        try {
+          final profile = await service.getCampProfile(id);
+          final following = profile['is_following'] ?? profile['isFollowing'];
+          if (mounted &&
+              following is bool &&
+              !_followingSuggestions.contains(id)) {
+            setState(() => _suggestionFollowing[id] = following);
+          }
+        } catch (_) {
+          // Unknown relationships are omitted; a later feed refresh retries.
+        } finally {
+          _loadingSuggestionProfiles.remove(id);
+        }
+      }),
+    );
+  }
+
+  Future<void> _followSuggestion(String id) async {
+    if (!_followingSuggestions.add(id)) return;
+    setState(() {});
+    try {
+      await context.read<MessagingApiService>().followCampProfile(id);
+      if (mounted) setState(() => _suggestionFollowing[id] = true);
+    } catch (error) {
+      if (mounted) {
+        NotificationService.showError(
+          context,
+          'Could not follow profile: $error',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _followingSuggestions.remove(id));
+    }
+  }
+
+  List<_LocalTale> _rankTales(List<_LocalTale> input) {
+    if (input.length < 2) return List<_LocalTale>.from(input);
+    final now = DateTime.now();
+    final preferred = _selectedTaleCategory == 'All'
+        ? null
+        : _selectedTaleCategory.toLowerCase();
+    double score(_LocalTale tale) {
+      final ageHours = math.max(
+        0.0,
+        now.difference(tale.createdAt).inMinutes / 60.0,
+      );
+      final freshness = math.exp(-ageHours / 48.0) * 3.0;
+      final engagement =
+          math.log(
+            1 +
+                tale.likeCount +
+                tale.commentCount * 2 +
+                tale.retellCount * 2 +
+                tale.coTellCount,
+          ) /
+          2.0;
+      final category = tale.category.trim().toLowerCase();
+      final selectedCategoryBoost = preferred != null && category == preferred
+          ? 2.5
+          : 0.0;
+      final interestBoost = _campInterests.contains(tale.category)
+          ? 2.0
+          : (_campInterests.any(
+                  (interest) => interest.toLowerCase() == category,
+                )
+                ? 2.0
+                : 0.0);
+      final mediaBoost = tale.mediaUrl != null || tale.mediaUrls.isNotEmpty
+          ? .15
+          : 0.0;
+      final feedBoost = _taleFeed == 'for_you'
+          ? engagement + selectedCategoryBoost + interestBoost
+          : 0.0;
+      return freshness +
+          engagement +
+          selectedCategoryBoost +
+          interestBoost +
+          mediaBoost +
+          feedBoost;
+    }
+
+    final sorted = List<_LocalTale>.from(input)
+      ..sort((a, b) {
+        final difference = score(b).compareTo(score(a));
+        if (difference != 0) return difference;
+        return b.createdAt.compareTo(a.createdAt);
+      });
+
+    // Keep one prolific author from filling the first screen. This is a
+    // lightweight diversity pass that works with the existing paginated API.
+    final result = <_LocalTale>[];
+    final remaining = <_LocalTale>[...sorted];
+    String? previousAuthor;
+    while (remaining.isNotEmpty) {
+      var index = 0;
+      if (previousAuthor != null) {
+        final alternate = remaining.indexWhere(
+          (tale) => tale.authorId != null && tale.authorId != previousAuthor,
+        );
+        if (alternate >= 0) index = alternate;
+      }
+      final next = remaining.removeAt(index);
+      result.add(next);
+      previousAuthor = next.authorId;
+    }
+    return result;
+  }
+
+  String? _absoluteMediaUrl(String? value) {
+    if (value == null || value.trim().isEmpty) return null;
+    final url = value.trim();
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    // Older Tale rows may contain a media UUID instead of a resolved path.
+    // Resolve it through the authenticated API route so every gallery item
+    // (not only the first URL) renders correctly.
+    if (RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+    ).hasMatch(url)) {
+      return '${ApiConfig.baseUrl}/media/$url';
+    }
+    // API responses can contain either `/api/...` or `api/...`. Always join
+    // the path with a single slash so secondary gallery items do not become
+    // malformed URLs (the first item often arrives as a fully-qualified URL).
+    final path = url.startsWith('/') ? url : '/$url';
+    return '${ApiConfig.baseUrl.replaceFirst(RegExp(r'/api/?$'), '')}$path';
+  }
+
+  List<String> _mediaUrlList(dynamic raw) {
+    dynamic value = raw;
+    if (value is Map) {
+      value =
+          value['items'] ??
+          value['media'] ??
+          value['attachments'] ??
+          value['urls'];
+    }
+    if (value is String) {
+      try {
+        value = jsonDecode(value);
+      } catch (_) {
+        return const [];
+      }
+    }
+    if (value is! List) return const [];
+    return value.map(_absoluteMediaValue).whereType<String>().toList();
+  }
+
+  List<String> _threadPartList(dynamic raw, {required String fallback}) {
+    if (raw is List) {
+      final parts = raw
+          .map(
+            (value) => value is Map
+                ? '${value['content'] ?? value['text'] ?? ''}'.trim()
+                : '$value'.trim(),
+          )
+          .where((value) => value.isNotEmpty)
+          .toList();
+      if (parts.isNotEmpty) return parts;
+    }
+    return fallback.trim().isEmpty ? const [] : [fallback.trim()];
+  }
+
+  List<List<String>> _threadPartMediaList(
+    dynamic raw, {
+    required List<String> fallback,
+  }) {
+    if (raw is List && raw.isNotEmpty) {
+      if (!raw.any((value) => value is Map)) {
+        return <List<String>>[
+          fallback,
+          ...List<List<String>>.generate(
+            raw.length - 1,
+            (_) => const <String>[],
+          ),
+        ];
+      }
+      return raw
+          .map<List<String>>((value) {
+            if (value is! Map) return const <String>[];
+            final media = <String>[];
+            final single = _absoluteMediaValue(
+              value['mediaUrl'] ?? value['media_url'],
+            );
+            if (single != null) media.add(single);
+            media.addAll(
+              _mediaUrlList(
+                value['mediaUrls'] ?? value['media_urls'],
+              ).where((url) => url != single),
+            );
+            return media;
+          })
+          .toList(growable: false);
+    }
+    return fallback.isEmpty ? const [] : <List<String>>[fallback];
+  }
+
+  String? _absoluteMediaValue(dynamic value) {
+    if (value is Map) {
+      value = value['url'] ?? value['mediaUrl'] ?? value['media_url'];
+    }
+    return _absoluteMediaUrl(value?.toString());
   }
 
   @override
@@ -93,7 +883,9 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
     WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
     _feedScrollController.dispose();
+    NavigationScrollService.instance.removeListener(_onNavigationSignal);
     _socketRefreshTimer?.cancel();
+    _chromeAnimation.dispose();
     _messagingProvider?.removeListener(_onCampfireSocketEvent);
     _searchFocusNode.dispose();
     super.dispose();
@@ -115,7 +907,53 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
     });
   }
 
+  void _onNavigationSignal() {
+    final navigation = NavigationScrollService.instance;
+    if (navigation.tappedIndex != 1) {
+      return;
+    }
+    if (navigation.scrollNonce != _lastCampScrollNonce) {
+      _lastCampScrollNonce = navigation.scrollNonce;
+      if (_feedScrollController.hasClients) {
+        _feedScrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 460),
+          curve: Curves.easeOutCubic,
+        );
+      }
+      _setChromeVisible(true);
+    }
+    if (navigation.refreshNonce != _lastCampRefreshNonce) {
+      _lastCampRefreshNonce = navigation.refreshNonce;
+      // Keep the current cards mounted while the fresh data arrives. This is
+      // the same interaction users expect from a social feed refresh.
+      unawaited(_loadTales());
+      unawaited(_loadSpaces(forceRefresh: true, silent: true));
+      unawaited(_loadUpcomingSpaces(forceRefresh: true, silent: true));
+    }
+  }
+
   void _onFeedScroll() {
+    if (_feedScrollController.hasClients) {
+      final position = _feedScrollController.position;
+      final offset = position.pixels;
+      final delta = offset - _lastFeedOffset;
+      // Ignore the tiny oscillations generated by physics, refresh, and
+      // nested horizontal lists. They used to make the app bar/FAB flicker
+      // and cover the first rows while the user was still reading.
+      if (delta.abs() >= 8) {
+        _lastFeedOffset = offset;
+        if (delta > 0 && offset > 72) {
+          _setChromeVisible(false);
+        } else if (delta < 0) {
+          _setChromeVisible(true);
+        }
+      }
+      if (offset <= position.minScrollExtent) {
+        _lastFeedOffset = offset;
+        _setChromeVisible(true);
+      }
+    }
     if (!_feedScrollController.hasClients ||
         _loading ||
         !_hasMore ||
@@ -127,25 +965,50 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
     }
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && mounted) {
-      _loadSpaces(forceRefresh: true);
-      _loadUpcomingSpaces(forceRefresh: true);
+  void _setChromeVisible(bool visible) {
+    NavigationScrollService.instance.setNavigationVisible(visible);
+    if (!mounted || _chromeVisible == visible) return;
+    setState(() => _chromeVisible = visible);
+    if (visible) {
+      _chromeAnimation.forward();
+    } else {
+      _chromeAnimation.reverse();
     }
   }
 
-  Future<void> _loadUpcomingSpaces({bool forceRefresh = false}) async {
+  void _animateCampfireTab(int index) {
+    if (index == _campfireTab || index < 0 || index > 2) return;
+    _campfireTabs.animateTo(
+      index,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeInOutCubic,
+    );
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      unawaited(_loadSpaces(forceRefresh: true, silent: true));
+      unawaited(_loadUpcomingSpaces(forceRefresh: true, silent: true));
+    }
+  }
+
+  Future<void> _loadUpcomingSpaces({
+    bool forceRefresh = false,
+    bool silent = false,
+  }) async {
+    final requestId = ++_upcomingRequestId;
     try {
       final result = await context
           .read<MessagingApiService>()
           .getUpcomingCampfires(region: _region, forceRefresh: forceRefresh);
       final raw = result['items'] ?? result['spaces'] ?? [];
-      if (!mounted || raw is! List) return;
+      if (!mounted || requestId != _upcomingRequestId || raw is! List) return;
       final parsed = raw
           .whereType<Map>()
           .map((item) => SpaceModel.fromJson(Map<String, dynamic>.from(item)))
           .toList(growable: false);
+      if (!mounted || requestId != _upcomingRequestId) return;
       setState(() {
         _upcomingSpaces
           ..clear()
@@ -242,106 +1105,1669 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final chromeFactor = Curves.easeInOutCubic.transform(
+      _chromeAnimation.value,
+    );
+    final currentUser = context.watch<UserProvider>().user;
+    final unreadNotifications = context.select<MessagingProvider, int>(
+      (provider) => provider.unreadCampNotificationCount,
+    );
     final visibleSpaces = _spaces.where((space) {
-      final query = _searchQuery.trim().toLowerCase();
+      final query = _campfireTab == 2 ? _searchQuery.trim().toLowerCase() : '';
       if (query.isEmpty) return true;
       return space.title.toLowerCase().contains(query) ||
           (space.description?.toLowerCase().contains(query) ?? false) ||
           space.regionCode.toLowerCase().contains(query);
     }).toList();
+    final visibleTales = _localTales
+        .where((tale) {
+          final query = _campfireTab == 2
+              ? _searchQuery.trim().toLowerCase()
+              : '';
+          final matchesCategory =
+              _selectedTaleCategory == 'All' ||
+              tale.category == _selectedTaleCategory;
+          final matchesFeed = true;
+          final matchesSearch =
+              query.isEmpty ||
+              tale.text.toLowerCase().contains(query) ||
+              tale.category.toLowerCase().contains(query) ||
+              tale.authorName.toLowerCase().contains(query) ||
+              (tale.retellSourceAuthorName?.toLowerCase().contains(query) ??
+                  false);
+          return matchesFeed && matchesCategory && matchesSearch;
+        })
+        .toList(growable: false);
+    final visibleUpcoming = _upcomingSpaces
+        .where((space) {
+          final query = _campfireTab == 2
+              ? _searchQuery.trim().toLowerCase()
+              : '';
+          if (query.isEmpty) return true;
+          return space.title.toLowerCase().contains(query) ||
+              (space.description?.toLowerCase().contains(query) ?? false) ||
+              space.hostName.toLowerCase().contains(query);
+        })
+        .toList(growable: false);
+    final initialCampLoading = !_initialCampLoadComplete;
 
     return GradientScaffold(
       useSafeArea: false,
       resizeToAvoidBottomInset: false,
       extendBodyBehindAppBar: false,
       appBar: AppBar(
-        title: const Text('Campfires'),
+        // Fade first, then collapse the chrome so it no longer leaves an
+        // invisible block over the feed while the user scrolls.
+        toolbarHeight: 56 * chromeFactor,
+        titleSpacing: 0,
+        title: AnimatedSlide(
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOutCubic,
+          offset: _chromeVisible ? Offset.zero : const Offset(0, -.35),
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            opacity: _chromeVisible ? 1 : 0,
+            child: const Text('Griot Camp'),
+          ),
+        ),
         centerTitle: true,
-        backgroundColor: colors.surface,
+        backgroundColor: colors.surface.withValues(alpha: .82 * chromeFactor),
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
-      ),
-      floatingActionButton: HeroMode(
-        enabled: false,
-        child: FloatingActionButton.extended(
-          heroTag: 'campfire-start-fab',
-          onPressed: _showCreateSpace,
-          icon: const Icon(Icons.local_fire_department_rounded),
-          label: const Text('Start a Campfire'),
+        leadingWidth: 72,
+        leading: AnimatedOpacity(
+          duration: const Duration(milliseconds: 280),
+          opacity: _chromeVisible ? 1 : 0,
+          child: IconButton(
+            tooltip: 'Camp Profile',
+            padding: const EdgeInsets.only(left: 14),
+            icon: GriotAvatar(
+              avatarUrl: currentUser?.avatarUrl,
+              radius: 22,
+              backgroundColor: colors.surfaceContainerHighest,
+              iconColor: colors.primary,
+            ),
+            onPressed: () => context.push('/camp/profile'),
+          ),
+        ),
+        actions: [
+          AnimatedOpacity(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            opacity: _chromeVisible ? 1 : 0,
+            child: IgnorePointer(
+              ignoring: !_chromeVisible,
+              child: IconButton(
+                tooltip: 'Camp notifications',
+                onPressed: () {
+                  context.read<MessagingProvider>().markCampNotificationsSeen();
+                  context.push('/notifications', extra: {'campOnly': true});
+                },
+                icon: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Icon(
+                      unreadNotifications > 0
+                          ? Icons.notifications_active_outlined
+                          : Icons.notifications_none_rounded,
+                      color: colors.onSurfaceVariant,
+                    ),
+                    if (unreadNotifications > 0)
+                      Positioned(
+                        right: -9,
+                        top: -9,
+                        child: Container(
+                          constraints: const BoxConstraints(
+                            minWidth: 17,
+                            minHeight: 17,
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 3),
+                          decoration: BoxDecoration(
+                            color: colors.error,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: colors.surface,
+                              width: 1.5,
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            unreadNotifications > 99
+                                ? '99+'
+                                : '$unreadNotifications',
+                            style: TextStyle(
+                              color: colors.onError,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+        bottom: PreferredSize(
+          preferredSize: Size.fromHeight(48 * chromeFactor),
+          child: SizedBox(
+            height: 48 * chromeFactor,
+            child: ClipRect(
+              child: AnimatedSlide(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                offset: _chromeVisible ? Offset.zero : const Offset(0, -.35),
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  opacity: _chromeVisible ? 1 : 0,
+                  child: IgnorePointer(
+                    ignoring: !_chromeVisible,
+                    child: Container(
+                      clipBehavior: Clip.antiAlias,
+                      decoration: BoxDecoration(
+                        borderRadius: const BorderRadius.vertical(
+                          bottom: Radius.circular(22),
+                        ),
+                        border: Border(
+                          bottom: BorderSide(
+                            color: colors.primary.withValues(alpha: .58),
+                            width: 1.2,
+                          ),
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
+                        child: _CampSectionSwitcher(
+                          selected: _campfireTab,
+                          onChanged: _animateCampfireTab,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
       ),
-      floatingActionButtonLocation: _CampfireFabLocation(
-        keyboardInset: _windowKeyboardInset(context),
-      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      floatingActionButton: _campfireTab == 2
+          ? null
+          : AnimatedOpacity(
+              duration: const Duration(milliseconds: 220),
+              opacity: _chromeVisible ? 1 : 0,
+              child: IgnorePointer(
+                ignoring: !_chromeVisible,
+                child: Padding(
+                  // Scaffold already lifts the FAB above the persistent Camp
+                  // navigation. Keeping this inset small prevents the action
+                  // from floating over the Tale body or its action row.
+                  padding: EdgeInsets.only(
+                    bottom: 104 + MediaQuery.viewPaddingOf(context).bottom,
+                    right: 8,
+                  ),
+                  child: HeroMode(
+                    enabled: false,
+                    child: FloatingActionButton.extended(
+                      heroTag: 'camp-home-create-action',
+                      onPressed: _campfireTab == 0
+                          ? _showCreateTale
+                          : _showCreateSpace,
+                      tooltip: _campfireTab == 0
+                          ? 'Tell a Tale'
+                          : 'Start a Campfire',
+                      icon: Icon(
+                        _campfireTab == 0
+                            ? Icons.menu_book_rounded
+                            : Icons.local_fire_department_rounded,
+                      ),
+                      label: Text(
+                        _campfireTab == 0 ? 'Tell a Tale' : 'Start a Campfire',
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTap: () => _searchFocusNode.unfocus(),
-        onHorizontalDragEnd: (details) {
-          final velocity = details.primaryVelocity ?? 0;
-          if (velocity.abs() < 80) return;
-          final next = velocity < 0 ? 1 : 0;
-          if (next != _campfireTab) {
-            _campfireTabs.animateTo(
-              next,
-              duration: const Duration(milliseconds: 280),
-              curve: Curves.easeOutCubic,
-            );
-          }
-        },
-        child: RefreshIndicator(
-          onRefresh: () async {
-            await Future.wait([
-              _loadSpaces(forceRefresh: true),
-              _loadUpcomingSpaces(forceRefresh: true),
-            ]);
-          },
-          child: ListView(
-            controller: _feedScrollController,
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 140),
-            children: [
-              _searchField(context),
-              const SizedBox(height: 16),
-              TabBar(
-                controller: _campfireTabs,
-                onTap: (index) => _campfireTabs.animateTo(
-                  index,
-                  duration: const Duration(milliseconds: 280),
-                  curve: Curves.easeOutCubic,
+        child: NotificationListener<ScrollNotification>(
+          onNotification: (_) => false,
+          child: RefreshIndicator(
+            onRefresh: () async {
+              await Future.wait([
+                _loadSpaces(forceRefresh: true),
+                _loadUpcomingSpaces(forceRefresh: true),
+                _loadTales(),
+              ]);
+            },
+            child: ListView(
+              controller: _feedScrollController,
+              physics: campScrollPhysics,
+              // The Camp navigation is a persistent overlay. Keep enough
+              // scrollable space after the final Tale so its actions and
+              // bottom border can be brought fully above that navigation.
+              padding: EdgeInsets.fromLTRB(
+                12,
+                0,
+                12,
+                188 + MediaQuery.viewPaddingOf(context).bottom,
+              ),
+              children: [
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  switchInCurve: Curves.easeOut,
+                  switchOutCurve: Curves.easeIn,
+                  child: _campfireTab == 2
+                      ? KeyedSubtree(
+                          key: const ValueKey('camp-search-visible'),
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: _searchField(context),
+                          ),
+                        )
+                      : const SizedBox(key: ValueKey('camp-search-hidden')),
                 ),
-                tabs: const [
-                  Tab(text: 'Happening now'),
-                  Tab(text: 'Upcoming'),
+                const SizedBox(height: 4),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 260),
+                  switchInCurve: Curves.easeOut,
+                  switchOutCurve: Curves.easeIn,
+                  layoutBuilder: (currentChild, previousChildren) => ClipRect(
+                    child: Stack(
+                      alignment: Alignment.topCenter,
+                      clipBehavior: Clip.hardEdge,
+                      children: [...previousChildren, ?currentChild],
+                    ),
+                  ),
+                  transitionBuilder: (child, animation) {
+                    final opacity = Tween<double>(
+                      begin: 0.0,
+                      end: 1.0,
+                    ).chain(CurveTween(curve: Curves.easeOut));
+                    return FadeTransition(
+                      opacity: animation.drive(opacity),
+                      child: child,
+                    );
+                  },
+                  child: initialCampLoading
+                      ? const _CampFullLoadingSkeleton()
+                      : KeyedSubtree(
+                          key: ValueKey(_campfireTab),
+                          child: _campfireTab == 0
+                              ? _talesTab(context, visibleTales)
+                              : _campfireTab == 1
+                              ? _campfiresTab(
+                                  context,
+                                  visibleSpaces,
+                                  visibleUpcoming,
+                                )
+                              : _searchTab(
+                                  context,
+                                  visibleSpaces,
+                                  visibleUpcoming,
+                                  visibleTales,
+                                ),
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _searchTab(
+    BuildContext context,
+    List<SpaceModel> spaces,
+    List<SpaceModel> upcoming,
+    List<_LocalTale> tales,
+  ) {
+    final query = _searchQuery.trim();
+    final hasQuery = query.isNotEmpty;
+    final showCampfires = _searchScope == 'all' || _searchScope == 'campfires';
+    final showTales = _searchScope == 'all' || _searchScope == 'tales';
+    final showProfiles =
+        _searchScope == 'all' ||
+        _searchScope == 'profiles' ||
+        _searchScope == 'camp_profiles';
+    final showComments = _searchScope == 'all' || _searchScope == 'comments';
+    final scopedSpaces = showCampfires ? spaces : <SpaceModel>[];
+    final scopedUpcoming = showCampfires ? upcoming : <SpaceModel>[];
+    final scopedTales = showTales ? tales : <_LocalTale>[];
+    final remoteProfiles = showProfiles
+        ? ((_campSearchResults['profiles'] as List?) ?? const [])
+              .whereType<Map>()
+              .map(Map<String, dynamic>.from)
+              .toList()
+        : <Map<String, dynamic>>[];
+    final remoteCampfires = showCampfires
+        ? ((_campSearchResults['campfires'] as List?) ?? const [])
+              .whereType<Map>()
+              .map(Map<String, dynamic>.from)
+              .toList()
+        : <Map<String, dynamic>>[];
+    final remoteTales = showTales
+        ? ((_campSearchResults['tales'] as List?) ?? const [])
+              .whereType<Map>()
+              .map(Map<String, dynamic>.from)
+              .toList()
+        : <Map<String, dynamic>>[];
+    final remoteComments = showComments
+        ? ((_campSearchResults['comments'] as List?) ?? const [])
+              .whereType<Map>()
+              .map(Map<String, dynamic>.from)
+              .toList()
+        : <Map<String, dynamic>>[];
+    final total =
+        remoteProfiles.length +
+        remoteCampfires.length +
+        remoteTales.length +
+        remoteComments.length +
+        scopedSpaces.length +
+        scopedUpcoming.length +
+        scopedTales.length;
+    return Column(
+      key: const ValueKey('camp-search'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_searchSubmitted)
+          SizedBox(
+            height: 38,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                _searchScopeChip('all', 'All', Icons.search_rounded),
+                _searchScopeChip('tales', 'Tales', Icons.menu_book_rounded),
+                _searchScopeChip(
+                  'campfires',
+                  'Campfires',
+                  Icons.local_fire_department_rounded,
+                ),
+                _searchScopeChip('comments', 'Comments', Icons.forum_outlined),
+                _searchScopeChip(
+                  'profiles',
+                  'Profiles',
+                  Icons.person_outline_rounded,
+                ),
+                _searchScopeChip(
+                  'camp_profiles',
+                  'Camp profiles',
+                  Icons.cabin_outlined,
+                ),
+              ],
+            ),
+          ),
+        if (_searchSubmitted) const SizedBox(height: 10),
+        if (hasQuery)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(2, 0, 2, 2),
+            child: Text(
+              '$total result${total == 1 ? '' : 's'}',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        if (!_searchSubmitted)
+          _searchLanding(context)
+        else if (_searchLoading)
+          const Padding(
+            padding: EdgeInsets.all(28),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (hasQuery && total == 0)
+          _emptyState(
+            context,
+            icon: Icons.search_off_rounded,
+            title: 'No results found',
+            message: _searchScope == 'all'
+                ? 'Try another Campfire title, topic or Tale category.'
+                : 'No ${_searchScopeLabel(_searchScope).toLowerCase()} matches this search.',
+            action: 'Clear search',
+            onPressed: () {
+              _searchController.clear();
+              setState(() {
+                _searchQuery = '';
+                _searchSubmitted = false;
+              });
+            },
+          )
+        else if (!hasQuery)
+          _emptyState(
+            context,
+            icon: Icons.explore_rounded,
+            title: 'Start searching',
+            message: 'Enter a name, title or topic above.',
+            action: 'Browse Campfires',
+            onPressed: () => _animateCampfireTab(1),
+          ),
+        if (hasQuery && total > 0) ...[
+          if (remoteProfiles.isNotEmpty) ...[
+            _searchSectionLabel(
+              context,
+              'People and Camp Profiles',
+              Icons.person_outline_rounded,
+            ),
+            for (final profile in remoteProfiles)
+              _profileSearchResultTile(context, profile),
+          ],
+          if (remoteCampfires.isNotEmpty) ...[
+            _searchSectionLabel(
+              context,
+              'Campfires',
+              Icons.local_fire_department_rounded,
+            ),
+            for (final campfire in remoteCampfires)
+              _searchResultTile(
+                context,
+                icon: Icons.local_fire_department_rounded,
+                title: '${campfire['title'] ?? 'Campfire'}',
+                subtitle: 'Campfire · ${campfire['host_name'] ?? 'Griot user'}',
+                onTap: campfire['id'] == null
+                    ? null
+                    : () {
+                        // Retained recordings are discoverable after a
+                        // Campfire ends; open the Camp Profile for those,
+                        // while live/scheduled rooms open their exact room
+                        // preview and can be joined from there.
+                        if (campfire['ended_at'] != null &&
+                            campfire['owner_id'] != null) {
+                          context.push('/camp/profile/${campfire['owner_id']}');
+                          return;
+                        }
+                        final space = SpaceModel.fromJson(
+                          Map<String, dynamic>.from(campfire),
+                        );
+                        if (space.id.isNotEmpty) {
+                          _previewCampfire(context, space);
+                        }
+                      },
+              ),
+          ],
+          if (remoteTales.isNotEmpty) ...[
+            _searchSectionLabel(context, 'Tales', Icons.menu_book_rounded),
+            for (final tale in remoteTales)
+              _searchResultTile(
+                context,
+                icon: Icons.menu_book_rounded,
+                title: '${tale['content'] ?? ''}',
+                subtitle: 'Tale · ${tale['category'] ?? 'Personal'}',
+                onTap: tale['id'] == null
+                    ? null
+                    : () => context.push('/tale/${tale['id']}', extra: tale),
+              ),
+          ],
+          if (remoteComments.isNotEmpty) ...[
+            _searchSectionLabel(context, 'Comments', Icons.forum_outlined),
+            for (final comment in remoteComments)
+              _searchResultTile(
+                context,
+                icon: Icons.forum_outlined,
+                title: '${comment['content'] ?? ''}',
+                subtitle: 'Comment · ${comment['author_name'] ?? 'Griot user'}',
+                onTap: comment['tale_id'] == null
+                    ? null
+                    : () => context.push('/tale/${comment['tale_id']}'),
+              ),
+          ],
+          if (scopedSpaces.isNotEmpty || scopedUpcoming.isNotEmpty) ...[
+            _searchSectionLabel(
+              context,
+              'Campfires',
+              Icons.local_fire_department_rounded,
+            ),
+            for (final space in [...scopedSpaces, ...scopedUpcoming])
+              _searchResultTile(
+                context,
+                icon: Icons.local_fire_department_rounded,
+                title: space.title,
+                subtitle: 'Campfire · ${space.hostName}',
+                badge: scopedUpcoming.contains(space) ? 'Scheduled' : 'Live',
+                onTap: () => _previewCampfire(context, space),
+              ),
+          ],
+          if (scopedTales.isNotEmpty) ...[
+            _searchSectionLabel(context, 'Tales', Icons.menu_book_rounded),
+            for (final tale in scopedTales)
+              _searchResultTile(
+                context,
+                icon: Icons.menu_book_rounded,
+                title: tale.text,
+                subtitle: 'Tale · ${tale.category}',
+                onTap: tale.id == null
+                    ? null
+                    : () => context.push(
+                        '/tale/${tale.id}',
+                        extra: tale.toJson(),
+                      ),
+              ),
+          ],
+        ],
+      ],
+    );
+  }
+
+  Widget _searchScopeChip(String value, String label, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        avatar: Icon(icon, size: 16),
+        label: Text(label),
+        selected: _searchScope == value,
+        onSelected: (_) => setState(() => _searchScope = value),
+      ),
+    );
+  }
+
+  Widget _searchLanding(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final suggestions = <(String, String, IconData)>[
+      ('Tales', 'tales', Icons.menu_book_rounded),
+      ('Campfires', 'campfires', Icons.local_fire_department_rounded),
+      ('Profiles', 'profiles', Icons.person_outline_rounded),
+      ('Finance', 'finance', Icons.account_balance_rounded),
+      ('Technology', 'technology', Icons.auto_awesome_rounded),
+    ];
+    return GriotBrandedContainer(
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
+      margin: const EdgeInsets.only(top: 10),
+      borderRadius: 22,
+      showBorder: false,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.explore_rounded, color: colors.primary, size: 24),
+              const SizedBox(width: 10),
+              const Text(
+                'Explore Griot Camp',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Search for Tales, Campfires and people, or start with a quick filter.',
+            style: TextStyle(color: colors.onSurfaceVariant),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Quick search',
+            style: TextStyle(
+              color: colors.onSurfaceVariant,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 9),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final suggestion in suggestions)
+                ActionChip(
+                  avatar: Icon(suggestion.$3, size: 16),
+                  label: Text(suggestion.$1),
+                  onPressed: () {
+                    setState(() {
+                      _searchScope =
+                          suggestion.$2 == 'tales' ||
+                              suggestion.$2 == 'campfires' ||
+                              suggestion.$2 == 'profiles'
+                          ? suggestion.$2
+                          : 'tales';
+                      _searchQuery = suggestion.$2;
+                      _searchController.text = suggestion.$2;
+                      _searchSubmitted = true;
+                    });
+                  },
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _searchScopeLabel(String value) {
+    switch (value) {
+      case 'campfires':
+        return 'Campfire';
+      case 'camp_profiles':
+        return 'Camp profile';
+      case 'comments':
+        return 'Comment';
+      case 'profiles':
+        return 'Profile';
+      case 'tales':
+        return 'Tale';
+      default:
+        return 'Result';
+    }
+  }
+
+  Widget _searchSectionLabel(
+    BuildContext context,
+    String title,
+    IconData icon,
+  ) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 18, 2, 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 17, color: colors.primary),
+          const SizedBox(width: 7),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+        ],
+      ),
+    );
+  }
+
+  Widget _searchResultTile(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    String? badge,
+    VoidCallback? onTap,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GriotBrandedContainer(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        borderRadius: 22,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: colors.primary.withValues(alpha: .12),
+                ),
+                child: Icon(icon, color: colors.primary, size: 20),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (badge != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.primary.withValues(alpha: .10),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    badge,
+                    style: TextStyle(
+                      color: colors.primary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _profileSearchResultTile(
+    BuildContext context,
+    Map<String, dynamic> profile,
+  ) {
+    final colors = Theme.of(context).colorScheme;
+    final nested = profile['user'] is Map
+        ? Map<String, dynamic>.from(profile['user'] as Map)
+        : profile['profile'] is Map
+        ? Map<String, dynamic>.from(profile['profile'] as Map)
+        : <String, dynamic>{};
+    final id =
+        (profile['id'] ??
+                profile['userId'] ??
+                profile['user_id'] ??
+                nested['id'] ??
+                nested['userId'] ??
+                nested['user_id'])
+            ?.toString();
+    final name =
+        '${profile['display_name'] ?? profile['displayName'] ?? profile['name'] ?? nested['display_name'] ?? nested['displayName'] ?? nested['name'] ?? profile['username'] ?? nested['username'] ?? 'Griot user'}';
+    final rawUsername =
+        profile['username'] ??
+        profile['user_name'] ??
+        nested['username'] ??
+        nested['user_name'];
+    final username = rawUsername?.toString().trim();
+    final following =
+        profile['is_following'] == true || profile['isFollowing'] == true;
+    final avatar = _searchProfileAvatar(profile);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GriotBrandedContainer(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        borderRadius: 22,
+        child: Row(
+          children: [
+            GriotAvatar(radius: 21, avatarUrl: avatar),
+            const SizedBox(width: 10),
+            Expanded(
+              child: InkWell(
+                onTap: id == null
+                    ? null
+                    : () => context.push('/camp/profile/$id'),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    if (username != null && username.isNotEmpty)
+                      Text(
+                        username.startsWith('@') ? username : '@$username',
+                        style: TextStyle(
+                          color: colors.onSurfaceVariant,
+                          fontSize: 12,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            if (id != null && id != context.read<UserProvider>().user?.id)
+              OutlinedButton(
+                onPressed: () async {
+                  final service = context.read<MessagingApiService>();
+                  final notificationContext = context;
+                  try {
+                    if (following) {
+                      await service.unfollowCampProfile(id);
+                    } else {
+                      await service.followCampProfile(id);
+                    }
+                    if (mounted) {
+                      await _runCampSearch(_searchQuery);
+                    }
+                  } catch (error) {
+                    if (notificationContext.mounted) {
+                      NotificationService.showError(
+                        notificationContext,
+                        'Could not update follow: $error',
+                      );
+                    }
+                  }
+                },
+                style: OutlinedButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  side: BorderSide(color: colors.primary.withValues(alpha: .5)),
+                ),
+                child: Text(following ? 'Following' : 'Follow'),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String? _searchProfileAvatar(Map<String, dynamic> profile) {
+    final nested = profile['user'] is Map
+        ? Map<String, dynamic>.from(profile['user'] as Map)
+        : profile['profile'] is Map
+        ? Map<String, dynamic>.from(profile['profile'] as Map)
+        : profile['author'] is Map
+        ? Map<String, dynamic>.from(profile['author'] as Map)
+        : <String, dynamic>{};
+    final value =
+        profile['avatar_url'] ??
+        profile['avatarUrl'] ??
+        profile['avatar'] ??
+        profile['avatar_media_url'] ??
+        profile['avatarMediaUrl'] ??
+        profile['profile_image'] ??
+        profile['profileImage'] ??
+        profile['profile_image_url'] ??
+        profile['profileImageUrl'] ??
+        profile['image_url'] ??
+        profile['imageUrl'] ??
+        nested['avatar_url'] ??
+        nested['avatarUrl'] ??
+        nested['profile_image'] ??
+        nested['profileImage'] ??
+        nested['profile_image_url'] ??
+        nested['profileImageUrl'] ??
+        nested['image_url'] ??
+        nested['imageUrl'];
+    return _absoluteMediaValue(value);
+  }
+
+  Widget _campfiresTab(
+    BuildContext context,
+    List<SpaceModel> visibleSpaces,
+    List<SpaceModel> visibleUpcoming,
+  ) {
+    final colors = Theme.of(context).colorScheme;
+    return Column(
+      key: const ValueKey('campfires'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _lineSwitch(
+          options: const [
+            ('live', 'Happening now', Icons.podcasts_rounded),
+            ('scheduled', 'Scheduled', Icons.event_rounded),
+          ],
+          selected: _campfireView,
+          onChanged: (value) => setState(() {
+            _campfireView = value;
+            _searchController.clear();
+            _searchQuery = '';
+          }),
+        ),
+        const SizedBox(height: 18),
+        if (_campfireView == 'live') ...[
+          Text(
+            'Campfires happening right now',
+            style: TextStyle(
+              color: colors.onSurfaceVariant,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 18),
+          _loading && visibleSpaces.isEmpty
+              ? const _CampLoadingSkeleton(tale: false)
+              : _spacesSection(context, visibleSpaces),
+        ] else ...[
+          _loading && visibleUpcoming.isEmpty
+              ? const _CampLoadingSkeleton(tale: false)
+              : visibleUpcoming.isNotEmpty
+              ? _upcomingSection(context, visibleUpcoming)
+              : _emptyUpcomingSection(context),
+        ],
+      ],
+    );
+  }
+
+  Widget _talesTab(BuildContext context, List<_LocalTale> tales) {
+    final colors = Theme.of(context).colorScheme;
+    return Column(
+      key: const ValueKey('campfire-tales'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _lineSwitch(
+          options: const [
+            ('public', 'Public', Icons.public_rounded),
+            ('following', 'Following', Icons.person_add_alt_1_rounded),
+            ('for_you', 'For You', Icons.auto_awesome_rounded),
+          ],
+          selected: _taleFeed,
+          onChanged: (value) {
+            setState(() {
+              _taleFeed = value;
+              _localTales.clear();
+              _taleCursor = null;
+            });
+            unawaited(_loadTales());
+          },
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Browse by category',
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            color: colors.onSurfaceVariant,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 42,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: _taleCategories.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 8),
+            itemBuilder: (context, index) {
+              final category = _taleCategories[index];
+              return ChoiceChip(
+                label: Text(category),
+                selected: _selectedTaleCategory == category,
+                onSelected: (_) {
+                  setState(() {
+                    _selectedTaleCategory = category;
+                    _localTales.clear();
+                    _taleCursor = null;
+                  });
+                  unawaited(_loadTales());
+                },
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (_loadingTales && tales.isEmpty)
+          const _CampLoadingSkeleton(tale: true)
+        else if (tales.isEmpty)
+          GriotBrandedContainer(
+            padding: const EdgeInsets.all(24),
+            borderRadius: 22,
+            child: Column(
+              children: [
+                Icon(Icons.menu_book_rounded, size: 42, color: colors.primary),
+                const SizedBox(height: 10),
+                Text(
+                  _talesLoadError != null
+                      ? 'Tales are temporarily unavailable'
+                      : _taleFeed == 'following'
+                      ? 'No Tales from people you follow'
+                      : _taleFeed == 'for_you'
+                      ? 'No personalised Tales yet'
+                      : _localTales.isEmpty
+                      ? 'No public Tales yet'
+                      : 'No Tales found',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _talesLoadError != null
+                      ? 'The feed did not return a valid Tale list. Try again.'
+                      : _taleFeed == 'following'
+                      ? 'Follow Camp Profiles to build a personal reading feed.'
+                      : _taleFeed == 'for_you'
+                      ? 'Read a few Tales and react to improve your For You feed.'
+                      : 'Read public Tales with text, links and media, or publish your own with a category.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: colors.onSurfaceVariant),
+                ),
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: _talesLoadError != null
+                      ? () => _loadTales()
+                      : _showCreateTale,
+                  icon: Icon(
+                    _talesLoadError != null
+                        ? Icons.refresh_rounded
+                        : Icons.edit_note_rounded,
+                  ),
+                  label: Text(
+                    _talesLoadError != null ? 'Try again' : 'Tell a Tale',
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          for (var index = 0; index < tales.length; index++) ...[
+            if (index > 0) _taleSeparator(context),
+            _taleCard(context, tales[index]),
+            if (_taleFeed == 'public' &&
+                index == math.min(1, tales.length - 1)) ...[
+              _discoverCampProfiles(context, tales),
+            ],
+            if (_shouldInsertTaleAd(index)) ...[_taleNativeAd(index)],
+          ],
+        if (_loadingMoreTales)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 18),
+            child: Center(
+              child: SizedBox.square(
+                dimension: 22,
+                child: CircularProgressIndicator(strokeWidth: 2.4),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _discoverCampProfiles(BuildContext context, List<_LocalTale> tales) {
+    final colors = Theme.of(context).colorScheme;
+    final profileScores = <String, double>{};
+    final profileTales = <String, _LocalTale>{};
+    for (final tale in tales) {
+      final id = tale.authorId?.trim();
+      if (id == null ||
+          id.isEmpty ||
+          id == context.read<UserProvider>().user?.id ||
+          _suggestionFollowing[id] == true ||
+          _hiddenSuggestionAuthors.contains(id)) {
+        continue;
+      }
+      profileTales.putIfAbsent(id, () => tale);
+      final interestBoost =
+          _campInterests.any(
+            (interest) => interest.toLowerCase() == tale.category.toLowerCase(),
+          )
+          ? 3.0
+          : 0.0;
+      profileScores[id] =
+          (profileScores[id] ?? 0) +
+          interestBoost +
+          1.0 +
+          math.log(1 + tale.likeCount + tale.commentCount * 2);
+    }
+    final profiles = profileTales.keys.toList()
+      ..sort(
+        (a, b) => (profileScores[b] ?? 0).compareTo(profileScores[a] ?? 0),
+      );
+    if (profiles.isEmpty) return const SizedBox.shrink();
+    // Rotate equally-scored suggestions once per day so the row feels fresh
+    // without reshuffling while the user is scrolling.
+    final daySeed = DateTime.now().difference(DateTime(2024, 1, 1)).inDays;
+    final shift = daySeed % profiles.length;
+    final rotatedProfiles = <String>[
+      ...profiles.skip(shift),
+      ...profiles.take(shift),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.auto_awesome_rounded, size: 16, color: colors.primary),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                'People you may like',
+                style: TextStyle(
+                  color: colors.onSurface,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        CampTaleCardSurface(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          margin: EdgeInsets.zero,
+          child: SizedBox(
+            height: 94,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              itemCount: math.min(rotatedProfiles.length, 8),
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final profileId = rotatedProfiles[index];
+                final tale = profileTales[profileId]!;
+                return InkWell(
+                  onTap: () => _openTaleAuthor(tale),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    width: 188,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    decoration: BoxDecoration(
+                      color: colors.surfaceContainerHighest.withValues(
+                        alpha: .3,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: colors.primary.withValues(alpha: .22),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        GriotAvatar(
+                          radius: 20,
+                          avatarUrl: tale.authorAvatarUrl,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                tale.authorName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                'Based on ${tale.category}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: colors.primary,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        FilledButton(
+                          onPressed: _followingSuggestions.contains(profileId)
+                              ? null
+                              : () => _followSuggestion(profileId),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          child: Text(
+                            _followingSuggestions.contains(profileId)
+                                ? 'Following…'
+                                : 'Follow',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _taleNativeAd(int slot) {
+    return CampNativeAdCard(
+      adKey: ValueKey('tale-native-ad-$slot'),
+      placement: 'Tale feed',
+    );
+  }
+
+  bool _shouldInsertTaleAd(int index) {
+    // Wider, intentionally uneven gaps keep the feed from feeling like an
+    // ad grid while still giving ads predictable, viewable breaks.
+    const breaks = <int>{4, 9, 15, 22};
+    if (breaks.contains(index)) return true;
+    return index > 22 && (index - 22) % 9 == 0;
+  }
+
+  Widget _taleSeparator(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 1,
+              color: colors.outlineVariant.withValues(alpha: .42),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              color: colors.primary,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: colors.primary.withValues(alpha: .28),
+                  blurRadius: 6,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Container(
+              height: 1,
+              color: colors.outlineVariant.withValues(alpha: .42),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _tipCreator({
+    required String? userId,
+    required String? walletAddress,
+    required String displayName,
+    String? avatarUrl,
+    Map<String, dynamic>? metadata,
+  }) async {
+    final id = userId?.trim() ?? '';
+    final wallet = walletAddress?.trim() ?? '';
+    if (id.isEmpty) {
+      NotificationService.showInfo(
+        context,
+        'Creator details are not available for tipping yet.',
+      );
+      return;
+    }
+    var resolvedWallet = wallet;
+    var resolvedName = displayName;
+    var resolvedAvatar = avatarUrl;
+    if (resolvedWallet.isEmpty) {
+      try {
+        final user = await context
+            .read<UserProvider>()
+            .userApiService
+            .getUserById(id);
+        resolvedWallet = user.walletAddress.trim();
+        resolvedName = user.effectiveName;
+        resolvedAvatar = user.avatarUrl ?? resolvedAvatar;
+      } catch (_) {
+        // The action below gives the user a clear explanation if the profile
+        // cannot be resolved instead of failing silently.
+      }
+    }
+    // Griot Golds are ledger-based tips and do not require a crypto wallet.
+    // The crypto tab in the chooser will validate the wallet separately.
+    if (!mounted) return;
+    CampTipSheet.show(
+      context,
+      recipient: ChatUser(
+        id: id,
+        walletAddress: resolvedWallet,
+        displayName: resolvedName,
+        profileUrl: resolvedAvatar,
+        timestamp: DateTime.now(),
+      ),
+      metadata: metadata ?? {'surface': 'camp'},
+    );
+  }
+
+  Widget _lineSwitch({
+    required List<(String, String, IconData)> options,
+    required String selected,
+    required ValueChanged<String> onChanged,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: colors.outline.withValues(alpha: .18)),
+        ),
+      ),
+      child: Row(
+        children: options.map((option) {
+          final active = option.$1 == selected;
+          return Expanded(
+            child: InkWell(
+              onTap: () => onChanged(option.$1),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 11),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: active ? colors.primary : Colors.transparent,
+                      width: 2.5,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      option.$3,
+                      size: 15,
+                      color: active ? colors.primary : colors.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        option.$2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: active
+                              ? colors.primary
+                              : colors.onSurfaceVariant,
+                          fontSize: 12,
+                          fontWeight: active
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _taleCard(BuildContext context, _LocalTale tale) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: CampTaleCardSurface(
+        margin: EdgeInsets.zero,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: tale.id == null
+              ? null
+              : () => context.push('/tale/${tale.id}', extra: tale.toJson()),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CampTaleHeader(
+                authorName: tale.authorName,
+                avatarUrl: tale.authorAvatarUrl,
+                inlineBadges: [
+                  if (tale.category.isNotEmpty)
+                    _taleBadge(
+                      context,
+                      tale.category,
+                      colors.surfaceContainerHighest,
+                      foreground: colors.onSurfaceVariant,
+                    ),
+                  if (tale.threadCount > 1)
+                    _taleBadge(
+                      context,
+                      'Part ${tale.threadPosition}/${tale.threadCount}',
+                      colors.surfaceContainerHighest,
+                      foreground: colors.onSurfaceVariant,
+                    ),
+                ],
+                subtitle: [
+                  _formatTaleTime(tale.createdAt),
+                  if (tale.retellSourceAuthorName?.trim().isNotEmpty == true)
+                    'Originally by ${tale.retellSourceAuthorName}',
+                ].join(' · '),
+                attribution:
+                    tale.retellSourceAuthorName?.trim().isNotEmpty != true &&
+                        tale.threadOriginalAuthorName?.trim().isNotEmpty ==
+                            true &&
+                        tale.threadPosition > 1
+                    ? InkWell(
+                        onTap: tale.threadOriginalAuthorId == null
+                            ? null
+                            : () => context.push(
+                                '/camp/profile/${tale.threadOriginalAuthorId}',
+                              ),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Text(
+                          'Started by ${tale.threadOriginalAuthorName}',
+                          style: TextStyle(
+                            color: colors.onSurfaceVariant,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      )
+                    : null,
+                onAuthorTap: tale.authorId == null
+                    ? null
+                    : () => _openTaleAuthor(tale),
+                menu: PopupMenuButton<String>(
+                  padding: EdgeInsets.zero,
+                  iconSize: 24,
+                  offset: const Offset(0, 42),
+                  useRootNavigator: true,
+                  tooltip: 'Tale options',
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'copy':
+                        unawaited(_copyTaleLink(tale));
+                      case 'continue':
+                        unawaited(_continueTale(tale));
+                      case 'delete':
+                        unawaited(_deleteTale(tale));
+                      case 'mute':
+                        if (tale.authorId != null) {
+                          unawaited(_muteTaleAuthor(tale.authorId!));
+                        }
+                      case 'block':
+                        if (tale.authorId != null) {
+                          unawaited(_blockTaleAuthor(tale.authorId!));
+                        }
+                      case 'report':
+                        if (tale.id != null) {
+                          unawaited(
+                            ReportContentSheet.show(
+                              context: context,
+                              targetType: 'tale',
+                              targetId: tale.id!,
+                              subjectLabel: 'Tale',
+                            ),
+                          );
+                        }
+                    }
+                  },
+                  itemBuilder: (_) {
+                    final isOwn = _isOwnTale(tale);
+                    return [
+                      if (tale.threadId != null && tale.threadId!.isNotEmpty)
+                        const PopupMenuItem(
+                          value: 'continue',
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.add_link_rounded),
+                            title: Text('Continue this Tale'),
+                          ),
+                        ),
+                      const PopupMenuItem(
+                        value: 'copy',
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(Icons.link_rounded),
+                          title: Text('Copy Tale link'),
+                        ),
+                      ),
+                      if (isOwn)
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.delete_outline_rounded),
+                            title: Text('Delete Tale'),
+                          ),
+                        ),
+                      if (!isOwn && tale.authorId != null) ...[
+                        const PopupMenuItem(
+                          value: 'mute',
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.volume_off_outlined),
+                            title: Text('Mute this creator'),
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'block',
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.block_outlined),
+                            title: Text('Block this creator'),
+                          ),
+                        ),
+                        if (tale.id != null)
+                          const PopupMenuItem(
+                            value: 'report',
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.flag_outlined),
+                              title: Text('Report Tale'),
+                            ),
+                          ),
+                      ],
+                    ];
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (tale.retellSourceId != null &&
+                  tale.retellSourceContent != null &&
+                  tale.retellSourceContent!.trim().isNotEmpty) ...[
+                CampTaleReshareCard(
+                  sourceAuthorName: tale.retellSourceAuthorName ?? '',
+                  sourceAuthorAvatarUrl: tale.retellSourceAuthorAvatarUrl,
+                  sourceText: tale.retellSourceContent!.trim(),
+                  onAuthorTap: tale.retellSourceAuthorId == null
+                      ? null
+                      : () => context.push(
+                          '/camp/profile/${tale.retellSourceAuthorId}',
+                        ),
+                  onSourceTap: () =>
+                      context.push('/tale/${tale.retellSourceId}'),
+                ),
+                const SizedBox(height: 10),
+              ],
+              if (tale.threadCount > 1 && tale.threadParts.length > 1)
+                _threadPreview(context, tale)
+              else ...[
+                CampTaleText(
+                  key: ValueKey('text-${tale.id}'),
+                  text: tale.text,
+                  fontSize: 17,
+                ),
+                if (tale.mediaUrl != null || tale.mediaUrls.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _taleMediaGallery(context, tale),
+                ],
+              ],
+              if (tale.linkUrl != null && tale.linkUrl!.isNotEmpty)
+                LinkPreviewWidget(url: tale.linkUrl!, isMe: false),
+              const SizedBox(height: 12),
+              Divider(
+                height: 1,
+                color: colors.outlineVariant.withValues(alpha: .35),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Expanded(
+                    child: _taleAction(
+                      context,
+                      icon: tale.viewerUpvoted
+                          ? Icons.thumb_up_alt_rounded
+                          : Icons.thumb_up_alt_outlined,
+                      label: '${tale.likeCount}',
+                      tooltip: tale.viewerUpvoted
+                          ? 'Remove upvote'
+                          : 'Upvote Tale',
+                      active: tale.viewerUpvoted,
+                      onTap: tale.id == null
+                          ? null
+                          : () => _voteOnTale(
+                              tale,
+                              tale.viewerUpvoted ? 'remove_up' : 'up',
+                            ),
+                    ),
+                  ),
+                  Expanded(
+                    child: _taleAction(
+                      context,
+                      icon: tale.viewerDownvoted
+                          ? Icons.thumb_down_alt_rounded
+                          : Icons.thumb_down_alt_outlined,
+                      label: '${tale.downvoteCount}',
+                      tooltip: tale.viewerDownvoted
+                          ? 'Remove downvote'
+                          : 'Downvote Tale',
+                      active: tale.viewerDownvoted,
+                      activeColor: colors.error,
+                      onTap: tale.id == null
+                          ? null
+                          : () => _voteOnTale(
+                              tale,
+                              tale.viewerDownvoted ? 'remove_down' : 'down',
+                            ),
+                    ),
+                  ),
+                  Expanded(
+                    child: _taleAction(
+                      context,
+                      icon: Icons.repeat_rounded,
+                      label: '${tale.retellCount + tale.coTellCount}',
+                      tooltip: 'Retell or co-tell',
+                      onTap: tale.id == null
+                          ? null
+                          : () => _showTaleActions(tale),
+                    ),
+                  ),
+                  Expanded(
+                    child: _taleAction(
+                      context,
+                      icon: Icons.volunteer_activism_outlined,
+                      label: '',
+                      tooltip: 'Tip creator',
+                      onTap: () => _tipCreator(
+                        userId: tale.authorId,
+                        walletAddress: tale.authorWalletAddress,
+                        displayName: tale.authorName,
+                        avatarUrl: tale.authorAvatarUrl,
+                        metadata: {
+                          'surface': 'camp_tale',
+                          if (tale.id != null) 'taleId': tale.id,
+                        },
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: _taleAction(
+                      context,
+                      icon: Icons.ios_share_rounded,
+                      label: '',
+                      tooltip: 'Share Tale',
+                      onTap: tale.id == null
+                          ? null
+                          : () => SharePlus.instance.share(
+                              ShareParams(
+                                text:
+                                    'Read this Tale on Griot:\nhttps://griot.network/tale/${tale.id}',
+                              ),
+                            ),
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 18),
-              AnimatedSwitcher(
-                duration: Duration.zero,
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
-                transitionBuilder: (child, animation) => child,
-                child: _campfireTab == 0
-                    ? Column(
-                        key: const ValueKey('live-campfires'),
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            'Campfires happening right now',
-                            style: TextStyle(color: colors.onSurfaceVariant),
-                          ),
-                          const SizedBox(height: 18),
-                          _spacesSection(context, visibleSpaces),
-                        ],
-                      )
-                    : Column(
-                        key: const ValueKey('upcoming-campfires'),
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _upcomingSpaces.isNotEmpty
-                              ? _upcomingSection(context)
-                              : _emptyUpcomingSection(context),
-                        ],
-                      ),
+              const SizedBox(height: 6),
+              SizedBox(
+                width: double.infinity,
+                child: _taleAction(
+                  context,
+                  icon: Icons.forum_outlined,
+                  label: '${tale.commentCount} Comments',
+                  tooltip: 'Comments',
+                  onTap: () => _showTaleComments(tale),
+                ),
               ),
             ],
           ),
@@ -350,7 +2776,1002 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
     );
   }
 
-  Widget _upcomingSection(BuildContext context) {
+  Widget _taleBadge(
+    BuildContext context,
+    String label,
+    Color background, {
+    Color? foreground,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 94),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: foreground ?? colors.onSurfaceVariant,
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          height: 1.1,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openTaleAuthor(_LocalTale tale) async {
+    final authorId = tale.authorId?.trim();
+    if (authorId == null || authorId.isEmpty) return;
+    final ownId = context.read<UserProvider>().user?.id;
+    if (ownId == authorId) {
+      await context.push('/camp/profile');
+    } else {
+      await context.push('/camp/profile/$authorId');
+      if (mounted) await _loadSuggestionProfiles(authorId: authorId);
+    }
+  }
+
+  bool _isOwnTale(_LocalTale tale) {
+    final currentUserId = context.read<UserProvider>().user?.id;
+    return currentUserId != null &&
+        tale.authorId != null &&
+        currentUserId == tale.authorId;
+  }
+
+  Future<void> _muteTaleAuthor(String userId) async {
+    try {
+      await context.read<MessagingApiService>().muteUser(userId);
+      if (mounted) {
+        setState(() {
+          _hiddenSuggestionAuthors.add(userId);
+          _localTales.removeWhere((tale) => tale.authorId == userId);
+        });
+        NotificationService.showInfo(
+          context,
+          'Creator muted. Their Camp content will be hidden from your feed.',
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        NotificationService.showError(
+          context,
+          'Could not mute creator: $error',
+        );
+      }
+    }
+  }
+
+  Future<void> _blockTaleAuthor(String userId) async {
+    try {
+      await context.read<MessagingProvider>().blockUser(userId);
+      if (!mounted) return;
+      setState(() {
+        _hiddenSuggestionAuthors.add(userId);
+        _localTales.removeWhere((tale) => tale.authorId == userId);
+      });
+      NotificationService.showInfo(
+        context,
+        'Creator blocked. Their Camp content is no longer shown.',
+      );
+    } catch (error) {
+      if (mounted) {
+        NotificationService.showError(
+          context,
+          'Could not block creator: $error',
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteTale(_LocalTale tale) async {
+    final taleId = tale.id;
+    if (!mounted || taleId == null || taleId.isEmpty || !_isOwnTale(tale)) {
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Tale?'),
+        content: const Text('This Tale and its comments will be removed.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+    try {
+      await context.read<MessagingApiService>().deleteTale(taleId);
+      if (!mounted) return;
+      setState(() => _localTales.removeWhere((item) => item.id == taleId));
+      NotificationService.showInfo(context, 'Tale deleted.');
+    } catch (error) {
+      if (mounted) {
+        NotificationService.showError(context, 'Could not delete Tale: $error');
+      }
+    }
+  }
+
+  Future<void> _continueTale(_LocalTale tale) async {
+    final threadId = tale.threadId;
+    if (!mounted || threadId == null || threadId.isEmpty) return;
+    await context.push(
+      '/campfires/tales/create',
+      extra: {
+        'initialThreadId': threadId,
+        'initialReferenceText': tale.text,
+        'initialReferenceLabel': 'Continuing · ${tale.authorName}',
+        'composerTitle': 'Continue this Tale',
+      },
+    );
+    if (mounted) unawaited(_loadTales());
+  }
+
+  Future<void> _copyTaleLink(_LocalTale tale) async {
+    final taleId = tale.id;
+    if (taleId == null || taleId.isEmpty) return;
+    await Clipboard.setData(
+      ClipboardData(text: 'https://griot.network/camp/tales/$taleId'),
+    );
+    if (mounted) NotificationService.showInfo(context, 'Tale link copied.');
+  }
+
+  Widget _taleAction(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required String tooltip,
+    required VoidCallback? onTap,
+    bool active = false,
+    Color? activeColor,
+  }) {
+    return CampTaleActionButton(
+      icon: icon,
+      label: label,
+      tooltip: tooltip,
+      onTap: onTap,
+      active: active,
+      activeColor: activeColor,
+    );
+  }
+
+  Future<void> _showTaleActions(_LocalTale tale) async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      useRootNavigator: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.repeat_rounded),
+              title: Text('Retell (${tale.retellCount})'),
+              onTap: () => Navigator.pop(sheetContext, 'retell'),
+            ),
+            ListTile(
+              enabled: tale.threadId != null,
+              leading: const Icon(Icons.link_rounded),
+              title: Text('Co-tell (${tale.coTellCount})'),
+              onTap: tale.threadId == null
+                  ? null
+                  : () => Navigator.pop(sheetContext, 'cotell'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (choice == 'retell') {
+      await _retellTale(tale);
+    } else if (choice == 'cotell') {
+      await _coTellTale(tale);
+    }
+  }
+
+  Future<void> _retellTale(_LocalTale tale) async {
+    final taleId = tale.id;
+    if (!mounted || taleId == null || taleId.isEmpty) return;
+    await context.push(
+      '/campfires/tales/create',
+      extra: {
+        'initialReferenceText': tale.text,
+        'initialReferenceLabel': 'Retelling · ${tale.authorName}',
+        'initialReferenceMediaUrls': [
+          if (tale.mediaUrl != null) tale.mediaUrl!,
+          ...tale.mediaUrls.where((url) => url != tale.mediaUrl),
+        ],
+        'composerTitle': 'Retell this Tale',
+        'initialRetellOfTaleId': taleId,
+      },
+    );
+    if (mounted) unawaited(_loadTales());
+  }
+
+  Future<void> _voteOnTale(_LocalTale tale, String? vote) async {
+    final id = tale.id;
+    if (id == null || id.isEmpty || !_votingTales.add(id)) return;
+    final isUp = vote == 'up' || vote == 'remove_up';
+    final isDown = vote == 'down' || vote == 'remove_down';
+    final optimisticUp = isUp ? vote == 'up' : tale.viewerUpvoted;
+    final optimisticDown = isDown ? vote == 'down' : tale.viewerDownvoted;
+    final optimistic = tale.copyWith(
+      likeCount: tale.likeCount + (isUp ? (optimisticUp ? 1 : -1) : 0),
+      downvoteCount:
+          tale.downvoteCount + (isDown ? (optimisticDown ? 1 : -1) : 0),
+      viewerUpvoted: optimisticUp,
+      viewerDownvoted: optimisticDown,
+      viewerVote: optimisticUp && !optimisticDown
+          ? 1
+          : optimisticDown && !optimisticUp
+          ? -1
+          : 0,
+    );
+    final index = _localTales.indexWhere((item) => item.id == id);
+    if (index == -1) {
+      _votingTales.remove(id);
+      return;
+    }
+    setState(() => _localTales[index] = optimistic);
+    try {
+      final result = await context.read<MessagingApiService>().voteOnTale(
+        id,
+        vote: vote,
+      );
+      if (!mounted) return;
+      final nextVote =
+          int.tryParse(
+            '${result['viewerVote'] ?? result['viewer_vote'] ?? result['vote'] ?? optimistic.viewerVote}',
+          ) ??
+          optimistic.viewerVote;
+      final hasUp =
+          result.containsKey('viewerUpvoted') ||
+          result.containsKey('viewer_upvoted');
+      final hasDown =
+          result.containsKey('viewerDownvoted') ||
+          result.containsKey('viewer_downvoted');
+      // Keep upvotes and downvotes independent. Older API responses only
+      // expose one viewerVote, so do not let that response erase the other
+      // optimistic reaction.
+      final nextUpvoted = hasUp
+          ? (result['viewerUpvoted'] == true ||
+                result['viewer_upvoted'] == true)
+          : optimistic.viewerUpvoted;
+      final nextDownvoted = hasDown
+          ? (result['viewerDownvoted'] == true ||
+                result['viewer_downvoted'] == true)
+          : optimistic.viewerDownvoted;
+      final upvotes =
+          int.tryParse(
+            '${result['upvoteCount'] ?? result['upvote_count'] ?? tale.likeCount}',
+          ) ??
+          tale.likeCount;
+      final downvotes =
+          int.tryParse(
+            '${result['downvoteCount'] ?? result['downvote_count'] ?? tale.downvoteCount}',
+          ) ??
+          tale.downvoteCount;
+      setState(() {
+        final index = _localTales.indexWhere((item) => item.id == id);
+        if (index == -1) return;
+        _localTales[index] = optimistic.copyWith(
+          likeCount: upvotes,
+          downvoteCount: downvotes,
+          viewerVote: nextVote,
+          viewerUpvoted: nextUpvoted,
+          viewerDownvoted: nextDownvoted,
+        );
+      });
+    } catch (error) {
+      if (mounted) {
+        final rollbackIndex = _localTales.indexWhere((item) => item.id == id);
+        if (rollbackIndex != -1) {
+          setState(() => _localTales[rollbackIndex] = tale);
+        }
+        NotificationService.showError(
+          context,
+          'Could not update Tale reaction: $error',
+        );
+      }
+    } finally {
+      _votingTales.remove(id);
+    }
+  }
+
+  Future<void> _coTellTale(_LocalTale tale) async {
+    final threadId = tale.threadId;
+    if (!mounted || threadId == null || threadId.isEmpty) return;
+    await context.push(
+      '/campfires/tales/create',
+      extra: {
+        'initialThreadId': threadId,
+        'initialReferenceText': tale.text,
+        'initialReferenceLabel': 'Co-telling · ${tale.authorName}',
+        'initialReferenceMediaUrls': [
+          if (tale.mediaUrl != null) tale.mediaUrl!,
+          ...tale.mediaUrls.where((url) => url != tale.mediaUrl),
+        ],
+        'composerTitle': 'Co-tell this Tale',
+      },
+    );
+    if (mounted) unawaited(_loadTales());
+  }
+
+  Widget _taleMediaGallery(BuildContext context, _LocalTale tale) {
+    final urls = <String>[
+      if (tale.mediaUrl != null) tale.mediaUrl!,
+      ...tale.mediaUrls.where((url) => url != tale.mediaUrl),
+    ];
+    return _buildTaleGallery(context, urls);
+  }
+
+  Widget _buildTaleGallery(BuildContext context, List<String> urls) {
+    final token = context.read<AuthController>().accessToken;
+    return CampTaleMediaGallery(
+      urls: urls,
+      headers: token == null || token.isEmpty
+          ? null
+          : <String, String>{'Authorization': 'Bearer $token'},
+      onOpen: (index) => _showTaleMediaPreview(context, urls, index),
+    );
+  }
+
+  Widget _threadPreview(BuildContext context, _LocalTale tale) {
+    final threadKey = tale.threadId ?? tale.id ?? 'thread-${tale.createdAt}';
+    final parts = List.generate(
+      tale.threadParts.length,
+      (index) => <String, dynamic>{
+        'content': tale.threadParts[index],
+        'mediaUrls': index < tale.threadPartMediaUrls.length
+            ? tale.threadPartMediaUrls[index]
+            : const <String>[],
+      },
+    );
+    final colors = Theme.of(context).colorScheme;
+    final expanded = _expandedTaleThreads.contains(threadKey);
+    if (!expanded) {
+      final firstMedia = tale.threadPartMediaUrls.isNotEmpty
+          ? tale.threadPartMediaUrls.first
+          : <String>[
+              if (tale.mediaUrl != null) tale.mediaUrl!,
+              ...tale.mediaUrls.where((url) => url != tale.mediaUrl),
+            ];
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CampTaleText(
+            key: ValueKey('text-$threadKey-primary'),
+            text: tale.text,
+            fontSize: 17,
+          ),
+          if (firstMedia.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _buildTaleGallery(context, firstMedia),
+          ],
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: () {
+              if (parts.length < tale.threadCount && tale.id != null) {
+                context.push('/tale/${tale.id}');
+              } else {
+                setState(() => _expandedTaleThreads.add(threadKey));
+              }
+            },
+            icon: const Icon(Icons.account_tree_outlined, size: 18),
+            label: Text(
+              'View all ${math.max(parts.length, tale.threadCount)} parts',
+            ),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ],
+      );
+    }
+    // Part 1 is already rendered as the normal Tale card above. Once the
+    // reader is expanded, show only the linked continuation parts so Camp
+    // feed, Camp Profile and the dedicated Tale screen do not duplicate Part 1
+    // or present different thread structures.
+    final visibleParts = expanded
+        ? parts.skip(1).toList()
+        : parts.take(1).toList();
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      clipBehavior: Clip.hardEdge,
+      alignment: Alignment.topCenter,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (expanded) ...[
+            Row(
+              children: [
+                Icon(Icons.menu_book_rounded, size: 18, color: colors.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Reading this Tale',
+                  style: TextStyle(
+                    color: colors.primary,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '${math.max(parts.length, tale.threadCount)} parts',
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+          ],
+          ...visibleParts.asMap().entries.map((entry) {
+            final index = entry.key;
+            final part = entry.value;
+            final partNumber = expanded ? index + 2 : index + 1;
+            final mediaUrls = part['mediaUrls'] as List<String>;
+            return CampTaleThreadRail(
+              isLast: index == visibleParts.length - 1,
+              child: Padding(
+                padding: EdgeInsets.only(bottom: index == 0 ? 14 : 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Part $partNumber of ${math.max(parts.length, tale.threadCount)}',
+                      style: TextStyle(
+                        color: colors.primary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    CampTaleText(
+                      key: ValueKey('text-$threadKey-$index'),
+                      text: '${part['content'] ?? ''}'.trim(),
+                      fontSize: index == 0 ? 17 : 15,
+                    ),
+                    if (mediaUrls.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      _buildTaleGallery(context, mediaUrls),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          }),
+          if (parts.length > 1) ...[
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: () => setState(() {
+                if (expanded) {
+                  _expandedTaleThreads.remove(threadKey);
+                } else {
+                  _expandedTaleThreads.add(threadKey);
+                }
+              }),
+              icon: Icon(expanded ? Icons.expand_less : Icons.expand_more),
+              label: Text(
+                expanded
+                    ? 'Show fewer parts'
+                    : 'View all ${parts.length} parts',
+              ),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _showTaleMediaPreview(
+    BuildContext context,
+    List<String> urls,
+    int initialIndex,
+  ) {
+    if (urls.isEmpty) return;
+    final token = context.read<AuthController>().accessToken;
+    final headers = token == null || token.isEmpty
+        ? null
+        : <String, String>{'Authorization': 'Bearer $token'};
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: .92),
+      builder: (dialogContext) {
+        final controller = PageController(initialPage: initialIndex);
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(12),
+          child: Stack(
+            children: [
+              SizedBox(
+                height: MediaQuery.sizeOf(dialogContext).height * .78,
+                child: PageView.builder(
+                  controller: controller,
+                  itemCount: urls.length,
+                  itemBuilder: (_, index) => InteractiveViewer(
+                    child: Center(
+                      child: GriotFeedMedia(
+                        url: urls[index],
+                        headers: headers,
+                        fit: BoxFit.contain,
+                        cacheWidth: 1800,
+                        cacheHeight: 1800,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 0,
+                right: 0,
+                child: IconButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  icon: const Icon(Icons.close_rounded, color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String _formatTaleTime(DateTime createdAt) {
+    final local = createdAt.toLocal();
+    final now = DateTime.now();
+    final elapsed = now.difference(local);
+    if (elapsed.isNegative || elapsed.inMinutes < 1) return 'Just now';
+    if (elapsed.inHours < 1) return '${elapsed.inMinutes}m ago';
+    if (elapsed.inDays < 1) {
+      return 'Today · ${DateFormat('h:mm a').format(local)}';
+    }
+    final today = DateTime(now.year, now.month, now.day);
+    final postedDay = DateTime(local.year, local.month, local.day);
+    if (today.difference(postedDay).inDays == 1) {
+      return 'Yesterday · ${DateFormat('h:mm a').format(local)}';
+    }
+    final datePattern = now.year == local.year ? 'd MMM' : 'd MMM yyyy';
+    return '${DateFormat(datePattern).format(local)} · ${DateFormat('h:mm a').format(local)}';
+  }
+
+  String _taleKey(_LocalTale tale) => tale.createdAt.toIso8601String();
+
+  Future<void> _showTaleComments(_LocalTale tale) async {
+    final taleId = tale.id;
+    if (taleId == null || taleId.isEmpty) return;
+
+    // Use the canonical Tale reader so comments always belong to the exact
+    // Tale/part that was tapped and use the same threaded card presentation as
+    // the dedicated reader and Camp Profile.
+    await context.push('/tale/$taleId', extra: tale.toJson());
+    if (mounted) unawaited(_loadTales());
+    return;
+
+    // Kept below for compatibility with older hot-reload sessions. New taps
+    // always use the canonical reader above.
+    // ignore: dead_code
+    final comments = _taleComments.putIfAbsent(_taleKey(tale), () => []);
+    final controller = TextEditingController();
+    String? replyingTo;
+    // ignore: use_build_context_synchronously
+    await showModalBottomSheet<void>(
+      // ignore: use_build_context_synchronously
+      context: context,
+      useRootNavigator: true,
+      useSafeArea: true,
+      isScrollControlled: true,
+      showDragHandle: true,
+      // ignore: use_build_context_synchronously
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      clipBehavior: Clip.antiAlias,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.sizeOf(context).height * .72,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                18,
+                4,
+                18,
+                MediaQuery.viewInsetsOf(context).bottom + 12,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Comments',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: comments.isEmpty
+                        ? Center(
+                            child: Text(
+                              'Be the first to comment on this Tale.',
+                              style: TextStyle(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            itemCount: comments.length,
+                            itemBuilder: (context, index) {
+                              final comment = comments[index];
+                              final isReply = comment.replyTo != null;
+                              return Padding(
+                                padding: EdgeInsets.only(
+                                  left: isReply ? 28 : 0,
+                                  bottom: 10,
+                                ),
+                                child: GriotBrandedContainer(
+                                  padding: const EdgeInsets.all(12),
+                                  borderRadius: 16,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      if (isReply)
+                                        Text(
+                                          'Replying to ${comment.replyTo}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                      Text(
+                                        comment.text,
+                                        style: const TextStyle(height: 1.35),
+                                      ),
+                                      Align(
+                                        alignment: Alignment.centerRight,
+                                        child: TextButton(
+                                          onPressed: () => setSheetState(
+                                            () => replyingTo = comment.text,
+                                          ),
+                                          child: const Text('Reply'),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                  if (replyingTo != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Replying to $replyingTo',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Cancel reply',
+                            onPressed: () =>
+                                setSheetState(() => replyingTo = null),
+                            icon: const Icon(Icons.close_rounded, size: 18),
+                          ),
+                        ],
+                      ),
+                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: controller,
+                          minLines: 1,
+                          maxLines: 4,
+                          textCapitalization: TextCapitalization.sentences,
+                          decoration: const InputDecoration(
+                            hintText: 'Write a comment…',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.filled(
+                        tooltip: 'Send comment',
+                        onPressed: () {
+                          final text = controller.text.trim();
+                          if (text.isEmpty) return;
+                          setState(() {
+                            comments.add(
+                              _LocalTaleComment(
+                                text: text,
+                                replyTo: replyingTo,
+                                createdAt: DateTime.now(),
+                              ),
+                            );
+                          });
+                          controller.clear();
+                          setSheetState(() => replyingTo = null);
+                        },
+                        icon: const Icon(Icons.send_rounded),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    controller.dispose();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _showCreateTale() async {
+    final created = await context.push<bool>('/campfires/tales/create');
+    if (created == true && mounted) {
+      unawaited(_loadTales());
+      setState(() {});
+    }
+  }
+
+  // Retained temporarily while older hot-reload sessions are still active.
+  // New publishing uses the dedicated full-screen CreateTaleScreen route.
+  // ignore: unused_element
+  Future<void> _showCreateTaleLegacy() async {
+    final isPlus = context.read<IapProvider>().status.isPlus;
+    final maxLength = isPlus ? 2000 : 500;
+    final author = context.read<UserProvider>().user;
+    final textController = TextEditingController();
+    var category = 'Personal';
+    final created = await showModalBottomSheet<bool>(
+      context: context,
+      useRootNavigator: true,
+      useSafeArea: true,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            8,
+            20,
+            MediaQuery.viewInsetsOf(context).bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.pop(sheetContext),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                  Expanded(
+                    child: Text(
+                      'New Tale',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 48),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Text only. Choose a category so readers can discover it.',
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  GriotAvatar(radius: 18, avatarUrl: author?.avatarUrl),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      author?.displayName ?? author?.username ?? 'You',
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: .10),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.public_rounded,
+                          size: 14,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          'Public',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: textController,
+                autofocus: true,
+                maxLines: 8,
+                maxLength: maxLength,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: InputDecoration(
+                  hintText: isPlus
+                      ? 'Write your tale…'
+                      : 'Write your tale (up to 1,000 characters)…',
+                  filled: true,
+                  fillColor: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest.withValues(alpha: .55),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: BorderSide(
+                      color: Theme.of(context).colorScheme.primary,
+                      width: 1.2,
+                    ),
+                  ),
+                  contentPadding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                isPlus
+                    ? 'Griot Plus members can publish longer Tales with more room per part.'
+                    : 'Everyone can publish Tales. Griot Plus members can publish longer parts.',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                initialValue: category,
+                decoration: InputDecoration(
+                  labelText: 'Category',
+                  filled: true,
+                  fillColor: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest.withValues(alpha: .45),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+                items: _taleCategories
+                    .where((value) => value != 'All')
+                    .map(
+                      (value) =>
+                          DropdownMenuItem(value: value, child: Text(value)),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) setSheetState(() => category = value);
+                },
+              ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(50),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                onPressed: () async {
+                  final text = textController.text.trim();
+                  if (text.isEmpty) return;
+                  final notificationContext = context;
+                  try {
+                    final result = await context
+                        .read<MessagingApiService>()
+                        .publishTale(category: category, content: text);
+                    final taleId = result['id']?.toString();
+                    _localTales.insert(
+                      0,
+                      _LocalTale(
+                        id: taleId,
+                        text: text,
+                        category: category,
+                        createdAt: DateTime.now(),
+                        authorName: 'You',
+                      ),
+                    );
+                    if (sheetContext.mounted) Navigator.pop(sheetContext, true);
+                  } catch (error) {
+                    if (!notificationContext.mounted) return;
+                    NotificationService.showError(
+                      notificationContext,
+                      'Could not publish Tale: $error',
+                    );
+                  }
+                },
+                icon: const Icon(Icons.publish_rounded),
+                label: const Text('Publish Tale'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    textController.dispose();
+    if (created == true && mounted) setState(() {});
+  }
+
+  Widget _upcomingSection(
+    BuildContext context,
+    List<SpaceModel> upcomingSpaces,
+  ) {
     final colors = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -367,7 +3788,7 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
           style: TextStyle(color: colors.onSurfaceVariant),
         ),
         const SizedBox(height: 12),
-        ..._upcomingSpaces.map(
+        ...upcomingSpaces.map(
           (space) => Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: GriotBrandedContainer(
@@ -447,6 +3868,11 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                             : Icons.notifications_none_rounded,
                       ),
                     ),
+                  IconButton(
+                    tooltip: 'Share scheduled Campfire',
+                    onPressed: () => _shareCampfire(context, space),
+                    icon: const Icon(Icons.ios_share_rounded),
+                  ),
                   if (space.isHost)
                     IconButton(
                       tooltip: 'Manage scheduled Campfire',
@@ -1076,10 +4502,10 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
         ? '1 listener'
         : '${space.participantCount} listeners';
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: GriotBrandedContainer(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: CampTaleCardSurface(
         padding: EdgeInsets.zero,
-        borderRadius: 24,
+        margin: EdgeInsets.zero,
         child: InkWell(
           borderRadius: BorderRadius.circular(24),
           onTap: () => _previewCampfire(context, space),
@@ -1087,7 +4513,7 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Container(
-                padding: const EdgeInsets.fromLTRB(16, 14, 10, 18),
+                padding: const EdgeInsets.fromLTRB(16, 14, 10, 16),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
@@ -1105,22 +4531,58 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      space.mode == 'video'
-                          ? Icons.videocam_rounded
-                          : Icons.graphic_eq_rounded,
-                      color: Colors.white,
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: .16),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        space.mode == 'video'
+                            ? Icons.videocam_rounded
+                            : Icons.graphic_eq_rounded,
+                        color: Colors.white,
+                        size: 19,
+                      ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 10),
                     Expanded(
-                      child: Text(
-                        'BURNING NOW',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: .8,
-                          fontSize: 12,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 7,
+                                height: 7,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF65E38A),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              const Text(
+                                'LIVE CAMPFIRE',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: .75,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            space.mode == 'video' ? 'Video room' : 'Audio room',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: .78),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     if (space.isHost)
@@ -1138,7 +4600,16 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
               ),
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-                color: colors.primary.withValues(alpha: .12),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      colors.primary.withValues(alpha: .14),
+                      colors.surface.withValues(alpha: .78),
+                    ],
+                  ),
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1161,43 +4632,74 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                       ),
                     ],
                     const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        GriotAvatar(
-                          avatarUrl: space.hostAvatarUrl,
-                          radius: 15,
-                          backgroundColor: colors.surfaceContainerHighest,
-                          iconColor: colors.primary,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            space.isHost
-                                ? 'You are hosting this Campfire'
-                                : 'Hosted by ${space.hostName}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: colors.surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Text(
-                            'Host',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 12,
+                    InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: space.hostId == null
+                          ? null
+                          : () => context.push('/camp/profile/${space.hostId}'),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          children: [
+                            GriotAvatar(
+                              avatarUrl: space.hostAvatarUrl,
+                              radius: 15,
+                              backgroundColor: colors.surfaceContainerHighest,
+                              iconColor: colors.primary,
                             ),
-                          ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                space.isHost
+                                    ? 'You are hosting this Campfire'
+                                    : 'Hosted by ${space.hostName}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: colors.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Text(
+                                'Host',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            IconButton(
+                              visualDensity: VisualDensity.compact,
+                              tooltip: 'Tip host',
+                              onPressed: () => _tipCreator(
+                                userId: space.hostId,
+                                walletAddress: space.hostWalletAddress,
+                                displayName: space.hostName,
+                                avatarUrl: space.hostAvatarUrl,
+                                metadata: {
+                                  'surface': 'campfire',
+                                  'campfireId': space.id,
+                                },
+                              ),
+                              icon: Icon(
+                                Icons.volunteer_activism_outlined,
+                                size: 20,
+                                color: colors.primary,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                     const SizedBox(height: 14),
                     Row(
@@ -1215,11 +4717,6 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                             style: TextStyle(color: colors.onSurfaceVariant),
                           ),
                         ],
-                        const Spacer(),
-                        FilledButton(
-                          onPressed: () => _previewCampfire(context, space),
-                          child: const Text('View'),
-                        ),
                       ],
                     ),
                   ],
@@ -1430,36 +4927,67 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
 
   Widget _searchField(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return TextField(
-      controller: _searchController,
-      focusNode: _searchFocusNode,
-      onChanged: (value) => setState(() => _searchQuery = value),
-      textInputAction: TextInputAction.search,
-      decoration: InputDecoration(
-        hintText: 'Search for a Campfire',
-        prefixIcon: const Icon(Icons.search_rounded),
-        suffixIcon: IconButton(
-          tooltip: 'Close search',
-          onPressed: () {
-            _searchFocusNode.unfocus();
-            _searchController.clear();
-            setState(() => _searchQuery = '');
-          },
-          icon: Icon(Icons.close_rounded, color: colors.onSurfaceVariant),
-        ),
-        filled: true,
-        fillColor: colors.surfaceContainerHighest.withValues(alpha: .7),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide.none,
+    return GriotBrandedContainer(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      margin: const EdgeInsets.only(top: 8),
+      borderRadius: 18,
+      blurSigma: 12,
+      backgroundColor: colors.surfaceContainerHighest.withValues(alpha: .62),
+      child: TextField(
+        controller: _searchController,
+        focusNode: _searchFocusNode,
+        onChanged: (value) => setState(() {
+          _searchQuery = value;
+          _searchSubmitted = false;
+        }),
+        onSubmitted: (value) {
+          setState(() {
+            _searchQuery = value.trim();
+            _searchSubmitted = _searchQuery.isNotEmpty;
+          });
+          if (_searchQuery.isNotEmpty) unawaited(_runCampSearch(_searchQuery));
+          _searchFocusNode.unfocus();
+        },
+        textInputAction: TextInputAction.search,
+        style: const TextStyle(fontWeight: FontWeight.w600),
+        decoration: InputDecoration(
+          hintText: _campfireTab == 0
+              ? 'Search Tales'
+              : _campfireTab == 2
+              ? 'Search Campfires and Tales'
+              : _campfireView == 'scheduled'
+              ? 'Search scheduled Campfires'
+              : 'Search live Campfires',
+          hintStyle: TextStyle(
+            color: colors.onSurfaceVariant,
+            fontWeight: FontWeight.w500,
+          ),
+          prefixIcon: Icon(Icons.search_rounded, color: colors.primary),
+          suffixIcon: _searchQuery.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: 'Clear search',
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() {
+                      _searchQuery = '';
+                      _searchSubmitted = false;
+                      _campSearchResults = const {};
+                    });
+                  },
+                  icon: Icon(
+                    Icons.close_rounded,
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+          filled: false,
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 15),
         ),
       ),
     );
-  }
-
-  double _windowKeyboardInset(BuildContext context) {
-    final view = View.of(context);
-    return view.viewInsets.bottom / view.devicePixelRatio;
   }
 
   Widget _emptyState(
@@ -1553,24 +5081,453 @@ class _FriendAvatars extends StatelessWidget {
   }
 }
 
-class _CampfireFabLocation extends FloatingActionButtonLocation {
-  final double keyboardInset;
+class _CampSectionSwitcher extends StatelessWidget {
+  const _CampSectionSwitcher({required this.selected, required this.onChanged});
 
-  const _CampfireFabLocation({required this.keyboardInset});
+  final int selected;
+  final ValueChanged<int> onChanged;
 
   @override
-  Offset getOffset(ScaffoldPrelayoutGeometry geometry) {
-    final x =
-        geometry.scaffoldSize.width -
-        geometry.floatingActionButtonSize.width -
-        18;
-    final y =
-        (geometry.scaffoldSize.height -
-                geometry.floatingActionButtonSize.height -
-                125 +
-                keyboardInset)
-            .clamp(0.0, double.infinity)
-            .toDouble();
-    return Offset(x, y);
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    const options = <(String, IconData)>[
+      ('Tales', Icons.menu_book_rounded),
+      ('Campfires', Icons.local_fire_department_rounded),
+      ('Search', Icons.search_rounded),
+    ];
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        children: [
+          for (var index = 0; index < options.length; index++)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: GestureDetector(
+                  onTap: () => onChanged(index),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOutCubic,
+                    decoration: BoxDecoration(
+                      color: selected == index
+                          ? colors.primary
+                          : colors.primary.withValues(alpha: .05),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border(
+                        top: BorderSide(
+                          color: colors.primary.withValues(
+                            alpha: selected == index ? 0 : .6,
+                          ),
+                          width: 1.5,
+                        ),
+                        bottom: BorderSide(
+                          color: colors.primary.withValues(
+                            alpha: selected == index ? 0 : .6,
+                          ),
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          options[index].$2,
+                          size: 16,
+                          color: selected == index
+                              ? colors.onPrimary
+                              : colors.onSurfaceVariant.withValues(alpha: .5),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          options[index].$1,
+                          style: TextStyle(
+                            color: selected == index
+                                ? colors.onPrimary
+                                : colors.onSurfaceVariant.withValues(alpha: .7),
+                            fontWeight: selected == index
+                                ? FontWeight.w900
+                                : FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CampFullLoadingSkeleton extends StatelessWidget {
+  const _CampFullLoadingSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _CampSkeletonBlock(
+          width: double.infinity,
+          height: 42,
+          radius: 22,
+          color: colors.surfaceContainerHighest,
+        ),
+        const SizedBox(height: 14),
+        _CampSkeletonBlock(
+          width: 150,
+          height: 14,
+          color: colors.surfaceContainerHighest,
+        ),
+        const SizedBox(height: 10),
+        ...List.generate(
+          3,
+          (index) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: const _CampLoadingSkeleton(tale: true),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CampLoadingSkeleton extends StatefulWidget {
+  const _CampLoadingSkeleton({required this.tale});
+
+  final bool tale;
+
+  @override
+  State<_CampLoadingSkeleton> createState() => _CampLoadingSkeletonState();
+}
+
+class _CampLoadingSkeletonState extends State<_CampLoadingSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1350),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final progress = (_controller.value * 2) - .5;
+        return ShaderMask(
+          blendMode: BlendMode.srcATop,
+          shaderCallback: (bounds) => LinearGradient(
+            begin: Alignment(-1.2 + progress, 0),
+            end: Alignment(progress + 1.2, 0),
+            colors: [
+              colors.surfaceContainerHighest.withValues(alpha: .58),
+              colors.surfaceContainerHighest.withValues(alpha: .9),
+              colors.surfaceContainerHighest.withValues(alpha: .58),
+            ],
+            stops: const [0, .5, 1],
+          ).createShader(bounds),
+          child: child,
+        );
+      },
+      child: Column(
+        children: [
+          for (var index = 0; index < 3; index++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: widget.tale
+                  ? _taleSkeleton(context, colors)
+                  : _campfireSkeleton(context, colors),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _taleSkeleton(BuildContext context, ColorScheme colors) {
+    return GriotBrandedContainer(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      borderRadius: 24,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _CampSkeletonBlock(
+                width: 44,
+                height: 44,
+                radius: 22,
+                color: colors.surface,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _CampSkeletonBlock(
+                      width: 130,
+                      height: 13,
+                      color: colors.surface,
+                    ),
+                    const SizedBox(height: 7),
+                    FractionallySizedBox(
+                      widthFactor: .62,
+                      child: _CampSkeletonBlock(
+                        width: double.infinity,
+                        height: 10,
+                        color: colors.surface,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _CampSkeletonBlock(
+                width: 52,
+                height: 22,
+                radius: 8,
+                color: colors.surface,
+              ),
+              const SizedBox(width: 6),
+              _CampSkeletonBlock(
+                width: 20,
+                height: 24,
+                radius: 8,
+                color: colors.surface,
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          Row(
+            children: [
+              _CampSkeletonBlock(
+                width: 106,
+                height: 10,
+                radius: 5,
+                color: colors.surface,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Divider(
+                  height: 1,
+                  color: colors.outlineVariant.withValues(alpha: .35),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 13),
+          _CampSkeletonBlock(
+            width: double.infinity,
+            height: 15,
+            color: colors.surface,
+          ),
+          const SizedBox(height: 9),
+          FractionallySizedBox(
+            widthFactor: .88,
+            child: _CampSkeletonBlock(
+              width: double.infinity,
+              height: 15,
+              color: colors.surface,
+            ),
+          ),
+          const SizedBox(height: 9),
+          FractionallySizedBox(
+            widthFactor: .57,
+            child: _CampSkeletonBlock(
+              width: double.infinity,
+              height: 15,
+              color: colors.surface,
+            ),
+          ),
+          const SizedBox(height: 14),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: _CampSkeletonBlock(
+              width: double.infinity,
+              height: 208,
+              radius: 0,
+              color: colors.surface,
+            ),
+          ),
+          const SizedBox(height: 14),
+          _CampSkeletonBlock(width: 94, height: 10, color: colors.surface),
+          const SizedBox(height: 10),
+          Divider(
+            height: 1,
+            color: colors.outlineVariant.withValues(alpha: .4),
+          ),
+          const SizedBox(height: 5),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: List.generate(
+              5,
+              (_) => _CampSkeletonBlock(
+                width: 38,
+                height: 22,
+                radius: 10,
+                color: colors.surface,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          _CampSkeletonBlock(
+            width: double.infinity,
+            height: 30,
+            radius: 12,
+            color: colors.surface,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _campfireSkeleton(BuildContext context, ColorScheme colors) {
+    return GriotBrandedContainer(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      borderRadius: 22,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _CampSkeletonBlock(
+                width: 44,
+                height: 44,
+                radius: 22,
+                color: colors.surface,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _CampSkeletonBlock(
+                      width: double.infinity,
+                      height: 14,
+                      color: colors.surface,
+                    ),
+                    const SizedBox(height: 8),
+                    FractionallySizedBox(
+                      widthFactor: .55,
+                      child: _CampSkeletonBlock(
+                        width: double.infinity,
+                        height: 10,
+                        color: colors.surface,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _CampSkeletonBlock(
+                width: 58,
+                height: 22,
+                radius: 8,
+                color: colors.surface,
+              ),
+              const SizedBox(width: 6),
+              _CampSkeletonBlock(
+                width: 20,
+                height: 24,
+                radius: 8,
+                color: colors.surface,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _CampSkeletonBlock(
+            width: double.infinity,
+            height: 17,
+            color: colors.surface,
+          ),
+          const SizedBox(height: 10),
+          FractionallySizedBox(
+            widthFactor: .82,
+            child: _CampSkeletonBlock(
+              width: double.infinity,
+              height: 13,
+              color: colors.surface,
+            ),
+          ),
+          const SizedBox(height: 8),
+          FractionallySizedBox(
+            widthFactor: .64,
+            child: _CampSkeletonBlock(
+              width: double.infinity,
+              height: 13,
+              color: colors.surface,
+            ),
+          ),
+          const SizedBox(height: 14),
+          _CampSkeletonBlock(
+            width: double.infinity,
+            height: 82,
+            radius: 16,
+            color: colors.surface,
+          ),
+          const SizedBox(height: 14),
+          Divider(
+            height: 1,
+            color: colors.outlineVariant.withValues(alpha: .4),
+          ),
+          const SizedBox(height: 5),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: List.generate(
+              4,
+              (_) => _CampSkeletonBlock(
+                width: 44,
+                height: 22,
+                radius: 10,
+                color: colors.surface,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CampSkeletonBlock extends StatelessWidget {
+  const _CampSkeletonBlock({
+    required this.width,
+    required this.height,
+    required this.color,
+    this.radius = 6,
+  });
+
+  final double width;
+  final double height;
+  final Color color;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(radius),
+      ),
+    );
   }
 }
