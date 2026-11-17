@@ -1861,24 +1861,31 @@ class _TalePublicScreenState extends State<TalePublicScreen>
                                   );
                                 },
                               ),
+                              if (_threadId(tale) != null &&
+                                  threadCount > 1) ...[
+                                const SizedBox(height: 14),
+                                Divider(
+                                  height: 1,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .outlineVariant
+                                      .withValues(alpha: .35),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: _threadSection(
+                                    context,
+                                    tale,
+                                    threadPosition,
+                                    threadCount,
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
                       ),
                       const SizedBox(height: 18),
-                      if (_threadId(tale) != null && threadCount > 1) ...[
-                        _taleSeparator(context),
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: _threadSection(
-                            context,
-                            tale,
-                            threadPosition,
-                            threadCount,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                      ],
                       _taleSeparator(context),
                       _commentsSection(context, tale),
                       _commentComposer(context),
