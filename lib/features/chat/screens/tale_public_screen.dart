@@ -631,7 +631,7 @@ class _TalePublicScreenState extends State<TalePublicScreen>
                                       .withValues(alpha: .72),
                                 ),
                               ),
-                              _commentCard(context, entry.value),
+                              _commentCard(context, entry.value, reply: true),
                             ],
                           ),
                         ),
@@ -646,12 +646,18 @@ class _TalePublicScreenState extends State<TalePublicScreen>
     );
   }
 
-  Widget _commentCard(BuildContext context, Map<String, dynamic> comment) {
+  Widget _commentCard(
+    BuildContext context,
+    Map<String, dynamic> comment, {
+    bool reply = false,
+  }) {
     final colors = Theme.of(context).colorScheme;
     final author = _commentAuthor(comment);
     final commentId = comment['id']?.toString() ?? '';
     final authorId = (comment['authorId'] ?? comment['author_id'])?.toString();
-    return CampTaleCardSurface(
+    return CampTaleCommentSurface(
+      reply: reply,
+      margin: EdgeInsets.only(bottom: reply ? 8 : 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
