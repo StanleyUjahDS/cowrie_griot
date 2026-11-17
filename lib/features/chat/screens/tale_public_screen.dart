@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -92,6 +93,11 @@ class _TalePublicScreenState extends State<TalePublicScreen>
         .catchError((_) => widget.initialTale ?? <String, dynamic>{});
     _commentsFuture = context.read<MessagingApiService>().getTaleComments(
       widget.taleId,
+    );
+    // Count a reader once when the dedicated Tale screen opens. The backend
+    // endpoint is idempotent for the current viewer, so retries are safe.
+    unawaited(
+      context.read<MessagingApiService>().markTaleViewed(widget.taleId),
     );
     _commentTargetTaleId = widget.taleId;
     _commentTargetThreadId = widget.initialTale == null
@@ -1450,6 +1456,11 @@ class _TalePublicScreenState extends State<TalePublicScreen>
                     ) ??
                     0;
                 final coTellCount = threadCount > 1 ? threadCount - 1 : 0;
+                final viewCount =
+                    int.tryParse(
+                      '${tale['viewCount'] ?? tale['view_count'] ?? tale['views'] ?? 0}',
+                    ) ??
+                    0;
                 final threadPosition =
                     int.tryParse(
                       '${tale['threadPosition'] ?? tale['thread_position'] ?? 1}',
@@ -1908,6 +1919,34 @@ class _TalePublicScreenState extends State<TalePublicScreen>
                                         ],
                                       ),
                                       const SizedBox(height: 6),
+                                      if (viewCount > 0)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 6,
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                Icons.visibility_outlined,
+                                                size: 15,
+                                                color: Theme.of(
+                                                  context,
+                                                ).colorScheme.onSurfaceVariant,
+                                              ),
+                                              const SizedBox(width: 5),
+                                              Text(
+                                                '$viewCount ${viewCount == 1 ? 'view' : 'views'}',
+                                                style: TextStyle(
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .onSurfaceVariant,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
                                       SizedBox(
                                         width: double.infinity,
                                         child: countAction(

@@ -1737,6 +1737,11 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                 tale['thread_original_author_avatar_url'])
             ?.toString();
     final comments = tale['comment_count'] ?? tale['commentCount'] ?? 0;
+    final viewCount =
+        int.tryParse(
+          '${tale['viewCount'] ?? tale['view_count'] ?? tale['views'] ?? 0}',
+        ) ??
+        0;
     final category = '${tale['category'] ?? 'Personal'}';
     final nestedAuthor = tale['author'] is Map
         ? Map<String, dynamic>.from(tale['author'] as Map)
@@ -2030,6 +2035,27 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                 height: 1,
                 color: colors.outlineVariant.withValues(alpha: .35),
               ),
+              if (viewCount > 0) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.visibility_outlined,
+                      size: 15,
+                      color: colors.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      '$viewCount ${viewCount == 1 ? 'view' : 'views'}',
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 4),
               Row(
                 children: [

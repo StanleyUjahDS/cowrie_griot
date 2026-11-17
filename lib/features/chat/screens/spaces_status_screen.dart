@@ -62,6 +62,7 @@ class _LocalTale {
   final List<String> mediaUrls;
   final String? linkUrl;
   final int commentCount;
+  final int viewCount;
   final int likeCount;
   final int downvoteCount;
   final int viewerVote;
@@ -100,6 +101,7 @@ class _LocalTale {
     this.mediaUrls = const [],
     this.linkUrl,
     this.commentCount = 0,
+    this.viewCount = 0,
     this.likeCount = 0,
     this.downvoteCount = 0,
     this.viewerVote = 0,
@@ -150,6 +152,7 @@ class _LocalTale {
     mediaUrls: mediaUrls,
     linkUrl: linkUrl,
     commentCount: commentCount,
+    viewCount: viewCount,
     likeCount: likeCount ?? this.likeCount,
     downvoteCount: downvoteCount ?? this.downvoteCount,
     viewerVote: viewerVote ?? this.viewerVote,
@@ -186,6 +189,7 @@ class _LocalTale {
     'mediaUrls': mediaUrls,
     'linkUrl': linkUrl,
     'commentCount': commentCount,
+    'viewCount': viewCount,
     'upvoteCount': likeCount,
     'downvoteCount': downvoteCount,
     'retellCount': retellCount,
@@ -488,6 +492,11 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
           commentCount:
               int.tryParse(
                 '${item['commentCount'] ?? item['comment_count'] ?? 0}',
+              ) ??
+              0,
+          viewCount:
+              int.tryParse(
+                '${item['viewCount'] ?? item['view_count'] ?? item['views'] ?? 0}',
               ) ??
               0,
           likeCount:
@@ -2737,6 +2746,27 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                 height: 1,
                 color: colors.outlineVariant.withValues(alpha: .35),
               ),
+              if (tale.viewCount > 0) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.visibility_outlined,
+                      size: 15,
+                      color: colors.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      '${tale.viewCount} ${tale.viewCount == 1 ? 'view' : 'views'}',
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 4),
               Row(
                 children: [
