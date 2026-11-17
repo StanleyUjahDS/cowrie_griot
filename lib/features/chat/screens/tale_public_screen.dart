@@ -694,6 +694,19 @@ class _TalePublicScreenState extends State<TalePublicScreen>
     final author = _commentAuthor(comment);
     final commentId = comment['id']?.toString() ?? '';
     final authorId = (comment['authorId'] ?? comment['author_id'])?.toString();
+    final commentAuthorMap = comment['author'] is Map
+        ? Map<String, dynamic>.from(comment['author'] as Map)
+        : const <String, dynamic>{};
+    final commentIsPlus =
+        comment['isPlus'] == true ||
+        comment['is_plus'] == true ||
+        commentAuthorMap['isPlus'] == true ||
+        commentAuthorMap['is_plus'] == true;
+    final commentIsPioneer =
+        comment['isPioneer'] == true ||
+        comment['is_pioneer'] == true ||
+        commentAuthorMap['isPioneer'] == true ||
+        commentAuthorMap['is_pioneer'] == true;
     return CampTaleCommentSurface(
       reply: reply,
       margin: EdgeInsets.only(bottom: reply ? 8 : 10),
@@ -703,6 +716,8 @@ class _TalePublicScreenState extends State<TalePublicScreen>
           CampTaleHeader(
             authorName: author,
             avatarUrl: _commentAvatar(comment),
+            isPlus: commentIsPlus,
+            isPioneer: commentIsPioneer,
             subtitle: [
               if (_commentUsername(comment).isNotEmpty)
                 '@${_commentUsername(comment)}',
@@ -1399,6 +1414,16 @@ class _TalePublicScreenState extends State<TalePublicScreen>
                             tale['avatar_url'] ??
                             tale['avatarUrl'])
                         ?.toString();
+                final authorIsPlus =
+                    author['isPlus'] == true ||
+                    author['is_plus'] == true ||
+                    tale['authorIsPlus'] == true ||
+                    tale['author_is_plus'] == true;
+                final authorIsPioneer =
+                    author['isPioneer'] == true ||
+                    author['is_pioneer'] == true ||
+                    tale['authorIsPioneer'] == true ||
+                    tale['author_is_pioneer'] == true;
                 final createdAt = DateTime.tryParse(
                   '${tale['createdAt'] ?? tale['created_at'] ?? ''}',
                 );
@@ -1477,6 +1502,8 @@ class _TalePublicScreenState extends State<TalePublicScreen>
                               CampTaleHeader(
                                 authorName: authorName,
                                 avatarUrl: authorAvatar,
+                                isPlus: authorIsPlus,
+                                isPioneer: authorIsPioneer,
                                 inlineBadges: [
                                   if (category.isNotEmpty)
                                     _readerCategoryBadge(context, category),

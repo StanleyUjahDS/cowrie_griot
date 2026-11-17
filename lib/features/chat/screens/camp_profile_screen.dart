@@ -929,12 +929,29 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                     offset: const Offset(0, -20),
                     child: Column(
                       children: [
-                        Text(
-                          name,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                          ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                            if (user?.isPlus == true) ...[
+                              const SizedBox(width: 6),
+                              const GriotPlusBadge(isPlus: true, compact: true),
+                            ],
+                            if (user?.isPioneer == true) ...[
+                              const SizedBox(width: 4),
+                              const GriotPioneerBadge(compact: true),
+                            ],
+                          ],
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -966,25 +983,13 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                             ],
                           ),
                         ],
-                        if (reputation != null ||
-                            user?.isPlus == true ||
-                            user?.isPioneer == true) ...[
+                        if (reputation != null) ...[
                           const SizedBox(height: 7),
                           Wrap(
                             alignment: WrapAlignment.center,
                             spacing: 6,
                             runSpacing: 6,
-                            children: [
-                              if (reputation != null)
-                                _reputationBadge(context, reputation),
-                              if (user?.isPlus == true)
-                                const GriotPlusBadge(
-                                  isPlus: true,
-                                  compact: true,
-                                ),
-                              if (user?.isPioneer == true)
-                                const GriotPioneerBadge(compact: true),
-                            ],
+                            children: [_reputationBadge(context, reputation)],
                           ),
                         ],
                         if (reputation != null) ...[
@@ -1752,6 +1757,16 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                 tale['avatar_url'] ??
                 tale['avatarUrl'])
             ?.toString();
+    final authorIsPlus =
+        nestedAuthor['isPlus'] == true ||
+        nestedAuthor['is_plus'] == true ||
+        tale['authorIsPlus'] == true ||
+        tale['author_is_plus'] == true;
+    final authorIsPioneer =
+        nestedAuthor['isPioneer'] == true ||
+        nestedAuthor['is_pioneer'] == true ||
+        tale['authorIsPioneer'] == true ||
+        tale['author_is_pioneer'] == true;
     final mediaUrls = _taleMediaUrls(tale);
     final media = mediaUrls.isNotEmpty;
     final authorUsername =
@@ -1779,6 +1794,8 @@ class _CampProfileScreenState extends State<CampProfileScreen>
               CampTaleHeader(
                 authorName: authorName,
                 avatarUrl: avatarUrl,
+                isPlus: authorIsPlus,
+                isPioneer: authorIsPioneer,
                 inlineBadges: [
                   if (category.trim().isNotEmpty)
                     _campTaleBadge(

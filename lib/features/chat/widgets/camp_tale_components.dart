@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../../core/ui/widgets/griot_branded_container.dart';
 import '../../../core/ui/widgets/griot_avatar.dart';
+import '../../../core/ui/widgets/griot_plus_badge.dart';
+import '../../../core/ui/widgets/griot_pioneer_badge.dart';
 import '../../../core/ui/widgets/native_ad.dart';
 import '../../../core/theme/app_text.dart';
 
@@ -429,6 +431,8 @@ class CampTaleHeader extends StatelessWidget {
     required this.subtitle,
     this.avatarUrl,
     this.onAuthorTap,
+    this.isPlus = false,
+    this.isPioneer = false,
     this.badges = const [],
     this.inlineBadges = const [],
     this.attribution,
@@ -438,6 +442,8 @@ class CampTaleHeader extends StatelessWidget {
   final String subtitle;
   final String? avatarUrl;
   final VoidCallback? onAuthorTap;
+  final bool isPlus;
+  final bool isPioneer;
   final List<Widget> badges;
   final List<Widget> inlineBadges;
   final Widget? attribution;
@@ -462,11 +468,25 @@ class CampTaleHeader extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    authorName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppText.socialName,
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          authorName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppText.socialName,
+                        ),
+                      ),
+                      if (isPlus) ...[
+                        const SizedBox(width: 5),
+                        const GriotPlusBadge(isPlus: true, compact: true),
+                      ],
+                      if (isPioneer) ...[
+                        const SizedBox(width: 4),
+                        const GriotPioneerBadge(compact: true),
+                      ],
+                    ],
                   ),
                   if (subtitle.isNotEmpty) ...[
                     const SizedBox(height: 2),

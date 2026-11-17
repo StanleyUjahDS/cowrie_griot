@@ -52,6 +52,8 @@ class _LocalTale {
   final DateTime createdAt;
   final String authorName;
   final String? authorAvatarUrl;
+  final bool authorIsPlus;
+  final bool authorIsPioneer;
   final String? threadId;
   final int threadPosition;
   final int threadCount;
@@ -88,6 +90,8 @@ class _LocalTale {
     required this.createdAt,
     this.authorName = 'You',
     this.authorAvatarUrl,
+    this.authorIsPlus = false,
+    this.authorIsPioneer = false,
     this.threadId,
     this.threadPosition = 1,
     this.threadCount = 1,
@@ -136,6 +140,8 @@ class _LocalTale {
     createdAt: createdAt,
     authorName: authorName,
     authorAvatarUrl: authorAvatarUrl,
+    authorIsPlus: authorIsPlus,
+    authorIsPioneer: authorIsPioneer,
     threadId: threadId,
     threadPosition: threadPosition ?? this.threadPosition,
     threadCount: threadCount ?? this.threadCount,
@@ -452,6 +458,16 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                       item['avatar_url'] ??
                       item['avatarUrl'])
                   ?.toString(),
+          authorIsPlus:
+              author['isPlus'] == true ||
+              author['is_plus'] == true ||
+              item['authorIsPlus'] == true ||
+              item['author_is_plus'] == true,
+          authorIsPioneer:
+              author['isPioneer'] == true ||
+              author['is_pioneer'] == true ||
+              item['authorIsPioneer'] == true ||
+              item['author_is_pioneer'] == true,
           threadId:
               item['threadId']?.toString() ?? item['thread_id']?.toString(),
           threadPosition:
@@ -2512,6 +2528,8 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
               CampTaleHeader(
                 authorName: tale.authorName,
                 avatarUrl: tale.authorAvatarUrl,
+                isPlus: tale.authorIsPlus,
+                isPioneer: tale.authorIsPioneer,
                 inlineBadges: [
                   if (tale.category.isNotEmpty)
                     _taleBadge(
