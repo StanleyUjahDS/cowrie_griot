@@ -195,14 +195,8 @@ class _TalePublicScreenState extends State<TalePublicScreen>
         // The parts are one reading surface, not a list of unrelated cards.
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Container(
-            decoration: BoxDecoration(
-              color: colors.surfaceContainerLow.withValues(alpha: .72),
-              border: Border.all(
-                color: colors.outlineVariant.withValues(alpha: .55),
-              ),
-              borderRadius: BorderRadius.circular(16),
-            ),
+          child: CampTaleCardSurface(
+            margin: EdgeInsets.zero,
             padding: const EdgeInsets.fromLTRB(14, 14, 12, 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
