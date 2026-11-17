@@ -96,36 +96,31 @@ class NotificationSettingsScreen extends StatelessWidget {
         'Allow push notifications',
         'Enable or silence all Griot push notifications on this account',
         'push_notifications',
-      ),
-      _PreferenceItem(
-        'Chat notifications',
-        'Receive notifications for new messages',
-        'chat_notifications',
-      ),
-      _PreferenceItem(
-        'Call notifications',
-        'Receive incoming and missed call alerts',
-        'call_notifications',
-      ),
-      _PreferenceItem(
-        'Campfire notifications',
-        'Receive Campfire invites, speaker requests and reminders',
-        'campfire_notifications',
+        section: 'General',
       ),
       _PreferenceItem(
         'Social activity',
         'Receive connection and interaction updates',
         'social_notifications',
+        section: 'General',
       ),
       _PreferenceItem(
-        'Wallet and rewards',
-        'Receive wallet, mining and reward updates',
-        'crypto_notifications',
+        'Chat notifications',
+        'Receive notifications for new messages',
+        'chat_notifications',
+        section: 'Messages',
+      ),
+      _PreferenceItem(
+        'Call notifications',
+        'Receive incoming and missed call alerts',
+        'call_notifications',
+        section: 'Messages',
       ),
       _PreferenceItem(
         'Message previews',
         'Include a short preview in notifications',
         'message_preview',
+        section: 'Messages',
       ),
       _PreferenceItem(
         'Camp Tale likes',
@@ -164,6 +159,12 @@ class NotificationSettingsScreen extends StatelessWidget {
         section: 'Griot Camp · Tales',
       ),
       _PreferenceItem(
+        'Campfire notifications',
+        'Receive Campfire invites, speaker requests and reminders',
+        'campfire_notifications',
+        section: 'Campfires',
+      ),
+      _PreferenceItem(
         'Invitations',
         'Notify me about Campfire invitations',
         'campfire_invites',
@@ -186,6 +187,12 @@ class NotificationSettingsScreen extends StatelessWidget {
         'Notify me when a followed Campfire goes live or ends',
         'campfire_live_activity',
         section: 'Campfires',
+      ),
+      _PreferenceItem(
+        'Wallet and rewards',
+        'Receive wallet, mining and reward updates',
+        'crypto_notifications',
+        section: 'Wallet and rewards',
       ),
       _PreferenceItem(
         'Camp profile follows',
