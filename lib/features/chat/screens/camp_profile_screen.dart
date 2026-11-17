@@ -719,18 +719,15 @@ class _CampProfileScreenState extends State<CampProfileScreen>
       floatingActionButton: widget.isPublic
           ? null
           : Padding(
-              // Match the Camp feed and the other primary screens: the
-              // extended action sits above the bottom navigation while
-              // remaining clear of the final card.
+              // Keep the profile action close to the bottom navigation. This
+              // screen is already inside the shell that owns the persistent
+              // nav, so the old large inset made the action float too high.
               // The global navigation belongs to the shell rather than
               // this nested Scaffold, so Flutter cannot reserve its
               // height automatically. Keep the action above that
               // overlay and its safe-area inset on every device.
               padding: EdgeInsets.only(
-                // Keep the extended FAB at the standard 16px gap above
-                // the persistent navigation instead of floating too far
-                // into the profile content.
-                bottom: 80 + MediaQuery.viewPaddingOf(context).bottom,
+                bottom: 20 + MediaQuery.viewPaddingOf(context).bottom,
                 right: 8,
               ),
               child: HeroMode(
