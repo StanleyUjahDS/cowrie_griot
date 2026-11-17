@@ -72,8 +72,10 @@ class _LocalTale {
   final String? retellSourceAuthorId;
   final String? retellSourceAuthorName;
   final String? retellSourceAuthorAvatarUrl;
+  final List<String> retellSourceMediaUrls;
   final String? threadOriginalAuthorName;
   final String? threadOriginalAuthorId;
+  final String? threadOriginalAuthorAvatarUrl;
   final List<String> threadParts;
   final List<List<String>> threadPartMediaUrls;
 
@@ -106,8 +108,10 @@ class _LocalTale {
     this.retellSourceAuthorId,
     this.retellSourceAuthorName,
     this.retellSourceAuthorAvatarUrl,
+    this.retellSourceMediaUrls = const [],
     this.threadOriginalAuthorName,
     this.threadOriginalAuthorId,
+    this.threadOriginalAuthorAvatarUrl,
     this.threadParts = const [],
     this.threadPartMediaUrls = const [],
   });
@@ -152,8 +156,10 @@ class _LocalTale {
     retellSourceAuthorId: retellSourceAuthorId,
     retellSourceAuthorName: retellSourceAuthorName,
     retellSourceAuthorAvatarUrl: retellSourceAuthorAvatarUrl,
+    retellSourceMediaUrls: retellSourceMediaUrls,
     threadOriginalAuthorName: threadOriginalAuthorName,
     threadOriginalAuthorId: threadOriginalAuthorId,
+    threadOriginalAuthorAvatarUrl: threadOriginalAuthorAvatarUrl,
     threadParts: threadParts ?? this.threadParts,
     threadPartMediaUrls: threadPartMediaUrls ?? this.threadPartMediaUrls,
   );
@@ -182,8 +188,10 @@ class _LocalTale {
     'retellSourceContent': retellSourceContent,
     'retellSourceAuthorId': retellSourceAuthorId,
     'retellSourceAuthorAvatarUrl': retellSourceAuthorAvatarUrl,
+    'retellSourceMediaUrls': retellSourceMediaUrls,
     'threadOriginalAuthorName': threadOriginalAuthorName,
     'threadOriginalAuthorId': threadOriginalAuthorId,
+    'threadOriginalAuthorAvatarUrl': threadOriginalAuthorAvatarUrl,
     'threadParts': threadParts,
     'threadPartMediaUrls': threadPartMediaUrls,
     'viewerVote': viewerVote,
@@ -540,6 +548,12 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                       retellSourceAuthor['avatarUrl'] ??
                       retellSourceAuthor['avatar_url'])
                   ?.toString(),
+          retellSourceMediaUrls: _mediaUrlList(
+            item['retellSourceMediaUrls'] ??
+                item['retell_source_media_urls'] ??
+                retellSource['mediaUrls'] ??
+                retellSource['media_urls'],
+          ),
           threadOriginalAuthorName:
               (item['threadOriginalAuthorName'] ??
                       item['thread_original_author_name'] ??
@@ -553,6 +567,12 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                       threadMeta['original_author_id'] ??
                       threadMeta['authorId'] ??
                       threadMeta['author_id'])
+                  ?.toString(),
+          threadOriginalAuthorAvatarUrl:
+              (item['threadOriginalAuthorAvatarUrl'] ??
+                      item['thread_original_author_avatar_url'] ??
+                      threadMeta['originalAuthorAvatarUrl'] ??
+                      threadMeta['original_author_avatar_url'])
                   ?.toString(),
           threadParts: _threadPartList(
             rawThreadParts,
@@ -2646,6 +2666,34 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                         ),
                   onSourceTap: () =>
                       context.push('/tale/${tale.retellSourceId}'),
+                  sourceMediaUrls: tale.retellSourceMediaUrls,
+                  mediaBuilder: (context, urls) =>
+                      _buildTaleGallery(context, urls),
+                ),
+                const SizedBox(height: 10),
+              ],
+              if (tale.retellSourceId == null &&
+                  tale.threadCount > 1 &&
+                  tale.threadPosition > 1 &&
+                  tale.threadParts.isNotEmpty) ...[
+                CampTaleReshareCard(
+                  label: 'Co-telling · Original Tale',
+                  sourceAuthorName: tale.threadOriginalAuthorName ?? '',
+                  sourceAuthorAvatarUrl: tale.threadOriginalAuthorAvatarUrl,
+                  sourceText: tale.threadParts.first,
+                  sourceMediaUrls: tale.threadPartMediaUrls.isNotEmpty
+                      ? tale.threadPartMediaUrls.first
+                      : const [],
+                  onAuthorTap: tale.threadOriginalAuthorId == null
+                      ? null
+                      : () => context.push(
+                          '/camp/profile/${tale.threadOriginalAuthorId}',
+                        ),
+                  onSourceTap: tale.threadId == null
+                      ? null
+                      : () => context.push('/tale/${tale.threadId}'),
+                  mediaBuilder: (context, urls) =>
+                      _buildTaleGallery(context, urls),
                 ),
                 const SizedBox(height: 10),
               ],

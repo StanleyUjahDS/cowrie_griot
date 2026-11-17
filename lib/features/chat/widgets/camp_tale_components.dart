@@ -86,103 +86,116 @@ class CampTaleReshareCard extends StatelessWidget {
     return InkWell(
       onTap: onSourceTap,
       borderRadius: BorderRadius.circular(16),
-      child: GriotBrandedContainer(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-        borderRadius: 16,
-        backgroundColor: colors.surfaceContainerHighest.withValues(alpha: .32),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.repeat_rounded,
-                        size: 17,
-                        color: colors.primary,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          label,
-                          style: TextStyle(
-                            color: colors.primary,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 12,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border(
+            left: BorderSide(
+              color: colors.primary.withValues(alpha: .8),
+              width: 3,
+            ),
+          ),
+        ),
+        child: GriotBrandedContainer(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+          borderRadius: 16,
+          backgroundColor: colors.surfaceContainerHighest.withValues(
+            alpha: .32,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.repeat_rounded,
+                          size: 17,
+                          color: colors.primary,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            label,
+                            style: TextStyle(
+                              color: colors.primary,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        if (onSourceTap != null)
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            size: 18,
+                            color: colors.onSurfaceVariant,
+                          ),
+                      ],
+                    ),
+                    if (sourceAuthorName.trim().isNotEmpty ||
+                        sourceAuthorAvatarUrl != null) ...[
+                      const SizedBox(height: 7),
+                      InkWell(
+                        onTap: onAuthorTap,
+                        borderRadius: BorderRadius.circular(10),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: Row(
+                            children: [
+                              GriotAvatar(
+                                radius: 14,
+                                avatarUrl: sourceAuthorAvatarUrl,
+                              ),
+                              const SizedBox(width: 7),
+                              Expanded(
+                                child: Text(
+                                  sourceAuthorName.trim().isEmpty
+                                      ? 'Original creator'
+                                      : sourceAuthorName,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: colors.onSurface,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                              if (onAuthorTap != null)
+                                Text(
+                                  'View profile',
+                                  style: TextStyle(
+                                    color: colors.primary,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
                       ),
-                      if (onSourceTap != null)
-                        Icon(
-                          Icons.chevron_right_rounded,
-                          size: 18,
-                          color: colors.onSurfaceVariant,
-                        ),
                     ],
-                  ),
-                  if (sourceAuthorName.trim().isNotEmpty ||
-                      sourceAuthorAvatarUrl != null) ...[
-                    const SizedBox(height: 7),
-                    InkWell(
-                      onTap: onAuthorTap,
-                      borderRadius: BorderRadius.circular(10),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 2),
-                        child: Row(
-                          children: [
-                            GriotAvatar(
-                              radius: 14,
-                              avatarUrl: sourceAuthorAvatarUrl,
-                            ),
-                            const SizedBox(width: 7),
-                            Expanded(
-                              child: Text(
-                                sourceAuthorName.trim().isEmpty
-                                    ? 'Original creator'
-                                    : sourceAuthorName,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: colors.onSurface,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
-                            if (onAuthorTap != null)
-                              Text(
-                                'View profile',
-                                style: TextStyle(
-                                  color: colors.primary,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                          ],
-                        ),
+                    const SizedBox(height: 4),
+                    Text(
+                      sourceText,
+                      maxLines: 4,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
+                        height: 1.3,
                       ),
                     ),
+                    if (sourceMediaUrls.isNotEmpty && mediaBuilder != null) ...[
+                      const SizedBox(height: 10),
+                      mediaBuilder!(context, sourceMediaUrls),
+                    ],
                   ],
-                  const SizedBox(height: 4),
-                  Text(
-                    sourceText,
-                    maxLines: 4,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: colors.onSurfaceVariant,
-                      height: 1.3,
-                    ),
-                  ),
-                  if (sourceMediaUrls.isNotEmpty && mediaBuilder != null) ...[
-                    const SizedBox(height: 10),
-                    mediaBuilder!(context, sourceMediaUrls),
-                  ],
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

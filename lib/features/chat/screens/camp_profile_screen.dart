@@ -1724,6 +1724,13 @@ class _CampProfileScreenState extends State<CampProfileScreen>
     final threadOriginalAuthor =
         '${tale['threadOriginalAuthorName'] ?? tale['thread_original_author_name'] ?? ''}'
             .trim();
+    final threadOriginalAuthorId =
+        (tale['threadOriginalAuthorId'] ?? tale['thread_original_author_id'])
+            ?.toString();
+    final threadOriginalAuthorAvatar =
+        (tale['threadOriginalAuthorAvatarUrl'] ??
+                tale['thread_original_author_avatar_url'])
+            ?.toString();
     final comments = tale['comment_count'] ?? tale['commentCount'] ?? 0;
     final category = '${tale['category'] ?? 'Personal'}';
     final nestedAuthor = tale['author'] is Map
@@ -1956,6 +1963,30 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                 ),
               ),
               const SizedBox(height: 9),
+              if (!isRetell &&
+                  threadPosition > 1 &&
+                  threadParts.isNotEmpty) ...[
+                CampTaleReshareCard(
+                  label: 'Co-telling · Original Tale',
+                  sourceAuthorName: threadOriginalAuthor,
+                  sourceAuthorAvatarUrl: threadOriginalAuthorAvatar,
+                  sourceText: '${threadParts.first['content'] ?? ''}'.trim(),
+                  sourceMediaUrls: threadParts.first['mediaUrls'] is List
+                      ? (threadParts.first['mediaUrls'] as List)
+                            .map((value) => value.toString())
+                            .toList()
+                      : const [],
+                  onAuthorTap: threadOriginalAuthorId == null
+                      ? null
+                      : () => _openAuthorCampProfile(threadOriginalAuthorId),
+                  onSourceTap: threadId == null
+                      ? null
+                      : () => context.push('/tale/$threadId'),
+                  mediaBuilder: (context, urls) =>
+                      _campTaleMediaGallery(context, urls),
+                ),
+                const SizedBox(height: 10),
+              ],
               if (threadParts.length > 1)
                 _profileThreadParts(
                   context,
@@ -2126,13 +2157,44 @@ class _CampProfileScreenState extends State<CampProfileScreen>
       sourceAuthorName: authorName ?? '',
       sourceAuthorAvatarUrl: authorAvatar,
       sourceText: source.isEmpty ? 'Original Tale' : source,
+      sourceMediaUrls: _retellSourceMediaUrls(tale),
       onAuthorTap: authorId == null
           ? null
           : () => _openAuthorCampProfile(authorId),
       onSourceTap: sourceId.isEmpty
           ? null
           : () => context.push('/tale/$sourceId'),
+      mediaBuilder: (context, urls) => _campTaleMediaGallery(context, urls),
     );
+  }
+
+  List<String> _retellSourceMediaUrls(Map<String, dynamic> tale) {
+    final source = tale['retellSource'] is Map
+        ? Map<String, dynamic>.from(tale['retellSource'] as Map)
+        : const <String, dynamic>{};
+    final raw =
+        tale['retellSourceMediaUrls'] ??
+        tale['retell_source_media_urls'] ??
+        source['mediaUrls'] ??
+        source['media_urls'];
+    final urls = raw is List
+        ? raw
+              .map((value) => value?.toString().trim())
+              .where((value) => value != null && value.isNotEmpty)
+              .cast<String>()
+              .toList()
+        : <String>[];
+    final single =
+        (tale['retellSourceMediaUrl'] ??
+                tale['retell_source_media_url'] ??
+                source['mediaUrl'] ??
+                source['media_url'])
+            ?.toString()
+            .trim();
+    if (single != null && single.isNotEmpty && !urls.contains(single)) {
+      urls.insert(0, single);
+    }
+    return urls;
   }
 
   String? _retellAuthorName(Map<String, dynamic> tale) {
