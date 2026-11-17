@@ -3198,6 +3198,20 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Keep the opening Tale in the card when the thread expands. The
+          // continuation rail is additive; expanding must never replace Part
+          // 1 with only the later parts.
+          CampTaleText(
+            key: ValueKey('text-$threadKey-primary-expanded'),
+            text: tale.text,
+            fontSize: 17,
+          ),
+          if (tale.threadPartMediaUrls.isNotEmpty &&
+              tale.threadPartMediaUrls.first.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _buildTaleGallery(context, tale.threadPartMediaUrls.first),
+          ],
+          const SizedBox(height: 12),
           if (expanded) ...[
             Row(
               children: [
