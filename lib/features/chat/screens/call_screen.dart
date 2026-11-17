@@ -22,8 +22,10 @@ import '../services/realtime_call_service.dart';
 import '../services/active_call_controller.dart';
 import '../services/messaging_api_service.dart';
 import '../models/space_model.dart';
+import '../models/chat_user.dart';
 import '../providers/messaging_provider.dart';
 import '../widgets/friend_selector_sheet.dart';
+import '../widgets/camp_tip_sheet.dart';
 
 enum _VideoThumbnailCorner { topLeft, topRight, bottomLeft, bottomRight }
 
@@ -73,6 +75,8 @@ class _CallScreenState extends State<CallScreen> {
   Widget? _localVideoView;
   int? _localViewId;
   final Map<String, Widget> _remoteVideoViews = <String, Widget>{};
+  final Map<String, int> _remoteVideoViewIds = <String, int>{};
+  final Map<String, bool> _remoteVideoViewFits = <String, bool>{};
   bool _showLocalMain = false;
   bool _showVideoControls = true;
   bool _usingFrontCamera = true;
@@ -89,6 +93,8 @@ class _CallScreenState extends State<CallScreen> {
   bool get _audioEnabled => _owner.audioEnabled;
   set _audioEnabled(bool value) => _owner.audioEnabled = value;
   bool _sharingLink = false;
+  bool _screenSharing = false;
+  final Set<String> _remoteScreenSharing = <String>{};
   String _localDisplayName = 'You';
   String _remoteDisplayName = '';
   String? _remoteAvatarUrl;
@@ -100,7 +106,8 @@ class _CallScreenState extends State<CallScreen> {
   bool _campfireCanPublish = true;
   bool _campfireL3Enabled = false;
   static const _callReactionChoices = ['👏', '❤️', '🔥', '😂', '🎉', '👍'];
-  static const _maxCampfireStageSeats = 8;
+  // Hosts plus up to eight additional speakers (nine people on stage).
+  static const _maxCampfireStageSeats = 9;
   static const _callReactionLibrary = [
     '😀',
     '😃',
@@ -158,6 +165,43 @@ class _CallScreenState extends State<CallScreen> {
     return value.isEmpty ? 'Campfire' : value;
   }
 
+  SpaceParticipant? get _campfireHost {
+    if (widget.conversationType != 'space') return null;
+    for (final participant in _spaceParticipants) {
+      if (participant.isOwner || participant.role == 'host') return participant;
+    }
+    return null;
+  }
+
+  Future<void> _tipCampfireHost() async {
+    final host = _campfireHost;
+    if (host == null || host.isSelf || host.id.trim().isEmpty) return;
+    var name = host.name;
+    var avatar = host.avatarUrl;
+    var wallet = '';
+    try {
+      final user = await context
+          .read<UserProvider>()
+          .userApiService
+          .getUserById(host.id);
+      name = user.effectiveName;
+      avatar = user.avatarUrl ?? avatar;
+      wallet = user.walletAddress;
+    } catch (_) {}
+    if (!mounted) return;
+    await CampTipSheet.show(
+      context,
+      recipient: ChatUser(
+        id: host.id,
+        walletAddress: wallet,
+        displayName: name,
+        profileUrl: avatar,
+        timestamp: DateTime.now(),
+      ),
+      metadata: {'surface': 'campfire', 'campfireId': widget.conversationId},
+    );
+  }
+
   /// Campfire audiences use ZEGOCLOUD's L3 distribution path once it has
   /// been enabled for the project. Direct and group calls stay on RTC.
   ZegoPlayerConfig _playerConfigForStream() {
@@ -207,6 +251,14 @@ class _CallScreenState extends State<CallScreen> {
       widget.conversationType == 'channel' ||
       _multiPartyMode ||
       _remoteStreams.length > 1;
+
+  // Participant moderation is available only in regular group/channel calls.
+  // Campfire audience members are listeners and should not receive moderator
+  // controls such as mute or screen sharing.
+  bool get _canMuteOtherParticipants =>
+      (widget.conversationType == 'group' ||
+          widget.conversationType == 'channel') &&
+      _isMultiPartyCall;
   late final String _roomId =
       widget.initialRoomId ??
       'griot-${widget.conversationType}-${widget.conversationId}';
@@ -399,10 +451,23 @@ class _CallScreenState extends State<CallScreen> {
     }
     _missingSelfRefreshes = 0;
     if (_campfireMicUpdating) return;
+    final canSpeak = _canCampfireSpeak(self);
+
+    // A listener may be promoted while the call is already open. Promotion
+    // must not force a headset/Bluetooth user onto the handset speaker: that
+    // route switch changes the phone's audio-volume mode and can make the
+    // Campfire suddenly sound quiet. Keep the current route; the user can
+    // switch to loudspeaker explicitly with the audio-route control.
     // A listener should not keep an outbound stream alive after losing the
     // speaking seat. Muting is enough for an admitted speaker, but removing
     // the stream saves audience-side RTC credit when moderation demotes them.
-    if (!_canCampfireSpeak(self) && _publishedStreamId != null) {
+    if (!canSpeak && _publishedStreamId != null) {
+      if (_screenSharing) {
+        try {
+          await _media.stopScreenSharing();
+        } catch (_) {}
+        _screenSharing = false;
+      }
       try {
         await ZegoExpressEngine.instance.stopPublishingStream();
       } catch (_) {}
@@ -410,7 +475,7 @@ class _CallScreenState extends State<CallScreen> {
       _campfireCanPublish = false;
     }
     // Server moderation may mute, but a refresh must never open a user's mic.
-    final mustMute = !_canCampfireSpeak(self) || self.muted;
+    final mustMute = !canSpeak || self.muted;
     if (mustMute && _audioEnabled && _engineCreated) {
       await ZegoExpressEngine.instance.mutePublishStreamAudio(true);
       if (mounted && !_cleaningUp) setState(() => _audioEnabled = false);
@@ -509,6 +574,7 @@ class _CallScreenState extends State<CallScreen> {
                     stream.streamID,
                     stream.extraInfo,
                   );
+                  _setRemoteScreenSharing(stream.streamID, stream.extraInfo);
                   // Once a second remote stream arrives, every mounted call
                   // view must use the multi-party presentation. This also
                   // covers a direct call that was upgraded while it was open.
@@ -521,14 +587,23 @@ class _CallScreenState extends State<CallScreen> {
                   if (mounted && !_cleaningUp) setState(() {});
                   unawaited(_loadStreamProfile(stream.streamID));
                   try {
-                    if (_videoCallActive) {
+                    if (_videoCallActive ||
+                        _remoteScreenSharing.contains(stream.streamID)) {
                       final view = await ZegoExpressEngine.instance
                           .createCanvasView((viewID) {
                             if (_cleaningUp || !_engineCreated) return;
                             unawaited(
                               ZegoExpressEngine.instance.startPlayingStream(
                                 stream.streamID,
-                                canvas: _callCanvas(viewID),
+                                // A shared screen must be letterboxed rather
+                                // than cropped; cropping hides the edges of
+                                // slides, documents and app windows.
+                                canvas: _callCanvas(
+                                  viewID,
+                                  fit: _remoteScreenSharing.contains(
+                                    stream.streamID,
+                                  ),
+                                ),
                                 config: _playerConfigForStream(),
                               ),
                             );
@@ -559,9 +634,19 @@ class _CallScreenState extends State<CallScreen> {
                     stream.streamID,
                   );
                 } catch (_) {}
+                final oldViewId = _remoteVideoViewIds.remove(stream.streamID);
+                if (oldViewId != null) {
+                  try {
+                    await ZegoExpressEngine.instance.destroyCanvasView(
+                      oldViewId,
+                    );
+                  } catch (_) {}
+                }
                 if (mounted) {
                   setState(() {
                     _remoteVideoViews.remove(stream.streamID);
+                    _remoteVideoViewIds.remove(stream.streamID);
+                    _remoteVideoViewFits.remove(stream.streamID);
                     if (_remoteVideoViews.isEmpty) _showLocalMain = false;
                   });
                 }
@@ -589,11 +674,16 @@ class _CallScreenState extends State<CallScreen> {
       };
       ZegoExpressEngine.onRoomStreamExtraInfoUpdate = (roomId, streams) {
         if (!mounted || _cleaningUp || roomId != s.roomId) return;
-        setState(() {
-          for (final stream in streams) {
-            _setRemoteMuteFromExtraInfo(stream.streamID, stream.extraInfo);
+        for (final stream in streams) {
+          _setRemoteMuteFromExtraInfo(stream.streamID, stream.extraInfo);
+          final wasSharing = _remoteScreenSharing.contains(stream.streamID);
+          _setRemoteScreenSharing(stream.streamID, stream.extraInfo);
+          final isSharing = _remoteScreenSharing.contains(stream.streamID);
+          if (!wasSharing && isSharing) {
+            unawaited(_ensureRemoteVideoView(stream.streamID));
           }
-        });
+        }
+        if (mounted) setState(() {});
       };
       ZegoExpressEngine.onIMRecvCustomCommand = (roomId, fromUser, command) {
         if (!mounted || _cleaningUp || roomId != s.roomId) return;
@@ -925,6 +1015,20 @@ class _CallScreenState extends State<CallScreen> {
     }
   }
 
+  void _setRemoteScreenSharing(String streamId, String extraInfo) {
+    if (streamId.isEmpty) return;
+    try {
+      final data = extraInfo.isEmpty ? null : jsonDecode(extraInfo);
+      if (data is Map && data['screenSharing'] == true) {
+        _remoteScreenSharing.add(streamId);
+      } else {
+        _remoteScreenSharing.remove(streamId);
+      }
+    } catch (_) {
+      // Ignore provider-specific metadata that is not valid JSON.
+    }
+  }
+
   Future<void> _toggleSpeaker() async {
     if (!_engineCreated || _cleaningUp) return;
     final next = !_speakerEnabled;
@@ -1109,6 +1213,90 @@ class _CallScreenState extends State<CallScreen> {
     }
   }
 
+  Future<void> _toggleScreenSharing() async {
+    if (_cleaningUp || !_started) return;
+    final self = _spaceParticipants.where((item) => item.isSelf).firstOrNull;
+    final canSpeak =
+        widget.conversationType != 'space' ||
+        self?.isOwner == true ||
+        self?.role == 'host' ||
+        self?.role == 'cohost' ||
+        self?.role == 'speaker';
+    if (!canSpeak) {
+      _showCallNotice(
+        'Screen sharing unavailable',
+        'You need speaker access first.',
+      );
+      return;
+    }
+    try {
+      if (_screenSharing) {
+        await _media.stopScreenSharing();
+        await ZegoExpressEngine.instance.mutePublishStreamVideo(!_videoEnabled);
+        await ZegoExpressEngine.instance.setStreamExtraInfo(
+          jsonEncode({'muted': !_audioEnabled, 'screenSharing': false}),
+        );
+      } else {
+        if (_publishedStreamId == null) {
+          _showCallNotice(
+            'Screen sharing unavailable',
+            'Your audio stream is not ready. Rejoin the call and try again.',
+          );
+          return;
+        }
+        final shareMode = await showModalBottomSheet<bool>(
+          context: context,
+          showDragHandle: true,
+          builder: (sheetContext) => SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const ListTile(
+                  leading: Icon(Icons.screen_share_rounded),
+                  title: Text('Share your screen'),
+                  subtitle: Text('Choose what other people can see'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.phone_android_rounded),
+                  title: const Text('Entire screen'),
+                  subtitle: const Text(
+                    'Share apps, notifications and everything visible',
+                  ),
+                  onTap: () => Navigator.pop(sheetContext, false),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.apps_rounded),
+                  title: const Text('This app only'),
+                  subtitle: const Text('Share only the Griot app window'),
+                  onTap: () => Navigator.pop(sheetContext, true),
+                ),
+              ],
+            ),
+          ),
+        );
+        if (shareMode == null) return;
+        await _media.startScreenSharing(inApp: shareMode);
+        await ZegoExpressEngine.instance.mutePublishStreamVideo(false);
+        await ZegoExpressEngine.instance.setStreamExtraInfo(
+          jsonEncode({'muted': !_audioEnabled, 'screenSharing': true}),
+        );
+      }
+      if (mounted) setState(() => _screenSharing = !_screenSharing);
+    } catch (error) {
+      try {
+        await _media.stopScreenSharing();
+      } catch (_) {}
+      if (mounted) {
+        _showCallNotice(
+          'Could not share your screen',
+          'Allow screen recording when your device asks, then try again.',
+          icon: Icons.screen_share_rounded,
+        );
+      }
+      debugPrint('Screen sharing failed: $error');
+    }
+  }
+
   Future<void> _ensureLocalPreview() async {
     if (!_engineCreated) return;
     if (_localVideoView != null && _localViewId != null) {
@@ -1129,15 +1317,29 @@ class _CallScreenState extends State<CallScreen> {
   }
 
   Future<void> _ensureRemoteVideoView(String streamId) async {
-    if (!_engineCreated || _remoteVideoViews.containsKey(streamId)) return;
+    if (!_engineCreated) return;
+    final fit = _remoteScreenSharing.contains(streamId);
+    if (_remoteVideoViews.containsKey(streamId) &&
+        _remoteVideoViewFits[streamId] == fit) {
+      return;
+    }
+    final oldViewId = _remoteVideoViewIds.remove(streamId);
+    if (_remoteVideoViews.containsKey(streamId) && oldViewId != null) {
+      try {
+        await ZegoExpressEngine.instance.destroyCanvasView(oldViewId);
+      } catch (_) {}
+    }
+    _remoteVideoViews.remove(streamId);
+    _remoteVideoViewFits.remove(streamId);
     try {
       await ZegoExpressEngine.instance.stopPlayingStream(streamId);
     } catch (_) {}
     final view = await ZegoExpressEngine.instance.createCanvasView((viewID) {
+      _remoteVideoViewIds[streamId] = viewID;
       unawaited(
         ZegoExpressEngine.instance.startPlayingStream(
           streamId,
-          canvas: _callCanvas(viewID),
+          canvas: _callCanvas(viewID, fit: fit),
           config: _playerConfigForStream(),
         ),
       );
@@ -1145,6 +1347,7 @@ class _CallScreenState extends State<CallScreen> {
     if (mounted && view != null) {
       setState(() {
         _remoteVideoViews[streamId] = view;
+        _remoteVideoViewFits[streamId] = fit;
         _showLocalMain = false;
       });
     }
@@ -1226,7 +1429,12 @@ class _CallScreenState extends State<CallScreen> {
   }
 
   Future<void> _requestMuteParticipant(String streamId) async {
-    if (_cleaningUp || !_started || streamId.isEmpty) return;
+    if (_cleaningUp ||
+        !_started ||
+        streamId.isEmpty ||
+        !_canMuteOtherParticipants) {
+      return;
+    }
     final targetId =
         _profileForStream(streamId)?['id']?.toString() ??
         _streamOwnerId(streamId);
@@ -1242,6 +1450,17 @@ class _CallScreenState extends State<CallScreen> {
         }),
         [ZegoUser(targetId, targetId)],
       );
+      if (mounted) {
+        final targetName =
+            _profileForStream(streamId)?['display_name']?.toString() ??
+            _profileForStream(streamId)?['username']?.toString() ??
+            'Participant';
+        _showCallNotice(
+          muted ? 'Participant muted' : 'Participant unmuted',
+          '$targetName has been ${muted ? 'muted' : 'unmuted'} for this call.',
+          icon: muted ? Icons.mic_off_rounded : Icons.mic_rounded,
+        );
+      }
     } catch (error) {
       if (mounted) {
         _showCallNotice(
@@ -1778,6 +1997,13 @@ class _CallScreenState extends State<CallScreen> {
                                                     value: 'mute',
                                                     child: Text('Mute'),
                                                   ),
+                                                if (participant.muted &&
+                                                    participant.role !=
+                                                        'listener')
+                                                  const PopupMenuItem(
+                                                    value: 'unmute',
+                                                    child: Text('Unmute'),
+                                                  ),
                                                 const PopupMenuItem(
                                                   value: 'remove',
                                                   child: Text(
@@ -1882,6 +2108,10 @@ class _CallScreenState extends State<CallScreen> {
     _soundLevelFrameTimer?.cancel();
     _soundLevelFrameTimer = null;
     _remoteMuted.clear();
+    _remoteScreenSharing.clear();
+    _remoteVideoViewIds.clear();
+    _remoteVideoViewFits.clear();
+    _remoteVideoViews.clear();
     await _media.close();
     _remoteVideoViews.clear();
     _localViewId = null;
@@ -2043,6 +2273,13 @@ class _CallScreenState extends State<CallScreen> {
                 icon: const Icon(Icons.person_add_alt_1_rounded),
               ),
             if (widget.conversationType == 'space')
+              if (_campfireHost != null && !_campfireHost!.isSelf)
+                IconButton(
+                  tooltip: 'Tip Campfire host',
+                  onPressed: _tipCampfireHost,
+                  icon: const Icon(Icons.volunteer_activism_outlined),
+                ),
+            if (widget.conversationType == 'space')
               IconButton(
                 tooltip: 'Participants and controls',
                 onPressed: _showSpaceControls,
@@ -2056,7 +2293,9 @@ class _CallScreenState extends State<CallScreen> {
                   padding: EdgeInsets.all(32),
                   child: CircularProgressIndicator(),
                 )
-              : _videoCallActive
+              : (_videoCallActive ||
+                    _screenSharing ||
+                    _remoteScreenSharing.isNotEmpty)
               ? _buildVideoCallBody(c)
               : _buildVoiceCallBody(c),
         ),
@@ -2071,9 +2310,7 @@ class _CallScreenState extends State<CallScreen> {
     if (_isMultiPartyCall) {
       return _buildGroupVoiceBody(colors);
     }
-    final title = widget.conversationType == 'space'
-        ? 'Voice Campfire'
-        : _remoteCallLabel();
+    final title = _remoteCallLabel();
     final subtitle = _started ? _status : 'Connecting securely';
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 14),
@@ -2090,7 +2327,7 @@ class _CallScreenState extends State<CallScreen> {
                     top: 0,
                     right: 0,
                     child: _CallStatusPill(
-                      label: _started ? 'BURNING' : 'CONNECTING',
+                      label: _started ? 'LIVE' : 'CONNECTING',
                       colors: colors,
                       live: _started,
                     ),
@@ -2200,7 +2437,6 @@ class _CallScreenState extends State<CallScreen> {
               ),
             ),
           const SizedBox(height: 10),
-          const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
@@ -2269,7 +2505,9 @@ class _CallScreenState extends State<CallScreen> {
             : !(_remoteMuted[streamId] ?? false) &&
                   (_remoteSoundLevels[streamId] ?? 0) > 0.04,
         muted: isLocal ? !_audioEnabled : (_remoteMuted[streamId] ?? false),
-        onLongPress: isLocal ? null : () => _requestMuteParticipant(streamId),
+        onLongPress: !isLocal && _canMuteOtherParticipants
+            ? () => _requestMuteParticipant(streamId)
+            : null,
         avatarUrl: isLocal
             ? context.read<UserProvider>().user?.avatarUrl
             : (_avatarUrlFromProfile(profile) ??
@@ -2793,6 +3031,9 @@ class _CallScreenState extends State<CallScreen> {
                           padding: EdgeInsets.zero,
                           borderRadius: 16,
                           blurSigma: 0,
+                          backgroundColor: participantSpeaking
+                              ? colors.primary.withValues(alpha: .20)
+                              : null,
                           // The fire/speaking overlay is clipped inside this
                           // card, while the normal Griot border remains visible
                           // even when the participant is quiet.
@@ -3242,7 +3483,7 @@ class _CallScreenState extends State<CallScreen> {
                 ),
                 onPressed: _handleCampfireExit,
                 icon: const Icon(Icons.call_end_rounded),
-                label: const Text('End call'),
+                label: Text(_callExitLabel),
               ),
             ),
           ],
@@ -3301,6 +3542,9 @@ class _CallScreenState extends State<CallScreen> {
           soundLevel: widget.conversationType == 'space' && streamId != null
               ? (_remoteSoundLevels[streamId] ?? 0)
               : 0,
+          onLongPress: streamId != null && _canMuteOtherParticipants
+              ? () => _requestMuteParticipant(streamId)
+              : null,
         ),
       );
     }
@@ -3386,7 +3630,7 @@ class _CallScreenState extends State<CallScreen> {
                 ),
                 onPressed: _handleCampfireExit,
                 icon: const Icon(Icons.call_end_rounded),
-                label: const Text('End call'),
+                label: Text(_callExitLabel),
               ),
             ),
           ],
@@ -3443,108 +3687,112 @@ class _CallScreenState extends State<CallScreen> {
     bool muted = false,
     bool speaking = false,
     double soundLevel = 0,
+    VoidCallback? onLongPress,
   }) {
     return _SpeakingRing(
       active: speaking,
       intensity: soundLevel,
       fireEffect: false,
-      child: GriotBrandedContainer(
-        padding: EdgeInsets.zero,
-        borderRadius: 22,
-        blurSigma: 0,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(22),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              _coverVideo(view),
-              if (speaking)
-                Positioned(
-                  top: 10,
-                  right: muted ? 54 : 10,
-                  child: _AudioInputShimmer(
-                    active: true,
-                    color: Colors.white,
-                    intensity: soundLevel,
-                    width: 64,
-                    height: 18,
-                  ),
-                ),
-              if (speakerRequested)
-                Positioned(
-                  top: 10,
-                  left: 10,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: colors.tertiaryContainer,
-                      shape: BoxShape.circle,
+      child: GestureDetector(
+        onLongPress: onLongPress,
+        child: GriotBrandedContainer(
+          padding: EdgeInsets.zero,
+          borderRadius: 22,
+          blurSigma: 0,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(22),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                _coverVideo(view),
+                if (speaking)
+                  Positioned(
+                    top: 10,
+                    right: muted ? 54 : 10,
+                    child: _AudioInputShimmer(
+                      active: true,
+                      color: Colors.white,
+                      intensity: soundLevel,
+                      width: 64,
+                      height: 18,
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(5),
-                      child: Icon(
-                        Icons.front_hand_rounded,
-                        size: 16,
-                        color: colors.onTertiaryContainer,
+                  ),
+                if (speakerRequested)
+                  Positioned(
+                    top: 10,
+                    left: 10,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: colors.tertiaryContainer,
+                        shape: BoxShape.circle,
                       ),
-                    ),
-                  ),
-                ),
-              if (muted)
-                Positioned(
-                  top: 10,
-                  right: 10,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: colors.error.withValues(alpha: 0.92),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(6),
-                      child: Icon(
-                        Icons.mic_off_rounded,
-                        size: 16,
-                        color: colors.onError,
-                      ),
-                    ),
-                  ),
-                ),
-              Positioned(
-                left: 10,
-                bottom: 10,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _VideoLabel(
-                      label: local ? '$label (You)' : label,
-                      colors: colors,
-                    ),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 3),
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: .52),
-                          borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.all(5),
+                        child: Icon(
+                          Icons.front_hand_rounded,
+                          size: 16,
+                          color: colors.onTertiaryContainer,
                         ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 7,
-                            vertical: 3,
+                      ),
+                    ),
+                  ),
+                if (muted)
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: colors.error.withValues(alpha: 0.92),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Icon(
+                          Icons.mic_off_rounded,
+                          size: 16,
+                          color: colors.onError,
+                        ),
+                      ),
+                    ),
+                  ),
+                Positioned(
+                  left: 10,
+                  bottom: 10,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _VideoLabel(
+                        label: local ? '$label (You)' : label,
+                        colors: colors,
+                      ),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 3),
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: .52),
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          child: Text(
-                            subtitle,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 3,
+                            ),
+                            child: Text(
+                              subtitle,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -3627,6 +3875,7 @@ class _CallScreenState extends State<CallScreen> {
           ZegoAudioRoute.AirPlay => 'AirPlay',
           ZegoAudioRoute.Receiver => 'Earpiece',
         },
+        active: _audioRoute == ZegoAudioRoute.Speaker,
         onPressed: _toggleSpeaker,
         compact: compact,
       ),
@@ -3646,6 +3895,7 @@ class _CallScreenState extends State<CallScreen> {
         _CallControl(
           icon: _audioEnabled ? Icons.mic_rounded : Icons.mic_off_rounded,
           label: _audioEnabled ? 'Mute' : 'Unmute',
+          active: _audioEnabled,
           onPressed: _toggleAudio,
           compact: compact,
         ),
@@ -3662,6 +3912,8 @@ class _CallScreenState extends State<CallScreen> {
         ),
       );
     }
+    // Listeners can raise their hand, but do not get a screen-share control.
+    // Screen sharing is reserved for the host, co-hosts and stage speakers.
     if (widget.conversationType != 'space' || (canSpeak && _videoCallActive)) {
       controls.addAll([
         _CallControl(
@@ -3680,6 +3932,23 @@ class _CallScreenState extends State<CallScreen> {
             compact: compact,
           ),
       ]);
+    }
+    // Screen sharing is available in voice calls as well as video calls. It
+    // publishes a video track without turning on the user's camera, so a
+    // Campfire host or approved speaker can share slides, an app or their
+    // entire screen while keeping the room audio-only.
+    if (canSpeak) {
+      controls.add(
+        _CallControl(
+          icon: _screenSharing
+              ? Icons.stop_screen_share_rounded
+              : Icons.screen_share_rounded,
+          label: _screenSharing ? 'Stop sharing' : 'Share screen',
+          active: _screenSharing,
+          onPressed: _toggleScreenSharing,
+          compact: compact,
+        ),
+      );
     }
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -3702,9 +3971,9 @@ class _CallScreenState extends State<CallScreen> {
   /// Configures Zego's native surface to fit the masked call canvas without
   /// cropping the camera frame. A Flutter scale transform cannot reliably
   /// resize a platform view on every device.
-  ZegoCanvas _callCanvas(int viewId) => ZegoCanvas(
+  ZegoCanvas _callCanvas(int viewId, {bool fit = false}) => ZegoCanvas(
     viewId,
-    viewMode: ZegoViewMode.AspectFill,
+    viewMode: fit ? ZegoViewMode.AspectFit : ZegoViewMode.AspectFill,
     backgroundColor: 0x000000,
   );
 
@@ -4279,12 +4548,14 @@ class _CallControl extends StatelessWidget {
   final String label;
   final VoidCallback onPressed;
   final Color? foregroundColor;
+  final bool active;
   final bool compact;
   const _CallControl({
     required this.icon,
     required this.label,
     required this.onPressed,
     this.foregroundColor,
+    this.active = false,
     this.compact = false,
   });
   @override
@@ -4305,10 +4576,12 @@ class _CallControl extends StatelessWidget {
           icon: Icon(icon, size: 22),
           style: IconButton.styleFrom(
             minimumSize: Size.square(compact ? 48 : 54),
-            backgroundColor: colors.surfaceContainerHighest.withValues(
-              alpha: .82,
-            ),
-            foregroundColor: foregroundColor ?? colors.onSurface,
+            backgroundColor: active
+                ? colors.primary
+                : colors.surfaceContainerHighest.withValues(alpha: .82),
+            foregroundColor:
+                foregroundColor ??
+                (active ? colors.onPrimary : colors.onSurface),
             shape: const CircleBorder(),
           ),
         ),
