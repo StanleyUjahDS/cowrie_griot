@@ -380,11 +380,6 @@ class _TalePublicScreenState extends State<TalePublicScreen>
                     ),
                   );
                 }),
-                TextButton.icon(
-                  onPressed: () => setState(() => _threadExpanded = false),
-                  icon: const Icon(Icons.expand_less),
-                  label: const Text('Show fewer parts'),
-                ),
               ],
             ),
           ),
