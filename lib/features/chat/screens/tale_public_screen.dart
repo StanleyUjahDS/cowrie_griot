@@ -191,6 +191,14 @@ class _TalePublicScreenState extends State<TalePublicScreen>
           return itemPosition != currentPosition;
         }).toList();
         if (items.isEmpty) return const SizedBox.shrink();
+        final firstPart = allItems.cast<Map<String, dynamic>?>().firstWhere(
+          (item) =>
+              int.tryParse(
+                '${item?['threadPosition'] ?? item?['thread_position'] ?? 1}',
+              ) ==
+              1,
+          orElse: () => null,
+        );
         // Keep the continuation visually attached to the primary Tale card.
         // The parts are one reading surface, not a list of unrelated cards.
         return Padding(
@@ -201,6 +209,30 @@ class _TalePublicScreenState extends State<TalePublicScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (currentPosition > 1 && firstPart != null) ...[
+                  CampTaleReshareCard(
+                    label: 'Co-telling · Original Tale',
+                    sourceAuthorName:
+                        '${tale['threadOriginalAuthorName'] ?? tale['thread_original_author_name'] ?? ''}',
+                    sourceAuthorAvatarUrl:
+                        '${tale['threadOriginalAuthorAvatarUrl'] ?? tale['thread_original_author_avatar_url'] ?? ''}',
+                    sourceText:
+                        '${firstPart['content'] ?? firstPart['text'] ?? ''}'
+                            .trim(),
+                    sourceMediaUrls: _mediaUrls(firstPart),
+                    onAuthorTap: _threadOriginalAuthorId(tale) == null
+                        ? null
+                        : () => context.push(
+                            '/camp/profile/${_threadOriginalAuthorId(tale)}',
+                          ),
+                    onSourceTap: firstPart['id'] == null
+                        ? null
+                        : () => context.push('/tale/${firstPart['id']}'),
+                    mediaBuilder: (context, urls) =>
+                        _mediaGallery({'mediaUrls': urls}),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 Row(
                   children: [
                     Icon(
