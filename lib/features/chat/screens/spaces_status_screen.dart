@@ -2337,9 +2337,11 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
   bool _shouldInsertTaleAd(int index) {
     // Wider, intentionally uneven gaps keep the feed from feeling like an
     // ad grid while still giving ads predictable, viewable breaks.
-    const breaks = <int>{4, 9, 15, 22};
+    // The first placement is after the third Tale so a normal feed page can
+    // actually reach an ad; later placements remain spaced farther apart.
+    const breaks = <int>{2, 8, 15, 23};
     if (breaks.contains(index)) return true;
-    return index > 22 && (index - 22) % 9 == 0;
+    return index > 23 && (index - 23) % 9 == 0;
   }
 
   Widget _taleSeparator(BuildContext context) {

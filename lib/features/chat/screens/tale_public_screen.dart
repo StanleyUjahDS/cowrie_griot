@@ -554,6 +554,13 @@ class _TalePublicScreenState extends State<TalePublicScreen>
                     ),
                   ),
                 ),
+              const SizedBox(height: 10),
+              CampNativeAdCard(
+                key: ValueKey('comments-native-ad-$_commentTargetTaleId'),
+                placement: 'Comments',
+                compact: true,
+                height: 250,
+              ),
             ],
           ),
         );
