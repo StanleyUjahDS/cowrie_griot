@@ -1,45 +1,9 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/services/notification_service.dart';
-import 'package:image/image.dart' as img;
 import 'package:video_trimmer/video_trimmer.dart';
-
-Future<String> _squareGifWorker(Map<String, dynamic> args) async {
-  final sourcePath = args['sourcePath'] as String;
-  final horizontal = (args['horizontal'] as num).toDouble();
-  final vertical = (args['vertical'] as num).toDouble();
-  final decoded = await img.decodeGifFile(sourcePath);
-  if (decoded == null) throw Exception('GIF could not be decoded');
-  final side = decoded.width < decoded.height ? decoded.width : decoded.height;
-  final square = img.copyCrop(
-    decoded,
-    x: ((decoded.width - side) * horizontal).round(),
-    y: ((decoded.height - side) * vertical).round(),
-    width: side,
-    height: side,
-  );
-  for (var i = 0; i < square.frames.length; i++) {
-    square.frames[i].frameDuration = decoded.frames[i].frameDuration;
-  }
-  square.loopCount = 0;
-  final outputPath =
-      '${sourcePath.substring(0, sourcePath.length - 4)}_square.gif';
-  if (!await img.encodeGifFile(
-    outputPath,
-    square,
-    // Use the densest palette sample and serpentine dithering so gradients and
-    // skin tones do not turn into the blocky, posterised look of a default
-    // GIF export. The conversion remains off the UI isolate.
-    samplingFactor: 1,
-    ditherScanOrder: img.DitherScanOrder.serpentine,
-  )) {
-    throw Exception('Square GIF could not be written');
-  }
-  return outputPath;
-}
 
 /// Native trim editor for video stickers. The exported clip is what is stored
 /// locally and uploaded, so the original long video never becomes a sticker.
@@ -99,14 +63,10 @@ class _StickerVideoEditorState extends State<StickerVideoEditor> {
       await _trimmer.saveTrimmedVideo(
         startValue: _start,
         endValue: _end,
-        outputType: OutputType.gif,
-        // Keep enough source detail for a clean sticker at chat-display size.
-        // GIF is palette-limited, so the previous 480px/10fps export looked
-        // visibly pixelated and motion was choppy after the square pass.
-        // The short 1.5s duration keeps the higher-quality export bounded.
-        fpsGIF: 15,
-        scaleGIF: 720,
-        qualityGIF: 95,
+        // Preserve the source video codec and full colour depth. Converting
+        // to GIF makes gradients and faces visibly posterised because GIF is
+        // limited to 256 colours.
+        outputType: OutputType.video,
         onSave: (outputPath) {
           if (outputPath == null || outputPath.isEmpty) {
             if (!mounted) return;
@@ -117,13 +77,12 @@ class _StickerVideoEditorState extends State<StickerVideoEditor> {
             );
             return;
           }
-          if (mounted) {
-            setState(() {
-              _saveProgress = .42;
-              _saveStage = 'Framing the sticker…';
-            });
-          }
-          unawaited(_squareGif(outputPath));
+          if (!mounted) return;
+          setState(() {
+            _saveProgress = .94;
+            _saveStage = 'Finishing sticker…';
+          });
+          Navigator.of(context).pop(outputPath);
         },
       );
     } catch (_) {
@@ -132,38 +91,6 @@ class _StickerVideoEditorState extends State<StickerVideoEditor> {
       NotificationService.showError(
         context,
         'Could not create the sticker clip.',
-      );
-    }
-  }
-
-  Future<void> _squareGif(String sourcePath) async {
-    try {
-      // GIF decoding/quantisation is CPU-heavy. Keep it off Flutter's UI
-      // isolate so the sticker tray remains responsive while the preview is
-      // being exported.
-      final outputPath = await compute(_squareGifWorker, {
-        'sourcePath': sourcePath,
-        'horizontal': _cropHorizontal,
-        'vertical': _cropVertical,
-      });
-      if (mounted) {
-        setState(() {
-          _saveProgress = .94;
-          _saveStage = 'Finishing sticker…';
-        });
-      }
-      final original = File(sourcePath);
-      if (original.existsSync()) await original.delete();
-      if (mounted) {
-        setState(() => _saveProgress = 1);
-        Navigator.of(context).pop(outputPath);
-      }
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _saving = false);
-      NotificationService.showError(
-        context,
-        'Could not create a square sticker.',
       );
     }
   }
@@ -180,7 +107,7 @@ class _StickerVideoEditorState extends State<StickerVideoEditor> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'Frame video sticker',
+                'Trim video sticker',
                 style: Theme.of(
                   context,
                 ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
@@ -329,7 +256,7 @@ class _StickerVideoEditorState extends State<StickerVideoEditor> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Up to 1.5 seconds · high-quality animated sticker',
+                'Up to 1.5 seconds · original video quality preserved',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: colors.onSurfaceVariant),
               ),
