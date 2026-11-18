@@ -56,9 +56,18 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
       // A single tap on the active destination is intentionally a no-op.
       // Return-to-top and refresh are reserved for a deliberate double tap.
       if (!isDoubleTap) return;
-      widget.navigationShell.goBranch(index, initialLocation: true);
+      // Emit the signal before changing the branch location so an already
+      // mounted screen can react immediately. The post-frame signal below is
+      // also needed when goBranch restores a nested route and rebuilds its
+      // scroll view; otherwise the first notification can arrive while the
+      // controller has no clients and the visible list stays scrolled down.
       NavigationScrollService.instance.scrollToTop(index);
       NavigationScrollService.instance.refreshBranch(index);
+      widget.navigationShell.goBranch(index, initialLocation: true);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        NavigationScrollService.instance.scrollToTop(index);
+      });
       return;
     }
 
