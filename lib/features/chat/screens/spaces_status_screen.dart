@@ -2123,44 +2123,6 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
       key: const ValueKey('campfire-tales'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        CampTaleCardSurface(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          margin: const EdgeInsets.only(bottom: 12),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(14),
-            onTap: () => context.push('/camp/status'),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      colors: [colors.primary, colors.tertiary],
-                    ),
-                  ),
-                  child: const Icon(Icons.auto_awesome_rounded),
-                ),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Camp Status',
-                        style: TextStyle(fontWeight: FontWeight.w900),
-                      ),
-                      SizedBox(height: 2),
-                      Text('Share an update with your Camp for 24 hours'),
-                    ],
-                  ),
-                ),
-                Icon(Icons.chevron_right_rounded, color: colors.primary),
-              ],
-            ),
-          ),
-        ),
         _lineSwitch(
           options: const [
             ('public', 'Public', Icons.public_rounded),
