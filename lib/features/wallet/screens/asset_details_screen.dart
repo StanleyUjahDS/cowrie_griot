@@ -10,7 +10,7 @@ import '../widgets/token_icon.dart';
 import '../utils/wallet_formatters.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../core/services/notification_service.dart';
-import '../../../core/ui/widgets/banner_ad.dart';
+import '../../../core/ui/widgets/branded_native_ad_card.dart';
 
 class AssetDetailsScreen extends StatelessWidget {
   final TokenModel token;
@@ -333,7 +333,10 @@ class AssetDetailsScreen extends StatelessWidget {
                     const SizedBox(height: 48),
 
                     // Ad Space
-                    const GriotBannerAd(),
+                    const BrandedNativeAdCard(
+                      placement: 'Wallet · Asset',
+                      height: 250,
+                    ),
 
                     const SizedBox(height: 80),
                   ],

@@ -5,7 +5,7 @@ import '../../../core/ui/widgets/griot_branded_container.dart';
 import '../../../core/ui/widgets/griot_avatar.dart';
 import '../../../core/ui/widgets/griot_plus_badge.dart';
 import '../../../core/ui/widgets/griot_pioneer_badge.dart';
-import '../../../core/ui/widgets/native_ad.dart';
+import '../../../core/ui/widgets/branded_native_ad_card.dart';
 import '../../../core/theme/app_text.dart';
 import '../services/messaging_api_service.dart';
 
@@ -339,62 +339,11 @@ class CampNativeAdCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return GriotNativeAd(
+    return BrandedNativeAdCard(
       key: adKey,
-      // Camp uses the full native layout so body copy and the CTA are not
-      // silently removed by the compact factory variant.
+      placement: placement,
       compact: compact,
       height: height ?? (compact ? 250 : 420),
-      cardBuilder: (context, ad) => CampTaleCardSurface(
-        padding: EdgeInsets.zero,
-        margin: const EdgeInsets.symmetric(vertical: 6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.campaign_outlined,
-                    size: 15,
-                    color: colors.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Sponsored',
-                    style: TextStyle(
-                      color: colors.onSurfaceVariant,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: .2,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    placement,
-                    style: TextStyle(
-                      color: colors.onSurfaceVariant.withValues(alpha: .72),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                bottom: Radius.circular(24),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                child: ad,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

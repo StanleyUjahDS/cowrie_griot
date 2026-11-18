@@ -8,7 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import '../models/token_model.dart';
 import '../providers/wallet_provider.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
-import '../../../core/ui/widgets/banner_ad.dart';
+import '../../../core/ui/widgets/branded_native_ad_card.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/ui/widgets/griot_branded_container.dart';
 
@@ -425,7 +425,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
               ),
             ),
           ),
-          const GriotBannerAd(),
+          const BrandedNativeAdCard(placement: 'Wallet · Receive', height: 250),
         ],
       ),
     );

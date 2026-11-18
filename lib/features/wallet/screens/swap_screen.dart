@@ -14,7 +14,7 @@ import '../services/transaction_api_service.dart';
 import '../widgets/token_icon.dart';
 import '../utils/wallet_formatters.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
-import '../../../core/ui/widgets/banner_ad.dart';
+import '../../../core/ui/widgets/branded_native_ad_card.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/utils/transaction_logger.dart';
 
@@ -1303,7 +1303,7 @@ class _SwapScreenState extends State<SwapScreen> {
                 ],
               ),
             ),
-            const GriotBannerAd(),
+            const BrandedNativeAdCard(placement: 'Wallet · Swap', height: 250),
           ],
         ),
       ),

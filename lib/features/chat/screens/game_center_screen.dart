@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:http/http.dart' as http;
-import '../../../core/ui/widgets/native_ad.dart';
+import '../../../core/ui/widgets/branded_native_ad_card.dart';
 
 const _feed =
     'https://feeds.gamepix.com/v2/json?sid=7EI8T&pagination=96&page=1&order=quality';
@@ -357,15 +357,10 @@ class _GameNativeAdCard extends StatelessWidget {
   const _GameNativeAdCard();
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    // Give the ad a proper media panel, header, and bottom CTA instead of
-    // treating it like a small square floating in an empty card.
+  Widget build(BuildContext context) => const BrandedNativeAdCard(
+    placement: 'Game Center',
+    compact: true,
     height: 350,
-    width: double.infinity,
-    child: ClipRRect(
-      borderRadius: BorderRadius.circular(18),
-      child: const GriotNativeAd(compact: true, height: 350),
-    ),
   );
 }
 

@@ -13,7 +13,7 @@ import '../services/transaction_api_service.dart';
 import '../services/wallet_service.dart';
 import '../utils/wallet_formatters.dart';
 import '../widgets/token_icon.dart';
-import '../../../core/ui/widgets/banner_ad.dart';
+import '../../../core/ui/widgets/branded_native_ad_card.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../core/utils/transaction_logger.dart';
@@ -239,7 +239,7 @@ class _SendScreenState extends State<SendScreen> {
       if (mounted) {
         if (status == 'CONFIRMED') {
           NotificationService.showSuccess(context, 'Sent successfully!');
-          navigator.pop();
+          navigator.pop(hash);
         } else if (status == 'FAILED') {
           NotificationService.showError(
             context,
@@ -247,7 +247,7 @@ class _SendScreenState extends State<SendScreen> {
           );
         } else {
           NotificationService.showInfo(context, 'Transaction pending.');
-          navigator.pop();
+          navigator.pop(hash);
         }
       }
     } catch (e) {
@@ -871,7 +871,10 @@ class _SendScreenState extends State<SendScreen> {
               left: 0,
               right: 0,
               bottom: 0,
-              child: GriotBannerAd(),
+              child: BrandedNativeAdCard(
+                placement: 'Wallet · Send',
+                height: 250,
+              ),
             ),
           ],
         ),
