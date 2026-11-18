@@ -537,13 +537,22 @@ class _TalePublicScreenState extends State<TalePublicScreen>
                   style: TextStyle(color: colors.onSurfaceVariant),
                 )
               else
-                ...visibleRoots.map(
-                  (comment) => _commentTile(
+                for (var index = 0; index < visibleRoots.length; index++) ...[
+                  _commentTile(
                     context,
-                    comment,
-                    replies[comment['id']?.toString()] ?? const [],
+                    visibleRoots[index],
+                    replies[visibleRoots[index]['id']?.toString()] ?? const [],
                   ),
-                ),
+                  if (visibleRoots.length >= 12 && index == 5) ...[
+                    const SizedBox(height: 8),
+                    CampNativeAdCard(
+                      key: ValueKey('comments-native-ad-$_commentTargetTaleId'),
+                      placement: 'Comments',
+                      compact: true,
+                      height: 250,
+                    ),
+                  ],
+                ],
               if (visibleRoots.length < roots.length)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
@@ -560,13 +569,6 @@ class _TalePublicScreenState extends State<TalePublicScreen>
                     ),
                   ),
                 ),
-              const SizedBox(height: 10),
-              CampNativeAdCard(
-                key: ValueKey('comments-native-ad-$_commentTargetTaleId'),
-                placement: 'Comments',
-                compact: true,
-                height: 250,
-              ),
             ],
           ),
         );
