@@ -98,6 +98,12 @@
                 <data android:scheme="https" android:host="www.griot.network" android:pathPrefix="/join" />
                 <data android:scheme="https" android:host="griot.network" android:pathPrefix="/call/join" />
                 <data android:scheme="https" android:host="www.griot.network" android:pathPrefix="/call/join" />
+                <data android:scheme="https" android:host="griot.network" android:pathPrefix="/campfires/" />
+                <data android:scheme="https" android:host="www.griot.network" android:pathPrefix="/campfires/" />
+                <data android:scheme="https" android:host="griot.network" android:pathPrefix="/campfire/" />
+                <data android:scheme="https" android:host="www.griot.network" android:pathPrefix="/campfire/" />
+                <data android:scheme="https" android:host="griot.network" android:pathPrefix="/spaces/" />
+                <data android:scheme="https" android:host="www.griot.network" android:pathPrefix="/spaces/" />
             </intent-filter>
 
             <!-- Receive content shared from WhatsApp, Telegram, browsers, and other apps. -->
