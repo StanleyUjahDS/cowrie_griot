@@ -15,6 +15,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../providers/messaging_provider.dart';
+import '../../services/messaging_api_service.dart';
 import '../../models/chat_message.dart';
 import '../../models/chat_user.dart';
 import '../../models/conversation_model.dart';
@@ -30,9 +31,10 @@ import 'audio_player_widget.dart';
 import 'video_player_widget.dart';
 import 'fullscreen_media_viewer.dart';
 import 'link_preview_widget.dart';
-import 'message_status.dart';
 import 'report_content_sheet.dart';
 import 'reaction_picker.dart';
+import '../../services/sticker_library_service.dart';
+import '../../../auth/auth_controller.dart';
 
 class MessageBubble extends StatelessWidget {
   final ChatMessage message;
@@ -76,6 +78,13 @@ class MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     if (message.isDeleted) {
       return _buildDeletedBubble(context);
+    }
+
+    // Stickers are intentionally not rendered inside the normal message
+    // bubble. This matches the familiar messaging-app treatment: the artwork
+    // stays large and clean, while the time/status sits in a small overlay.
+    if (message.type == MessageType.sticker) {
+      return _buildStickerMessage(context);
     }
 
     final double topRadius = isFirstInGroup ? 22 : 6;
@@ -205,7 +214,16 @@ class MessageBubble extends StatelessWidget {
                             ),
                             if (isMe) ...[
                               const SizedBox(width: 4),
-                              _buildStatusIcon(),
+                              Text(
+                                _messageStatusLabel(message.status),
+                                style: TextStyle(
+                                  color: colorScheme.secondary.withValues(
+                                    alpha: 0.82,
+                                  ),
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
                             ],
                           ],
                         ),
@@ -595,6 +613,18 @@ class MessageBubble extends StatelessWidget {
                                     },
                                   ),
                                   if (isMe &&
+                                      conversation?.type ==
+                                          ConversationType.group)
+                                    _buildOptionTile(
+                                      context,
+                                      icon: Icons.done_all_rounded,
+                                      label: 'Message info',
+                                      onTap: () {
+                                        Navigator.pop(context);
+                                        _showGroupMessageInfo(parentContext);
+                                      },
+                                    ),
+                                  if (isMe &&
                                       message.isText &&
                                       !message.isDeleted &&
                                       onEdit != null)
@@ -666,7 +696,8 @@ class MessageBubble extends StatelessWidget {
                                         );
                                       },
                                     ),
-                                  if (message.mediaUrl != null &&
+                                  if (message.type != MessageType.sticker &&
+                                      message.mediaUrl != null &&
                                       !message.mediaUrl!.startsWith(
                                         'file',
                                       )) ...[
@@ -740,6 +771,115 @@ class MessageBubble extends StatelessWidget {
             end: Offset.zero,
           ).animate(curve),
           child: child,
+        );
+      },
+    );
+  }
+
+  Future<void> _showGroupMessageInfo(BuildContext context) async {
+    List<Map<String, dynamic>> receipts = const [];
+    String? loadError;
+    try {
+      receipts = await context.read<MessagingApiService>().getMessageReceipts(
+        message.id,
+      );
+    } catch (_) {
+      loadError = 'Receipt details are temporarily unavailable.';
+    }
+    if (!context.mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final colors = Theme.of(sheetContext).colorScheme;
+        return SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.78,
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Message info',
+                    style: Theme.of(sheetContext).textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 16),
+                  if (loadError != null)
+                    Text(
+                      loadError,
+                      style: TextStyle(color: colors.onSurfaceVariant),
+                    )
+                  else if (receipts.isEmpty)
+                    Text(
+                      'No delivery or read receipts yet.',
+                      style: TextStyle(color: colors.onSurfaceVariant),
+                    )
+                  else ...[
+                    Builder(
+                      builder: (_) {
+                        var seen = 0;
+                        var delivered = 0;
+                        var sent = 0;
+                        for (final receipt in receipts) {
+                          switch ('${receipt['status'] ?? 'sent'}'
+                              .toLowerCase()) {
+                            case 'read':
+                            case 'seen':
+                              seen++;
+                              break;
+                            case 'delivered':
+                              delivered++;
+                              break;
+                            default:
+                              sent++;
+                          }
+                        }
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            'Seen $seen  ·  Delivered $delivered  ·  Sent $sent',
+                            style: TextStyle(
+                              color: colors.onSurfaceVariant,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                  ...receipts.map((receipt) {
+                    final name =
+                        (receipt['display_name'] ??
+                                receipt['username'] ??
+                                'Group member')
+                            .toString();
+                    final status = (receipt['status'] ?? 'sent').toString();
+                    final normalizedStatus = status.toLowerCase();
+                    final isRead =
+                        normalizedStatus == 'read' ||
+                        normalizedStatus == 'seen';
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(name),
+                      subtitle: Text(
+                        isRead
+                            ? 'Seen'
+                            : status == 'delivered'
+                            ? 'Delivered'
+                            : 'Sent',
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ),
         );
       },
     );
@@ -958,14 +1098,13 @@ class MessageBubble extends StatelessWidget {
     }
   }
 
-  Widget _buildStatusIcon() {
-    return GriotMessageStatus(
-      status: message.status,
-      // Receipts intentionally use the theme accent, rather than neutral
-      // foreground white, so sent/read states remain recognizably Griot.
-      color: colorScheme.secondary,
-    );
-  }
+  String _messageStatusLabel(MessageStatus status) => switch (status) {
+    MessageStatus.sending => 'Sending',
+    MessageStatus.sent => 'Sent',
+    MessageStatus.delivered => 'Delivered',
+    MessageStatus.read => 'Seen',
+    MessageStatus.failed => 'Failed',
+  };
 
   Widget _buildGroupSenderInfo(BuildContext context) {
     final provider = context.watch<MessagingProvider>();
@@ -1084,36 +1223,31 @@ class MessageBubble extends StatelessWidget {
   /// the sender ID is the fallback when that list is incomplete. This is only
   /// used for group sender labels; DMs and channels keep their presentation.
   Color _groupSenderColor(BuildContext context) {
-    const lightPalette = <Color>[
-      Color(0xFFC62828),
-      Color(0xFFAD1457),
-      Color(0xFF6A1B9A),
-      Color(0xFF283593),
-      Color(0xFF1565C0),
-      Color(0xFF00695C),
-      Color(0xFF2E7D32),
-      Color(0xFFEF6C00),
-      Color(0xFF6D4C41),
-    ];
-    const darkPalette = <Color>[
-      Color(0xFFFF8A80),
-      Color(0xFFFF80AB),
-      Color(0xFFEA80FC),
-      Color(0xFF8C9EFF),
-      Color(0xFF82B1FF),
-      Color(0xFF84FFFF),
-      Color(0xFFB9F6CA),
-      Color(0xFFFFD180),
-      Color(0xFFFF9E80),
-    ];
+    final colors = Theme.of(context).colorScheme;
+    // Keep sender labels distinct without introducing a separate hard-coded
+    // colour system that ignores the user's selected app accent.
+    final palette =
+        <Color>[
+              colors.primary,
+              colors.secondary,
+              colors.tertiary,
+              colors.error,
+              colors.primaryContainer,
+              colors.secondaryContainer,
+              colors.tertiaryContainer,
+            ]
+            .map((color) {
+              if (Theme.of(context).brightness == Brightness.dark) {
+                return Color.lerp(color, colors.onSurface, 0.12)!;
+              }
+              return color;
+            })
+            .toList(growable: false);
 
     final hash = message.senderId.codeUnits.fold<int>(
       0,
       (value, unit) => (value * 31 + unit) & 0x7fffffff,
     );
-    final palette = Theme.of(context).brightness == Brightness.dark
-        ? darkPalette
-        : lightPalette;
     final memberIndex = conversation?.memberIds.indexOf(message.senderId) ?? -1;
     final stableIndex = memberIndex >= 0 ? memberIndex : hash;
     return palette[stableIndex % palette.length];
@@ -1293,6 +1427,10 @@ class MessageBubble extends StatelessWidget {
     }
 
     // 2. Handle Specific Media Types
+    if (message.type == MessageType.sticker) {
+      return _buildStickerContent(context);
+    }
+
     if (message.type == MessageType.image) {
       return _buildImageContent(context);
     }
@@ -1341,18 +1479,34 @@ class MessageBubble extends StatelessWidget {
         ? colorScheme.onPrimary
         : colorScheme.onSurface;
 
+    final isEmojiOnly = _isEmojiOnly(message.text);
+    if (isEmojiOnly) {
+      final emojiSize = message.text.runes.length <= 4 ? 50.0 : 36.0;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            message.text,
+            textAlign: TextAlign.start,
+            style: TextStyle(fontSize: emojiSize, height: 1.08),
+          ),
+          if (message.isEdited) _buildEditedLabel(),
+        ],
+      );
+    }
+
     final textStyle =
         theme.textTheme.bodyMedium?.copyWith(
           color: textColor,
           fontSize: 16,
           height: 1.32,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w500,
         ) ??
         TextStyle(
           color: textColor,
           fontSize: 16,
           height: 1.32,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w500,
         );
 
     final linkRegex = RegExp(r'(https?://[^\s<]+|0x[a-fA-F0-9]{40})');
@@ -1362,7 +1516,15 @@ class MessageBubble extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(message.text, style: textStyle, textAlign: TextAlign.start),
+          if (_storyReplyData != null) _buildStoryReplyHeader(context),
+          Text(
+            message.text,
+            style: textStyle,
+            textAlign: TextAlign.start,
+            maxLines: _isLongMessage ? 12 : null,
+            overflow: _isLongMessage ? TextOverflow.fade : TextOverflow.clip,
+          ),
+          if (_isLongMessage) _buildReadMoreButton(context),
           if (message.isEdited) _buildEditedLabel(),
         ],
       );
@@ -1446,12 +1608,326 @@ class MessageBubble extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text.rich(TextSpan(children: children, style: textStyle)),
+        if (_storyReplyData != null) _buildStoryReplyHeader(context),
+        Text.rich(
+          TextSpan(children: children, style: textStyle),
+          maxLines: _isLongMessage ? 12 : null,
+          overflow: _isLongMessage ? TextOverflow.fade : TextOverflow.clip,
+        ),
+        if (_isLongMessage) _buildReadMoreButton(context),
         if (message.isEdited) _buildEditedLabel(),
         if (firstUrl != null && !message.isMedia && !message.isFile)
           LinkPreviewWidget(url: firstUrl, isMe: isMe),
       ],
     );
+  }
+
+  Map<String, dynamic>? get _storyReplyData {
+    final raw = message.tipData?['storyReply'];
+    return raw is Map ? Map<String, dynamic>.from(raw) : null;
+  }
+
+  Widget _buildStoryReplyHeader(BuildContext context) {
+    final data = _storyReplyData!;
+    final colors = Theme.of(context).colorScheme;
+    final preview = data['preview']?.toString().trim();
+    final label = data['displayName']?.toString().trim();
+    final accent = isMe ? colorScheme.onPrimary : colors.primary;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(10, 7, 10, 7),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: .12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border(left: BorderSide(color: accent, width: 3)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.reply_rounded, size: 16, color: accent),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'Replying to ${label?.isNotEmpty == true ? label : 'a'} status${preview?.isNotEmpty == true ? ': $preview' : ''}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: isMe ? colorScheme.onPrimary : colors.onSurfaceVariant,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool get _isLongMessage =>
+      message.text.length > 900 || message.text.split('\n').length > 14;
+
+  Widget _buildReadMoreButton(BuildContext context) {
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: TextButton(
+        onPressed: () => _showFullMessage(context),
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.only(top: 2),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.compact,
+        ),
+        child: const Text('Read more'),
+      ),
+    );
+  }
+
+  Future<void> _showFullMessage(BuildContext context) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Message'),
+        content: SingleChildScrollView(
+          child: SelectableText(
+            message.text,
+            style: Theme.of(dialogContext).textTheme.bodyLarge,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStickerContent(BuildContext context) {
+    final url = message.mediaUrl;
+    if (url == null || url.isEmpty) return const SizedBox.shrink();
+    final accessToken = context.read<AuthController>().accessToken;
+    final mediaHeaders = accessToken == null || accessToken.isEmpty
+        ? null
+        : <String, String>{'Authorization': 'Bearer $accessToken'};
+    final extension = path.extension(url.split('?').first).toLowerCase();
+    const videoExtensions = {'.mp4', '.mov', '.m4v', '.webm'};
+    const imageExtensions = {'.png', '.jpg', '.jpeg', '.gif', '.webp'};
+    // Media URLs can be extensionless after the API turns a storage key into
+    // a signed URL. New video stickers are always uploaded as video media, so
+    // an extensionless sticker must not fall through to CachedNetworkImage.
+    final isVideo =
+        videoExtensions.contains(extension) ||
+        (message.type == MessageType.sticker &&
+            !imageExtensions.contains(extension));
+    final child = isVideo
+        ? SizedBox(
+            width: 164,
+            height: 164,
+            child: ChatVideoPlayer(
+              key: ValueKey(url),
+              url: url,
+              isMe: isMe,
+              loop: true,
+            ),
+          )
+        : (url.startsWith('/') || url.startsWith('file://'))
+        ? Image.file(
+            File(url.replaceFirst('file://', '')),
+            width: 164,
+            height: 164,
+            fit: BoxFit.contain,
+          )
+        : CachedNetworkImage(
+            imageUrl: url,
+            httpHeaders: mediaHeaders,
+            width: 164,
+            height: 164,
+            fit: BoxFit.cover,
+            placeholder: (context, url) => const GriotLoader(size: 24),
+            errorWidget: (context, url, error) =>
+                const Icon(Icons.broken_image_outlined),
+          );
+    return Semantics(
+      label: 'Sticker',
+      image: true,
+      child: GestureDetector(
+        onTap: () => _showStickerActions(context, url, isVideo),
+        child: Container(
+          width: 164,
+          height: 164,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: colorScheme.primary.withValues(alpha: .22),
+              width: 1.2,
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showStickerActions(
+    BuildContext context,
+    String url,
+    bool isVideo,
+  ) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!isMe)
+              ListTile(
+                leading: const Icon(Icons.bookmark_add_outlined),
+                title: const Text('Save to my stickers'),
+                subtitle: const Text('Keep a local copy for quick reuse'),
+                onTap: () => Navigator.pop(sheetContext, 'save'),
+              ),
+            ListTile(
+              leading: const Icon(Icons.fullscreen_rounded),
+              title: const Text('View sticker'),
+              onTap: () => Navigator.pop(sheetContext, 'view'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!context.mounted || action == null) return;
+    if (action == 'view') {
+      FullscreenMediaViewer.show(context, url, isVideo: isVideo);
+      return;
+    }
+    try {
+      await StickerLibraryService.instance.addFromUrl(url, isVideo: isVideo);
+      if (context.mounted) {
+        NotificationService.showSuccess(
+          context,
+          'Sticker saved to your collection.',
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        NotificationService.showError(
+          context,
+          'Could not save sticker: $error',
+        );
+      }
+    }
+  }
+
+  Widget _buildStickerMessage(BuildContext context) {
+    final sticker = _buildStickerContent(context);
+    final statusColor = isMe
+        ? colorScheme.onSurface.withValues(alpha: 0.78)
+        : colorScheme.onSurfaceVariant.withValues(alpha: 0.78);
+
+    return GestureDetector(
+      onLongPress: () => _showMessageOptions(context),
+      onDoubleTap: () =>
+          context.read<MessagingProvider>().toggleReaction(message.id, '❤️'),
+      child: Padding(
+        padding: EdgeInsets.only(
+          top: isFirstInGroup ? 5 : 1,
+          bottom: message.reactions.isNotEmpty ? 16 : 5,
+        ),
+        child: Align(
+          alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minWidth: 72,
+                  maxWidth: 184,
+                  maxHeight: 184,
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    sticker,
+                    if (message.status == MessageStatus.sending)
+                      Positioned.fill(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: colorScheme.surface.withValues(alpha: .42),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Center(child: GriotLoader(size: 24)),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Positioned(
+                right: 5,
+                bottom: 5,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: colorScheme.surface.withValues(alpha: 0.78),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 2,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          DateFormat('HH:mm').format(message.createdAt),
+                          style: TextStyle(
+                            color: statusColor,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (isMe) ...[
+                          const SizedBox(width: 3),
+                          Text(
+                            _messageStatusLabel(message.status),
+                            style: TextStyle(
+                              color: statusColor,
+                              fontSize: 8,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              if (message.reactions.isNotEmpty)
+                Positioned(
+                  bottom: -10,
+                  right: isMe ? 8 : null,
+                  left: isMe ? null : 8,
+                  child: _buildReactions(context),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  bool _isEmojiOnly(String value) {
+    final text = value.trim();
+    if (text.isEmpty) return false;
+    return RegExp(
+      r'^(?:[\u{1F000}-\u{1FAFF}\u{2300}-\u{23FF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}\u{20E3}\u{1F3FB}-\u{1F3FF}]|\s)+$',
+      unicode: true,
+    ).hasMatch(text);
   }
 
   Widget _buildEditedLabel() => Padding(
@@ -1638,6 +2114,10 @@ class MessageBubble extends StatelessWidget {
     if (url == null) return const SizedBox.shrink();
 
     final isLocal = url.startsWith('/') || url.startsWith('file://');
+    final accessToken = context.read<AuthController>().accessToken;
+    final mediaHeaders = accessToken == null || accessToken.isEmpty
+        ? null
+        : <String, String>{'Authorization': 'Bearer $accessToken'};
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1656,6 +2136,7 @@ class MessageBubble extends StatelessWidget {
                   )
                 : CachedNetworkImage(
                     imageUrl: url,
+                    httpHeaders: mediaHeaders,
                     fit: BoxFit.cover,
                     width: double.infinity,
                     height: 200,
@@ -1859,13 +2340,13 @@ class MessageBubble extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.amber.withValues(alpha: 0.2),
+                  color: colorScheme.tertiary.withValues(alpha: 0.18),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.volunteer_activism_outlined,
                   size: 18,
-                  color: Colors.amber,
+                  color: colorScheme.tertiary,
                 ),
               ),
               const SizedBox(width: 12),
