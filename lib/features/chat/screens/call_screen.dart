@@ -230,6 +230,7 @@ class _CallScreenState extends State<CallScreen> {
   Timer? _answerTimeout;
   Timer? _participantRefreshDebounce;
   Timer? _participantRefreshTimer;
+  Timer? _callHeartbeatTimer;
   Timer? _soundLevelFrameTimer;
   double? _pendingLocalSoundLevel;
   final Map<String, double> _pendingRemoteSoundLevels = <String, double>{};
@@ -774,6 +775,7 @@ class _CallScreenState extends State<CallScreen> {
               ? '${widget.mode == 'voice' ? 'Voice' : 'Video'} Campfire connected'
               : '${_videoCallActive ? 'Video' : 'Voice'} call connected';
         });
+        _startCallHeartbeat();
         _startAnswerTimeout();
       }
     } catch (e) {
@@ -2110,6 +2112,8 @@ class _CallScreenState extends State<CallScreen> {
     _started = false;
     _answerTimeout?.cancel();
     _participantRefreshTimer?.cancel();
+    _callHeartbeatTimer?.cancel();
+    _callHeartbeatTimer = null;
     _participantRefreshDebounce?.cancel();
     await _owner.end(
       api: context.read<ApiClient>(),
@@ -2119,6 +2123,20 @@ class _CallScreenState extends State<CallScreen> {
       notifyServer: notifyServer,
       timedOut: _timedOut,
     );
+  }
+
+  void _startCallHeartbeat() {
+    if (widget.conversationType == 'space' || _callId == null) return;
+    _callHeartbeatTimer?.cancel();
+    _callHeartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      final id = _callId;
+      if (id == null || _cleaningUp || !_started) return;
+      unawaited(
+        RealtimeCallService(
+          context.read<ApiClient>(),
+        ).updateStatus(id, 'active').catchError((_) {}),
+      );
+    });
   }
 
   Future<void> _cleanupZego(String? roomId) async {
@@ -2149,6 +2167,8 @@ class _CallScreenState extends State<CallScreen> {
     _messagingProvider?.removeListener(_onCampfireRevision);
     _participantRefreshDebounce?.cancel();
     _participantRefreshTimer?.cancel();
+    _callHeartbeatTimer?.cancel();
+    _callHeartbeatTimer = null;
     _answerTimeout?.cancel();
     _soundLevelFrameTimer?.cancel();
     _soundLevelFrameTimer = null;
