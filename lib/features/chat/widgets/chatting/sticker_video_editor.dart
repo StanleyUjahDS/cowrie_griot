@@ -1,10 +1,42 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/services/notification_service.dart';
-import 'package:easy_video_editor/easy_video_editor.dart';
+import 'package:image/image.dart' as img;
 import 'package:video_trimmer/video_trimmer.dart';
+
+Future<String> _squareGifWorker(Map<String, dynamic> args) async {
+  final sourcePath = args['sourcePath'] as String;
+  final horizontal = (args['horizontal'] as num).toDouble();
+  final vertical = (args['vertical'] as num).toDouble();
+  final decoded = await img.decodeGifFile(sourcePath);
+  if (decoded == null) throw Exception('GIF could not be decoded');
+  final side = decoded.width < decoded.height ? decoded.width : decoded.height;
+  final square = img.copyCrop(
+    decoded,
+    x: ((decoded.width - side) * horizontal).round(),
+    y: ((decoded.height - side) * vertical).round(),
+    width: side,
+    height: side,
+  );
+  for (var i = 0; i < square.frames.length; i++) {
+    square.frames[i].frameDuration = decoded.frames[i].frameDuration;
+  }
+  square.loopCount = 0;
+  final outputPath =
+      '${sourcePath.substring(0, sourcePath.length - 4)}_square.gif';
+  if (!await img.encodeGifFile(
+    outputPath,
+    square,
+    samplingFactor: 1,
+    ditherScanOrder: img.DitherScanOrder.serpentine,
+  )) {
+    throw Exception('Square GIF could not be written');
+  }
+  return outputPath;
+}
 
 /// Native trim editor for video stickers. The exported clip is what is stored
 /// locally and uploaded, so the original long video never becomes a sticker.
@@ -34,6 +66,8 @@ class _StickerVideoEditorState extends State<StickerVideoEditor> {
   bool _loading = true;
   bool _saving = false;
   bool _playing = false;
+  double _cropHorizontal = .5;
+  double _cropVertical = .5;
   double _saveProgress = 0;
   String _saveStage = '';
 
@@ -59,68 +93,46 @@ class _StickerVideoEditorState extends State<StickerVideoEditor> {
       _saveStage = 'Preparing sticker…';
     });
     try {
-      final outputPath = await VideoEditorBuilder(videoPath: widget.file.path)
-          .trim(startTimeMs: _start.round(), endTimeMs: _end.round())
-          .crop(aspectRatio: VideoAspectRatio.ratio1x1)
-          .compress(resolution: VideoResolution.p1080)
-          .export(
-            onProgress: (progress) {
-              if (mounted) {
-                setState(() {
-                  _saveProgress = .08 + progress * .88;
-                  _saveStage = progress < .34
-                      ? 'Trimming sticker…'
-                      : progress < .68
-                      ? 'Applying square frame…'
-                      : 'Encoding high-quality sticker…';
-                });
-              }
-            },
-          );
-      if (outputPath == null || outputPath.isEmpty) {
-        throw Exception('Video export returned no file.');
-      }
+      await _trimmer.saveTrimmedVideo(
+        startValue: _start,
+        endValue: _end,
+        outputType: OutputType.gif,
+        fpsGIF: 15,
+        scaleGIF: 720,
+        qualityGIF: 95,
+        onSave: (outputPath) {
+          if (outputPath == null || outputPath.isEmpty) return;
+          if (mounted) setState(() => _saveStage = 'Framing animated sticker…');
+          unawaited(_squareGif(outputPath));
+        },
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      NotificationService.showError(
+        context,
+        'Could not create the sticker clip.',
+      );
+    }
+  }
+
+  Future<void> _squareGif(String sourcePath) async {
+    try {
+      final outputPath = await compute(_squareGifWorker, {
+        'sourcePath': sourcePath,
+        'horizontal': _cropHorizontal,
+        'vertical': _cropVertical,
+      });
+      final original = File(sourcePath);
+      if (original.existsSync()) await original.delete();
       if (!mounted) return;
       setState(() => _saveProgress = 1);
       Navigator.of(context).pop(outputPath);
     } catch (_) {
-      // Some iPhone HEVC/MOV files cannot be cropped by the native editor.
-      // Fall back to a lossless-in-practice native trim so sticker creation
-      // still succeeds instead of failing after the user has waited for an
-      // export. The duration constraint and source resolution are preserved.
-      try {
-        if (mounted) {
-          setState(() => _saveStage = 'Finalising compatible video…');
-        }
-        final fallbackPath = await _fallbackTrim();
-        if (fallbackPath == null || fallbackPath.isEmpty) {
-          throw Exception('Fallback export returned no file.');
-        }
-        if (!mounted) return;
-        setState(() => _saveProgress = 1);
-        Navigator.of(context).pop(fallbackPath);
-      } catch (_) {
-        if (!mounted) return;
-        setState(() => _saving = false);
-        NotificationService.showError(
-          context,
-          'Could not create the sticker clip. Try a shorter video.',
-        );
-      }
+      if (!mounted) return;
+      setState(() => _saving = false);
+      NotificationService.showError(context, 'Could not frame the sticker.');
     }
-  }
-
-  Future<String?> _fallbackTrim() async {
-    final result = Completer<String?>();
-    await _trimmer.saveTrimmedVideo(
-      startValue: _start,
-      endValue: _end,
-      outputType: OutputType.video,
-      onSave: (path) {
-        if (!result.isCompleted) result.complete(path);
-      },
-    );
-    return result.future.timeout(const Duration(seconds: 45));
   }
 
   @override
@@ -146,6 +158,20 @@ class _StickerVideoEditorState extends State<StickerVideoEditor> {
                     ? const Center(child: CircularProgressIndicator())
                     : Center(
                         child: GestureDetector(
+                          onDoubleTap: () => setState(() {
+                            _cropHorizontal = .5;
+                            _cropVertical = .5;
+                          }),
+                          onPanUpdate: (details) => setState(() {
+                            _cropHorizontal =
+                                (_cropHorizontal + details.delta.dx / 260)
+                                    .clamp(0.0, 1.0);
+                            _cropVertical =
+                                (_cropVertical + details.delta.dy / 260).clamp(
+                                  0.0,
+                                  1.0,
+                                );
+                          }),
                           child: LayoutBuilder(
                             builder: (context, constraints) {
                               final side = constraints.biggest.shortestSide;
@@ -175,8 +201,8 @@ class _StickerVideoEditorState extends State<StickerVideoEditor> {
                                       ClipRect(
                                         child: Transform.translate(
                                           offset: Offset(
-                                            -overflowX / 2,
-                                            -overflowY / 2,
+                                            -overflowX * _cropHorizontal,
+                                            -overflowY * _cropVertical,
                                           ),
                                           child: Align(
                                             alignment: Alignment.topLeft,
@@ -270,7 +296,7 @@ class _StickerVideoEditorState extends State<StickerVideoEditor> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Up to 1.5 seconds · square crop · up to 1080p quality',
+                'Up to 1.5 seconds · drag to frame · double-tap to reset',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: colors.onSurfaceVariant),
               ),
