@@ -2636,6 +2636,10 @@ class _CampProfileScreenState extends State<CampProfileScreen>
     final isComment = savedTarget == 'comment' || savedTarget == 'reply';
     final targetId = item['target_id']?.toString();
     final targetType = '${item['target_type'] ?? ''}'.toLowerCase();
+    final profileAuthor =
+        _loadedPublicUser ??
+        widget.profileUser ??
+        context.read<UserProvider>().user;
     final icon = isTale
         ? Icons.menu_book_rounded
         : isCampfire
@@ -2699,6 +2703,48 @@ class _CampProfileScreenState extends State<CampProfileScreen>
             ),
           )
         : const SizedBox.shrink();
+    final commentCard = isComment
+        ? Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+            child: CampTaleCommentSurface(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CampTaleHeader(
+                    authorName: profileAuthor?.effectiveName ?? 'Griot user',
+                    avatarUrl: profileAuthor?.avatarUrl,
+                    subtitle: 'Comment',
+                    menu: const SizedBox.shrink(),
+                    onAuthorTap: profileAuthor == null
+                        ? null
+                        : () => context.push(
+                            '/user/profile',
+                            extra: profileAuthor,
+                          ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${item['summary'] ?? ''}'.trim(),
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: targetId == null
+                        ? null
+                        : () => context.push('/tale/$targetId'),
+                    icon: const Icon(Icons.open_in_new_rounded, size: 17),
+                    label: const Text('View commented Tale'),
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        : const SizedBox.shrink();
     return Card(
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 8),
@@ -2720,7 +2766,7 @@ class _CampProfileScreenState extends State<CampProfileScreen>
             ),
             subtitle: Text(
               isComment
-                  ? '${item['summary'] ?? ''}'
+                  ? 'Your comment in the Tale conversation'
                   : (type == 'saved' ? 'Saved to your Camp list' : label),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -2734,10 +2780,11 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                 ? () => context.push('/tale/$entityId')
                 : isCampfire
                 ? () => context.push('/campfires')
-                : isComment && targetId == null
-                ? () => context.push('/tale/$entityId')
+                : isComment
+                ? () => context.push('/tale/${targetId ?? entityId}')
                 : null,
           ),
+          commentCard,
           targetCard,
         ],
       ),
