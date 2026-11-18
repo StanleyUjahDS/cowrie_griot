@@ -1230,6 +1230,13 @@ class MessagingApiService {
     _checkSuccess(response);
   }
 
+  Future<void> markConversationRead(String conversationId) async {
+    final response = await _apiClient.post(
+      ApiConfig.messagingConversationRead(conversationId),
+    );
+    _checkSuccess(response);
+  }
+
   Future<List<Map<String, dynamic>>> getMessageReceipts(
     String messageId,
   ) async {

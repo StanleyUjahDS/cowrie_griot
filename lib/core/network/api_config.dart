@@ -342,6 +342,9 @@ class ApiConfig {
   static String messagingMessageById(String messageId) =>
       '$messagingMessages/$messageId';
 
+  static String messagingConversationRead(String conversationId) =>
+      '$messagingMessages/conversation/$conversationId/read';
+
   static String messagingConversationMessagePin(
     String conversationId,
     String messageId,

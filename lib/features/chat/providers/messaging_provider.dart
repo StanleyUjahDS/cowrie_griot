@@ -3696,6 +3696,21 @@ class MessagingProvider extends ChangeNotifier {
 
       notifyListeners();
     }
+
+    // Clear the server-side unread state as well. The loaded page may only
+    // contain the newest messages, while the conversation badge counts all
+    // unread messages (including older ones and channel chat messages).
+    unawaited(_markConversationReadOnServer(conversationId));
+  }
+
+  Future<void> _markConversationReadOnServer(String conversationId) async {
+    try {
+      await _apiService.markConversationRead(conversationId);
+    } catch (e) {
+      // Receipt failures must not break opening a conversation. The next
+      // refresh/re-entry retries the operation.
+      debugPrint('Failed to mark conversation as read: $e');
+    }
   }
 
   /// The conversation currently open in the chat UI, if any.
