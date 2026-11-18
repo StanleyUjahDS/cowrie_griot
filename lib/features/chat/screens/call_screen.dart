@@ -273,6 +273,11 @@ class _CallScreenState extends State<CallScreen> {
   @override
   void initState() {
     super.initState();
+    _owner.onMiniChat = widget.conversationType == 'space'
+        ? () => unawaited(_openCampfireComments())
+        : null;
+    _owner.onMiniMute = () => unawaited(_toggleAudio());
+    _owner.onMiniEnd = () => unawaited(_close());
     _speakerEnabled =
         widget.conversationType == 'space' || widget.mode == 'video';
     _callId = widget.initialCallId ?? widget.initialSession?.callId;
@@ -1055,7 +1060,10 @@ class _CallScreenState extends State<CallScreen> {
       await ZegoExpressEngine.instance.setStreamExtraInfo(
         jsonEncode({'muted': !next}),
       );
-      if (mounted) setState(() => _audioEnabled = next);
+      if (mounted) {
+        setState(() => _audioEnabled = next);
+        _owner.setAudioEnabled(next);
+      }
     } catch (error) {
       if (mounted && !_cleaningUp) {
         NotificationService.showPush(
@@ -2241,6 +2249,9 @@ class _CallScreenState extends State<CallScreen> {
       timer.cancel();
     }
     _spaceReactionTimers.clear();
+    _owner.onMiniChat = null;
+    _owner.onMiniMute = null;
+    _owner.onMiniEnd = null;
     // The app host removes this view only after explicit/remote cleanup.
     // Widget disposal never writes a terminal status to the server.
     super.dispose();

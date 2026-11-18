@@ -47,6 +47,13 @@ class ActiveCallController extends ChangeNotifier {
   bool videoCallActive = false;
   List<SpaceParticipant> participants = const [];
 
+  /// Actions exposed by the mini call bar. The media-owning CallScreen wires
+  /// these up so the overlay can offer useful one-tap actions without
+  /// creating a second call route or duplicating media state.
+  VoidCallback? onMiniChat;
+  VoidCallback? onMiniMute;
+  VoidCallback? onMiniEnd;
+
   void listen(
     Stream<Map<String, dynamic>> stream,
     void Function(Map<String, dynamic>) handler,
@@ -146,6 +153,9 @@ class ActiveCallController extends ChangeNotifier {
     videoCallActive = request.mode == 'video';
     videoEnabled = videoCallActive && request.conversationType != 'space';
     participants = const [];
+    onMiniChat = null;
+    onMiniMute = null;
+    onMiniEnd = null;
     _minimized = false;
     notifyListeners();
     return true;
@@ -160,6 +170,12 @@ class ActiveCallController extends ChangeNotifier {
   void expand() {
     if (_request == null || _closing || !_minimized) return;
     _minimized = false;
+    notifyListeners();
+  }
+
+  void setAudioEnabled(bool enabled) {
+    if (audioEnabled == enabled) return;
+    audioEnabled = enabled;
     notifyListeners();
   }
 
