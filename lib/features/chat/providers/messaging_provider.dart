@@ -2052,13 +2052,17 @@ class MessagingProvider extends ChangeNotifier {
     final list = _messagesByConversation[incoming.conversationId] ?? [];
 
     final existingIndex = list.indexWhere((message) {
+      bool isStickerType(MessageType type) =>
+          type == MessageType.sticker ||
+          type == MessageType.image ||
+          type == MessageType.video;
+      bool isStickerText(String text) =>
+          text == '✨ Sticker' || text.trim().isEmpty;
       final sameStickerPayload =
-          message.type == MessageType.sticker &&
-          (incoming.type == MessageType.sticker ||
-              incoming.type == MessageType.image ||
-              incoming.type == MessageType.video) &&
+          isStickerType(message.type) &&
+          isStickerType(incoming.type) &&
           message.text == '✨ Sticker' &&
-          incoming.text == '✨ Sticker';
+          isStickerText(incoming.text);
       final sameMediaType =
           message.type == incoming.type ||
           (message.isAudio && incoming.isAudio) ||
@@ -2161,7 +2165,9 @@ class MessagingProvider extends ChangeNotifier {
           conversationId: incoming.conversationId,
           senderId: incoming.senderId,
           status: incoming.status,
-          text: incoming.text,
+          text: incoming.text.trim().isEmpty && existing.text == '✨ Sticker'
+              ? existing.text
+              : incoming.text,
           // A GIF sticker may arrive through an older socket/server path as
           // `image`; retain the sticker presentation when reconciling it.
           type: existing.type == MessageType.sticker
@@ -2201,7 +2207,11 @@ class MessagingProvider extends ChangeNotifier {
             (candidate.clientMessageId == null ||
                 authoritative.clientMessageId == null) &&
             candidate.senderId == authoritative.senderId &&
-            candidate.text == authoritative.text &&
+            (candidate.text == authoritative.text ||
+                (candidate.text == '✨ Sticker' &&
+                    (authoritative.type == MessageType.sticker ||
+                        authoritative.type == MessageType.image ||
+                        authoritative.type == MessageType.video))) &&
             (candidate.type == authoritative.type ||
                 (candidate.isAudio && authoritative.isAudio)) &&
             candidate.createdAt.difference(authoritative.createdAt).abs() <=
