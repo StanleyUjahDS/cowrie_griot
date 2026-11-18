@@ -73,9 +73,9 @@ class GriotAvatar extends StatelessWidget {
       alignment: Alignment.center,
       padding: EdgeInsets.all((radius * 0.16).clamp(3.0, 8.0)),
       child: Image.asset(
-        'assets/coins_logo/griot-network-512.png',
+        'assets/coins_logo/hbadger_logo.png',
         fit: BoxFit.contain,
-        semanticLabel: 'Griot profile badge',
+        semanticLabel: 'HBadge profile image',
       ),
     );
   }
