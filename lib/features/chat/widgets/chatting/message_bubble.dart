@@ -36,6 +36,37 @@ import 'reaction_picker.dart';
 import '../../services/sticker_library_service.dart';
 import '../../../auth/auth_controller.dart';
 
+class _MessageDeliveryIcon extends StatelessWidget {
+  final MessageStatus status;
+  final Color color;
+  final Color? readColor;
+
+  const _MessageDeliveryIcon({
+    required this.status,
+    required this.color,
+    this.readColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final (icon, tint) = switch (status) {
+      MessageStatus.sending => (
+        Icons.schedule_rounded,
+        colors.onSurfaceVariant,
+      ),
+      MessageStatus.sent => (Icons.check_rounded, color),
+      MessageStatus.delivered => (Icons.done_all_rounded, color),
+      MessageStatus.read => (
+        Icons.done_all_rounded,
+        readColor ?? colors.primary,
+      ),
+      MessageStatus.failed => (Icons.error_outline_rounded, colors.error),
+    };
+    return Icon(icon, size: 15, color: tint);
+  }
+}
+
 class MessageBubble extends StatelessWidget {
   final ChatMessage message;
   final bool isMe;
@@ -211,14 +242,14 @@ class MessageBubble extends StatelessWidget {
                             ),
                             if (isMe) ...[
                               const SizedBox(width: 4),
-                              Text(
-                                _messageStatusLabel(message.status),
-                                style: TextStyle(
-                                  color: colorScheme.secondary.withValues(
+                              Semantics(
+                                label: _messageStatusLabel(message.status),
+                                child: _MessageDeliveryIcon(
+                                  status: message.status,
+                                  color: colorScheme.onPrimary.withValues(
                                     alpha: 0.82,
                                   ),
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w800,
+                                  readColor: colorScheme.secondary,
                                 ),
                               ),
                             ],
@@ -1896,12 +1927,12 @@ class MessageBubble extends StatelessWidget {
                         ),
                         if (isMe) ...[
                           const SizedBox(width: 3),
-                          Text(
-                            _messageStatusLabel(message.status),
-                            style: TextStyle(
+                          Semantics(
+                            label: _messageStatusLabel(message.status),
+                            child: _MessageDeliveryIcon(
+                              status: message.status,
                               color: statusColor,
-                              fontSize: 8,
-                              fontWeight: FontWeight.w800,
+                              readColor: colorScheme.secondary,
                             ),
                           ),
                         ],
