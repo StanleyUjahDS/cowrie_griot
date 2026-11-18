@@ -35,6 +35,8 @@ import 'features/chat/services/realtime_call_service.dart';
 import 'features/chat/services/incoming_call_recovery.dart';
 import 'features/chat/widgets/active_call_host.dart';
 import 'features/chat/services/media_api_service.dart';
+import 'features/chat/services/stories_api_service.dart';
+import 'features/chat/providers/stories_provider.dart';
 import 'features/chat/services/tip_api_service.dart';
 import 'features/chat/services/message_cache_service.dart';
 import 'features/chat/services/message_sync_service.dart';
@@ -46,6 +48,7 @@ import 'features/wallet/providers/wallet_provider.dart';
 import 'features/wallet/providers/display_currency_provider.dart';
 import 'features/iap/providers/iap_provider.dart';
 import 'features/iap/services/plus_api_service.dart';
+import 'features/golds/services/golds_api_service.dart';
 import 'features/users/providers/user_preference_provider.dart';
 import 'features/local_auth/services/app_lock_service.dart';
 import 'features/local_auth/services/local_auth_service.dart';
@@ -131,6 +134,7 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
   late final MediaApiService _mediaApiService;
   late final TipApiService _tipApiService;
   late final PlusApiService _plusApiService;
+  late final GoldsApiService _goldsApiService;
   late final MessageCacheService _messageCacheService;
   late final MessageSyncService _messageSyncService;
   late final AuthController _authController;
@@ -302,6 +306,7 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
     _tipApiService = TipApiService(apiClient: _apiClient);
 
     _plusApiService = PlusApiService(apiClient: _apiClient);
+    _goldsApiService = GoldsApiService(apiClient: _apiClient);
 
     _messageCacheService = MessageCacheService();
     _messageSyncService = MessageSyncService(
@@ -809,6 +814,26 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
       title: title,
       message: body,
       icon: _pushIcon(type),
+      avatarUrl:
+          (data['notificationAvatarUrl'] ??
+                  data['notification_avatar_url'] ??
+                  data['senderAvatarUrl'] ??
+                  data['sender_avatar_url'] ??
+                  data['senderAvatar'] ??
+                  data['sender_avatar'] ??
+                  data['senderProfileImageUrl'] ??
+                  data['sender_profile_image_url'] ??
+                  data['profileImageUrl'] ??
+                  data['profile_image_url'] ??
+                  data['avatarUrl'] ??
+                  data['avatar_url'] ??
+                  data['imageUrl'] ??
+                  data['image_url'] ??
+                  data['senderProfileUrl'] ??
+                  data['sender_profile_url'] ??
+                  data['conversationAvatarUrl'] ??
+                  data['conversation_avatar_url'])
+              ?.toString(),
       onTap: () => _openPushNotification(data),
     );
   }
@@ -821,8 +846,8 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
     'request_withdrawn' => 'Connection request withdrawn',
     'message_reaction' => 'New reaction',
     'incoming_call' => 'Incoming Griot call',
-    'mining_session_complete' => 'Mining session complete',
-    'mining_settlement' => 'Mining rewards settled',
+    'mining_session_complete' => 'Reputation activity ready',
+    'mining_settlement' => 'Reputation updated',
     'plus_gift_received' => 'Griot Plus gift received',
     'plus_activated' => 'Griot Plus is active',
     'tip_received' => 'Tip received',
@@ -846,8 +871,9 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
     'request_declined' => 'Your connection request was declined on Griot.',
     'request_withdrawn' => 'A connection request was withdrawn on Griot.',
     'message_reaction' => 'Someone reacted to your message.',
-    'mining_session_complete' => 'Your next mining session is ready to start.',
-    'mining_settlement' => 'Your mining rewards are ready to view.',
+    'mining_session_complete' =>
+      'Your next reputation activity session is ready to start.',
+    'mining_settlement' => 'Your reputation has been updated.',
     'plus_gift_received' =>
       'Someone paid for Griot Plus for you. Your membership is now active.',
     'plus_activated' => 'Your Griot Plus membership is now active.',
@@ -928,6 +954,11 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
         Provider<ReputationApiService>.value(value: _reputationApiService),
         Provider<MessagingApiService>.value(value: _messagingApiService),
         Provider<MediaApiService>.value(value: _mediaApiService),
+        Provider<GoldsApiService>.value(value: _goldsApiService),
+        ChangeNotifierProvider<StoriesProvider>(
+          create: (context) =>
+              StoriesProvider(api: StoriesApiService(client: _apiClient)),
+        ),
         Provider<TipApiService>.value(value: _tipApiService),
         Provider<MessageCacheService>.value(value: _messageCacheService),
         Provider<MessageSyncService>.value(value: _messageSyncService),
@@ -1190,6 +1221,11 @@ class _ActiveCallBannerState extends State<_ActiveCallBanner> {
       final liveTitle = call.title?.trim().isNotEmpty == true
           ? call.title!.trim()
           : (call.conversationType == 'space' ? 'Campfire' : 'Call');
+      final availableWidth = MediaQuery.sizeOf(context).width;
+      // Keep the mini-call surface inside the viewport on narrow phones. The
+      // previous fixed 292px width left too little room for the title and the
+      // three action buttons, causing row overflow and clipped controls.
+      final bannerWidth = (availableWidth - 24).clamp(248.0, 390.0).toDouble();
       return SafeArea(
         child: Align(
           alignment: Alignment.topCenter,
@@ -1218,7 +1254,7 @@ class _ActiveCallBannerState extends State<_ActiveCallBanner> {
                       onTap: owner.expand,
                       borderRadius: BorderRadius.circular(22),
                       child: SizedBox(
-                        width: 292,
+                        width: bannerWidth,
                         height: 78,
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -1306,6 +1342,10 @@ class _ActiveCallBannerState extends State<_ActiveCallBanner> {
                                 IconButton(
                                   tooltip: 'Open Campfire chat',
                                   visualDensity: VisualDensity.compact,
+                                  constraints: const BoxConstraints.tightFor(
+                                    width: 32,
+                                    height: 32,
+                                  ),
                                   padding: EdgeInsets.zero,
                                   onPressed: owner.onMiniChat,
                                   icon: Icon(
@@ -1321,6 +1361,10 @@ class _ActiveCallBannerState extends State<_ActiveCallBanner> {
                                     ? 'Mute microphone'
                                     : 'Unmute microphone',
                                 visualDensity: VisualDensity.compact,
+                                constraints: const BoxConstraints.tightFor(
+                                  width: 32,
+                                  height: 32,
+                                ),
                                 padding: EdgeInsets.zero,
                                 onPressed: owner.onMiniMute,
                                 icon: Icon(
@@ -1336,6 +1380,10 @@ class _ActiveCallBannerState extends State<_ActiveCallBanner> {
                               IconButton(
                                 tooltip: 'End call',
                                 visualDensity: VisualDensity.compact,
+                                constraints: const BoxConstraints.tightFor(
+                                  width: 32,
+                                  height: 32,
+                                ),
                                 padding: EdgeInsets.zero,
                                 onPressed: owner.onMiniEnd,
                                 icon: Icon(
@@ -1711,8 +1759,15 @@ class _AppLockOverlayState extends State<_AppLockOverlay> {
         // lock state is known, show one opaque surface instead of briefly
         // exposing the route and then unexpectedly launching biometric auth.
         if (!lockProvider.isInitialized) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+          return Scaffold(
+            body: Center(
+              child: Image.asset(
+                'assets/coins_logo/hbadger_loader.png',
+                width: 46,
+                height: 46,
+                fit: BoxFit.contain,
+              ),
+            ),
           );
         }
 
