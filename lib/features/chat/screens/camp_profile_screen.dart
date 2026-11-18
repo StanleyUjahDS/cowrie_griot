@@ -2633,6 +2633,8 @@ class _CampProfileScreenState extends State<CampProfileScreen>
       if (direct != null) return direct;
       final nested = item['target'];
       if (nested is Map) return nested[snake] ?? nested[camel];
+      final metadata = item['metadata'];
+      if (metadata is Map) return metadata[snake] ?? metadata[camel];
       return null;
     }
 
@@ -2644,16 +2646,18 @@ class _CampProfileScreenState extends State<CampProfileScreen>
     final isTale = savedTarget == 'tale' || savedTarget == 'post';
     final isCampfire = savedTarget == 'campfire' || savedTarget == 'space';
     final isComment = savedTarget == 'comment' || savedTarget == 'reply';
+    // Comments/replies are activity entities themselves, but their primary
+    // destination is always the parent Tale. Resolve all API naming variants
+    // (including older deployments that only returned tale_id) before
+    // deciding how the interaction should navigate.
     final targetId =
         (field('target_id', 'targetId') ??
-                item['tale_id'] ??
-                item['taleId'] ??
-                item['post_id'] ??
-                item['postId'])
+                field('tale_id', 'taleId') ??
+                field('post_id', 'postId'))
             ?.toString();
-    final targetType =
-        '${field('target_type', 'targetType') ?? (targetId == null ? '' : 'tale')}'
-            .toLowerCase();
+    final rawTargetType = field('target_type', 'targetType');
+    final targetType = '${rawTargetType ?? (targetId == null ? '' : 'tale')}'
+        .toLowerCase();
     final hasTargetTale = targetType == 'tale' && targetId != null;
     final profileAuthor =
         _loadedPublicUser ??
@@ -2817,8 +2821,8 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                 ? () => context.push('/tale/$targetId')
                 : null,
           ),
-          commentCard,
           targetCard,
+          commentCard,
         ],
       ),
     );
