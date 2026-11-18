@@ -54,6 +54,13 @@
 	<string>We need camera access to scan QR codes for wallet addresses and transactions.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>We need access to your microphone to record voice messages.</string>
+	<!-- Required by Flutter's wireless debug VM service on iOS 14+. -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Griot uses your local network to connect the development tools during debugging.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_dartVmService._tcp</string>
+	</array>
 	<key>NSFaceIDUsageDescription</key>
 	<string>We use Face ID to securely unlock your wallet</string>
 	<key>NSContactsUsageDescription</key>
