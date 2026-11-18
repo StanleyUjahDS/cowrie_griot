@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class GriotAvatar extends StatelessWidget {
   final String? avatarUrl;
@@ -13,6 +14,20 @@ class GriotAvatar extends StatelessWidget {
     this.backgroundColor,
     this.iconColor,
   });
+
+  /// Signed media URLs often contain a fresh query string on every API
+  /// response. The object itself is identified by its host/path, so use that
+  /// stable identity for the disk cache and avoid a placeholder flash.
+  static String stableCacheKey(String url) {
+    final parsed = Uri.tryParse(url.trim());
+    if (parsed == null || parsed.host.isEmpty) return url.trim();
+    return Uri(
+      scheme: parsed.scheme,
+      host: parsed.host,
+      port: parsed.hasPort ? parsed.port : null,
+      path: parsed.path,
+    ).toString();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,17 +49,15 @@ class GriotAvatar extends StatelessWidget {
             ? Padding(
                 padding: EdgeInsets.all((radius * 0.09).clamp(2.5, 5.0)),
                 child: ClipOval(
-                  child: Image.network(
-                    avatarUrl!,
+                  child: CachedNetworkImage(
+                    imageUrl: avatarUrl!,
+                    cacheKey: stableCacheKey(avatarUrl!),
                     fit: BoxFit.cover,
-                    frameBuilder:
-                        (context, child, frame, wasSynchronouslyLoaded) {
-                          if (wasSynchronouslyLoaded || frame != null) {
-                            return child;
-                          }
-                          return _buildEmpty(colorScheme);
-                        },
-                    errorBuilder: (context, error, stackTrace) =>
+                    useOldImageOnUrlChange: true,
+                    fadeInDuration: Duration.zero,
+                    fadeOutDuration: Duration.zero,
+                    placeholder: (context, url) => _buildEmpty(colorScheme),
+                    errorWidget: (context, url, error) =>
                         _buildEmpty(colorScheme),
                   ),
                 ),
@@ -58,7 +71,12 @@ class GriotAvatar extends StatelessWidget {
     return Container(
       color: colorScheme.surfaceContainerHighest,
       alignment: Alignment.center,
-      child: const SizedBox.expand(),
+      padding: EdgeInsets.all((radius * 0.16).clamp(3.0, 8.0)),
+      child: Image.asset(
+        'assets/coins_logo/griot-network-512.png',
+        fit: BoxFit.contain,
+        semanticLabel: 'Griot profile badge',
+      ),
     );
   }
 }
