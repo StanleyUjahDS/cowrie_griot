@@ -3011,6 +3011,12 @@ class _CallScreenState extends State<CallScreen> {
                         child: _buildCallControls(colors, compact: true),
                       ),
                     ),
+                  Positioned(
+                    left: 16,
+                    right: 82,
+                    bottom: 118,
+                    child: _buildCampfireLiveCommentPreview(colors),
+                  ),
                   if (widget.conversationType == 'space')
                     Positioned(
                       right: 18,
@@ -3036,6 +3042,62 @@ class _CallScreenState extends State<CallScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCampfireLiveCommentPreview(ColorScheme colors) {
+    return ValueListenableBuilder<List<Map<String, dynamic>>>(
+      valueListenable: _campfireComments,
+      builder: (context, comments, _) {
+        if (comments.isEmpty) return const SizedBox.shrink();
+        final recent = comments.length <= 3
+            ? comments
+            : comments.sublist(comments.length - 3);
+        return IgnorePointer(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final item in recent)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: colors.scrim.withValues(alpha: .62),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 6, 10, 6),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          GriotAvatar(
+                            radius: 12,
+                            avatarUrl: (item['avatar_url'] ?? item['avatarUrl'])
+                                ?.toString(),
+                          ),
+                          const SizedBox(width: 7),
+                          Flexible(
+                            child: Text(
+                              '${(item['display_name'] ?? item['displayName'] ?? item['username'] ?? 'Campfire member').toString()}: ${(item['content'] ?? '').toString()}',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: colors.onPrimary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 
