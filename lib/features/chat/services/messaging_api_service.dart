@@ -177,6 +177,38 @@ class MessagingApiService {
     return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
   }
 
+  Future<List<Map<String, dynamic>>> getCampStatuses(String userId) async {
+    final response = await _apiClient.get(
+      ApiConfig.messagingCampProfileStatuses(userId),
+      forceRefresh: true,
+    );
+    final data = _getData(response);
+    return data is List
+        ? data.whereType<Map>().map(Map<String, dynamic>.from).toList()
+        : <Map<String, dynamic>>[];
+  }
+
+  Future<Map<String, dynamic>> createCampStatus({
+    String? text,
+    String? mediaId,
+    String styleKey = 'midnight',
+  }) async {
+    final response = await _apiClient.post(
+      ApiConfig.messagingCampStatuses,
+      body: {
+        if (text != null && text.trim().isNotEmpty) 'text': text.trim(),
+        if (mediaId != null) 'mediaId': mediaId,
+        'styleKey': styleKey,
+      },
+    );
+    final data = _getData(response);
+    return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+  }
+
+  Future<void> viewCampStatus(String statusId) async {
+    await _apiClient.post(ApiConfig.messagingCampStatusView(statusId));
+  }
+
   Future<Map<String, dynamic>> getCampProfileCampfires(
     String userId, {
     String status = 'all',

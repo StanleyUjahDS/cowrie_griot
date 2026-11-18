@@ -491,6 +491,13 @@ class ApiConfig {
       '$messagingCampProfiles/${Uri.encodeComponent(userId)}';
   static String messagingCampProfileTales(String userId) =>
       '${messagingCampProfile(userId)}/tales';
+  static String messagingCampProfileStatuses(String userId) =>
+      '${messagingCampProfile(userId)}/statuses';
+  static String get messagingCampStatuses => '$messagingCampProfiles/statuses';
+  static String messagingCampStatusView(String statusId) =>
+      '$messagingCampStatuses/$statusId/view';
+  static String messagingCampStatus(String statusId) =>
+      '$messagingCampStatuses/$statusId';
   static String messagingCampProfileCampfires(
     String userId, {
     String status = 'all',
