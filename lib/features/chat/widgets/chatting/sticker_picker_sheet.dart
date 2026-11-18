@@ -98,10 +98,8 @@ class _StickerPickerSheetState extends State<StickerPickerSheet> {
         if (!mounted || cropped == null) return;
         sourcePath = cropped.path;
       }
-      // Video stickers stay as video files so colour depth and motion detail
-      // are not lost through a GIF palette conversion.
-      // Animated stickers are stored as GIFs so the chat renderer can display
-      // them inline and loop them automatically.
+      // Animated stickers are stored as lossless animated PNGs so the chat
+      // renderer can autoplay them inline without GIF colour banding.
       await _library.add(sourcePath, isVideo: false);
       await _load();
     } catch (error) {

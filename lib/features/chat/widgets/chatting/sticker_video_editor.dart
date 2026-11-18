@@ -5,36 +5,41 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/services/notification_service.dart';
 import 'package:image/image.dart' as img;
+import 'package:get_thumbnail_video/index.dart' show ImageFormat;
+import 'package:get_thumbnail_video/video_thumbnail.dart';
 import 'package:video_trimmer/video_trimmer.dart';
 
-Future<String> _squareGifWorker(Map<String, dynamic> args) async {
-  final sourcePath = args['sourcePath'] as String;
+Future<String> _encodeAnimatedPngWorker(Map<String, dynamic> args) async {
+  final frames = (args['frames'] as List).cast<Uint8List>();
   final horizontal = (args['horizontal'] as num).toDouble();
   final vertical = (args['vertical'] as num).toDouble();
-  final decoded = await img.decodeGifFile(sourcePath);
-  if (decoded == null) throw Exception('GIF could not be decoded');
-  final side = decoded.width < decoded.height ? decoded.width : decoded.height;
-  final square = img.copyCrop(
-    decoded,
-    x: ((decoded.width - side) * horizontal).round(),
-    y: ((decoded.height - side) * vertical).round(),
-    width: side,
-    height: side,
-  );
-  for (var i = 0; i < square.frames.length; i++) {
-    square.frames[i].frameDuration = decoded.frames[i].frameDuration;
+  final decodedFrames = <img.Image>[];
+  for (final bytes in frames) {
+    final frame = img.decodeImage(bytes);
+    if (frame == null) continue;
+    final side = frame.width < frame.height ? frame.width : frame.height;
+    final cropped = img.copyCrop(
+      frame,
+      x: ((frame.width - side) * horizontal).round(),
+      y: ((frame.height - side) * vertical).round(),
+      width: side,
+      height: side,
+    );
+    cropped.frameDuration = 67;
+    decodedFrames.add(cropped);
   }
-  square.loopCount = 0;
+  if (decodedFrames.isEmpty) {
+    throw Exception('Sticker frames could not be decoded');
+  }
+  final animated = img.Image.from(decodedFrames.first);
+  animated.loopCount = 0;
+  for (final frame in decodedFrames.skip(1)) {
+    animated.addFrame(frame);
+  }
   final outputPath =
-      '${sourcePath.substring(0, sourcePath.length - 4)}_square.gif';
-  if (!await img.encodeGifFile(
-    outputPath,
-    square,
-    samplingFactor: 1,
-    ditherScanOrder: img.DitherScanOrder.serpentine,
-  )) {
-    throw Exception('Square GIF could not be written');
-  }
+      '${Directory.systemTemp.path}/griot_sticker_${DateTime.now().microsecondsSinceEpoch}.png';
+  final bytes = img.encodePng(animated, level: 6);
+  await File(outputPath).writeAsBytes(bytes, flush: true);
   return outputPath;
 }
 
@@ -93,19 +98,32 @@ class _StickerVideoEditorState extends State<StickerVideoEditor> {
       _saveStage = 'Preparing sticker…';
     });
     try {
-      await _trimmer.saveTrimmedVideo(
-        startValue: _start,
-        endValue: _end,
-        outputType: OutputType.gif,
-        fpsGIF: 15,
-        scaleGIF: 720,
-        qualityGIF: 95,
-        onSave: (outputPath) {
-          if (outputPath == null || outputPath.isEmpty) return;
-          if (mounted) setState(() => _saveStage = 'Framing animated sticker…');
-          unawaited(_squareGif(outputPath));
-        },
-      );
+      final frameInterval = 67;
+      final frameBytes = <Uint8List>[];
+      for (
+        var timeMs = _start.toInt();
+        timeMs <= _end.toInt() && frameBytes.length < 24;
+        timeMs += frameInterval
+      ) {
+        frameBytes.add(
+          await VideoThumbnail.thumbnailData(
+            video: widget.file.path,
+            imageFormat: ImageFormat.PNG,
+            maxWidth: 512,
+            timeMs: timeMs,
+            quality: 100,
+          ),
+        );
+      }
+      if (mounted) setState(() => _saveStage = 'Encoding full-colour sticker…');
+      final outputPath = await compute(_encodeAnimatedPngWorker, {
+        'frames': frameBytes,
+        'horizontal': _cropHorizontal,
+        'vertical': _cropVertical,
+      });
+      if (!mounted) return;
+      setState(() => _saveProgress = 1);
+      Navigator.of(context).pop(outputPath);
     } catch (_) {
       if (!mounted) return;
       setState(() => _saving = false);
@@ -113,25 +131,6 @@ class _StickerVideoEditorState extends State<StickerVideoEditor> {
         context,
         'Could not create the sticker clip.',
       );
-    }
-  }
-
-  Future<void> _squareGif(String sourcePath) async {
-    try {
-      final outputPath = await compute(_squareGifWorker, {
-        'sourcePath': sourcePath,
-        'horizontal': _cropHorizontal,
-        'vertical': _cropVertical,
-      });
-      final original = File(sourcePath);
-      if (original.existsSync()) await original.delete();
-      if (!mounted) return;
-      setState(() => _saveProgress = 1);
-      Navigator.of(context).pop(outputPath);
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _saving = false);
-      NotificationService.showError(context, 'Could not frame the sticker.');
     }
   }
 
