@@ -705,13 +705,17 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                         title: Text('Tale drafts'),
                       ),
                     ),
-                  if (!widget.isPublic)
-                    const PopupMenuItem(
+                  if (user != null)
+                    PopupMenuItem(
                       value: 'profile',
                       child: ListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: Icon(Icons.person_outline_rounded),
-                        title: Text('Personal profile'),
+                        leading: const Icon(Icons.person_outline_rounded),
+                        title: Text(
+                          widget.isPublic
+                              ? 'View Griot profile'
+                              : 'Personal profile',
+                        ),
                       ),
                     ),
                 ],
@@ -1075,6 +1079,16 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 9),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () =>
+                            context.push('/user/profile', extra: user),
+                        icon: const Icon(Icons.open_in_new_rounded),
+                        label: const Text('View Griot profile'),
+                      ),
                     ),
                   ],
                 ],
