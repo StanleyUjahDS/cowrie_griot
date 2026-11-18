@@ -1888,17 +1888,23 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                   avatar: Icon(suggestion.$3, size: 16),
                   label: Text(suggestion.$1),
                   onPressed: () {
+                    final query = suggestion.$2;
                     setState(() {
                       _searchScope =
-                          suggestion.$2 == 'tales' ||
-                              suggestion.$2 == 'campfires' ||
-                              suggestion.$2 == 'profiles'
-                          ? suggestion.$2
+                          query == 'tales' ||
+                              query == 'campfires' ||
+                              query == 'profiles'
+                          ? query
                           : 'tales';
-                      _searchQuery = suggestion.$2;
-                      _searchController.text = suggestion.$2;
+                      _searchQuery = query;
+                      _searchController.text = query;
                       _searchSubmitted = true;
                     });
+                    // Quick-search chips previously only changed the visual
+                    // state; unlike the keyboard search action they never
+                    // fetched results. Start the same paginated search flow
+                    // immediately after selecting a chip.
+                    unawaited(_runCampSearch(query));
                   },
                 ),
             ],
