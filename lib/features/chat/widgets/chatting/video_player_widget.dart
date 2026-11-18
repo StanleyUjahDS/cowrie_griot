@@ -8,6 +8,7 @@ class ChatVideoPlayer extends StatefulWidget {
   final bool loop;
   final bool autoPlay;
   final bool showControls;
+  final Map<String, String>? httpHeaders;
 
   const ChatVideoPlayer({
     super.key,
@@ -16,6 +17,7 @@ class ChatVideoPlayer extends StatefulWidget {
     this.loop = false,
     this.autoPlay = false,
     this.showControls = true,
+    this.httpHeaders,
   });
 
   @override
@@ -35,7 +37,10 @@ class _ChatVideoPlayerState extends State<ChatVideoPlayer> {
 
   Future<void> _loadController() async {
     if (widget.url.startsWith('http')) {
-      _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+      _controller = VideoPlayerController.networkUrl(
+        Uri.parse(widget.url),
+        httpHeaders: widget.httpHeaders ?? const <String, String>{},
+      );
     } else {
       final String cleanPath = widget.url.replaceFirst('file://', '');
       _controller = VideoPlayerController.file(File(cleanPath));

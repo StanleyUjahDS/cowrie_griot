@@ -1731,6 +1731,7 @@ class MessageBubble extends StatelessWidget {
               loop: true,
               autoPlay: true,
               showControls: false,
+              httpHeaders: mediaHeaders,
             ),
           )
         : (url.startsWith('/') || url.startsWith('file://'))
