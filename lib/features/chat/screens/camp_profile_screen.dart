@@ -26,6 +26,7 @@ import '../../users/services/user_api_service.dart';
 import '../../golds/services/golds_api_service.dart';
 import '../services/messaging_api_service.dart';
 import '../models/chat_user.dart';
+import '../providers/stories_provider.dart';
 import '../widgets/camp_tip_sheet.dart';
 import '../widgets/camp_tale_components.dart';
 import '../widgets/camp_tale_media_gallery.dart';
@@ -1287,16 +1288,18 @@ class _CampProfileScreenState extends State<CampProfileScreen>
     final viewerId = context.read<UserProvider>().user?.id;
     final isOwnProfile = profileUserId == null || profileUserId == viewerId;
     final targetUserId = profileUserId ?? viewerId;
-    if (targetUserId == null) return const SizedBox.shrink();
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: context.read<MessagingApiService>().getCampStatuses(targetUserId),
-      builder: (context, snapshot) {
-        final active = snapshot.data ?? const <Map<String, dynamic>>[];
+    return Consumer<StoriesProvider>(
+      builder: (context, stories, _) {
+        final active = stories.stories
+            .where(
+              (story) => targetUserId == null || story.userId == targetUserId,
+            )
+            .toList(growable: false);
         if (active.isEmpty && !isOwnProfile) return const SizedBox.shrink();
         final latest = active.isEmpty ? null : active.last;
         final label = latest == null
-            ? 'Share a Camp Status'
-            : '${latest['text_content'] ?? latest['text'] ?? (latest['media_id'] != null ? 'Media status' : 'Camp Status')} · expires in 24h';
+            ? (isOwnProfile ? 'Share a Camp Status' : 'No active Camp Status')
+            : '${latest.text?.trim().isNotEmpty == true ? latest.text!.trim() : 'Media status'} · expires in 24h';
         return Padding(
           padding: const EdgeInsets.only(top: 12),
           child: CampTaleCardSurface(
@@ -1304,7 +1307,7 @@ class _CampProfileScreenState extends State<CampProfileScreen>
             margin: EdgeInsets.zero,
             child: InkWell(
               borderRadius: BorderRadius.circular(14),
-              onTap: () => context.push('/camp/status', extra: targetUserId),
+              onTap: () => context.push('/stories'),
               child: Row(
                 children: [
                   Container(
@@ -1322,7 +1325,7 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                     ),
                     child: GriotAvatar(
                       radius: 22,
-                      avatarUrl: latest?['avatar_url']?.toString(),
+                      avatarUrl: latest?.avatarUrl,
                     ),
                   ),
                   const SizedBox(width: 12),

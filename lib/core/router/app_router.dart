@@ -46,7 +46,6 @@ import '../../features/chat/services/realtime_call_service.dart';
 import '../../features/chat/screens/friends_list_screen.dart';
 import '../../features/chat/screens/shared_content_screen.dart';
 import '../../features/chat/screens/stories_screen.dart';
-import '../../features/chat/screens/camp_status_screen.dart';
 import '../../features/chat/screens/tale_public_screen.dart';
 import '../../features/chat/screens/tale_drafts_screen.dart';
 import '../../features/chat/screens/tale_bookmarks_screen.dart';
@@ -164,12 +163,6 @@ class AppRouter {
       GoRoute(
         path: '/stories',
         builder: (context, state) => const StoriesScreen(),
-      ),
-      GoRoute(
-        path: '/camp/status',
-        builder: (context, state) => CampStatusScreen(
-          profileUserId: state.extra is String ? state.extra as String : null,
-        ),
       ),
       GoRoute(
         path: '/tale/:taleId',
