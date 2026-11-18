@@ -1,5 +1,7 @@
 import Flutter
 import UIKit
+import Foundation
+import FirebaseMessaging
 import GoogleMobileAds
 import google_mobile_ads
 import UserNotifications
@@ -21,13 +23,36 @@ import flutter_callkit_incoming
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
     if #available(iOS 10.0, *) {
-      UNUserNotificationCenter.current().delegate = self as? UNUserNotificationCenterDelegate
+      UNUserNotificationCenter.current().delegate = self
     }
+    // Firebase Messaging normally performs this through swizzling, but an
+    // explicit registration keeps APNs token delivery reliable when other
+    // notification/call plugins are also installed in the app.
+    application.registerForRemoteNotifications()
     let registry = PKPushRegistry(queue: .main)
     registry.delegate = self
     registry.desiredPushTypes = [.voIP]
     voipRegistry = registry
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  // Keep the APNs token handoff explicit. Firebase normally installs this
+  // callback through method swizzling, but Flutter plugins that also handle
+  // remote/VoIP notifications can prevent the swizzled callback from being
+  // reached. Without this assignment FCM can return no usable iOS token and
+  // the device is never registered with the backend.
+  override func application(
+    _ application: UIApplication,
+    didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Foundation.Data
+  ) {
+    Messaging.messaging().apnsToken = deviceToken
+  }
+
+  override func application(
+    _ application: UIApplication,
+    didFailToRegisterForRemoteNotificationsWithError error: Error
+  ) {
+    NSLog("Griot push registration failed: %@", error.localizedDescription)
   }
 
   func pushRegistry(_ registry: PKPushRegistry, didUpdate credentials: PKPushCredentials, for type: PKPushType) {
