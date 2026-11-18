@@ -2239,6 +2239,15 @@ class _CallScreenState extends State<CallScreen> {
 
   @override
   void dispose() {
+    // The CallScreen is only the presentation layer. Navigation can dispose
+    // this route while the app-level ActiveCallController still owns a live
+    // media session. Preserve that session and expose it through the mini
+    // call banner instead of allowing the route teardown to look like a call
+    // hang-up.
+    final keepCallAlive = _owner.request != null && !_owner.closing;
+    if (keepCallAlive) {
+      _owner.minimize();
+    }
     _messagingProvider?.removeListener(_onCampfireRevision);
     _participantRefreshDebounce?.cancel();
     _participantRefreshTimer?.cancel();
@@ -2251,9 +2260,11 @@ class _CallScreenState extends State<CallScreen> {
       timer.cancel();
     }
     _spaceReactionTimers.clear();
-    _owner.onMiniChat = null;
-    _owner.onMiniMute = null;
-    _owner.onMiniEnd = null;
+    if (!keepCallAlive) {
+      _owner.onMiniChat = null;
+      _owner.onMiniMute = null;
+      _owner.onMiniEnd = null;
+    }
     // The app host removes this view only after explicit/remote cleanup.
     // Widget disposal never writes a terminal status to the server.
     super.dispose();
