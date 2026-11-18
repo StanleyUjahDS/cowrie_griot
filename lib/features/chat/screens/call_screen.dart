@@ -2398,6 +2398,12 @@ class _CallScreenState extends State<CallScreen> {
           elevation: 0,
           actions: [
             if (widget.conversationType == 'space')
+              IconButton(
+                tooltip: 'Participants and controls',
+                onPressed: _showSpaceControls,
+                icon: const Icon(Icons.people_alt_outlined),
+              ),
+            if (widget.conversationType == 'space')
               PopupMenuButton<String>(
                 tooltip: 'Campfire options',
                 icon: const Icon(Icons.more_vert_rounded),
