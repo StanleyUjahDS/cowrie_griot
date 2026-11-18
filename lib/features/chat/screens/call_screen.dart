@@ -3981,15 +3981,18 @@ class _CallScreenState extends State<CallScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 520),
-        child: Wrap(
-          alignment: WrapAlignment.center,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          // Keep the speaker/reaction/mic controls visually separated. The
-          // previous 4px compact gap made the buttons read as one crowded
-          // control, especially on Campfire cards.
-          spacing: compact ? 20 : 24,
-          runSpacing: compact ? 10 : 14,
-          children: controls,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var index = 0; index < controls.length; index++) ...[
+                if (index > 0) SizedBox(width: compact ? 16 : 20),
+                controls[index],
+              ],
+            ],
+          ),
         ),
       ),
     );
