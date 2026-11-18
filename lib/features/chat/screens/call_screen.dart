@@ -417,10 +417,11 @@ class _CallScreenState extends State<CallScreen> {
           comments: _campfireComments,
           title: _campfireTitle,
           controller: controller,
-          onSend: (text) async {
+          onSend: (text, parentCommentId) async {
             final created = await api.createCampfireComment(
               widget.conversationId,
               text,
+              parentCommentId: parentCommentId,
             );
             // The create response does not include profile data, so add the
             // local author's identity immediately; the socket refresh then
@@ -4810,7 +4811,7 @@ class _CampfireCommentsSheet extends StatefulWidget {
   final ValueNotifier<List<Map<String, dynamic>>> comments;
   final String title;
   final TextEditingController controller;
-  final Future<void> Function(String text) onSend;
+  final Future<void> Function(String text, String? parentCommentId) onSend;
 
   const _CampfireCommentsSheet({
     required this.comments,
@@ -4825,14 +4826,23 @@ class _CampfireCommentsSheet extends StatefulWidget {
 
 class _CampfireCommentsSheetState extends State<_CampfireCommentsSheet> {
   bool _sending = false;
+  String? _replyToId;
+  String? _replyToName;
 
   Future<void> _send() async {
     final text = widget.controller.text.trim();
     if (text.isEmpty || _sending) return;
+    final parentCommentId = _replyToId;
     setState(() => _sending = true);
     try {
-      await widget.onSend(text);
+      await widget.onSend(text, parentCommentId);
       widget.controller.clear();
+      if (mounted) {
+        setState(() {
+          _replyToId = null;
+          _replyToName = null;
+        });
+      }
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -4920,10 +4930,22 @@ class _CampfireCommentsSheetState extends State<_CampfireCommentsSheet> {
                   itemCount: comments.length,
                   itemBuilder: (context, index) {
                     final item = comments[comments.length - 1 - index];
+                    final commentId =
+                        (item['id'] ?? item['comment_id'] ?? item['commentId'])
+                            ?.toString();
+                    final parentId =
+                        (item['parent_comment_id'] ??
+                                item['parentCommentId'] ??
+                                item['parent_comment_id'])
+                            ?.toString();
                     final avatar = (item['avatar_url'] ?? item['avatarUrl'])
                         ?.toString();
                     return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 5),
+                      padding: EdgeInsets.only(
+                        top: 5,
+                        bottom: 5,
+                        left: parentId?.isNotEmpty == true ? 28 : 0,
+                      ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -4958,8 +4980,52 @@ class _CampfireCommentsSheetState extends State<_CampfireCommentsSheet> {
                                       ),
                                     ],
                                   ),
+                                  if (parentId?.isNotEmpty == true) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Reply',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: colors.primary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
                                   const SizedBox(height: 3),
                                   Text((item['content'] ?? '').toString()),
+                                  const SizedBox(height: 2),
+                                  Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: TextButton.icon(
+                                      onPressed:
+                                          commentId == null || commentId.isEmpty
+                                          ? null
+                                          : () {
+                                              setState(() {
+                                                // Replies always attach to the
+                                                // root comment, matching the
+                                                // channel one-level rule.
+                                                _replyToId =
+                                                    parentId?.isNotEmpty == true
+                                                    ? parentId
+                                                    : commentId;
+                                                _replyToName = _author(item);
+                                              });
+                                            },
+                                      icon: const Icon(
+                                        Icons.reply_rounded,
+                                        size: 15,
+                                      ),
+                                      label: const Text('Reply'),
+                                      style: TextButton.styleFrom(
+                                        visualDensity: VisualDensity.compact,
+                                        padding: EdgeInsets.zero,
+                                        minimumSize: const Size(0, 28),
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -4983,25 +5049,61 @@ class _CampfireCommentsSheetState extends State<_CampfireCommentsSheet> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: widget.controller,
-                    minLines: 1,
-                    maxLines: 4,
-                    textInputAction: TextInputAction.newline,
-                    decoration: InputDecoration(
-                      hintText: 'Message the Campfire…',
-                      filled: true,
-                      fillColor: colors.surfaceContainerHighest,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                        borderSide: BorderSide.none,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_replyToId != null)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 12, bottom: 5),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Replying to ${_replyToName ?? 'comment'}',
+                                  style: TextStyle(
+                                    color: colors.primary,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                              InkWell(
+                                onTap: () => setState(() {
+                                  _replyToId = null;
+                                  _replyToName = null;
+                                }),
+                                child: const Icon(
+                                  Icons.close_rounded,
+                                  size: 17,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      TextField(
+                        controller: widget.controller,
+                        minLines: 1,
+                        maxLines: 4,
+                        textInputAction: TextInputAction.newline,
+                        decoration: InputDecoration(
+                          hintText: _replyToId == null
+                              ? 'Message the Campfire…'
+                              : 'Reply to the comment…',
+                          filled: true,
+                          fillColor: colors.surfaceContainerHighest,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(24),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 11,
+                          ),
+                        ),
+                        onSubmitted: (_) => _send(),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 11,
-                      ),
-                    ),
-                    onSubmitted: (_) => _send(),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 8),

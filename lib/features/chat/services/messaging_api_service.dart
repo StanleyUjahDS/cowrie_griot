@@ -732,11 +732,16 @@ class MessagingApiService {
 
   Future<Map<String, dynamic>> createCampfireComment(
     String id,
-    String content,
-  ) async {
+    String content, {
+    String? parentCommentId,
+  }) async {
     final response = await _apiClient.post(
       ApiConfig.messagingCampfireComments(id),
-      body: {'content': content},
+      body: {
+        'content': content,
+        'parentCommentId': parentCommentId,
+        'parent_comment_id': parentCommentId,
+      },
     );
     final data = _getData(response);
     return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
