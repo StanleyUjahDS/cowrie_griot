@@ -2720,30 +2720,6 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                 ),
               ),
               const SizedBox(height: 12),
-              if (tale.retellSourceId != null &&
-                  tale.retellSourceContent != null &&
-                  tale.retellSourceContent!.trim().isNotEmpty) ...[
-                CampTaleReshareCard(
-                  sourceTaleId: tale.retellSourceId,
-                  sourceAuthorName: tale.retellSourceAuthorName ?? '',
-                  sourceAuthorUsername: tale.retellSourceAuthorUsername,
-                  sourceAuthorIsPlus: tale.retellSourceAuthorIsPlus,
-                  sourceAuthorIsPioneer: tale.retellSourceAuthorIsPioneer,
-                  sourceAuthorAvatarUrl: tale.retellSourceAuthorAvatarUrl,
-                  sourceText: tale.retellSourceContent!.trim(),
-                  onAuthorTap: tale.retellSourceAuthorId == null
-                      ? null
-                      : () => context.push(
-                          '/camp/profile/${tale.retellSourceAuthorId}',
-                        ),
-                  onSourceTap: () =>
-                      context.push('/tale/${tale.retellSourceId}'),
-                  sourceMediaUrls: tale.retellSourceMediaUrls,
-                  mediaBuilder: (context, urls) =>
-                      _buildTaleGallery(context, urls),
-                ),
-                const SizedBox(height: 10),
-              ],
               if (tale.retellSourceId == null &&
                   tale.threadCount > 1 &&
                   tale.threadPosition > 1 &&
@@ -2781,6 +2757,30 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                   const SizedBox(height: 12),
                   _taleMediaGallery(context, tale),
                 ],
+              ],
+              if (tale.retellSourceId != null &&
+                  tale.retellSourceContent != null &&
+                  tale.retellSourceContent!.trim().isNotEmpty) ...[
+                const SizedBox(height: 10),
+                CampTaleReshareCard(
+                  sourceTaleId: tale.retellSourceId,
+                  sourceAuthorName: tale.retellSourceAuthorName ?? '',
+                  sourceAuthorUsername: tale.retellSourceAuthorUsername,
+                  sourceAuthorIsPlus: tale.retellSourceAuthorIsPlus,
+                  sourceAuthorIsPioneer: tale.retellSourceAuthorIsPioneer,
+                  sourceAuthorAvatarUrl: tale.retellSourceAuthorAvatarUrl,
+                  sourceText: tale.retellSourceContent!.trim(),
+                  onAuthorTap: tale.retellSourceAuthorId == null
+                      ? null
+                      : () => context.push(
+                          '/camp/profile/${tale.retellSourceAuthorId}',
+                        ),
+                  onSourceTap: () =>
+                      context.push('/tale/${tale.retellSourceId}'),
+                  sourceMediaUrls: tale.retellSourceMediaUrls,
+                  mediaBuilder: (context, urls) =>
+                      _buildTaleGallery(context, urls),
+                ),
               ],
               if (tale.linkUrl != null && tale.linkUrl!.isNotEmpty)
                 LinkPreviewWidget(url: tale.linkUrl!, isMe: false),

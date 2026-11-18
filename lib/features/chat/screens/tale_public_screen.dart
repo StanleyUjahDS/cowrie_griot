@@ -1674,16 +1674,16 @@ class _TalePublicScreenState extends State<TalePublicScreen>
                                 ),
                               ),
                               const SizedBox(height: 9),
-                              if (_retellSourceId(tale) != null) ...[
-                                _retellSourceCard(context, tale),
-                                const SizedBox(height: 12),
-                              ],
                               if (!showThreadArticle && content.isNotEmpty)
                                 CampTaleText(
                                   key: ValueKey('text-${widget.taleId}'),
                                   text: content,
                                   fontSize: 18,
                                 ),
+                              if (_retellSourceId(tale) != null) ...[
+                                const SizedBox(height: 12),
+                                _retellSourceCard(context, tale),
+                              ],
                               if (!showThreadArticle &&
                                   _mediaUrls(tale).isNotEmpty) ...[
                                 const SizedBox(height: 14),
