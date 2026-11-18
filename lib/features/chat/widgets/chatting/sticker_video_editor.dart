@@ -25,7 +25,7 @@ Future<String> _encodeAnimatedPngWorker(Map<String, dynamic> args) async {
       width: side,
       height: side,
     );
-    cropped.frameDuration = 67;
+    cropped.frameDuration = 80;
     decodedFrames.add(cropped);
   }
   if (decodedFrames.isEmpty) {
@@ -64,7 +64,9 @@ class StickerVideoEditor extends StatefulWidget {
 }
 
 class _StickerVideoEditorState extends State<StickerVideoEditor> {
-  static const _maxStickerDuration = Duration(milliseconds: 1500);
+  static const _maxStickerDuration = Duration(milliseconds: 3000);
+  static const _stickerFrameIntervalMs = 80;
+  static const _maxStickerFrames = 38;
   final Trimmer _trimmer = Trimmer();
   double _start = 0;
   double _end = 1500;
@@ -98,12 +100,11 @@ class _StickerVideoEditorState extends State<StickerVideoEditor> {
       _saveStage = 'Preparing sticker…';
     });
     try {
-      final frameInterval = 67;
       final frameBytes = <Uint8List>[];
       for (
         var timeMs = _start.toInt();
-        timeMs <= _end.toInt() && frameBytes.length < 24;
-        timeMs += frameInterval
+        timeMs <= _end.toInt() && frameBytes.length < _maxStickerFrames;
+        timeMs += _stickerFrameIntervalMs
       ) {
         frameBytes.add(
           await VideoThumbnail.thumbnailData(
@@ -295,7 +296,7 @@ class _StickerVideoEditorState extends State<StickerVideoEditor> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Up to 1.5 seconds · drag to frame · double-tap to reset',
+                'Up to 3 seconds · drag to frame · double-tap to reset',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: colors.onSurfaceVariant),
               ),
