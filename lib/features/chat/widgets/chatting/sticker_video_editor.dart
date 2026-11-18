@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import '../../../../core/services/notification_service.dart';
+import 'package:easy_video_editor/easy_video_editor.dart';
 import 'package:video_trimmer/video_trimmer.dart';
 
 /// Native trim editor for video stickers. The exported clip is what is stored
@@ -33,8 +34,6 @@ class _StickerVideoEditorState extends State<StickerVideoEditor> {
   bool _loading = true;
   bool _saving = false;
   bool _playing = false;
-  double _cropHorizontal = .5;
-  double _cropVertical = .5;
   double _saveProgress = 0;
   String _saveStage = '';
 
@@ -60,31 +59,30 @@ class _StickerVideoEditorState extends State<StickerVideoEditor> {
       _saveStage = 'Preparing sticker…';
     });
     try {
-      await _trimmer.saveTrimmedVideo(
-        startValue: _start,
-        endValue: _end,
-        // Preserve the source video codec and full colour depth. Converting
-        // to GIF makes gradients and faces visibly posterised because GIF is
-        // limited to 256 colours.
-        outputType: OutputType.video,
-        onSave: (outputPath) {
-          if (outputPath == null || outputPath.isEmpty) {
-            if (!mounted) return;
-            setState(() => _saving = false);
-            NotificationService.showError(
-              context,
-              'Could not create the sticker clip.',
-            );
-            return;
-          }
-          if (!mounted) return;
-          setState(() {
-            _saveProgress = .94;
-            _saveStage = 'Finishing sticker…';
-          });
-          Navigator.of(context).pop(outputPath);
-        },
-      );
+      final outputPath = await VideoEditorBuilder(videoPath: widget.file.path)
+          .trim(startTimeMs: _start.round(), endTimeMs: _end.round())
+          .crop(aspectRatio: VideoAspectRatio.ratio1x1)
+          .compress(resolution: VideoResolution.p1080)
+          .export(
+            onProgress: (progress) {
+              if (mounted) {
+                setState(() {
+                  _saveProgress = .08 + progress * .88;
+                  _saveStage = progress < .34
+                      ? 'Trimming sticker…'
+                      : progress < .68
+                      ? 'Applying square frame…'
+                      : 'Encoding high-quality sticker…';
+                });
+              }
+            },
+          );
+      if (outputPath == null || outputPath.isEmpty) {
+        throw Exception('Video export returned no file.');
+      }
+      if (!mounted) return;
+      setState(() => _saveProgress = 1);
+      Navigator.of(context).pop(outputPath);
     } catch (_) {
       if (!mounted) return;
       setState(() => _saving = false);
@@ -118,20 +116,6 @@ class _StickerVideoEditorState extends State<StickerVideoEditor> {
                     ? const Center(child: CircularProgressIndicator())
                     : Center(
                         child: GestureDetector(
-                          onDoubleTap: () => setState(() {
-                            _cropHorizontal = .5;
-                            _cropVertical = .5;
-                          }),
-                          onPanUpdate: (details) => setState(() {
-                            _cropHorizontal =
-                                (_cropHorizontal + details.delta.dx / 260)
-                                    .clamp(0.0, 1.0);
-                            _cropVertical =
-                                (_cropVertical + details.delta.dy / 260).clamp(
-                                  0.0,
-                                  1.0,
-                                );
-                          }),
                           child: LayoutBuilder(
                             builder: (context, constraints) {
                               final side = constraints.biggest.shortestSide;
@@ -161,8 +145,8 @@ class _StickerVideoEditorState extends State<StickerVideoEditor> {
                                       ClipRect(
                                         child: Transform.translate(
                                           offset: Offset(
-                                            -overflowX * _cropHorizontal,
-                                            -overflowY * _cropVertical,
+                                            -overflowX / 2,
+                                            -overflowY / 2,
                                           ),
                                           child: Align(
                                             alignment: Alignment.topLeft,
@@ -256,7 +240,7 @@ class _StickerVideoEditorState extends State<StickerVideoEditor> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Up to 1.5 seconds · original video quality preserved',
+                'Up to 1.5 seconds · square crop · up to 1080p quality',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: colors.onSurfaceVariant),
               ),
