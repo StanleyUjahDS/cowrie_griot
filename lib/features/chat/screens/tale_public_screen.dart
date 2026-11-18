@@ -1337,6 +1337,7 @@ class _TalePublicScreenState extends State<TalePublicScreen>
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final chromeFactor = Curves.easeInOutCubic.transform(
       _readerChromeAnimation.value,
     );
@@ -2022,13 +2023,9 @@ class _TalePublicScreenState extends State<TalePublicScreen>
                   child: AppBar(
                     toolbarHeight: kToolbarHeight * chromeFactor,
                     title: const Text('Tale'),
-                    // The reader content should continue underneath the
-                    // chrome, matching the Camp feed/profile readers. Keep
-                    // only the title and controls visible over the gradient.
-                    backgroundColor: Colors.transparent,
+                    backgroundColor: colors.surface,
                     surfaceTintColor: Colors.transparent,
-                    shadowColor: Colors.transparent,
-                    forceMaterialTransparency: true,
+                    shadowColor: colors.shadow.withValues(alpha: .18),
                     elevation: 0,
                     scrolledUnderElevation: 0,
                   ),
