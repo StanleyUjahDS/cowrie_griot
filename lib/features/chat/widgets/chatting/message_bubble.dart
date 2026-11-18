@@ -1712,14 +1712,10 @@ class MessageBubble extends StatelessWidget {
         : <String, String>{'Authorization': 'Bearer $accessToken'};
     final extension = path.extension(url.split('?').first).toLowerCase();
     const videoExtensions = {'.mp4', '.mov', '.m4v', '.webm'};
-    const imageExtensions = {'.png', '.jpg', '.jpeg', '.gif', '.webp'};
-    // Media URLs can be extensionless after the API turns a storage key into
-    // a signed URL. New video stickers are always uploaded as video media, so
-    // an extensionless sticker must not fall through to CachedNetworkImage.
-    final isVideo =
-        videoExtensions.contains(extension) ||
-        (message.type == MessageType.sticker &&
-            !imageExtensions.contains(extension));
+    // The stable `/api/media/<id>` URL is extensionless. Stickers created by
+    // Griot are GIFs, so an extensionless sticker must use the animated image
+    // loader rather than being mistaken for a video player.
+    final isVideo = videoExtensions.contains(extension);
     final child = isVideo
         ? SizedBox(
             width: 164,
