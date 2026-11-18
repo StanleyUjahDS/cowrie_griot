@@ -2404,12 +2404,6 @@ class _CallScreenState extends State<CallScreen> {
                 ),
             if (widget.conversationType == 'space')
               IconButton(
-                tooltip: 'Campfire chat',
-                onPressed: _openCampfireComments,
-                icon: const Icon(Icons.chat_bubble_outline_rounded),
-              ),
-            if (widget.conversationType == 'space')
-              IconButton(
                 tooltip: 'Participants and controls',
                 onPressed: _showSpaceControls,
                 icon: const Icon(Icons.people_alt_outlined),
@@ -3015,6 +3009,19 @@ class _CallScreenState extends State<CallScreen> {
                         padding: const EdgeInsets.fromLTRB(4, 4, 4, 6),
                         borderRadius: 18,
                         child: _buildCallControls(colors, compact: true),
+                      ),
+                    ),
+                  if (widget.conversationType == 'space')
+                    Positioned(
+                      right: 18,
+                      bottom: 166,
+                      child: FloatingActionButton.small(
+                        heroTag: 'campfire-chat',
+                        tooltip: 'Open Campfire chat',
+                        onPressed: _openCampfireComments,
+                        backgroundColor: colors.secondaryContainer,
+                        foregroundColor: colors.onSecondaryContainer,
+                        child: const Icon(Icons.chat_bubble_outline_rounded),
                       ),
                     ),
                   if (widget.conversationType == 'space')
