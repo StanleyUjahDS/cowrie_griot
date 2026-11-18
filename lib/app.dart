@@ -1172,8 +1172,8 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
                             children: [
                               ?child,
                               const ActiveCallHost(),
-                              const _ActiveCallBanner(),
                               const _AppLockOverlay(),
+                              const _ActiveCallBanner(),
                             ],
                           ),
                         ),
@@ -1214,6 +1214,7 @@ class _ActiveCallBannerState extends State<_ActiveCallBanner> {
     listenable: ActiveCallController.instance,
     builder: (context, _) {
       final owner = ActiveCallController.instance;
+      final appLocked = context.watch<AppLockProvider>().isLocked;
       final call = owner.request;
       if (call == null || !owner.minimized || owner.closing) {
         return const SizedBox.shrink();
@@ -1349,7 +1350,9 @@ class _ActiveCallBannerState extends State<_ActiveCallBanner> {
                                       height: 32,
                                     ),
                                     padding: EdgeInsets.zero,
-                                    onPressed: owner.onMiniChat,
+                                    onPressed: appLocked
+                                        ? null
+                                        : owner.onMiniChat,
                                     icon: Icon(
                                       Icons.chat_bubble_outline_rounded,
                                       size: 20,
