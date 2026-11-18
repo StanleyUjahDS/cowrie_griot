@@ -29,6 +29,7 @@ import '../models/chat_user.dart';
 import '../providers/messaging_provider.dart';
 import '../widgets/friend_selector_sheet.dart';
 import '../widgets/camp_tip_sheet.dart';
+import '../widgets/chatting/reply_swipe.dart';
 
 enum _VideoThumbnailCorner { topLeft, topRight, bottomLeft, bottomRight }
 
@@ -4870,6 +4871,15 @@ class _CampfireCommentsSheetState extends State<_CampfireCommentsSheet> {
     return '$hour:$minute ${date.hour >= 12 ? 'PM' : 'AM'}';
   }
 
+  void _selectReply(String? commentId, String? parentId, String name) {
+    if (commentId == null || commentId.isEmpty) return;
+    setState(() {
+      // Keep replies one level deep, matching the channel comment flow.
+      _replyToId = parentId?.isNotEmpty == true ? parentId : commentId;
+      _replyToName = name;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -4940,97 +4950,112 @@ class _CampfireCommentsSheetState extends State<_CampfireCommentsSheet> {
                             ?.toString();
                     final avatar = (item['avatar_url'] ?? item['avatarUrl'])
                         ?.toString();
-                    return Padding(
-                      padding: EdgeInsets.only(
-                        top: 5,
-                        bottom: 5,
-                        left: parentId?.isNotEmpty == true ? 28 : 0,
+                    return ReplySwipe(
+                      background: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 14),
+                          child: Icon(
+                            Icons.reply_rounded,
+                            color: colors.primary,
+                          ),
+                        ),
                       ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          GriotAvatar(radius: 18, avatarUrl: avatar),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Container(
-                              padding: const EdgeInsets.fromLTRB(13, 9, 13, 8),
-                              decoration: BoxDecoration(
-                                color: colors.surfaceContainerHighest,
-                                borderRadius: BorderRadius.circular(17),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          _author(item),
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w700,
+                      onReply: () =>
+                          _selectReply(commentId, parentId, _author(item)),
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          top: 5,
+                          bottom: 5,
+                          left: parentId?.isNotEmpty == true ? 28 : 0,
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            GriotAvatar(radius: 18, avatarUrl: avatar),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.fromLTRB(
+                                  13,
+                                  9,
+                                  13,
+                                  8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: colors.surfaceContainerHighest,
+                                  borderRadius: BorderRadius.circular(17),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            _author(item),
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                            ),
                                           ),
                                         ),
-                                      ),
+                                        Text(
+                                          _time(item),
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: colors.onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    if (parentId?.isNotEmpty == true) ...[
+                                      const SizedBox(height: 2),
                                       Text(
-                                        _time(item),
+                                        'Reply',
                                         style: TextStyle(
                                           fontSize: 11,
-                                          color: colors.onSurfaceVariant,
+                                          color: colors.primary,
+                                          fontWeight: FontWeight.w700,
                                         ),
                                       ),
                                     ],
-                                  ),
-                                  if (parentId?.isNotEmpty == true) ...[
+                                    const SizedBox(height: 3),
+                                    Text((item['content'] ?? '').toString()),
                                     const SizedBox(height: 2),
-                                    Text(
-                                      'Reply',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: colors.primary,
-                                        fontWeight: FontWeight.w700,
+                                    Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: TextButton.icon(
+                                        onPressed:
+                                            commentId == null ||
+                                                commentId.isEmpty
+                                            ? null
+                                            : () {
+                                                _selectReply(
+                                                  commentId,
+                                                  parentId,
+                                                  _author(item),
+                                                );
+                                              },
+                                        icon: const Icon(
+                                          Icons.reply_rounded,
+                                          size: 15,
+                                        ),
+                                        label: const Text('Reply'),
+                                        style: TextButton.styleFrom(
+                                          visualDensity: VisualDensity.compact,
+                                          padding: EdgeInsets.zero,
+                                          minimumSize: const Size(0, 28),
+                                          tapTargetSize:
+                                              MaterialTapTargetSize.shrinkWrap,
+                                        ),
                                       ),
                                     ),
                                   ],
-                                  const SizedBox(height: 3),
-                                  Text((item['content'] ?? '').toString()),
-                                  const SizedBox(height: 2),
-                                  Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: TextButton.icon(
-                                      onPressed:
-                                          commentId == null || commentId.isEmpty
-                                          ? null
-                                          : () {
-                                              setState(() {
-                                                // Replies always attach to the
-                                                // root comment, matching the
-                                                // channel one-level rule.
-                                                _replyToId =
-                                                    parentId?.isNotEmpty == true
-                                                    ? parentId
-                                                    : commentId;
-                                                _replyToName = _author(item);
-                                              });
-                                            },
-                                      icon: const Icon(
-                                        Icons.reply_rounded,
-                                        size: 15,
-                                      ),
-                                      label: const Text('Reply'),
-                                      style: TextButton.styleFrom(
-                                        visualDensity: VisualDensity.compact,
-                                        padding: EdgeInsets.zero,
-                                        minimumSize: const Size(0, 28),
-                                        tapTargetSize:
-                                            MaterialTapTargetSize.shrinkWrap,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     );
                   },
@@ -5043,7 +5068,7 @@ class _CampfireCommentsSheetState extends State<_CampfireCommentsSheet> {
               14,
               8,
               14,
-              14 + MediaQuery.viewInsetsOf(context).bottom,
+              22 + MediaQuery.viewInsetsOf(context).bottom,
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
