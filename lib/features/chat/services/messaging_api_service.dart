@@ -266,11 +266,21 @@ class MessagingApiService {
     return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
   }
 
-  Future<Map<String, dynamic>> searchCampside(String query) async {
+  Future<Map<String, dynamic>> searchCampside(
+    String query, {
+    int limit = 20,
+    int offset = 0,
+  }) async {
     final response = await _apiClient.get(
-      Uri.parse(
-        ApiConfig.messagingCampProfileSearch,
-      ).replace(queryParameters: {'q': query}).toString(),
+      Uri.parse(ApiConfig.messagingCampProfileSearch)
+          .replace(
+            queryParameters: {
+              'q': query,
+              'limit': '$limit',
+              'offset': '$offset',
+            },
+          )
+          .toString(),
       forceRefresh: true,
     );
     final data = _getData(response);

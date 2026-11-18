@@ -305,6 +305,9 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
   String _searchQuery = '';
   bool _searchSubmitted = false;
   bool _searchLoading = false;
+  bool _searchLoadingMore = false;
+  int _searchOffset = 0;
+  bool _searchHasMore = false;
   Map<String, dynamic> _campSearchResults = const {};
   String _searchScope = 'all';
   String _selectedTaleCategory = 'All';
@@ -321,16 +324,32 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
   Future<void> _runCampSearch(String query) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) {
-      if (mounted) setState(() => _campSearchResults = const {});
+      if (mounted) {
+        setState(() {
+          _campSearchResults = const {};
+          _searchOffset = 0;
+          _searchHasMore = false;
+        });
+      }
       return;
     }
-    setState(() => _searchLoading = true);
+    setState(() {
+      _searchLoading = true;
+      _searchOffset = 0;
+      _searchHasMore = false;
+    });
     try {
       final result = await context.read<MessagingApiService>().searchCampside(
         trimmed,
+        limit: 20,
+        offset: 0,
       );
       if (mounted && _searchQuery.trim() == trimmed) {
-        setState(() => _campSearchResults = result);
+        setState(() {
+          _campSearchResults = result;
+          _searchOffset = 20;
+          _searchHasMore = result['hasMore'] == true;
+        });
       }
     } catch (error) {
       if (mounted) {
@@ -339,6 +358,40 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
       }
     } finally {
       if (mounted) setState(() => _searchLoading = false);
+    }
+  }
+
+  Future<void> _loadMoreCampSearch() async {
+    final query = _searchQuery.trim();
+    if (query.isEmpty || !_searchHasMore || _searchLoadingMore) return;
+    setState(() => _searchLoadingMore = true);
+    try {
+      final page = await context.read<MessagingApiService>().searchCampside(
+        query,
+        limit: 20,
+        offset: _searchOffset,
+      );
+      if (!mounted || _searchQuery.trim() != query) return;
+      final merged = <String, dynamic>{..._campSearchResults};
+      for (final key in const ['profiles', 'campfires', 'tales', 'comments']) {
+        final current = (merged[key] as List?) ?? const [];
+        final next = (page[key] as List?) ?? const [];
+        merged[key] = [...current, ...next];
+      }
+      setState(() {
+        _campSearchResults = merged;
+        _searchOffset += 20;
+        _searchHasMore = page['hasMore'] == true;
+      });
+    } catch (error) {
+      if (mounted) {
+        NotificationService.showError(
+          context,
+          'Could not load more results: $error',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _searchLoadingMore = false);
     }
   }
 
@@ -1750,6 +1803,22 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                       ),
               ),
           ],
+          if (_searchHasMore)
+            Padding(
+              padding: const EdgeInsets.only(top: 10, bottom: 8),
+              child: Center(
+                child: _searchLoadingMore
+                    ? const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : OutlinedButton.icon(
+                        onPressed: _loadMoreCampSearch,
+                        icon: const Icon(Icons.expand_more_rounded),
+                        label: const Text('Load more results'),
+                      ),
+              ),
+            ),
         ],
       ],
     );
@@ -5511,6 +5580,9 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                       _searchQuery = '';
                       _searchSubmitted = false;
                       _campSearchResults = const {};
+                      _searchOffset = 0;
+                      _searchHasMore = false;
+                      _searchLoadingMore = false;
                     });
                   },
                   icon: Icon(
