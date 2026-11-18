@@ -2052,9 +2052,17 @@ class MessagingProvider extends ChangeNotifier {
     final list = _messagesByConversation[incoming.conversationId] ?? [];
 
     final existingIndex = list.indexWhere((message) {
+      final sameStickerPayload =
+          message.type == MessageType.sticker &&
+          (incoming.type == MessageType.sticker ||
+              incoming.type == MessageType.image ||
+              incoming.type == MessageType.video) &&
+          message.text == '✨ Sticker' &&
+          incoming.text == '✨ Sticker';
       final sameMediaType =
           message.type == incoming.type ||
-          (message.isAudio && incoming.isAudio);
+          (message.isAudio && incoming.isAudio) ||
+          sameStickerPayload;
       if (message.id == incoming.id) {
         return true;
       }
@@ -2154,7 +2162,11 @@ class MessagingProvider extends ChangeNotifier {
           senderId: incoming.senderId,
           status: incoming.status,
           text: incoming.text,
-          type: incoming.type,
+          // A GIF sticker may arrive through an older socket/server path as
+          // `image`; retain the sticker presentation when reconciling it.
+          type: existing.type == MessageType.sticker
+              ? MessageType.sticker
+              : incoming.type,
           createdAt: incoming.createdAt,
           mediaUrl: incoming.mediaUrl ?? existing.mediaUrl,
           thumbnailUrl: incoming.thumbnailUrl ?? existing.thumbnailUrl,
