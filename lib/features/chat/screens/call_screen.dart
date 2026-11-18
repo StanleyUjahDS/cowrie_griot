@@ -3999,19 +3999,31 @@ class _CallScreenState extends State<CallScreen> {
     }
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (var index = 0; index < controls.length; index++) ...[
-                if (index > 0) SizedBox(width: compact ? 16 : 20),
-                controls[index],
-              ],
-            ],
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: ConstrainedBox(
+                  // Keep a short control row centered in the floating bar;
+                  // retain horizontal scrolling only when extra actions cannot
+                  // fit on a narrow phone.
+                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      for (var index = 0; index < controls.length; index++) ...[
+                        if (index > 0) SizedBox(width: compact ? 16 : 20),
+                        controls[index],
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
         ),
       ),
