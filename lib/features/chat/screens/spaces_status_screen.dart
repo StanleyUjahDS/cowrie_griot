@@ -2175,12 +2175,26 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                   ),
                   Expanded(
                     child: CampTaleActionButton(
-                      icon: Icons.forum_outlined,
-                      label: '$comments',
-                      tooltip: 'Comments',
-                      onTap: id == null
+                      icon: Icons.volunteer_activism_outlined,
+                      label: '',
+                      tooltip: 'Tip creator',
+                      onTap: authorId == null
                           ? null
-                          : () => context.push('/tale/$id'),
+                          : () => _tipCreator(
+                              userId: authorId,
+                              walletAddress:
+                                  (author['walletAddress'] ??
+                                          author['wallet_address'] ??
+                                          tale['author_wallet_address'] ??
+                                          tale['authorWalletAddress'])
+                                      ?.toString(),
+                              displayName: authorName,
+                              avatarUrl: avatarUrl,
+                              metadata: {
+                                'surface': 'camp_search',
+                                'taleId': id,
+                              },
+                            ),
                     ),
                   ),
                   Expanded(
@@ -2199,6 +2213,16 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 4),
+              SizedBox(
+                width: double.infinity,
+                child: CampTaleActionButton(
+                  icon: Icons.forum_outlined,
+                  label: '$comments Comments',
+                  tooltip: 'Comments',
+                  onTap: id == null ? null : () => context.push('/tale/$id'),
+                ),
               ),
             ],
           ),
