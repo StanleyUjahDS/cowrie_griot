@@ -1372,7 +1372,7 @@ class _CampProfileScreenState extends State<CampProfileScreen>
   }
 
   Widget _activityTab(BuildContext context) {
-    final filters = ['All', 'Tales', 'Campfires', 'Comments', 'Saved'];
+    final filters = ['All', 'Tales', 'Campfires', 'Comments', 'Likes', 'Saved'];
     final filteredActivity = _campActivity
         .where((item) {
           if (_activityFilter == 'All') return true;
@@ -1383,6 +1383,9 @@ class _CampProfileScreenState extends State<CampProfileScreen>
             return type == 'campfire' || type == 'space';
           }
           if (filter == 'comments') return type == 'comment' || type == 'reply';
+          if (filter == 'likes') {
+            return type == 'like' || type == 'comment_like';
+          }
           return type == filter;
         })
         .toList(growable: false);
@@ -2689,6 +2692,8 @@ class _CampProfileScreenState extends State<CampProfileScreen>
     final isTale = savedTarget == 'tale' || savedTarget == 'post';
     final isCampfire = savedTarget == 'campfire' || savedTarget == 'space';
     final isComment = savedTarget == 'comment' || savedTarget == 'reply';
+    final targetId = item['target_id']?.toString();
+    final targetType = '${item['target_type'] ?? ''}'.toLowerCase();
     final icon = isTale
         ? Icons.menu_book_rounded
         : isCampfire
@@ -2707,31 +2712,92 @@ class _CampProfileScreenState extends State<CampProfileScreen>
         : type == 'saved'
         ? 'Saved'
         : 'Interaction';
+    final targetCard = targetType == 'tale' && targetId != null
+        ? Padding(
+            padding: const EdgeInsets.only(left: 14, right: 14, bottom: 12),
+            child: CampTaleCardSurface(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () => context.push('/tale/$targetId'),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    CampTaleHeader(
+                      authorName:
+                          '${item['target_author_name'] ?? 'Griot user'}',
+                      avatarUrl: item['target_author_avatar_url']?.toString(),
+                      subtitle: 'Tale',
+                      menu: const SizedBox.shrink(),
+                    ),
+                    const SizedBox(height: 8),
+                    CampTaleText(
+                      text: '${item['target_summary'] ?? 'Tale'}',
+                      fontSize: 14,
+                    ),
+                    if ('${item['target_media_url'] ?? ''}'.trim().isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: AspectRatio(
+                            aspectRatio: 16 / 9,
+                            child: Image.network(
+                              '${item['target_media_url']}',
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) =>
+                                  const SizedBox.shrink(),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          )
+        : const SizedBox.shrink();
     return Card(
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
-        title: Text(
-          type == 'saved'
-              ? 'Saved ${isCampfire ? 'Campfire' : 'Tale'}'
-              : '${item['summary'] ?? 'Activity'}',
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Text(type == 'saved' ? 'Saved to your Camp list' : label),
-        trailing: (isTale || isCampfire || isComment) && entityId != null
-            ? const Icon(Icons.chevron_right_rounded)
-            : null,
-        onTap: entityId == null
-            ? null
-            : isTale
-            ? () => context.push('/tale/$entityId')
-            : isCampfire
-            ? () => context.push('/campfires')
-            : isComment
-            ? () => context.push('/tale/$entityId')
-            : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ListTile(
+            leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
+            title: Text(
+              type == 'saved'
+                  ? 'Saved ${isCampfire ? 'Campfire' : 'Tale'}'
+                  : isComment
+                  ? 'Commented on a Tale'
+                  : type == 'like'
+                  ? 'Liked a Tale'
+                  : '${item['summary'] ?? 'Activity'}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: Text(
+              isComment
+                  ? '${item['summary'] ?? ''}'
+                  : (type == 'saved' ? 'Saved to your Camp list' : label),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            trailing: (isTale || isCampfire || isComment) && entityId != null
+                ? const Icon(Icons.chevron_right_rounded)
+                : null,
+            onTap: entityId == null
+                ? null
+                : isTale
+                ? () => context.push('/tale/$entityId')
+                : isCampfire
+                ? () => context.push('/campfires')
+                : isComment && targetId == null
+                ? () => context.push('/tale/$entityId')
+                : null,
+          ),
+          targetCard,
+        ],
       ),
     );
   }
