@@ -1212,6 +1212,10 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                           child: FilledButton.icon(
                             onPressed: () => GroupConversationCallButton(
                               conversationId: conversation.id,
+                              memberCount:
+                                  _members.length > conversation.memberCount
+                                  ? _members.length
+                                  : conversation.memberCount,
                               canCreateCampfire: true,
                             ).open(context),
                             icon: const Icon(Icons.groups_rounded),

@@ -119,16 +119,21 @@ class ConversationCallButton extends StatelessWidget {
 /// conversation-scoped Campfire flow. Channels intentionally do not use this
 /// widget: their only live audio entry point is the Campfire action.
 class GroupConversationCallButton extends StatelessWidget {
+  static const int maxRegularCallParticipants = 9;
   final String conversationId;
   final bool canCreateCampfire;
+  final int? memberCount;
 
   const GroupConversationCallButton({
     super.key,
     required this.conversationId,
     required this.canCreateCampfire,
+    this.memberCount,
   });
 
   Future<void> open(BuildContext context) async {
+    final isLargeGroup =
+        memberCount != null && memberCount! > maxRegularCallParticipants;
     final action = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -175,30 +180,37 @@ class GroupConversationCallButton extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Choose a regular group call or a Campfire space.',
+                  isLargeGroup
+                      ? 'This group has $memberCount members. Use a private Campfire so listeners do not consume call media credits.'
+                      : 'Choose a regular group call or a Campfire space.',
                   style: textTheme.bodyMedium?.copyWith(
                     color: colors.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 16),
-                _CallOption(
-                  icon: Icons.groups_rounded,
-                  title: 'Group call',
-                  subtitle: 'Private voice or video call for group members',
-                  color: colors.primary,
-                  onTap: () => Navigator.pop(sheetContext, 'group_call'),
-                ),
-                const SizedBox(height: 10),
+                if (!isLargeGroup) ...[
+                  _CallOption(
+                    icon: Icons.groups_rounded,
+                    title: 'Group call',
+                    subtitle: 'Private voice or video call for group members',
+                    color: colors.primary,
+                    onTap: () => Navigator.pop(sheetContext, 'group_call'),
+                  ),
+                  const SizedBox(height: 10),
+                ],
                 _CallOption(
                   icon: Icons.local_fire_department_rounded,
                   title: 'Group Campfire',
                   subtitle: canCreateCampfire
-                      ? 'A hosted live room with speakers and listeners'
-                      : 'Available to group owners and admins',
+                      ? (isLargeGroup
+                            ? 'Recommended for this group: up to 9 speakers, everyone else listens'
+                            : 'A hosted live room with speakers and listeners')
+                      : 'Join a live Campfire, or ask an admin to start one',
                   color: Colors.deepOrange,
-                  onTap: canCreateCampfire
-                      ? () => Navigator.pop(sheetContext, 'campfire')
-                      : () => Navigator.pop(sheetContext),
+                  // The Campfire screen decides whether to join an existing
+                  // room or create a new one. Joining is available to every
+                  // active group member; Plus is only required to create.
+                  onTap: () => Navigator.pop(sheetContext, 'campfire'),
                 ),
               ],
             ),
