@@ -2396,31 +2396,63 @@ class _CallScreenState extends State<CallScreen> {
           backgroundColor: c.surface,
           elevation: 0,
           actions: [
-            if (_started && _canShareCallLink)
-              IconButton(
-                tooltip: 'Share call link',
-                onPressed: _sharingLink ? null : _shareCallLink,
-                icon: const Icon(Icons.link_rounded),
-              ),
-            if (widget.conversationType != 'space')
+            if (widget.conversationType == 'space')
+              PopupMenuButton<String>(
+                tooltip: 'Campfire options',
+                icon: const Icon(Icons.more_vert_rounded),
+                onSelected: (value) {
+                  switch (value) {
+                    case 'share':
+                      if (!_sharingLink) unawaited(_shareCallLink());
+                    case 'tip':
+                      unawaited(_tipCampfireHost());
+                    case 'participants':
+                      unawaited(_showSpaceControls());
+                  }
+                },
+                itemBuilder: (context) => [
+                  if (_started && _canShareCallLink)
+                    PopupMenuItem(
+                      value: 'share',
+                      enabled: !_sharingLink,
+                      child: const ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.link_rounded),
+                        title: Text('Share Campfire link'),
+                      ),
+                    ),
+                  if (_campfireHost != null && !_campfireHost!.isSelf)
+                    const PopupMenuItem(
+                      value: 'tip',
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.volunteer_activism_outlined),
+                        title: Text('Tip host'),
+                      ),
+                    ),
+                  const PopupMenuItem(
+                    value: 'participants',
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.people_alt_outlined),
+                      title: Text('Participants and controls'),
+                    ),
+                  ),
+                ],
+              )
+            else ...[
+              if (_started && _canShareCallLink)
+                IconButton(
+                  tooltip: 'Share call link',
+                  onPressed: _sharingLink ? null : _shareCallLink,
+                  icon: const Icon(Icons.link_rounded),
+                ),
               IconButton(
                 tooltip: 'Add people or retry ringing',
                 onPressed: _invitePeople,
                 icon: const Icon(Icons.person_add_alt_1_rounded),
               ),
-            if (widget.conversationType == 'space')
-              if (_campfireHost != null && !_campfireHost!.isSelf)
-                IconButton(
-                  tooltip: 'Tip Campfire host',
-                  onPressed: _tipCampfireHost,
-                  icon: const Icon(Icons.volunteer_activism_outlined),
-                ),
-            if (widget.conversationType == 'space')
-              IconButton(
-                tooltip: 'Participants and controls',
-                onPressed: _showSpaceControls,
-                icon: const Icon(Icons.people_alt_outlined),
-              ),
+            ],
           ],
         ),
         child: Center(
