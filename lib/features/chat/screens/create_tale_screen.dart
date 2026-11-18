@@ -111,6 +111,7 @@ class _CreateTaleScreenState extends State<CreateTaleScreen>
   static const _categories = <String>[
     'Personal',
     'Finance',
+    'Crypto',
     'Technology',
     'Health',
     'Education',
@@ -1705,6 +1706,7 @@ class _TokenPickerSheetState extends State<_TokenPickerSheet> {
     'History',
     'PublicHealth',
     'Web3',
+    'Crypto',
   ];
 
   final _controller = TextEditingController();
