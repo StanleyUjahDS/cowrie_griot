@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../core/ui/dialogs/griot_confirm_dialog.dart';
@@ -15,7 +17,6 @@ import '../../miner/providers/mining_provider.dart';
 import '../../miner/providers/referral_provider.dart';
 import '../../miner/providers/reputation_provider.dart';
 import '../../local_auth/providers/app_lock_provider.dart';
-import '../../../core/ui/widgets/banner_ad.dart';
 import '../../../core/ui/widgets/griot_loader.dart';
 import '../../../core/services/navigation_scroll_service.dart';
 import '../../../core/services/notification_service.dart';
@@ -32,6 +33,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final ScrollController _scrollController = ScrollController();
+  int _lastNavRefreshNonce = 0;
 
   @override
   void initState() {
@@ -47,13 +49,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _onNavTap() {
-    if (NavigationScrollService.instance.tappedIndex == 4) {
+    final navigation = NavigationScrollService.instance;
+    if (navigation.tappedIndex == 4) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
           0,
           duration: const Duration(milliseconds: 500),
           curve: Curves.easeOutCubic,
         );
+      }
+      if (navigation.refreshNonce != _lastNavRefreshNonce) {
+        _lastNavRefreshNonce = navigation.refreshNonce;
+        unawaited(context.read<UserProvider>().refreshUser());
       }
     }
   }
@@ -422,6 +429,66 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Widget _griotGoldsCard(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return GriotBrandedContainer(
+      padding: EdgeInsets.zero,
+      borderRadius: 24,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => context.push('/settings/griot-golds'),
+          borderRadius: BorderRadius.circular(24),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: Image.asset(
+                    'assets/coins_logo/griot_gold_nugget_3d.png',
+                    fit: BoxFit.contain,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Griot Golds',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Buy Golds, support creators and send gifts',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant.withValues(alpha: .7),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 15,
+                  color: colors.primary,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -454,6 +521,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _profileHeader(context),
             const SizedBox(height: 13),
             _griotPlusCard(context),
+            const SizedBox(height: 10),
+            _griotGoldsCard(context),
             _sectionLabel(context, 'Wallet & currency'),
             _sectionContainer(
               context: context,
@@ -630,8 +699,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
             const SizedBox(height: 20),
-            const GriotBannerAd(),
-            const SizedBox(height: 16),
             Center(
               child: Text(
                 'Your wallet. Your identity. Your network.',

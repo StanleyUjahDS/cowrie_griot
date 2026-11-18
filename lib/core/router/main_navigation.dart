@@ -21,6 +21,8 @@ class MainNavigationShell extends StatefulWidget {
 
 class _MainNavigationShellState extends State<MainNavigationShell> {
   String? _lastRoutePath;
+  int? _lastNavTapIndex;
+  DateTime? _lastNavTapAt;
 
   void _dismissTransientInput() {
     // A focused field can outlive a child route in the indexed shell. If it
@@ -38,17 +40,32 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   // ============================================================
 
   void _goBranch(int index) {
+    final now = DateTime.now();
+    final isDoubleTap =
+        _lastNavTapIndex == index &&
+        _lastNavTapAt != null &&
+        now.difference(_lastNavTapAt!) <= const Duration(milliseconds: 650);
+    _lastNavTapIndex = index;
+    _lastNavTapAt = now;
     _dismissTransientInput();
+    // The global navigation bar remains available while a discovery feed is
+    // scrolling; restore it before changing branches so a hidden animation
+    // can never make the main navigation feel unresponsive.
+    NavigationScrollService.instance.setNavigationVisible(true);
     if (index == widget.navigationShell.currentIndex) {
-      // Tap current tab: trigger scroll to top
+      // A single tap on the active destination is intentionally a no-op.
+      // Return-to-top and refresh are reserved for a deliberate double tap.
+      if (!isDoubleTap) return;
+      widget.navigationShell.goBranch(index, initialLocation: true);
       NavigationScrollService.instance.scrollToTop(index);
+      NavigationScrollService.instance.refreshBranch(index);
       return;
     }
 
-    // Preserve each tab's existing navigator stack when switching tabs.
-    // Resetting to the branch root on every tap recreates the screen and
-    // produces the visible loading/flicker users see across the main app.
-    widget.navigationShell.goBranch(index, initialLocation: false);
+    // Main navigation buttons represent the five root destinations. Always
+    // enter the selected branch's root so a nested child screen from an
+    // earlier visit cannot make the wrong destination appear selected.
+    widget.navigationShell.goBranch(index, initialLocation: true);
   }
 
   Widget _icon(IconData icon, bool active, Color primary, Color onPrimary) {
@@ -106,6 +123,14 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     final routePath = GoRouterState.of(context).uri.path;
     if (_lastRoutePath != null && _lastRoutePath != routePath) {
       _dismissTransientInput();
+      // A stateful shell keeps branch screens mounted. Reset the global
+      // navigation chrome when changing branches so a hidden Camp nav bar
+      // cannot remain hidden after switching to Chat, Wallet, or Settings.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          NavigationScrollService.instance.setNavigationVisible(true);
+        }
+      });
     }
     _lastRoutePath = routePath;
     final keepDiscoveryChromeDown =
@@ -113,9 +138,6 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     final shellMediaQuery = keepDiscoveryChromeDown
         ? MediaQuery.of(context).copyWith(viewInsets: EdgeInsets.zero)
         : MediaQuery.of(context);
-    final keyboardInset =
-        View.of(context).viewInsets.bottom / View.of(context).devicePixelRatio;
-
     return MediaQuery(
       data: shellMediaQuery,
       child: PopScope<void>(
@@ -137,153 +159,141 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           bottomNavigationBar: MediaQuery.removeViewInsets(
             context: context,
             removeBottom: true,
-            child: Transform.translate(
-              offset: Offset(0, keyboardInset),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 720),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(60),
-                        child: BackdropFilter(
-                          filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: navigationSurface.withValues(
-                                alpha: isDark ? 0.12 : 0.18,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 720),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(60),
+                      child: BackdropFilter(
+                        filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: navigationSurface.withValues(
+                              alpha: isDark ? 0.12 : 0.18,
+                            ),
+                            borderRadius: BorderRadius.circular(60),
+                            border: Border(
+                              top: BorderSide(
+                                color: primary.withValues(alpha: 0.6),
+                                width: 1.0,
                               ),
-                              borderRadius: BorderRadius.circular(60),
-                              border: Border(
-                                top: BorderSide(
-                                  color: primary.withValues(alpha: 0.6),
-                                  width: 1.0,
-                                ),
-                                bottom: BorderSide(
-                                  color: primary.withValues(alpha: 0.6),
-                                  width: 1.0,
-                                ),
+                              bottom: BorderSide(
+                                color: primary.withValues(alpha: 0.6),
+                                width: 1.0,
                               ),
                             ),
-                            child: LayoutBuilder(
-                              builder: (context, constraints) {
-                                final designWidth = constraints.maxWidth < 400
-                                    ? 400.0
-                                    : constraints.maxWidth;
-                                return FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  alignment: Alignment.center,
-                                  child: SizedBox(
-                                    width: designWidth,
-                                    child: GNav(
-                                      selectedIndex:
-                                          widget.navigationShell.currentIndex,
-                                      onTabChange: _goBranch,
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceEvenly,
-                                      gap: 0,
-                                      iconSize: 0,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 12,
-                                      ),
-                                      tabMargin: const EdgeInsets.symmetric(
-                                        horizontal: 2,
-                                        vertical: 4,
-                                      ),
-                                      duration: const Duration(
-                                        milliseconds: 400,
-                                      ),
-                                      tabBackgroundColor: primary.withValues(
-                                        alpha: 0.2,
-                                      ),
-                                      textStyle: theme.textTheme.labelMedium
-                                          ?.copyWith(
-                                            color: primary,
-                                            fontWeight: FontWeight.w900,
-                                            fontSize: 12,
-                                          ),
-                                      tabs: [
-                                        GButton(
-                                          icon:
-                                              Icons.chat_bubble_outline_rounded,
-                                          text: 'Chat',
-                                          leading: _iconWithBadge(
-                                            icon: Icons.chat_bubble_rounded,
-                                            active:
-                                                widget
-                                                    .navigationShell
-                                                    .currentIndex ==
-                                                0,
-                                            primary: primary,
-                                            onPrimary: onPrimary,
-                                            count: messaging.unreadMessageCount,
-                                          ),
-                                        ),
-                                        GButton(
-                                          icon: Icons
-                                              .local_fire_department_outlined,
-                                          text: 'Campfire',
-                                          leading: _icon(
-                                            Icons.local_fire_department_rounded,
-                                            widget
-                                                    .navigationShell
-                                                    .currentIndex ==
-                                                1,
-                                            primary,
-                                            onPrimary,
-                                          ),
-                                        ),
-                                        GButton(
-                                          icon: Icons.bolt_outlined,
-                                          text: 'Miner',
-                                          leading: _icon(
-                                            Icons.bolt_rounded,
-                                            widget
-                                                    .navigationShell
-                                                    .currentIndex ==
-                                                2,
-                                            primary,
-                                            onPrimary,
-                                          ),
-                                        ),
-                                        GButton(
-                                          icon: Icons
-                                              .account_balance_wallet_outlined,
-                                          text: 'Wallet',
-                                          leading: _icon(
-                                            Icons
-                                                .account_balance_wallet_rounded,
-                                            widget
-                                                    .navigationShell
-                                                    .currentIndex ==
-                                                3,
-                                            primary,
-                                            onPrimary,
-                                          ),
-                                        ),
-                                        GButton(
-                                          icon: Icons.settings_outlined,
-                                          text: 'Settings',
-                                          leading: _icon(
-                                            Icons.settings_rounded,
-                                            widget
-                                                    .navigationShell
-                                                    .currentIndex ==
-                                                4,
-                                            primary,
-                                            onPrimary,
-                                          ),
-                                        ),
-                                      ],
+                          ),
+                          // The global bottom navigation is stable by design.
+                          // Discovery chrome may collapse while scrolling,
+                          // but hiding this bar changes the viewport and makes
+                          // every feed jump underneath the user's finger.
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final designWidth = constraints.maxWidth < 400
+                                  ? 400.0
+                                  : constraints.maxWidth;
+                              return FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.center,
+                                child: SizedBox(
+                                  width: designWidth,
+                                  child: GNav(
+                                    selectedIndex:
+                                        widget.navigationShell.currentIndex,
+                                    onTabChange: _goBranch,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceEvenly,
+                                    gap: 0,
+                                    iconSize: 0,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 12,
                                     ),
+                                    tabMargin: const EdgeInsets.symmetric(
+                                      horizontal: 2,
+                                      vertical: 4,
+                                    ),
+                                    duration: const Duration(milliseconds: 400),
+                                    tabBackgroundColor: primary.withValues(
+                                      alpha: 0.2,
+                                    ),
+                                    textStyle: theme.textTheme.labelMedium
+                                        ?.copyWith(
+                                          color: primary,
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 12,
+                                        ),
+                                    tabs: [
+                                      GButton(
+                                        icon: Icons.chat_bubble_outline_rounded,
+                                        text: 'Chat',
+                                        leading: _iconWithBadge(
+                                          icon: Icons.chat_bubble_rounded,
+                                          active:
+                                              widget
+                                                  .navigationShell
+                                                  .currentIndex ==
+                                              0,
+                                          primary: primary,
+                                          onPrimary: onPrimary,
+                                          count: messaging.unreadMessageCount,
+                                        ),
+                                      ),
+                                      GButton(
+                                        icon: Icons.cabin_outlined,
+                                        text: 'Camp',
+                                        leading: _icon(
+                                          Icons.cabin_rounded,
+                                          widget.navigationShell.currentIndex ==
+                                              1,
+                                          primary,
+                                          onPrimary,
+                                        ),
+                                      ),
+                                      GButton(
+                                        icon: Icons.bolt_outlined,
+                                        text: 'Reputation',
+                                        leading: _icon(
+                                          Icons.bolt_rounded,
+                                          widget.navigationShell.currentIndex ==
+                                              2,
+                                          primary,
+                                          onPrimary,
+                                        ),
+                                      ),
+                                      GButton(
+                                        icon: Icons
+                                            .account_balance_wallet_outlined,
+                                        text: 'Wallet',
+                                        leading: _icon(
+                                          Icons.account_balance_wallet_rounded,
+                                          widget.navigationShell.currentIndex ==
+                                              3,
+                                          primary,
+                                          onPrimary,
+                                        ),
+                                      ),
+                                      GButton(
+                                        icon: Icons.settings_outlined,
+                                        text: 'Settings',
+                                        leading: _icon(
+                                          Icons.settings_rounded,
+                                          widget.navigationShell.currentIndex ==
+                                              4,
+                                          primary,
+                                          onPrimary,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                );
-                              },
-                            ),
+                                ),
+                              );
+                            },
                           ),
                         ),
                       ),

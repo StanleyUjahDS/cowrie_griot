@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -40,6 +42,7 @@ class WalletScreen extends StatefulWidget {
 
 class _WalletScreenState extends State<WalletScreen> {
   final ScrollController _scrollController = ScrollController();
+  int _lastNavRefreshNonce = 0;
 
   @override
   void initState() {
@@ -73,7 +76,8 @@ class _WalletScreenState extends State<WalletScreen> {
   }
 
   void _onNavTap() {
-    if (NavigationScrollService.instance.tappedIndex == 3) {
+    final navigation = NavigationScrollService.instance;
+    if (navigation.tappedIndex == 3) {
       // Index 3 is Wallet
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
@@ -81,6 +85,14 @@ class _WalletScreenState extends State<WalletScreen> {
           duration: const Duration(milliseconds: 500),
           curve: Curves.easeOutCubic,
         );
+      }
+      if (navigation.refreshNonce != _lastNavRefreshNonce) {
+        _lastNavRefreshNonce = navigation.refreshNonce;
+        final provider = context.read<WalletProvider>();
+        unawaited(provider.loadWallet());
+        if (provider.selectedTab == 2) {
+          unawaited(provider.loadActivity(refresh: true));
+        }
       }
     }
   }
