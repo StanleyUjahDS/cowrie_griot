@@ -1716,15 +1716,7 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
           if (remoteComments.isNotEmpty) ...[
             _searchSectionLabel(context, 'Comments', Icons.forum_outlined),
             for (final comment in remoteComments)
-              _searchResultTile(
-                context,
-                icon: Icons.forum_outlined,
-                title: '${comment['content'] ?? ''}',
-                subtitle: 'Comment · ${comment['author_name'] ?? 'Griot user'}',
-                onTap: comment['tale_id'] == null
-                    ? null
-                    : () => context.push('/tale/${comment['tale_id']}'),
-              ),
+              _searchCommentResultCard(context, comment),
           ],
           if (scopedSpaces.isNotEmpty || scopedUpcoming.isNotEmpty) ...[
             _searchSectionLabel(
@@ -1991,6 +1983,26 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
     final comments =
         int.tryParse('${tale['comment_count'] ?? tale['commentCount'] ?? 0}') ??
         0;
+    final upvotes =
+        int.tryParse(
+          '${tale['upvote_count'] ?? tale['upvoteCount'] ?? tale['like_count'] ?? 0}',
+        ) ??
+        0;
+    final downvotes =
+        int.tryParse(
+          '${tale['downvote_count'] ?? tale['downvoteCount'] ?? 0}',
+        ) ??
+        0;
+    final retells =
+        int.tryParse(
+          '${tale['retell_count'] ?? tale['retellCount'] ?? tale['co_tell_count'] ?? 0}',
+        ) ??
+        0;
+    final linkUrl = (tale['link_url'] ?? tale['linkUrl'])?.toString().trim();
+    final viewerUpvoted =
+        tale['viewer_upvoted'] == true || tale['viewerUpvoted'] == true;
+    final viewerDownvoted =
+        tale['viewer_downvoted'] == true || tale['viewerDownvoted'] == true;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: CampTaleCardSurface(
@@ -2026,20 +2038,200 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                 const SizedBox(height: 10),
                 _buildTaleGallery(context, media),
               ],
+              if (linkUrl != null && linkUrl.isNotEmpty)
+                LinkPreviewWidget(
+                  url: linkUrl,
+                  isMe: false,
+                  title:
+                      tale['link_title']?.toString() ??
+                      tale['linkTitle']?.toString(),
+                  description:
+                      tale['link_description']?.toString() ??
+                      tale['linkDescription']?.toString(),
+                  imageUrl:
+                      tale['link_thumbnail_url']?.toString() ??
+                      tale['linkThumbnailUrl']?.toString(),
+                ),
               const SizedBox(height: 10),
               Divider(
                 height: 1,
                 color: colors.outlineVariant.withValues(alpha: .35),
               ),
               const SizedBox(height: 4),
-              CampTaleActionButton(
-                icon: Icons.forum_outlined,
-                label: '$comments',
-                tooltip: 'Comments',
-                onTap: id == null ? null : () => context.push('/tale/$id'),
+              Row(
+                children: [
+                  Expanded(
+                    child: CampTaleActionButton(
+                      icon: viewerUpvoted
+                          ? Icons.thumb_up_alt_rounded
+                          : Icons.thumb_up_alt_outlined,
+                      label: '$upvotes',
+                      tooltip: 'Upvote Tale',
+                      active: viewerUpvoted,
+                      onTap: id == null
+                          ? null
+                          : () => context.push('/tale/$id'),
+                    ),
+                  ),
+                  Expanded(
+                    child: CampTaleActionButton(
+                      icon: viewerDownvoted
+                          ? Icons.thumb_down_alt_rounded
+                          : Icons.thumb_down_alt_outlined,
+                      label: '$downvotes',
+                      tooltip: 'Downvote Tale',
+                      active: viewerDownvoted,
+                      activeColor: colors.error,
+                      onTap: id == null
+                          ? null
+                          : () => context.push('/tale/$id'),
+                    ),
+                  ),
+                  Expanded(
+                    child: CampTaleActionButton(
+                      icon: Icons.repeat_rounded,
+                      label: '$retells',
+                      tooltip: 'Retell or co-tell',
+                      onTap: id == null
+                          ? null
+                          : () => context.push('/tale/$id'),
+                    ),
+                  ),
+                  Expanded(
+                    child: CampTaleActionButton(
+                      icon: Icons.forum_outlined,
+                      label: '$comments',
+                      tooltip: 'Comments',
+                      onTap: id == null
+                          ? null
+                          : () => context.push('/tale/$id'),
+                    ),
+                  ),
+                  Expanded(
+                    child: CampTaleActionButton(
+                      icon: Icons.ios_share_rounded,
+                      label: '',
+                      tooltip: 'Share Tale',
+                      onTap: id == null
+                          ? null
+                          : () => SharePlus.instance.share(
+                              ShareParams(
+                                text:
+                                    'Read this Tale on Griot:\nhttps://griot.network/tale/$id',
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _searchCommentResultCard(
+    BuildContext context,
+    Map<String, dynamic> comment,
+  ) {
+    final colors = Theme.of(context).colorScheme;
+    final author = comment['author'] is Map
+        ? Map<String, dynamic>.from(comment['author'] as Map)
+        : const <String, dynamic>{};
+    final taleId =
+        (comment['tale_id'] ?? comment['taleId'] ?? comment['thread_id'])
+            ?.toString();
+    final authorId = (author['id'] ?? author['user_id'] ?? comment['author_id'])
+        ?.toString();
+    final authorName =
+        '${author['displayName'] ?? author['display_name'] ?? comment['author_name'] ?? comment['authorName'] ?? 'Griot user'}';
+    final avatar = _absoluteMediaValue(
+      author['avatarUrl'] ??
+          author['avatar_url'] ??
+          comment['author_avatar_url'] ??
+          comment['authorAvatarUrl'],
+    );
+    final content = '${comment['content'] ?? comment['text'] ?? ''}'.trim();
+    final upvotes =
+        int.tryParse(
+          '${comment['upvote_count'] ?? comment['upvoteCount'] ?? 0}',
+        ) ??
+        0;
+    final downvotes =
+        int.tryParse(
+          '${comment['downvote_count'] ?? comment['downvoteCount'] ?? 0}',
+        ) ??
+        0;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: CampTaleCardSurface(
+        margin: EdgeInsets.zero,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CampTaleHeader(
+              authorName: authorName,
+              avatarUrl: avatar,
+              subtitle: 'Comment',
+              onAuthorTap: authorId == null
+                  ? null
+                  : () => context.push('/camp/profile/$authorId'),
+              menu: const SizedBox.shrink(),
+            ),
+            const SizedBox(height: 10),
+            Text(content, style: Theme.of(context).textTheme.bodyLarge),
+            const SizedBox(height: 10),
+            Divider(
+              height: 1,
+              color: colors.outlineVariant.withValues(alpha: .35),
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: CampTaleActionButton(
+                    icon: Icons.thumb_up_alt_outlined,
+                    label: '$upvotes',
+                    tooltip: 'Upvote comment',
+                    onTap: taleId == null
+                        ? null
+                        : () => context.push('/tale/$taleId'),
+                  ),
+                ),
+                Expanded(
+                  child: CampTaleActionButton(
+                    icon: Icons.thumb_down_alt_outlined,
+                    label: '$downvotes',
+                    tooltip: 'Downvote comment',
+                    activeColor: colors.error,
+                    onTap: taleId == null
+                        ? null
+                        : () => context.push('/tale/$taleId'),
+                  ),
+                ),
+                Expanded(
+                  child: CampTaleActionButton(
+                    icon: Icons.reply_rounded,
+                    label: '',
+                    tooltip: 'Reply to comment',
+                    onTap: taleId == null
+                        ? null
+                        : () => context.push('/tale/$taleId'),
+                  ),
+                ),
+                Expanded(
+                  child: CampTaleActionButton(
+                    icon: Icons.open_in_new_rounded,
+                    label: 'View Tale',
+                    tooltip: 'View commented Tale',
+                    onTap: taleId == null
+                        ? null
+                        : () => context.push('/tale/$taleId'),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
