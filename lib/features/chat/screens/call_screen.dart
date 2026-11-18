@@ -3102,9 +3102,8 @@ class _CallScreenState extends State<CallScreen> {
       valueListenable: _campfireComments,
       builder: (context, comments, _) {
         if (comments.isEmpty) return const SizedBox.shrink();
-        final recent = comments.length <= 3
-            ? comments
-            : comments.sublist(comments.length - 3);
+        // Keep the stage preview quiet; full history remains in the sheet.
+        final recent = <Map<String, dynamic>>[comments.last];
         return IgnorePointer(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -3132,7 +3131,7 @@ class _CallScreenState extends State<CallScreen> {
                           Flexible(
                             child: Text(
                               '${(item['display_name'] ?? item['displayName'] ?? item['username'] ?? 'Campfire member').toString()}: ${(item['content'] ?? '').toString()}',
-                              maxLines: 2,
+                              maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 color: colors.onPrimary,
@@ -4924,8 +4923,15 @@ class _CampfireCommentsSheetState extends State<_CampfireCommentsSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+    final availableHeight = (screenHeight - keyboardInset - 16).clamp(
+      280.0,
+      screenHeight,
+    );
+    final sheetHeight = math.min(screenHeight * .72, availableHeight);
     return Container(
-      height: MediaQuery.sizeOf(context).height * .72,
+      height: sheetHeight,
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
