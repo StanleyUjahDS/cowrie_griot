@@ -5,8 +5,18 @@ import 'package:video_player/video_player.dart';
 class ChatVideoPlayer extends StatefulWidget {
   final String url;
   final bool isMe;
+  final bool loop;
+  final bool autoPlay;
+  final bool showControls;
 
-  const ChatVideoPlayer({super.key, required this.url, required this.isMe});
+  const ChatVideoPlayer({
+    super.key,
+    required this.url,
+    required this.isMe,
+    this.loop = false,
+    this.autoPlay = false,
+    this.showControls = true,
+  });
 
   @override
   State<ChatVideoPlayer> createState() => _ChatVideoPlayerState();
@@ -32,6 +42,10 @@ class _ChatVideoPlayerState extends State<ChatVideoPlayer> {
     }
     try {
       await _controller.initialize();
+      await _controller.setLooping(widget.loop);
+      if (widget.autoPlay) {
+        await _controller.play();
+      }
       if (mounted) {
         setState(() {
           _initialized = true;
@@ -71,11 +85,12 @@ class _ChatVideoPlayerState extends State<ChatVideoPlayer> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     if (_hasError) {
       return Container(
         height: 200,
         decoration: BoxDecoration(
-          color: Colors.black12,
+          color: colors.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(16),
         ),
         child: const Center(child: Icon(Icons.broken_image_outlined)),
@@ -86,7 +101,7 @@ class _ChatVideoPlayerState extends State<ChatVideoPlayer> {
       return Container(
         height: 200,
         decoration: BoxDecoration(
-          color: Colors.black12,
+          color: colors.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(16),
         ),
         child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
@@ -102,22 +117,23 @@ class _ChatVideoPlayerState extends State<ChatVideoPlayer> {
             aspectRatio: _controller.value.aspectRatio,
             child: VideoPlayer(_controller),
           ),
-          IconButton(
-            icon: Icon(
-              _controller.value.isPlaying
-                  ? Icons.pause_circle_filled_rounded
-                  : Icons.play_circle_filled_rounded,
-              color: Colors.white.withValues(alpha: 0.8),
-              size: 54,
-            ),
-            onPressed: () {
-              setState(() {
+          if (widget.showControls)
+            IconButton(
+              icon: Icon(
                 _controller.value.isPlaying
-                    ? _controller.pause()
-                    : _controller.play();
-              });
-            },
-          ),
+                    ? Icons.pause_circle_filled_rounded
+                    : Icons.play_circle_filled_rounded,
+                color: Colors.white.withValues(alpha: 0.8),
+                size: 54,
+              ),
+              onPressed: () {
+                setState(() {
+                  _controller.value.isPlaying
+                      ? _controller.pause()
+                      : _controller.play();
+                });
+              },
+            ),
         ],
       ),
     );

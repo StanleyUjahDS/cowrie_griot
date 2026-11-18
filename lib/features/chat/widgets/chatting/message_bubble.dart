@@ -1729,6 +1729,8 @@ class MessageBubble extends StatelessWidget {
               url: url,
               isMe: isMe,
               loop: true,
+              autoPlay: true,
+              showControls: false,
             ),
           )
         : (url.startsWith('/') || url.startsWith('file://'))
