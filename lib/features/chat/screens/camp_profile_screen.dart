@@ -2627,6 +2627,32 @@ class _CampProfileScreenState extends State<CampProfileScreen>
     );
   }
 
+  Widget _activityTaleCard(
+    BuildContext context,
+    String? taleId, {
+    required Map<String, dynamic> fallback,
+  }) {
+    if (taleId == null || taleId.isEmpty) return const SizedBox.shrink();
+    final api = context.read<MessagingApiService>();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: FutureBuilder<Map<String, dynamic>>(
+        future: api.getTale(taleId),
+        initialData: fallback,
+        builder: (context, snapshot) {
+          final tale = snapshot.data == null || snapshot.data!.isEmpty
+              ? fallback
+              : snapshot.data!;
+          // Reuse the exact profile/feed Tale card, including multipart,
+          // retell attribution, media galleries, actions and counters. The
+          // interaction row owns the label above it; the Tale stays a normal
+          // social card rather than a special activity-only layout.
+          return _taleCard(context, tale, canDelete: false);
+        },
+      ),
+    );
+  }
+
   Widget _activityItem(BuildContext context, Map<String, dynamic> item) {
     dynamic field(String snake, String camel) {
       final direct = item[snake] ?? item[camel];
@@ -2658,7 +2684,13 @@ class _CampProfileScreenState extends State<CampProfileScreen>
     final rawTargetType = field('target_type', 'targetType');
     final targetType = '${rawTargetType ?? (targetId == null ? '' : 'tale')}'
         .toLowerCase();
-    final hasTargetTale = targetType == 'tale' && targetId != null;
+    // A Tale activity uses its entity id as the Tale id; comments/likes use
+    // target_id for the parent Tale. Normalize both shapes before rendering
+    // so every interaction can use the same canonical Tale card.
+    final linkedTaleId = isTale
+        ? entityId
+        : (targetType == 'tale' ? targetId : null);
+    final hasTargetTale = linkedTaleId != null && linkedTaleId.isNotEmpty;
     final profileAuthor =
         _loadedPublicUser ??
         widget.profileUser ??
@@ -2683,55 +2715,22 @@ class _CampProfileScreenState extends State<CampProfileScreen>
         : type == 'saved'
         ? 'Saved'
         : 'Interaction';
-    final targetCard = targetType == 'tale' && targetId != null
-        ? Padding(
-            padding: const EdgeInsets.only(left: 14, right: 14, bottom: 12),
-            child: CampTaleCardSurface(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: () => context.push('/tale/$targetId'),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    CampTaleHeader(
-                      authorName:
-                          '${field('target_author_name', 'targetAuthorName') ?? 'Griot user'}',
-                      avatarUrl: field(
-                        'target_author_avatar_url',
-                        'targetAuthorAvatarUrl',
-                      )?.toString(),
-                      subtitle: 'Tale',
-                      menu: const SizedBox.shrink(),
-                    ),
-                    const SizedBox(height: 8),
-                    CampTaleText(
-                      text:
-                          '${field('target_summary', 'targetSummary') ?? 'Tale'}',
-                      fontSize: 14,
-                    ),
-                    if ('${field('target_media_url', 'targetMediaUrl') ?? ''}'
-                        .trim()
-                        .isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: AspectRatio(
-                            aspectRatio: 16 / 9,
-                            child: Image.network(
-                              '${field('target_media_url', 'targetMediaUrl')}',
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) =>
-                                  const SizedBox.shrink(),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+    final targetCard = hasTargetTale
+        ? _activityTaleCard(
+            context,
+            linkedTaleId,
+            fallback: <String, dynamic>{
+              'id': linkedTaleId,
+              'content':
+                  field('target_summary', 'targetSummary') ??
+                  (isTale ? item['summary'] : 'Tale'),
+              'display_name': field('target_author_name', 'targetAuthorName'),
+              'avatar_url': field(
+                'target_author_avatar_url',
+                'targetAuthorAvatarUrl',
               ),
-            ),
+              'media_url': field('target_media_url', 'targetMediaUrl'),
+            },
           )
         : const SizedBox.shrink();
     final commentCard = isComment
@@ -2764,7 +2763,7 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                         ? null
                         : () => context.push('/tale/$targetId'),
                     icon: const Icon(Icons.open_in_new_rounded, size: 17),
-                    label: const Text('View commented Tale'),
+                    label: const Text('View parent Tale'),
                     style: TextButton.styleFrom(
                       padding: EdgeInsets.zero,
                       minimumSize: Size.zero,
@@ -2776,9 +2775,9 @@ class _CampProfileScreenState extends State<CampProfileScreen>
             ),
           )
         : const SizedBox.shrink();
-    return Card(
-      elevation: 0,
+    return CampTaleCardSurface(
       margin: const EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
