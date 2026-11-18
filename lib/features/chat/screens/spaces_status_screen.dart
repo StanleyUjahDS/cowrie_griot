@@ -2720,10 +2720,24 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                 ),
               ),
               const SizedBox(height: 12),
+              if (tale.threadCount > 1 && tale.threadParts.length > 1)
+                _threadPreview(context, tale)
+              else ...[
+                CampTaleText(
+                  key: ValueKey('text-${tale.id}'),
+                  text: tale.text,
+                  fontSize: 17,
+                ),
+                if (tale.mediaUrl != null || tale.mediaUrls.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _taleMediaGallery(context, tale),
+                ],
+              ],
               if (tale.retellSourceId == null &&
                   tale.threadCount > 1 &&
                   tale.threadPosition > 1 &&
                   tale.threadParts.isNotEmpty) ...[
+                const SizedBox(height: 10),
                 CampTaleReshareCard(
                   label: 'Co-telling · Original Tale',
                   sourceAuthorName: tale.threadOriginalAuthorName ?? '',
@@ -2743,20 +2757,6 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                   mediaBuilder: (context, urls) =>
                       _buildTaleGallery(context, urls),
                 ),
-                const SizedBox(height: 10),
-              ],
-              if (tale.threadCount > 1 && tale.threadParts.length > 1)
-                _threadPreview(context, tale)
-              else ...[
-                CampTaleText(
-                  key: ValueKey('text-${tale.id}'),
-                  text: tale.text,
-                  fontSize: 17,
-                ),
-                if (tale.mediaUrl != null || tale.mediaUrls.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  _taleMediaGallery(context, tale),
-                ],
               ],
               if (tale.retellSourceId != null &&
                   tale.retellSourceContent != null &&
