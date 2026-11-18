@@ -413,6 +413,7 @@ class _CallScreenState extends State<CallScreen> {
         context: context,
         isScrollControlled: true,
         useSafeArea: true,
+        useRootNavigator: true,
         backgroundColor: Colors.transparent,
         builder: (sheetContext) => _CampfireCommentsSheet(
           comments: _campfireComments,
@@ -4950,7 +4951,10 @@ class _CampfireCommentsSheetState extends State<_CampfireCommentsSheet> {
                 ),
                 IconButton(
                   tooltip: 'Close chat',
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () {
+                    FocusScope.of(context).unfocus();
+                    Navigator.of(context, rootNavigator: true).pop();
+                  },
                   icon: const Icon(Icons.close_rounded),
                 ),
               ],
