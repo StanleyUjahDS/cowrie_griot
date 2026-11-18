@@ -63,6 +63,10 @@ class CampTaleCardSurface extends StatelessWidget {
 class CampTaleReshareCard extends StatelessWidget {
   final String label;
   final String sourceAuthorName;
+  final String? sourceAuthorUsername;
+  final String? sourceAuthorSubtitle;
+  final bool sourceAuthorIsPlus;
+  final bool sourceAuthorIsPioneer;
   final String? sourceAuthorAvatarUrl;
   final String sourceText;
   final List<String> sourceMediaUrls;
@@ -74,6 +78,10 @@ class CampTaleReshareCard extends StatelessWidget {
     super.key,
     this.label = 'Retold from another Tale',
     required this.sourceAuthorName,
+    this.sourceAuthorUsername,
+    this.sourceAuthorSubtitle,
+    this.sourceAuthorIsPlus = false,
+    this.sourceAuthorIsPioneer = false,
     this.sourceAuthorAvatarUrl,
     required this.sourceText,
     this.sourceMediaUrls = const [],
@@ -153,16 +161,64 @@ class CampTaleReshareCard extends StatelessWidget {
                               ),
                               const SizedBox(width: 7),
                               Expanded(
-                                child: Text(
-                                  sourceAuthorName.trim().isEmpty
-                                      ? 'Original creator'
-                                      : sourceAuthorName,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: colors.onSurface,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w800,
-                                  ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            sourceAuthorName.trim().isEmpty
+                                                ? 'Original creator'
+                                                : sourceAuthorName,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: colors.onSurface,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ),
+                                        if (sourceAuthorIsPlus) ...[
+                                          const SizedBox(width: 4),
+                                          const GriotPlusBadge(
+                                            isPlus: true,
+                                            compact: true,
+                                          ),
+                                        ],
+                                        if (sourceAuthorIsPioneer) ...[
+                                          const SizedBox(width: 3),
+                                          const GriotPioneerBadge(
+                                            compact: true,
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                    if ((sourceAuthorUsername ?? '')
+                                            .trim()
+                                            .isNotEmpty ||
+                                        (sourceAuthorSubtitle ?? '')
+                                            .trim()
+                                            .isNotEmpty)
+                                      Text(
+                                        [
+                                          if ((sourceAuthorUsername ?? '')
+                                              .trim()
+                                              .isNotEmpty)
+                                            '@${sourceAuthorUsername!.trim().replaceFirst('@', '')}',
+                                          if ((sourceAuthorSubtitle ?? '')
+                                              .trim()
+                                              .isNotEmpty)
+                                            sourceAuthorSubtitle!.trim(),
+                                        ].join(' · '),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: colors.onSurfaceVariant,
+                                          fontSize: 10,
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               ),
                               if (onAuthorTap != null)
@@ -180,15 +236,7 @@ class CampTaleReshareCard extends StatelessWidget {
                       ),
                     ],
                     const SizedBox(height: 4),
-                    Text(
-                      sourceText,
-                      maxLines: 4,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: colors.onSurfaceVariant,
-                        height: 1.3,
-                      ),
-                    ),
+                    CampTaleText(text: sourceText, fontSize: 14),
                     if (sourceMediaUrls.isNotEmpty && mediaBuilder != null) ...[
                       const SizedBox(height: 10),
                       mediaBuilder!(context, sourceMediaUrls),

@@ -2194,10 +2194,32 @@ class _CampProfileScreenState extends State<CampProfileScreen>
     final authorName = _retellAuthorName(tale);
     final authorId = _retellAuthorId(tale);
     final authorAvatar = _retellAuthorAvatar(tale);
+    final sourceMap = tale['retellSource'] is Map
+        ? Map<String, dynamic>.from(tale['retellSource'] as Map)
+        : const <String, dynamic>{};
+    final sourceAuthorMap = sourceMap['author'] is Map
+        ? Map<String, dynamic>.from(sourceMap['author'] as Map)
+        : const <String, dynamic>{};
+    final authorUsername =
+        '${tale['retellSourceAuthorUsername'] ?? tale['retell_source_author_username'] ?? sourceMap['authorUsername'] ?? sourceAuthorMap['username'] ?? ''}'
+            .trim();
     final sourceId =
         '${tale['retellSourceId'] ?? tale['retell_source_id'] ?? ''}'.trim();
     return CampTaleReshareCard(
       sourceAuthorName: authorName ?? '',
+      sourceAuthorUsername: authorUsername.isEmpty ? null : authorUsername,
+      sourceAuthorIsPlus:
+          tale['retellSourceAuthorIsPlus'] == true ||
+          tale['retell_source_author_is_plus'] == true ||
+          sourceMap['authorIsPlus'] == true ||
+          sourceAuthorMap['isPlus'] == true ||
+          sourceAuthorMap['is_plus'] == true,
+      sourceAuthorIsPioneer:
+          tale['retellSourceAuthorIsPioneer'] == true ||
+          tale['retell_source_author_is_pioneer'] == true ||
+          sourceMap['authorIsPioneer'] == true ||
+          sourceAuthorMap['isPioneer'] == true ||
+          sourceAuthorMap['is_pioneer'] == true,
       sourceAuthorAvatarUrl: authorAvatar,
       sourceText: source.isEmpty ? 'Original Tale' : source,
       sourceMediaUrls: _retellSourceMediaUrls(tale),

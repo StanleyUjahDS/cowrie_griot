@@ -74,6 +74,9 @@ class _LocalTale {
   final String? retellSourceContent;
   final String? retellSourceAuthorId;
   final String? retellSourceAuthorName;
+  final String? retellSourceAuthorUsername;
+  final bool retellSourceAuthorIsPlus;
+  final bool retellSourceAuthorIsPioneer;
   final String? retellSourceAuthorAvatarUrl;
   final List<String> retellSourceMediaUrls;
   final String? threadOriginalAuthorName;
@@ -113,6 +116,9 @@ class _LocalTale {
     this.retellSourceContent,
     this.retellSourceAuthorId,
     this.retellSourceAuthorName,
+    this.retellSourceAuthorUsername,
+    this.retellSourceAuthorIsPlus = false,
+    this.retellSourceAuthorIsPioneer = false,
     this.retellSourceAuthorAvatarUrl,
     this.retellSourceMediaUrls = const [],
     this.threadOriginalAuthorName,
@@ -164,6 +170,9 @@ class _LocalTale {
     retellSourceContent: retellSourceContent,
     retellSourceAuthorId: retellSourceAuthorId,
     retellSourceAuthorName: retellSourceAuthorName,
+    retellSourceAuthorUsername: retellSourceAuthorUsername,
+    retellSourceAuthorIsPlus: retellSourceAuthorIsPlus,
+    retellSourceAuthorIsPioneer: retellSourceAuthorIsPioneer,
     retellSourceAuthorAvatarUrl: retellSourceAuthorAvatarUrl,
     retellSourceMediaUrls: retellSourceMediaUrls,
     threadOriginalAuthorName: threadOriginalAuthorName,
@@ -198,6 +207,9 @@ class _LocalTale {
     'retellSourceContent': retellSourceContent,
     'retellSourceAuthorId': retellSourceAuthorId,
     'retellSourceAuthorAvatarUrl': retellSourceAuthorAvatarUrl,
+    'retellSourceAuthorUsername': retellSourceAuthorUsername,
+    'retellSourceAuthorIsPlus': retellSourceAuthorIsPlus,
+    'retellSourceAuthorIsPioneer': retellSourceAuthorIsPioneer,
     'retellSourceMediaUrls': retellSourceMediaUrls,
     'threadOriginalAuthorName': threadOriginalAuthorName,
     'threadOriginalAuthorId': threadOriginalAuthorId,
@@ -565,6 +577,25 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                           ? (retellSource['author'] as Map)['displayName']
                           : null))
                   ?.toString(),
+          retellSourceAuthorUsername:
+              (item['retellSourceAuthorUsername'] ??
+                      item['retell_source_author_username'] ??
+                      retellSource['authorUsername'] ??
+                      retellSource['author_username'] ??
+                      retellSourceAuthor['username'])
+                  ?.toString(),
+          retellSourceAuthorIsPlus:
+              item['retellSourceAuthorIsPlus'] == true ||
+              item['retell_source_author_is_plus'] == true ||
+              retellSource['authorIsPlus'] == true ||
+              retellSourceAuthor['isPlus'] == true ||
+              retellSourceAuthor['is_plus'] == true,
+          retellSourceAuthorIsPioneer:
+              item['retellSourceAuthorIsPioneer'] == true ||
+              item['retell_source_author_is_pioneer'] == true ||
+              retellSource['authorIsPioneer'] == true ||
+              retellSourceAuthor['isPioneer'] == true ||
+              retellSourceAuthor['is_pioneer'] == true,
           retellSourceAuthorAvatarUrl:
               (item['retellSourceAuthorAvatarUrl'] ??
                       item['retell_source_author_avatar_url'] ??
@@ -2686,6 +2717,9 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                   tale.retellSourceContent!.trim().isNotEmpty) ...[
                 CampTaleReshareCard(
                   sourceAuthorName: tale.retellSourceAuthorName ?? '',
+                  sourceAuthorUsername: tale.retellSourceAuthorUsername,
+                  sourceAuthorIsPlus: tale.retellSourceAuthorIsPlus,
+                  sourceAuthorIsPioneer: tale.retellSourceAuthorIsPioneer,
                   sourceAuthorAvatarUrl: tale.retellSourceAuthorAvatarUrl,
                   sourceText: tale.retellSourceContent!.trim(),
                   onAuthorTap: tale.retellSourceAuthorId == null

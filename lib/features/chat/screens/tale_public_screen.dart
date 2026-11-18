@@ -2420,9 +2420,29 @@ class _TalePublicScreenState extends State<TalePublicScreen>
     final sourceId = _retellSourceId(tale);
     final sourceAuthorId = _retellSourceAuthorId(tale);
     final sourceAuthorAvatar = _retellSourceAuthorAvatar(tale);
+    final sourceAuthorUsername =
+        '${tale['retellSourceAuthorUsername'] ?? tale['retell_source_author_username'] ?? sourceMap['authorUsername'] ?? sourceAuthorMap['username'] ?? ''}'
+            .trim();
+    final sourceAuthorIsPlus =
+        tale['retellSourceAuthorIsPlus'] == true ||
+        tale['retell_source_author_is_plus'] == true ||
+        sourceMap['authorIsPlus'] == true ||
+        sourceAuthorMap['isPlus'] == true ||
+        sourceAuthorMap['is_plus'] == true;
+    final sourceAuthorIsPioneer =
+        tale['retellSourceAuthorIsPioneer'] == true ||
+        tale['retell_source_author_is_pioneer'] == true ||
+        sourceMap['authorIsPioneer'] == true ||
+        sourceAuthorMap['isPioneer'] == true ||
+        sourceAuthorMap['is_pioneer'] == true;
     if (source.isEmpty) return const SizedBox.shrink();
     return CampTaleReshareCard(
       sourceAuthorName: sourceAuthor,
+      sourceAuthorUsername: sourceAuthorUsername.isEmpty
+          ? null
+          : sourceAuthorUsername,
+      sourceAuthorIsPlus: sourceAuthorIsPlus,
+      sourceAuthorIsPioneer: sourceAuthorIsPioneer,
       sourceAuthorAvatarUrl: sourceAuthorAvatar,
       sourceText: source,
       sourceMediaUrls: _retellSourceMediaUrls(tale),
