@@ -2628,16 +2628,32 @@ class _CampProfileScreenState extends State<CampProfileScreen>
   }
 
   Widget _activityItem(BuildContext context, Map<String, dynamic> item) {
-    final type = '${item['type'] ?? 'activity'}'.toLowerCase();
-    final entityId = item['entity_id']?.toString();
+    dynamic field(String snake, String camel) {
+      final direct = item[snake] ?? item[camel];
+      if (direct != null) return direct;
+      final nested = item['target'];
+      if (nested is Map) return nested[snake] ?? nested[camel];
+      return null;
+    }
+
+    final type = '${field('type', 'type') ?? 'activity'}'.toLowerCase();
+    final entityId = (field('entity_id', 'entityId') ?? item['id'])?.toString();
     final savedTarget = type == 'saved'
         ? '${item['summary'] ?? ''}'.toLowerCase()
         : type.toLowerCase();
     final isTale = savedTarget == 'tale' || savedTarget == 'post';
     final isCampfire = savedTarget == 'campfire' || savedTarget == 'space';
     final isComment = savedTarget == 'comment' || savedTarget == 'reply';
-    final targetId = item['target_id']?.toString();
-    final targetType = '${item['target_type'] ?? ''}'.toLowerCase();
+    final targetId =
+        (field('target_id', 'targetId') ??
+                item['tale_id'] ??
+                item['taleId'] ??
+                item['post_id'] ??
+                item['postId'])
+            ?.toString();
+    final targetType =
+        '${field('target_type', 'targetType') ?? (targetId == null ? '' : 'tale')}'
+            .toLowerCase();
     final hasTargetTale = targetType == 'tale' && targetId != null;
     final profileAuthor =
         _loadedPublicUser ??
@@ -2676,17 +2692,23 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                   children: [
                     CampTaleHeader(
                       authorName:
-                          '${item['target_author_name'] ?? 'Griot user'}',
-                      avatarUrl: item['target_author_avatar_url']?.toString(),
+                          '${field('target_author_name', 'targetAuthorName') ?? 'Griot user'}',
+                      avatarUrl: field(
+                        'target_author_avatar_url',
+                        'targetAuthorAvatarUrl',
+                      )?.toString(),
                       subtitle: 'Tale',
                       menu: const SizedBox.shrink(),
                     ),
                     const SizedBox(height: 8),
                     CampTaleText(
-                      text: '${item['target_summary'] ?? 'Tale'}',
+                      text:
+                          '${field('target_summary', 'targetSummary') ?? 'Tale'}',
                       fontSize: 14,
                     ),
-                    if ('${item['target_media_url'] ?? ''}'.trim().isNotEmpty)
+                    if ('${field('target_media_url', 'targetMediaUrl') ?? ''}'
+                        .trim()
+                        .isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: ClipRRect(
@@ -2694,7 +2716,7 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                           child: AspectRatio(
                             aspectRatio: 16 / 9,
                             child: Image.network(
-                              '${item['target_media_url']}',
+                              '${field('target_media_url', 'targetMediaUrl')}',
                               fit: BoxFit.cover,
                               errorBuilder: (_, _, _) =>
                                   const SizedBox.shrink(),
