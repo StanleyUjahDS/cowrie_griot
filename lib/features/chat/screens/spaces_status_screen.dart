@@ -5144,6 +5144,10 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
   Widget _spaceCard(BuildContext context, SpaceModel space) {
     final colors = Theme.of(context).colorScheme;
     final friends = space.friendsPresent.length;
+    final viewerId = context.read<UserProvider>().user?.id;
+    final viewerIsHost =
+        space.isHost ||
+        (viewerId != null && space.hostId != null && viewerId == space.hostId);
     final listenerLabel = space.participantCount == 1
         ? '1 listener'
         : '${space.participantCount} listeners';
@@ -5296,7 +5300,7 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                space.isHost
+                                viewerIsHost
                                     ? 'You are hosting this Campfire'
                                     : 'Hosted by ${space.hostName}',
                                 maxLines: 1,
