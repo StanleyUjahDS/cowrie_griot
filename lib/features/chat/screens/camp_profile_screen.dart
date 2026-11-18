@@ -2597,19 +2597,35 @@ class _CampProfileScreenState extends State<CampProfileScreen>
     final isAuthor =
         authorId != null && viewerId != null && authorId == viewerId;
     final saved = _isCampContentSaved('campfire', campfireId);
+    final recordingCount = campfire['recordings'] is List
+        ? (campfire['recordings'] as List).length
+        : 0;
     return CampTaleCardSurface(
       padding: EdgeInsets.zero,
       child: ListTile(
-        leading: Icon(
-          Icons.local_fire_department_rounded,
-          color: Theme.of(context).colorScheme.primary,
+        leading: GriotAvatar(
+          radius: 22,
+          avatarUrl: (author['avatarUrl'] ?? author['avatar_url'])?.toString(),
         ),
         title: Text(
           '${campfire['title'] ?? 'Campfire'}',
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),
-        subtitle: Text(status[0].toUpperCase() + status.substring(1)),
+        subtitle: Text(
+          '${status[0].toUpperCase()}${status.substring(1)} Campfire'
+          '${recordingCount > 0 ? ' · $recordingCount recording${recordingCount == 1 ? '' : 's'}' : ''}',
+        ),
+        onTap: status == 'live' && campfireId != null
+            ? () => context.push(
+                '/calls/$campfireId',
+                extra: {
+                  'type': 'space',
+                  'mode': '${campfire['mode'] ?? 'voice'}',
+                  'title': '${campfire['title'] ?? 'Campfire'}',
+                },
+              )
+            : null,
         trailing: PopupMenuButton<String>(
           tooltip: 'Campfire options',
           onSelected: (value) {
