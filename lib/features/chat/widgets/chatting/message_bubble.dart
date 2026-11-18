@@ -35,6 +35,7 @@ import 'report_content_sheet.dart';
 import 'reaction_picker.dart';
 import '../../services/sticker_library_service.dart';
 import '../../../auth/auth_controller.dart';
+import 'message_status.dart';
 
 class _MessageDeliveryIcon extends StatelessWidget {
   final MessageStatus status;
@@ -50,20 +51,13 @@ class _MessageDeliveryIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final (icon, tint) = switch (status) {
-      MessageStatus.sending => (
-        Icons.schedule_rounded,
-        colors.onSurfaceVariant,
-      ),
-      MessageStatus.sent => (Icons.check_rounded, color),
-      MessageStatus.delivered => (Icons.done_all_rounded, color),
-      MessageStatus.read => (
-        Icons.done_all_rounded,
-        readColor ?? colors.primary,
-      ),
-      MessageStatus.failed => (Icons.error_outline_rounded, colors.error),
+    final tint = switch (status) {
+      MessageStatus.sending => colors.onSurfaceVariant,
+      MessageStatus.read => readColor ?? colors.primary,
+      MessageStatus.failed => colors.error,
+      _ => color,
     };
-    return Icon(icon, size: 15, color: tint);
+    return GriotMessageStatus(status: status, color: tint);
   }
 }
 

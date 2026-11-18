@@ -8,10 +8,10 @@ import '../../../core/ui/widgets/griot_plus_badge.dart';
 import '../../../core/ui/widgets/griot_pioneer_badge.dart';
 import '../models/chat_user.dart';
 import '../models/chat_message.dart';
-import 'chatting/message_status.dart';
 import '../providers/messaging_provider.dart';
 import '../../users/providers/user_provider.dart';
 import 'conversation_actions_sheet.dart';
+import 'chatting/message_status.dart';
 
 class ChatListItem extends StatelessWidget {
   final ChatUser user;
@@ -320,6 +320,13 @@ class _DeliveryIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GriotMessageStatus(status: status, color: color);
+    final colors = Theme.of(context).colorScheme;
+    final tint = switch (status) {
+      MessageStatus.sending => colors.onSurfaceVariant,
+      MessageStatus.read => colors.primary,
+      MessageStatus.failed => colors.error,
+      _ => color,
+    };
+    return GriotMessageStatus(status: status, color: tint);
   }
 }
