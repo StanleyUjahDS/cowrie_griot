@@ -2081,174 +2081,207 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
     List<SpaceModel> visibleUpcoming,
   ) {
     final colors = Theme.of(context).colorScheme;
-    return Column(
-      key: const ValueKey('campfires'),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _lineSwitch(
-          options: const [
-            ('live', 'Happening now', Icons.podcasts_rounded),
-            ('scheduled', 'Scheduled', Icons.event_rounded),
-          ],
-          selected: _campfireView,
-          onChanged: (value) => setState(() {
-            _campfireView = value;
-            _searchController.clear();
-            _searchQuery = '';
-          }),
-        ),
-        const SizedBox(height: 18),
-        if (_campfireView == 'live') ...[
-          Text(
-            'Campfires happening right now',
-            style: TextStyle(
-              color: colors.onSurfaceVariant,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragEnd: (details) => _swipeSection(
+        details,
+        const ['live', 'scheduled'],
+        _campfireView,
+        (value) => setState(() {
+          _campfireView = value;
+          _searchController.clear();
+          _searchQuery = '';
+        }),
+      ),
+      child: Column(
+        key: const ValueKey('campfires'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _lineSwitch(
+            options: const [
+              ('live', 'Happening now', Icons.podcasts_rounded),
+              ('scheduled', 'Scheduled', Icons.event_rounded),
+            ],
+            selected: _campfireView,
+            onChanged: (value) => setState(() {
+              _campfireView = value;
+              _searchController.clear();
+              _searchQuery = '';
+            }),
           ),
           const SizedBox(height: 18),
-          _loading && visibleSpaces.isEmpty
-              ? const _CampLoadingSkeleton(tale: false)
-              : _spacesSection(context, visibleSpaces),
-        ] else ...[
-          _loading && visibleUpcoming.isEmpty
-              ? const _CampLoadingSkeleton(tale: false)
-              : visibleUpcoming.isNotEmpty
-              ? _upcomingSection(context, visibleUpcoming)
-              : _emptyUpcomingSection(context),
+          if (_campfireView == 'live') ...[
+            Text(
+              'Campfires happening right now',
+              style: TextStyle(
+                color: colors.onSurfaceVariant,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 18),
+            _loading && visibleSpaces.isEmpty
+                ? const _CampLoadingSkeleton(tale: false)
+                : _spacesSection(context, visibleSpaces),
+          ] else ...[
+            _loading && visibleUpcoming.isEmpty
+                ? const _CampLoadingSkeleton(tale: false)
+                : visibleUpcoming.isNotEmpty
+                ? _upcomingSection(context, visibleUpcoming)
+                : _emptyUpcomingSection(context),
+          ],
         ],
-      ],
+      ),
     );
   }
 
   Widget _talesTab(BuildContext context, List<_LocalTale> tales) {
     final colors = Theme.of(context).colorScheme;
-    return Column(
-      key: const ValueKey('campfire-tales'),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _lineSwitch(
-          options: const [
-            ('public', 'Public', Icons.public_rounded),
-            ('following', 'Following', Icons.person_add_alt_1_rounded),
-            ('for_you', 'For You', Icons.auto_awesome_rounded),
-          ],
-          selected: _taleFeed,
-          onChanged: (value) {
-            setState(() {
-              _taleFeed = value;
-              _localTales.clear();
-              _taleCursor = null;
-            });
-            unawaited(_loadTales());
-          },
-        ),
-        const SizedBox(height: 12),
-        Text(
-          'Browse by category',
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            color: colors.onSurfaceVariant,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 10),
-        SizedBox(
-          height: 42,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: _taleCategories.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 8),
-            itemBuilder: (context, index) {
-              final category = _taleCategories[index];
-              return ChoiceChip(
-                label: Text(category),
-                selected: _selectedTaleCategory == category,
-                onSelected: (_) {
-                  setState(() {
-                    _selectedTaleCategory = category;
-                    _localTales.clear();
-                    _taleCursor = null;
-                  });
-                  unawaited(_loadTales());
-                },
-              );
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragEnd: (details) => _swipeSection(
+        details,
+        const ['public', 'following', 'for_you'],
+        _taleFeed,
+        (value) {
+          setState(() {
+            _taleFeed = value;
+            _localTales.clear();
+            _taleCursor = null;
+          });
+          unawaited(_loadTales());
+        },
+      ),
+      child: Column(
+        key: const ValueKey('campfire-tales'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _lineSwitch(
+            options: const [
+              ('public', 'Public', Icons.public_rounded),
+              ('following', 'Following', Icons.person_add_alt_1_rounded),
+              ('for_you', 'For You', Icons.auto_awesome_rounded),
+            ],
+            selected: _taleFeed,
+            onChanged: (value) {
+              setState(() {
+                _taleFeed = value;
+                _localTales.clear();
+                _taleCursor = null;
+              });
+              unawaited(_loadTales());
             },
           ),
-        ),
-        const SizedBox(height: 12),
-        if (_loadingTales && tales.isEmpty)
-          const _CampLoadingSkeleton(tale: true)
-        else if (tales.isEmpty)
-          GriotBrandedContainer(
-            padding: const EdgeInsets.all(24),
-            borderRadius: 22,
-            child: Column(
-              children: [
-                Icon(Icons.menu_book_rounded, size: 42, color: colors.primary),
-                const SizedBox(height: 10),
-                Text(
-                  _talesLoadError != null
-                      ? 'Tales are temporarily unavailable'
-                      : _taleFeed == 'following'
-                      ? 'No Tales from people you follow'
-                      : _taleFeed == 'for_you'
-                      ? 'No personalised Tales yet'
-                      : _localTales.isEmpty
-                      ? 'No public Tales yet'
-                      : 'No Tales found',
-                  style: const TextStyle(fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  _talesLoadError != null
-                      ? 'The feed did not return a valid Tale list. Try again.'
-                      : _taleFeed == 'following'
-                      ? 'Follow Camp Profiles to build a personal reading feed.'
-                      : _taleFeed == 'for_you'
-                      ? 'Read a few Tales and react to improve your For You feed.'
-                      : 'Read public Tales with text, links and media, or publish your own with a category.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: colors.onSurfaceVariant),
-                ),
-                const SizedBox(height: 16),
-                OutlinedButton.icon(
-                  onPressed: _talesLoadError != null
-                      ? () => _loadTales()
-                      : _showCreateTale,
-                  icon: Icon(
-                    _talesLoadError != null
-                        ? Icons.refresh_rounded
-                        : Icons.edit_note_rounded,
-                  ),
-                  label: Text(
-                    _talesLoadError != null ? 'Try again' : 'Tell a Tale',
-                  ),
-                ),
-              ],
-            ),
-          )
-        else
-          for (var index = 0; index < tales.length; index++) ...[
-            if (index > 0) _taleSeparator(context),
-            _taleCard(context, tales[index]),
-            if (_taleFeed == 'public' &&
-                index == math.min(1, tales.length - 1)) ...[
-              _discoverCampProfiles(context, tales),
-            ],
-            if (_shouldInsertTaleAd(index)) ...[_taleNativeAd(index)],
-          ],
-        if (_loadingMoreTales)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 18),
-            child: Center(
-              child: SizedBox.square(
-                dimension: 22,
-                child: CircularProgressIndicator(strokeWidth: 2.4),
-              ),
+          const SizedBox(height: 12),
+          Text(
+            'Browse by category',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: colors.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
             ),
           ),
-      ],
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 42,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _taleCategories.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final category = _taleCategories[index];
+                return ChoiceChip(
+                  label: Text(category),
+                  selected: _selectedTaleCategory == category,
+                  onSelected: (_) {
+                    setState(() {
+                      _selectedTaleCategory = category;
+                      _localTales.clear();
+                      _taleCursor = null;
+                    });
+                    unawaited(_loadTales());
+                  },
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (_loadingTales && tales.isEmpty)
+            const _CampLoadingSkeleton(tale: true)
+          else if (tales.isEmpty)
+            GriotBrandedContainer(
+              padding: const EdgeInsets.all(24),
+              borderRadius: 22,
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.menu_book_rounded,
+                    size: 42,
+                    color: colors.primary,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    _talesLoadError != null
+                        ? 'Tales are temporarily unavailable'
+                        : _taleFeed == 'following'
+                        ? 'No Tales from people you follow'
+                        : _taleFeed == 'for_you'
+                        ? 'No personalised Tales yet'
+                        : _localTales.isEmpty
+                        ? 'No public Tales yet'
+                        : 'No Tales found',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _talesLoadError != null
+                        ? 'The feed did not return a valid Tale list. Try again.'
+                        : _taleFeed == 'following'
+                        ? 'Follow Camp Profiles to build a personal reading feed.'
+                        : _taleFeed == 'for_you'
+                        ? 'Read a few Tales and react to improve your For You feed.'
+                        : 'Read public Tales with text, links and media, or publish your own with a category.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: colors.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 16),
+                  OutlinedButton.icon(
+                    onPressed: _talesLoadError != null
+                        ? () => _loadTales()
+                        : _showCreateTale,
+                    icon: Icon(
+                      _talesLoadError != null
+                          ? Icons.refresh_rounded
+                          : Icons.edit_note_rounded,
+                    ),
+                    label: Text(
+                      _talesLoadError != null ? 'Try again' : 'Tell a Tale',
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            for (var index = 0; index < tales.length; index++) ...[
+              if (index > 0) _taleSeparator(context),
+              _taleCard(context, tales[index]),
+              if (_taleFeed == 'public' &&
+                  index == math.min(1, tales.length - 1)) ...[
+                _discoverCampProfiles(context, tales),
+              ],
+              if (_shouldInsertTaleAd(index)) ...[_taleNativeAd(index)],
+            ],
+          if (_loadingMoreTales)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 18),
+              child: Center(
+                child: SizedBox.square(
+                  dimension: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2.4),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -2567,6 +2600,22 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
         }).toList(),
       ),
     );
+  }
+
+  void _swipeSection(
+    DragEndDetails details,
+    List<String> values,
+    String selected,
+    ValueChanged<String> onChanged,
+  ) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity.abs() < 220) return;
+    final index = values.indexOf(selected);
+    if (index < 0) return;
+    final nextIndex = velocity < 0 ? index + 1 : index - 1;
+    if (nextIndex >= 0 && nextIndex < values.length) {
+      onChanged(values[nextIndex]);
+    }
   }
 
   Widget _taleCard(BuildContext context, _LocalTale tale) {
