@@ -188,8 +188,16 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
         final status = (call['status'] ?? '').toString().toLowerCase();
         final callId = (call['id'] ?? call['callId'] ?? call['call_id'])
             ?.toString();
+        final createdRaw = call['createdAt'] ?? call['created_at'];
+        final createdAt = createdRaw == null
+            ? null
+            : DateTime.tryParse(createdRaw.toString())?.toLocal();
+        final withinCallLifetime =
+            createdAt == null ||
+            DateTime.now().difference(createdAt) <= const Duration(hours: 24);
         return conversationId == widget.conversationId &&
             contextType == 'group' &&
+            withinCallLifetime &&
             (callId == null || !_endedGroupCallIds.contains(callId)) &&
             (status.isEmpty || status == 'ringing' || status == 'active');
       }).firstOrNull;
