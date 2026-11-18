@@ -1295,7 +1295,6 @@ class _CampProfileScreenState extends State<CampProfileScreen>
               (story) => targetUserId == null || story.userId == targetUserId,
             )
             .toList(growable: false);
-        if (active.isEmpty && !isOwnProfile) return const SizedBox.shrink();
         final latest = active.isEmpty ? null : active.last;
         final label = latest == null
             ? (isOwnProfile ? 'Share a Camp Status' : 'No active Camp Status')
