@@ -93,6 +93,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   Conversation? _conversation;
   Map<String, ChatUser> _groupMembers = <String, ChatUser>{};
   MessagingProvider? _messagingProvider;
+  StreamSubscription<Map<String, dynamic>>? _callStatusSubscription;
   ChatMessage? _replyingTo;
   ChatMessage? _editingMessage;
   Timer? _typingTimer;
@@ -106,6 +107,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   Timer? _visibleDateHeaderTimer;
   int _initialUnreadCount = 0;
   Map<String, dynamic>? _activeGroupCall;
+  final Set<String> _endedGroupCallIds = <String>{};
   Timer? _activeCallRefreshTimer;
   String _mentionQuery = '';
   int? _mentionStart;
@@ -129,6 +131,9 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final provider = Provider.of<MessagingProvider>(context, listen: false);
+      _callStatusSubscription = provider.callStatusStream.listen(
+        _onGroupCallStatus,
+      );
       _initConversation();
       _loadGroupMembers();
       _loadActiveGroupCall();
@@ -181,12 +186,36 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
         final contextType = (call['contextType'] ?? call['context_type'])
             ?.toString();
         final status = (call['status'] ?? '').toString().toLowerCase();
+        final callId = (call['id'] ?? call['callId'] ?? call['call_id'])
+            ?.toString();
         return conversationId == widget.conversationId &&
             contextType == 'group' &&
+            (callId == null || !_endedGroupCallIds.contains(callId)) &&
             (status.isEmpty || status == 'ringing' || status == 'active');
       }).firstOrNull;
       if (mounted) setState(() => _activeGroupCall = match);
     } catch (_) {}
+  }
+
+  void _onGroupCallStatus(Map<String, dynamic> event) {
+    if (!mounted) return;
+    final conversationId = (event['conversationId'] ?? event['conversation_id'])
+        ?.toString();
+    final status = event['status']?.toString().toLowerCase();
+    final callId = (event['callId'] ?? event['call_id'])?.toString();
+    // A participant-only departure means other members are still in the
+    // call. Remove the banner only when the server ends the whole call.
+    if (conversationId != widget.conversationId ||
+        event['participantOnly'] == true ||
+        !const {'ended', 'declined', 'missed', 'failed'}.contains(status)) {
+      return;
+    }
+    if (callId != null && callId.isNotEmpty) {
+      _endedGroupCallIds.add(callId);
+    }
+    if (_activeGroupCall != null) {
+      setState(() => _activeGroupCall = null);
+    }
   }
 
   Future<void> _initConversation() async {
@@ -229,6 +258,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
 
   @override
   void dispose() {
+    _callStatusSubscription?.cancel();
     _visibleDateHeaderTimer?.cancel();
     _activeCallRefreshTimer?.cancel();
     _typingTimer?.cancel();
