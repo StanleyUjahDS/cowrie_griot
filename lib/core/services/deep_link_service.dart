@@ -8,6 +8,7 @@ import '../../features/chat/providers/messaging_provider.dart';
 import '../../features/chat/models/conversation_model.dart';
 import '../../features/auth/auth_controller.dart';
 import '../../features/users/providers/user_provider.dart';
+import '../../features/chat/services/messaging_api_service.dart';
 
 class DeepLinkService {
   DeepLinkService._();
@@ -104,6 +105,38 @@ class DeepLinkService {
       return;
     }
 
+    // Notification payloads historically used `/campfires/tale/<id>` while
+    // share links use `/tale/<id>`. Treat both as the same dedicated reader
+    // destination; do this before the Campfire-room matcher so "tale" is not
+    // mistaken for a room id.
+    if (normalizedPath.startsWith('/campfires/tale/') ||
+        normalizedPath.startsWith('/campfires/tales/')) {
+      final taleId = _lastPathSegment(path);
+      if (taleId.isEmpty) return;
+      await _savePendingDestination(canonicalUri);
+      _openTaleWhenReady(taleId);
+      return;
+    }
+
+    if (normalizedPath.startsWith('/campfires/')) {
+      final campfireId = _lastPathSegment(path);
+      if (campfireId.isEmpty) return;
+      await _savePendingDestination(canonicalUri);
+      _openCampfireWhenReady(campfireId);
+      return;
+    }
+
+    // Camp Profile is a separate public projection from the regular profile.
+    // It is shared with `/camp/profile/<user-id>` throughout Camp, so keep it
+    // on the same authenticated deep-link handoff path.
+    if (normalizedPath.startsWith('/camp/profile/')) {
+      final identifier = _lastPathSegment(path);
+      if (identifier.isEmpty) return;
+      await _savePendingDestination(canonicalUri);
+      _openCampProfileWhenReady(identifier);
+      return;
+    }
+
     if (normalizedPath == '/join') {
       final code = uri.queryParameters['ref']?.trim();
       if (code == null || code.isEmpty) return;
@@ -115,6 +148,17 @@ class DeepLinkService {
     if (normalizedPath == '/plus') {
       await savePendingPlusIntent();
       _openPlusWhenReady();
+      return;
+    }
+
+    // Tales are public, shareable Camp content. Open them directly instead
+    // of treating the link as an unknown profile/community destination.
+    if (normalizedPath.startsWith('/tale/') ||
+        normalizedPath.startsWith('/tales/') ||
+        normalizedPath.startsWith('/camp/tales/')) {
+      final taleId = _lastPathSegment(path);
+      if (taleId.isEmpty) return;
+      _openTaleWhenReady(taleId);
       return;
     }
 
@@ -418,6 +462,41 @@ class DeepLinkService {
       return;
     }
 
+    if (normalizedPath.startsWith('/campfires/tale/') ||
+        normalizedPath.startsWith('/campfires/tales/')) {
+      final taleId = _lastPathSegment(path);
+      if (taleId.isEmpty) return;
+      if (savePending) await _savePendingDestination(uri);
+      _openTaleWhenReady(taleId, forceHomeBase: forceHomeBase);
+      return;
+    }
+
+    if (normalizedPath.startsWith('/campfires/')) {
+      final campfireId = _lastPathSegment(path);
+      if (campfireId.isEmpty) return;
+      if (savePending) await _savePendingDestination(uri);
+      _openCampfireWhenReady(campfireId, forceHomeBase: forceHomeBase);
+      return;
+    }
+
+    if (normalizedPath.startsWith('/camp/profile/')) {
+      final identifier = _lastPathSegment(path);
+      if (identifier.isEmpty) return;
+      if (savePending) await _savePendingDestination(uri);
+      _openCampProfileWhenReady(identifier, forceHomeBase: forceHomeBase);
+      return;
+    }
+
+    if (normalizedPath.startsWith('/tale/') ||
+        normalizedPath.startsWith('/tales/') ||
+        normalizedPath.startsWith('/camp/tales/')) {
+      final taleId = _lastPathSegment(path);
+      if (taleId.isEmpty) return;
+      if (savePending) await _savePendingDestination(uri);
+      _openTaleWhenReady(taleId, forceHomeBase: forceHomeBase);
+      return;
+    }
+
     if (_isConversationPath(normalizedPath)) {
       final isGroup =
           normalizedPath.startsWith('/group/') ||
@@ -454,10 +533,115 @@ class DeepLinkService {
     return path == '/join' ||
         path == '/plus' ||
         path == '/call/join' ||
+        path.startsWith('/campfires/') ||
+        path.startsWith('/camp/profile/') ||
+        path.startsWith('/tale/') ||
+        path.startsWith('/tales/') ||
+        path.startsWith('/camp/tales/') ||
         path.startsWith('/profile/') ||
         path.startsWith('/group/') ||
         path.startsWith('/circle/') ||
         path.startsWith('/channel/');
+  }
+
+  void _openCampfireWhenReady(
+    String campfireId, {
+    bool forceHomeBase = false,
+    int contextAttempt = 0,
+  }) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final context =
+          AppRouter.router.routerDelegate.navigatorKey.currentContext;
+      if (context == null) {
+        if (contextAttempt < 25) {
+          Future<void>.delayed(
+            const Duration(milliseconds: 200),
+            () => _openCampfireWhenReady(
+              campfireId,
+              forceHomeBase: forceHomeBase,
+              contextAttempt: contextAttempt + 1,
+            ),
+          );
+        }
+        return;
+      }
+      if (!context.read<AuthController>().hasValidSession) {
+        AppRouter.router.go('/login');
+        return;
+      }
+      try {
+        await context.read<MessagingApiService>().joinCampfire(campfireId);
+        await _clearPendingDestination();
+        _pushWithStableBackStack(
+          '/calls/$campfireId',
+          extra: {'type': 'space', 'mode': 'voice'},
+          forceHomeBase: forceHomeBase,
+        );
+      } catch (error) {
+        debugPrint('DeepLink: campfire join failed: $error');
+        AppRouter.router.go('/campfires');
+      }
+    });
+  }
+
+  void _openCampProfileWhenReady(
+    String identifier, {
+    bool forceHomeBase = false,
+    int contextAttempt = 0,
+  }) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final context =
+          AppRouter.router.routerDelegate.navigatorKey.currentContext;
+      if (context == null) {
+        if (contextAttempt < 25) {
+          Future<void>.delayed(
+            const Duration(milliseconds: 200),
+            () => _openCampProfileWhenReady(
+              identifier,
+              forceHomeBase: forceHomeBase,
+              contextAttempt: contextAttempt + 1,
+            ),
+          );
+        }
+        return;
+      }
+      if (!context.read<AuthController>().hasValidSession) {
+        AppRouter.router.go('/login');
+        return;
+      }
+      await _clearPendingDestination();
+      _pushWithStableBackStack(
+        '/camp/profile/${Uri.encodeComponent(identifier)}',
+        forceHomeBase: forceHomeBase,
+      );
+    });
+  }
+
+  void _openTaleWhenReady(
+    String taleId, {
+    bool forceHomeBase = false,
+    int contextAttempt = 0,
+  }) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_routerHasMatch()) {
+        if (contextAttempt < 25) {
+          Future<void>.delayed(
+            const Duration(milliseconds: 200),
+            () => _openTaleWhenReady(
+              taleId,
+              forceHomeBase: forceHomeBase,
+              contextAttempt: contextAttempt + 1,
+            ),
+          );
+        }
+        return;
+      }
+      unawaited(_clearPendingDestination());
+      _pushWithStableBackStack(
+        '/tale/${Uri.encodeComponent(taleId)}',
+        forceHomeBase: forceHomeBase,
+      );
+    });
   }
 
   void _pushWithStableBackStack(

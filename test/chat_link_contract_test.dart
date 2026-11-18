@@ -81,6 +81,24 @@ void main() {
         ),
         isTrue,
       );
+      expect(
+        PublicDeepLinkRecoveryScreen.supports(
+          Uri.parse('https://griot.network/camp/profile/user-id'),
+        ),
+        isTrue,
+      );
+      expect(
+        PublicDeepLinkRecoveryScreen.supports(
+          Uri.parse('griot://campfires/room-id'),
+        ),
+        isTrue,
+      );
+      expect(
+        PublicDeepLinkRecoveryScreen.supports(
+          Uri.parse('https://griot.network/camp/tales/tale-id'),
+        ),
+        isTrue,
+      );
     });
   });
 

@@ -18,6 +18,11 @@ class PublicDeepLinkRecoveryScreen extends StatefulWidget {
     return path == '/join' ||
         path == '/plus' ||
         path == '/call/join' ||
+        path.startsWith('/campfires/') ||
+        path.startsWith('/camp/profile/') ||
+        path.startsWith('/camp/tales/') ||
+        path.startsWith('/tale/') ||
+        path.startsWith('/tales/') ||
         path.startsWith('/profile/') ||
         path.startsWith('/channel/') ||
         path.startsWith('/circle/') ||
@@ -36,6 +41,10 @@ class PublicDeepLinkRecoveryScreen extends StatefulWidget {
       'group',
       'circle',
       'channel',
+      'camp',
+      'campfires',
+      'tale',
+      'tales',
     };
     if (!supportedHosts.contains(host)) return uri;
 
