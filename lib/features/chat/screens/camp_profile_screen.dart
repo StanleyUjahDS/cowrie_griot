@@ -825,38 +825,49 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                 ),
               ],
             ),
-            if (_profileTabsPinned)
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: Material(
-                  color: colors.surface,
-                  elevation: 3,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: TabBar(
-                      controller: _tabController,
-                      isScrollable: false,
-                      labelColor: colors.primary,
-                      unselectedLabelColor: colors.onSurfaceVariant,
-                      indicatorColor: colors.primary,
-                      indicatorWeight: 3,
-                      tabs: const [
-                        Tab(icon: Icon(Icons.menu_book_rounded), text: 'Tales'),
-                        Tab(
-                          icon: Icon(Icons.local_fire_department_rounded),
-                          text: 'Campfires',
-                        ),
-                        Tab(
-                          icon: Icon(Icons.forum_outlined),
-                          text: 'Interactions',
-                        ),
-                      ],
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              top: _profileTabsPinned ? 0 : -76,
+              left: 0,
+              right: 0,
+              child: IgnorePointer(
+                ignoring: !_profileTabsPinned,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 160),
+                  opacity: _profileTabsPinned ? 1 : 0,
+                  child: Material(
+                    color: colors.surface,
+                    elevation: 3,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: TabBar(
+                        controller: _tabController,
+                        isScrollable: false,
+                        labelColor: colors.primary,
+                        unselectedLabelColor: colors.onSurfaceVariant,
+                        indicatorColor: colors.primary,
+                        indicatorWeight: 3,
+                        tabs: const [
+                          Tab(
+                            icon: Icon(Icons.menu_book_rounded),
+                            text: 'Tales',
+                          ),
+                          Tab(
+                            icon: Icon(Icons.local_fire_department_rounded),
+                            text: 'Campfires',
+                          ),
+                          Tab(
+                            icon: Icon(Icons.forum_outlined),
+                            text: 'Interactions',
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
+            ),
           ],
         ),
       ),
