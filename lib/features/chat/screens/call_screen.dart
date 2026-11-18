@@ -3532,9 +3532,6 @@ class _CallScreenState extends State<CallScreen> {
     final thumbnailView = hasBothVideos
         ? (_showLocalMain ? remoteView : _localVideoView)
         : null;
-    final mainLabel = hasBothVideos
-        ? (_showLocalMain ? _localDisplayName : _remoteCallLabel())
-        : (remoteView != null ? _remoteCallLabel() : _localDisplayName);
     final thumbnailLabel = _showLocalMain
         ? _remoteCallLabel()
         : _localDisplayName;
@@ -3613,12 +3610,6 @@ class _CallScreenState extends State<CallScreen> {
                           top: 56,
                           left: 16,
                           child: _MutedCallIndicator(colors: colors),
-                        ),
-                      if (widget.conversationType == 'space')
-                        Positioned(
-                          left: 16,
-                          bottom: 16,
-                          child: _VideoLabel(label: mainLabel, colors: colors),
                         ),
                       if (thumbnailView != null)
                         AnimatedPositioned(
