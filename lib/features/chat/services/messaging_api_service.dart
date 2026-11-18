@@ -209,10 +209,6 @@ class MessagingApiService {
     await _apiClient.post(ApiConfig.messagingCampStatusView(statusId));
   }
 
-  Future<void> deleteCampStatus(String statusId) async {
-    await _apiClient.delete(ApiConfig.messagingCampStatus(statusId));
-  }
-
   Future<Map<String, dynamic>> getCampProfileCampfires(
     String userId, {
     String status = 'all',
