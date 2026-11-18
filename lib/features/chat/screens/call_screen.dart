@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import '../../../core/ui/dialogs/griot_confirm_dialog.dart';
 import '../../../core/router/app_router.dart';
 import 'package:provider/provider.dart';
@@ -28,6 +30,8 @@ import '../widgets/friend_selector_sheet.dart';
 import '../widgets/camp_tip_sheet.dart';
 
 enum _VideoThumbnailCorner { topLeft, topRight, bottomLeft, bottomRight }
+
+enum _ScreenShareMode { systemPicker, entireScreen, griotOnly }
 
 extension on _VideoThumbnailCorner {
   bool get isLeft =>
@@ -1244,9 +1248,12 @@ class _CallScreenState extends State<CallScreen> {
           );
           return;
         }
-        final shareMode = await showModalBottomSheet<bool>(
+        final isApple = defaultTargetPlatform == TargetPlatform.iOS;
+        final shareMode = await showModalBottomSheet<_ScreenShareMode>(
           context: context,
           showDragHandle: true,
+          useSafeArea: true,
+          isScrollControlled: true,
           builder: (sheetContext) => SafeArea(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1254,28 +1261,48 @@ class _CallScreenState extends State<CallScreen> {
                 const ListTile(
                   leading: Icon(Icons.screen_share_rounded),
                   title: Text('Share your screen'),
-                  subtitle: Text('Choose what other people can see'),
+                  subtitle: Text('Choose what other people can see now'),
                 ),
-                ListTile(
-                  leading: const Icon(Icons.phone_android_rounded),
-                  title: const Text('Entire screen'),
-                  subtitle: const Text(
-                    'Share apps, notifications and everything visible',
+                if (!isApple)
+                  ListTile(
+                    leading: const Icon(Icons.apps_rounded),
+                    title: const Text('Choose an app or entire screen'),
+                    subtitle: const Text(
+                      'Android will show its system picker next',
+                    ),
+                    onTap: () => Navigator.pop(
+                      sheetContext,
+                      _ScreenShareMode.systemPicker,
+                    ),
+                  )
+                else ...[
+                  ListTile(
+                    leading: const Icon(Icons.phone_android_rounded),
+                    title: const Text('Entire screen'),
+                    subtitle: const Text(
+                      'Share apps, notifications and everything visible',
+                    ),
+                    onTap: () => Navigator.pop(
+                      sheetContext,
+                      _ScreenShareMode.entireScreen,
+                    ),
                   ),
-                  onTap: () => Navigator.pop(sheetContext, false),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.apps_rounded),
-                  title: const Text('This app only'),
-                  subtitle: const Text('Share only the Griot app window'),
-                  onTap: () => Navigator.pop(sheetContext, true),
-                ),
+                  ListTile(
+                    leading: const Icon(Icons.apps_rounded),
+                    title: const Text('Griot app only'),
+                    subtitle: const Text('Share only the Griot app window'),
+                    onTap: () =>
+                        Navigator.pop(sheetContext, _ScreenShareMode.griotOnly),
+                  ),
+                ],
               ],
             ),
           ),
         );
         if (shareMode == null) return;
-        await _media.startScreenSharing(inApp: shareMode);
+        await _media.startScreenSharing(
+          inApp: shareMode == _ScreenShareMode.griotOnly,
+        );
         await ZegoExpressEngine.instance.mutePublishStreamVideo(false);
         await ZegoExpressEngine.instance.setStreamExtraInfo(
           jsonEncode({'muted': !_audioEnabled, 'screenSharing': true}),
