@@ -26,6 +26,7 @@ import '../../users/services/user_api_service.dart';
 import '../../golds/services/golds_api_service.dart';
 import '../services/messaging_api_service.dart';
 import '../models/chat_user.dart';
+import '../providers/stories_provider.dart';
 import '../widgets/camp_tip_sheet.dart';
 import '../widgets/camp_tale_components.dart';
 import '../widgets/camp_tale_media_gallery.dart';
@@ -768,6 +769,7 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                 if (_loadingPublicUser)
                   const LinearProgressIndicator(minHeight: 2),
                 _profileCard(context, user, name, username),
+                _campStatusEntry(context, user?.id),
                 const SizedBox(height: 16),
                 TabBar(
                   controller: _tabController,
@@ -1279,6 +1281,88 @@ class _CampProfileScreenState extends State<CampProfileScreen>
           'Only recordings the host has chosen to publish',
         ),
       ],
+    );
+  }
+
+  Widget _campStatusEntry(BuildContext context, String? profileUserId) {
+    final viewerId = context.read<UserProvider>().user?.id;
+    final isOwnProfile = profileUserId == null || profileUserId == viewerId;
+    final targetUserId = profileUserId ?? viewerId;
+    return Consumer<StoriesProvider>(
+      builder: (context, stories, _) {
+        final active = stories.stories
+            .where(
+              (story) => targetUserId == null || story.userId == targetUserId,
+            )
+            .toList(growable: false);
+        final latest = active.isEmpty ? null : active.last;
+        final label = latest == null
+            ? (isOwnProfile ? 'Share a Camp Status' : 'No active Camp Status')
+            : '${latest.text?.trim().isNotEmpty == true ? latest.text!.trim() : 'Media status'} · expires in 24h';
+        return Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: CampTaleCardSurface(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            margin: EdgeInsets.zero,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () => context.push('/stories'),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: [
+                          Theme.of(context).colorScheme.primary,
+                          Theme.of(context).colorScheme.tertiary,
+                        ],
+                      ),
+                    ),
+                    child: GriotAvatar(
+                      radius: 22,
+                      avatarUrl: latest?.avatarUrl,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          latest == null ? 'Camp Status' : 'Active Camp Status',
+                          style: const TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          label,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    isOwnProfile && latest == null
+                        ? Icons.add_circle_outline_rounded
+                        : Icons.chevron_right_rounded,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
