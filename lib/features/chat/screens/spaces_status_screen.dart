@@ -309,6 +309,7 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
   int _searchOffset = 0;
   bool _searchHasMore = false;
   Map<String, dynamic> _campSearchResults = const {};
+  final Map<String, bool> _searchFollowOverrides = <String, bool>{};
   String _searchScope = 'all';
   String _selectedTaleCategory = 'All';
   final Set<String> _campInterests = <String>{};
@@ -2332,8 +2333,9 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
         nested['username'] ??
         nested['user_name'];
     final username = rawUsername?.toString().trim();
-    final following =
+    final serverFollowing =
         profile['is_following'] == true || profile['isFollowing'] == true;
+    final following = _searchFollowOverrides[id] ?? serverFollowing;
     final avatar = _searchProfileAvatar(profile);
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -2375,6 +2377,10 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                 onPressed: () async {
                   final service = context.read<MessagingApiService>();
                   final notificationContext = context;
+                  final nextFollowing = !following;
+                  if (mounted) {
+                    setState(() => _searchFollowOverrides[id] = nextFollowing);
+                  }
                   try {
                     if (following) {
                       await service.unfollowCampProfile(id);
@@ -2385,6 +2391,9 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                       await _runCampSearch(_searchQuery);
                     }
                   } catch (error) {
+                    if (mounted) {
+                      setState(() => _searchFollowOverrides.remove(id));
+                    }
                     if (notificationContext.mounted) {
                       NotificationService.showError(
                         notificationContext,
