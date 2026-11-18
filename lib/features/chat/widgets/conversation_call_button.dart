@@ -123,7 +123,7 @@ class GroupConversationCallButton extends StatelessWidget {
   /// group grows beyond this size, a Campfire is the only call surface so the
   /// room can scale with listeners instead of consuming one RTC participant
   /// slot per member.
-  static const int campfireOnlyMemberCount = 50;
+  static const int campfireOnlyMemberCount = 100;
   final String conversationId;
   final bool canCreateCampfire;
   final int? memberCount;
