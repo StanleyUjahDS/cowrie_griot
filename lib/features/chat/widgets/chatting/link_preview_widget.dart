@@ -7,14 +7,33 @@ class LinkPreviewWidget extends StatelessWidget {
   final String url;
   final bool isMe;
 
-  const LinkPreviewWidget({super.key, required this.url, required this.isMe});
+  /// Metadata saved with a Tale is preferred when it is available. This keeps
+  /// previews stable for sites that block a second client-side fetch while
+  /// still allowing AnyLinkPreview to refresh missing/stale values.
+  final String? title;
+  final String? description;
+  final String? imageUrl;
+
+  const LinkPreviewWidget({
+    super.key,
+    required this.url,
+    required this.isMe,
+    this.title,
+    this.description,
+    this.imageUrl,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    final uri = Uri.tryParse(url);
+    final normalizedUrl = _normalizeUrl(url);
+    final parsedUri = Uri.tryParse(normalizedUrl);
+    if (parsedUri == null || !parsedUri.hasScheme || parsedUri.host.isEmpty) {
+      return _buildFallback(context, normalizedUrl, colorScheme);
+    }
+    final uri = parsedUri;
     final isGriotLink =
         uri != null &&
         (uri.host.toLowerCase() == 'griot.network' ||
@@ -29,7 +48,7 @@ class LinkPreviewWidget extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: colorScheme.shadow.withValues(alpha: 0.08),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -38,8 +57,13 @@ class LinkPreviewWidget extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: AnyLinkPreview(
-          link: url,
-          cache: const Duration(hours: 24),
+          // The URL key is important: AnyLinkPreview is stateful and otherwise
+          // can retain metadata from the previous Tale/message when a list row
+          // is recycled. A short cache keeps previews current without fetching
+          // the same URL on every rebuild.
+          key: ValueKey('link-preview:$normalizedUrl'),
+          link: normalizedUrl,
+          cache: const Duration(minutes: 15),
           backgroundColor: isMe
               ? colorScheme.onPrimary.withValues(alpha: 0.1)
               : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
@@ -50,29 +74,7 @@ class LinkPreviewWidget extends StatelessWidget {
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
           ),
-          errorWidget: Container(
-            height: 60,
-            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: [
-                Icon(Icons.link_rounded, color: colorScheme.primary, size: 20),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    url,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: isMe
-                          ? colorScheme.onPrimary.withValues(alpha: 0.7)
-                          : colorScheme.onSurface,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          errorWidget: _buildFallback(context, normalizedUrl, colorScheme),
           titleStyle: theme.textTheme.bodyMedium?.copyWith(
             fontWeight: FontWeight.bold,
             color: isMe ? colorScheme.onPrimary : colorScheme.onSurface,
@@ -82,8 +84,106 @@ class LinkPreviewWidget extends StatelessWidget {
                 ? colorScheme.onPrimary.withValues(alpha: 0.7)
                 : colorScheme.onSurfaceVariant,
           ),
-          onTap: () =>
-              launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+          onTap: () => launchUrl(uri, mode: LaunchMode.externalApplication),
+        ),
+      ),
+    );
+  }
+
+  String _normalizeUrl(String value) {
+    var result = value.trim();
+    if (result.startsWith('<') && result.endsWith('>')) {
+      result = result.substring(1, result.length - 1).trim();
+    }
+    // URLs commonly arrive followed by sentence punctuation. Sending that
+    // punctuation to the metadata parser produces an invalid/empty preview.
+    result = result.replaceFirst(RegExp(r'[.,!?;:\)\]\}]+$'), '');
+    if (!RegExp(
+      r'^[a-z][a-z0-9+.-]*://',
+      caseSensitive: false,
+    ).hasMatch(result)) {
+      result = 'https://$result';
+    }
+    return result;
+  }
+
+  Widget _buildFallback(
+    BuildContext context,
+    String value,
+    ColorScheme colorScheme,
+  ) {
+    final theme = Theme.of(context);
+    final parsed = Uri.tryParse(value);
+    final host = parsed?.host.isNotEmpty == true ? parsed!.host : value;
+    final fallbackTitle = title?.trim().isNotEmpty == true
+        ? title!.trim()
+        : host;
+    final fallbackBody = description?.trim().isNotEmpty == true
+        ? description!.trim()
+        : value;
+    final image = imageUrl?.trim();
+    return InkWell(
+      onTap: () {
+        final target = Uri.tryParse(value);
+        if (target != null) {
+          launchUrl(target, mode: LaunchMode.externalApplication);
+        }
+      },
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 72),
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            if (image != null && image.isNotEmpty)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  image,
+                  width: 56,
+                  height: 56,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => Icon(
+                    Icons.link_rounded,
+                    color: colorScheme.primary,
+                    size: 24,
+                  ),
+                ),
+              )
+            else
+              Icon(Icons.link_rounded, color: colorScheme.primary, size: 24),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    fallbackTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: isMe
+                          ? colorScheme.onPrimary
+                          : colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    fallbackBody,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: isMe
+                          ? colorScheme.onPrimary.withValues(alpha: 0.72)
+                          : colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

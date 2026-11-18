@@ -61,6 +61,9 @@ class _LocalTale {
   final String? mediaType;
   final List<String> mediaUrls;
   final String? linkUrl;
+  final String? linkTitle;
+  final String? linkDescription;
+  final String? linkThumbnailUrl;
   final int commentCount;
   final int viewCount;
   final bool isBoosted;
@@ -104,6 +107,9 @@ class _LocalTale {
     this.mediaType,
     this.mediaUrls = const [],
     this.linkUrl,
+    this.linkTitle,
+    this.linkDescription,
+    this.linkThumbnailUrl,
     this.commentCount = 0,
     this.viewCount = 0,
     this.isBoosted = false,
@@ -159,6 +165,9 @@ class _LocalTale {
     mediaType: mediaType,
     mediaUrls: mediaUrls,
     linkUrl: linkUrl,
+    linkTitle: linkTitle,
+    linkDescription: linkDescription,
+    linkThumbnailUrl: linkThumbnailUrl,
     commentCount: commentCount,
     viewCount: viewCount,
     isBoosted: isBoosted,
@@ -200,6 +209,9 @@ class _LocalTale {
     'mediaType': mediaType,
     'mediaUrls': mediaUrls,
     'linkUrl': linkUrl,
+    'linkTitle': linkTitle,
+    'linkDescription': linkDescription,
+    'linkThumbnailUrl': linkThumbnailUrl,
     'commentCount': commentCount,
     'viewCount': viewCount,
     'isBoosted': isBoosted,
@@ -506,6 +518,14 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
               item['mediaType']?.toString() ?? item['media_type']?.toString(),
           mediaUrls: itemMediaUrls,
           linkUrl: item['linkUrl']?.toString() ?? item['link_url']?.toString(),
+          linkTitle:
+              item['linkTitle']?.toString() ?? item['link_title']?.toString(),
+          linkDescription:
+              item['linkDescription']?.toString() ??
+              item['link_description']?.toString(),
+          linkThumbnailUrl:
+              item['linkThumbnailUrl']?.toString() ??
+              item['link_thumbnail_url']?.toString(),
           commentCount:
               int.tryParse(
                 '${item['commentCount'] ?? item['comment_count'] ?? 0}',
@@ -2929,7 +2949,13 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                 ),
               ],
               if (tale.linkUrl != null && tale.linkUrl!.isNotEmpty)
-                LinkPreviewWidget(url: tale.linkUrl!, isMe: false),
+                LinkPreviewWidget(
+                  url: tale.linkUrl!,
+                  isMe: false,
+                  title: tale.linkTitle,
+                  description: tale.linkDescription,
+                  imageUrl: tale.linkThumbnailUrl,
+                ),
               const SizedBox(height: 12),
               Divider(
                 height: 1,

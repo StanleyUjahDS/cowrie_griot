@@ -1691,6 +1691,18 @@ class _TalePublicScreenState extends State<TalePublicScreen>
                                 LinkPreviewWidget(
                                   url: _linkUrl(tale)!,
                                   isMe: false,
+                                  title: _linkMetadataValue(tale, const [
+                                    'linkTitle',
+                                    'link_title',
+                                  ]),
+                                  description: _linkMetadataValue(tale, const [
+                                    'linkDescription',
+                                    'link_description',
+                                  ]),
+                                  imageUrl: _linkMetadataValue(tale, const [
+                                    'linkThumbnailUrl',
+                                    'link_thumbnail_url',
+                                  ]),
                                 ),
                               ],
                               const SizedBox(height: 10),
@@ -2360,6 +2372,14 @@ class _TalePublicScreenState extends State<TalePublicScreen>
   String? _linkUrl(Map<String, dynamic> tale) {
     final raw = tale['linkUrl']?.toString() ?? tale['link_url']?.toString();
     return raw == null || raw.trim().isEmpty ? null : raw.trim();
+  }
+
+  String? _linkMetadataValue(Map<String, dynamic> tale, List<String> keys) {
+    for (final key in keys) {
+      final value = tale[key]?.toString().trim();
+      if (value != null && value.isNotEmpty) return value;
+    }
+    return null;
   }
 
   String? _threadId(Map<String, dynamic> tale) {
