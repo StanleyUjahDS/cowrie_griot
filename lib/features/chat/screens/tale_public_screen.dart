@@ -208,218 +208,212 @@ class _TalePublicScreenState extends State<TalePublicScreen>
         // Keep the continuation visually attached to the primary Tale card.
         // The parts are one reading surface, not a list of unrelated cards.
         return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: CampTaleCardSurface(
-            margin: EdgeInsets.zero,
-            padding: const EdgeInsets.fromLTRB(14, 14, 12, 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (currentPosition > 1 && firstPart != null) ...[
-                  CampTaleReshareCard(
-                    label: 'Co-telling · Original Tale',
-                    sourceAuthorName:
-                        '${tale['threadOriginalAuthorName'] ?? tale['thread_original_author_name'] ?? ''}',
-                    sourceAuthorAvatarUrl:
-                        '${tale['threadOriginalAuthorAvatarUrl'] ?? tale['thread_original_author_avatar_url'] ?? ''}',
-                    sourceText:
-                        '${firstPart['content'] ?? firstPart['text'] ?? ''}'
-                            .trim(),
-                    sourceMediaUrls: _mediaUrls(firstPart),
-                    onAuthorTap: _threadOriginalAuthorId(tale) == null
-                        ? null
-                        : () => context.push(
-                            '/camp/profile/${_threadOriginalAuthorId(tale)}',
-                          ),
-                    onSourceTap: firstPart['id'] == null
-                        ? null
-                        : () => context.push('/tale/${firstPart['id']}'),
-                    mediaBuilder: (context, urls) =>
-                        _mediaGallery({'mediaUrls': urls}),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                Row(
-                  children: [
-                    Icon(
-                      Icons.menu_book_rounded,
-                      size: 19,
-                      color: colors.primary,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Reading this Tale',
-                      style: TextStyle(
-                        color: colors.primary,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      '${allItems.length} parts',
-                      style: TextStyle(
-                        color: colors.onSurfaceVariant,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
+          padding: const EdgeInsets.only(top: 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (currentPosition > 1 && firstPart != null) ...[
+                CampTaleReshareCard(
+                  label: 'Co-telling · Original Tale',
+                  sourceAuthorName:
+                      '${tale['threadOriginalAuthorName'] ?? tale['thread_original_author_name'] ?? ''}',
+                  sourceAuthorAvatarUrl:
+                      '${tale['threadOriginalAuthorAvatarUrl'] ?? tale['thread_original_author_avatar_url'] ?? ''}',
+                  sourceText:
+                      '${firstPart['content'] ?? firstPart['text'] ?? ''}'
+                          .trim(),
+                  sourceMediaUrls: _mediaUrls(firstPart),
+                  onAuthorTap: _threadOriginalAuthorId(tale) == null
+                      ? null
+                      : () => context.push(
+                          '/camp/profile/${_threadOriginalAuthorId(tale)}',
+                        ),
+                  onSourceTap: firstPart['id'] == null
+                      ? null
+                      : () => context.push('/tale/${firstPart['id']}'),
+                  mediaBuilder: (context, urls) =>
+                      _mediaGallery({'mediaUrls': urls}),
                 ),
-                const SizedBox(height: 14),
-                ...items.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final item = entry.value;
-                  final isLast = index == items.length - 1;
-                  final itemPosition =
-                      int.tryParse(
-                        '${item['threadPosition'] ?? item['thread_position'] ?? index + 1}',
-                      ) ??
-                      index + 1;
-                  final itemId = item['id']?.toString() ?? '';
-                  final itemContent = '${item['content'] ?? item['text'] ?? ''}'
-                      .trim();
-                  final itemCommentCount =
-                      int.tryParse(
-                        '${item['commentCount'] ?? item['comment_count'] ?? 0}',
-                      ) ??
-                      0;
-                  return KeyedSubtree(
-                    key: itemId.isEmpty ? null : _threadPartKey(itemId),
-                    child: CampTaleThreadRail(
-                      isLast: isLast,
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 18),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Part $itemPosition of ${allItems.length}',
-                              style: TextStyle(
-                                color: colors.primary,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
+                const SizedBox(height: 12),
+              ],
+              Row(
+                children: [
+                  Icon(
+                    Icons.menu_book_rounded,
+                    size: 19,
+                    color: colors.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Reading this Tale',
+                    style: TextStyle(
+                      color: colors.primary,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${allItems.length} parts',
+                    style: TextStyle(
+                      color: colors.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              ...items.asMap().entries.map((entry) {
+                final index = entry.key;
+                final item = entry.value;
+                final isLast = index == items.length - 1;
+                final itemPosition =
+                    int.tryParse(
+                      '${item['threadPosition'] ?? item['thread_position'] ?? index + 1}',
+                    ) ??
+                    index + 1;
+                final itemId = item['id']?.toString() ?? '';
+                final itemContent = '${item['content'] ?? item['text'] ?? ''}'
+                    .trim();
+                final itemCommentCount =
+                    int.tryParse(
+                      '${item['commentCount'] ?? item['comment_count'] ?? 0}',
+                    ) ??
+                    0;
+                return KeyedSubtree(
+                  key: itemId.isEmpty ? null : _threadPartKey(itemId),
+                  child: CampTaleThreadRail(
+                    isLast: isLast,
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 18),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Part $itemPosition of ${allItems.length}',
+                            style: TextStyle(
+                              color: colors.primary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          if (itemContent.isNotEmpty)
+                            CampTaleText(
+                              key: ValueKey('text-$itemId'),
+                              text: itemContent,
+                              fontSize: 15,
+                            ),
+                          if (_mediaUrls(item).isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            _mediaGallery(item),
+                          ],
+                          if (itemId.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Divider(
+                              height: 1,
+                              color: colors.outlineVariant.withValues(
+                                alpha: .32,
                               ),
                             ),
-                            const SizedBox(height: 8),
-                            if (itemContent.isNotEmpty)
-                              CampTaleText(
-                                key: ValueKey('text-$itemId'),
-                                text: itemContent,
-                                fontSize: 15,
-                              ),
-                            if (_mediaUrls(item).isNotEmpty) ...[
-                              const SizedBox(height: 12),
-                              _mediaGallery(item),
-                            ],
-                            if (itemId.isNotEmpty) ...[
-                              const SizedBox(height: 8),
-                              Divider(
-                                height: 1,
-                                color: colors.outlineVariant.withValues(
-                                  alpha: .32,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: TextButton.icon(
-                                      onPressed: () => _selectCommentTarget(
-                                        itemId,
-                                        'Part $itemPosition',
-                                        threadId: _threadId(item),
+                            const SizedBox(height: 3),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextButton.icon(
+                                    onPressed: () => _selectCommentTarget(
+                                      itemId,
+                                      'Part $itemPosition',
+                                      threadId: _threadId(item),
+                                    ),
+                                    icon: const Icon(
+                                      Icons.chat_bubble_outline_rounded,
+                                      size: 17,
+                                    ),
+                                    label: Text(
+                                      itemCommentCount == 0
+                                          ? 'Comment'
+                                          : '$itemCommentCount Comments',
+                                    ),
+                                    style: TextButton.styleFrom(
+                                      alignment: Alignment.centerLeft,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 2,
+                                        vertical: 7,
                                       ),
-                                      icon: const Icon(
-                                        Icons.chat_bubble_outline_rounded,
-                                        size: 17,
-                                      ),
-                                      label: Text(
-                                        itemCommentCount == 0
-                                            ? 'Comment'
-                                            : '$itemCommentCount Comments',
-                                      ),
-                                      style: TextButton.styleFrom(
-                                        alignment: Alignment.centerLeft,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 2,
-                                          vertical: 7,
-                                        ),
-                                        minimumSize: Size.zero,
-                                        tapTargetSize:
-                                            MaterialTapTargetSize.shrinkWrap,
-                                      ),
+                                      minimumSize: Size.zero,
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
                                     ),
                                   ),
-                                  PopupMenuButton<String>(
-                                    tooltip: 'Part actions',
-                                    padding: EdgeInsets.zero,
-                                    onSelected: (value) {
-                                      if (value == 'retell') _retell(item);
-                                      if (value == 'cotell') _coTell(item);
-                                      if (value == 'tip') {
-                                        _tipTaleCreator(item);
-                                      }
-                                      if (value == 'share') {
-                                        SharePlus.instance.share(
-                                          ShareParams(
-                                            text:
-                                                'Read this Tale on Griot: https://griot.network/tale/$itemId',
-                                          ),
-                                        );
-                                      }
-                                    },
-                                    itemBuilder: (_) => const [
-                                      PopupMenuItem(
-                                        value: 'retell',
-                                        child: ListTile(
-                                          contentPadding: EdgeInsets.zero,
-                                          leading: Icon(Icons.repeat_rounded),
-                                          title: Text('Retell this part'),
+                                ),
+                                PopupMenuButton<String>(
+                                  tooltip: 'Part actions',
+                                  padding: EdgeInsets.zero,
+                                  onSelected: (value) {
+                                    if (value == 'retell') _retell(item);
+                                    if (value == 'cotell') _coTell(item);
+                                    if (value == 'tip') {
+                                      _tipTaleCreator(item);
+                                    }
+                                    if (value == 'share') {
+                                      SharePlus.instance.share(
+                                        ShareParams(
+                                          text:
+                                              'Read this Tale on Griot: https://griot.network/tale/$itemId',
                                         ),
+                                      );
+                                    }
+                                  },
+                                  itemBuilder: (_) => const [
+                                    PopupMenuItem(
+                                      value: 'retell',
+                                      child: ListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        leading: Icon(Icons.repeat_rounded),
+                                        title: Text('Retell this part'),
                                       ),
-                                      PopupMenuItem(
-                                        value: 'cotell',
-                                        child: ListTile(
-                                          contentPadding: EdgeInsets.zero,
-                                          leading: Icon(
-                                            Icons.account_tree_outlined,
-                                          ),
-                                          title: Text('Co-tell this part'),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'cotell',
+                                      child: ListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        leading: Icon(
+                                          Icons.account_tree_outlined,
                                         ),
+                                        title: Text('Co-tell this part'),
                                       ),
-                                      PopupMenuItem(
-                                        value: 'tip',
-                                        child: ListTile(
-                                          contentPadding: EdgeInsets.zero,
-                                          leading: Icon(
-                                            Icons.volunteer_activism_outlined,
-                                          ),
-                                          title: Text('Gift creator'),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'tip',
+                                      child: ListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        leading: Icon(
+                                          Icons.volunteer_activism_outlined,
                                         ),
+                                        title: Text('Gift creator'),
                                       ),
-                                      PopupMenuItem(
-                                        value: 'share',
-                                        child: ListTile(
-                                          contentPadding: EdgeInsets.zero,
-                                          leading: Icon(
-                                            Icons.ios_share_rounded,
-                                          ),
-                                          title: Text('Share part'),
-                                        ),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'share',
+                                      child: ListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        leading: Icon(Icons.ios_share_rounded),
+                                        title: Text('Share part'),
                                       ),
-                                    ],
-                                    icon: const Icon(Icons.more_horiz_rounded),
-                                  ),
-                                ],
-                              ),
-                            ],
+                                    ),
+                                  ],
+                                  icon: const Icon(Icons.more_horiz_rounded),
+                                ),
+                              ],
+                            ),
                           ],
-                        ),
+                        ],
                       ),
                     ),
-                  );
-                }),
-              ],
-            ),
+                  ),
+                );
+              }),
+            ],
           ),
         );
       },

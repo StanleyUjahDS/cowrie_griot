@@ -3331,169 +3331,45 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
     final threadKey = tale.threadId ?? tale.id ?? 'thread-${tale.createdAt}';
     final parts = List.generate(
       tale.threadParts.length,
-      (index) => <String, dynamic>{
-        'content': tale.threadParts[index],
-        'mediaUrls': index < tale.threadPartMediaUrls.length
+      (index) => CampTalePart(
+        content: tale.threadParts[index],
+        mediaUrls: index < tale.threadPartMediaUrls.length
             ? tale.threadPartMediaUrls[index]
             : const <String>[],
-      },
-    );
-    final colors = Theme.of(context).colorScheme;
-    final expanded = _expandedTaleThreads.contains(threadKey);
-    if (!expanded) {
-      final firstMedia = tale.threadPartMediaUrls.isNotEmpty
-          ? tale.threadPartMediaUrls.first
-          : <String>[
-              if (tale.mediaUrl != null) tale.mediaUrl!,
-              ...tale.mediaUrls.where((url) => url != tale.mediaUrl),
-            ];
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CampTaleText(
-            key: ValueKey('text-$threadKey-primary'),
-            text: tale.text,
-            fontSize: 17,
-          ),
-          if (firstMedia.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _buildTaleGallery(context, firstMedia),
-          ],
-          const SizedBox(height: 8),
-          TextButton.icon(
-            onPressed: () {
-              if (parts.length < tale.threadCount && tale.id != null) {
-                context.push('/tale/${tale.id}');
-              } else {
-                setState(() => _expandedTaleThreads.add(threadKey));
-              }
-            },
-            icon: const Icon(Icons.account_tree_outlined, size: 18),
-            label: Text(
-              'View all ${math.max(parts.length, tale.threadCount)} parts',
-            ),
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ),
-        ],
-      );
-    }
-    // Part 1 is already rendered as the normal Tale card above. Once the
-    // reader is expanded, show only the linked continuation parts so Camp
-    // feed, Camp Profile and the dedicated Tale screen do not duplicate Part 1
-    // or present different thread structures.
-    final visibleParts = expanded
-        ? parts.skip(1).toList()
-        : parts.take(1).toList();
-    return AnimatedSize(
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-      clipBehavior: Clip.hardEdge,
-      alignment: Alignment.topCenter,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Keep the opening Tale in the card when the thread expands. The
-          // continuation rail is additive; expanding must never replace Part
-          // 1 with only the later parts.
-          CampTaleText(
-            key: ValueKey('text-$threadKey-primary-expanded'),
-            text: tale.text,
-            fontSize: 17,
-          ),
-          if (tale.threadPartMediaUrls.isNotEmpty &&
-              tale.threadPartMediaUrls.first.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _buildTaleGallery(context, tale.threadPartMediaUrls.first),
-          ],
-          const SizedBox(height: 12),
-          if (expanded) ...[
-            Row(
-              children: [
-                Icon(Icons.menu_book_rounded, size: 18, color: colors.primary),
-                const SizedBox(width: 8),
-                Text(
-                  'Reading this Tale',
-                  style: TextStyle(
-                    color: colors.primary,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  '${math.max(parts.length, tale.threadCount)} parts',
-                  style: TextStyle(
-                    color: colors.onSurfaceVariant,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-          ],
-          ...visibleParts.asMap().entries.map((entry) {
-            final index = entry.key;
-            final part = entry.value;
-            final partNumber = expanded ? index + 2 : index + 1;
-            final mediaUrls = part['mediaUrls'] as List<String>;
-            return CampTaleThreadRail(
-              isLast: index == visibleParts.length - 1,
-              child: Padding(
-                padding: EdgeInsets.only(bottom: index == 0 ? 14 : 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Part $partNumber of ${math.max(parts.length, tale.threadCount)}',
-                      style: TextStyle(
-                        color: colors.primary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    CampTaleText(
-                      key: ValueKey('text-$threadKey-$index'),
-                      text: '${part['content'] ?? ''}'.trim(),
-                      fontSize: index == 0 ? 17 : 15,
-                    ),
-                    if (mediaUrls.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      _buildTaleGallery(context, mediaUrls),
-                    ],
-                  ],
-                ),
-              ),
-            );
-          }),
-          if (parts.length > 1) ...[
-            const SizedBox(height: 8),
-            TextButton.icon(
-              onPressed: () => setState(() {
-                if (expanded) {
-                  _expandedTaleThreads.remove(threadKey);
-                } else {
-                  _expandedTaleThreads.add(threadKey);
-                }
-              }),
-              icon: Icon(expanded ? Icons.expand_less : Icons.expand_more),
-              label: Text(
-                expanded
-                    ? 'Show fewer parts'
-                    : 'View all ${parts.length} parts',
-              ),
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-            ),
-          ],
-        ],
       ),
+    );
+    final expanded = _expandedTaleThreads.contains(threadKey);
+    final fallbackMedia = <String>[
+      if (tale.mediaUrl != null) tale.mediaUrl!,
+      ...tale.mediaUrls.where((url) => url != tale.mediaUrl),
+    ];
+    final first = parts.isEmpty
+        ? CampTalePart(content: tale.text, mediaUrls: fallbackMedia)
+        : (parts.first.mediaUrls.isEmpty && fallbackMedia.isNotEmpty
+              ? CampTalePart(
+                  content: parts.first.content,
+                  mediaUrls: fallbackMedia,
+                )
+              : parts.first);
+    final allParts = parts.isEmpty ? [first] : parts;
+    return CampTaleMultipart(
+      parts: allParts,
+      totalPartCount: math.max(allParts.length, tale.threadCount),
+      expanded: expanded,
+      keyPrefix: threadKey,
+      mediaBuilder: _buildTaleGallery,
+      onToggle: parts.length >= tale.threadCount
+          ? () => setState(() {
+              if (expanded) {
+                _expandedTaleThreads.remove(threadKey);
+              } else {
+                _expandedTaleThreads.add(threadKey);
+              }
+            })
+          : null,
+      onViewAll: tale.id == null
+          ? null
+          : () => context.push('/tale/${tale.id}'),
     );
   }
 

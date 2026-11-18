@@ -1571,127 +1571,28 @@ class _CampProfileScreenState extends State<CampProfileScreen>
     List<Map<String, dynamic>> parts,
     String threadKey,
   ) {
-    final first = parts.first;
-    final firstContent = '${first['content'] ?? ''}'.trim();
-    final firstMedia = _taleMediaUrls(first);
     final expanded = _expandedProfileThreads.contains(threadKey);
-    final visibleParts = expanded
-        ? parts.skip(1).toList()
-        : const <Map<String, dynamic>>[];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Part 1 is the canonical Tale card and must remain visible when the
-        // reader is expanded. Expanding only appends the continuation parts;
-        // it must never replace the opening part or its media.
-        if (firstContent.isNotEmpty)
-          CampTaleText(
-            key: ValueKey('text-$threadKey-0'),
-            text: firstContent,
-            fontSize: 17,
+    final sharedParts = parts
+        .map(
+          (part) => CampTalePart(
+            content: '${part['content'] ?? part['text'] ?? ''}',
+            mediaUrls: _taleMediaUrls(part),
           ),
-        if (firstMedia.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          _campTaleMediaGallery(context, firstMedia),
-        ],
-        if (expanded) ...[
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Icon(
-                Icons.menu_book_rounded,
-                size: 18,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Reading this Tale',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '${parts.length} parts',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-        ],
-        ...visibleParts.asMap().entries.map((entry) {
-          final index = entry.key;
-          final part = entry.value;
-          final partNumber = expanded ? index + 2 : index + 1;
-          final partContent = '${part['content'] ?? ''}'.trim();
-          final partMedia = _taleMediaUrls(part);
-          return CampTaleThreadRail(
-            isLast: index == visibleParts.length - 1,
-            child: Padding(
-              padding: EdgeInsets.only(
-                bottom: index == visibleParts.length - 1 ? 0 : 14,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Part $partNumber of ${parts.length}',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (partContent.isNotEmpty)
-                    CampTaleText(
-                      key: ValueKey('text-$threadKey-$partNumber'),
-                      text: partContent,
-                      fontSize: partNumber == 1 ? 17 : 15,
-                    ),
-                  if (partMedia.isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    _campTaleMediaGallery(context, partMedia),
-                  ],
-                ],
-              ),
-            ),
-          );
-        }),
-        if (parts.length > 1) ...[
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: () => setState(() {
-                if (expanded) {
-                  _expandedProfileThreads.remove(threadKey);
-                } else {
-                  _expandedProfileThreads.add(threadKey);
-                }
-              }),
-              icon: Icon(
-                expanded ? Icons.expand_less : Icons.account_tree_outlined,
-                size: 18,
-              ),
-              label: Text(
-                expanded
-                    ? 'Show fewer parts'
-                    : 'View all ${parts.length} parts',
-              ),
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-            ),
-          ),
-        ],
-      ],
+        )
+        .toList();
+    return CampTaleMultipart(
+      parts: sharedParts,
+      totalPartCount: sharedParts.length,
+      expanded: expanded,
+      keyPrefix: threadKey,
+      mediaBuilder: _campTaleMediaGallery,
+      onToggle: () => setState(() {
+        if (expanded) {
+          _expandedProfileThreads.remove(threadKey);
+        } else {
+          _expandedProfileThreads.add(threadKey);
+        }
+      }),
     );
   }
 

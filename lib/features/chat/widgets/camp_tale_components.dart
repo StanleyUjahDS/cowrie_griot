@@ -537,6 +537,152 @@ class CampTaleThreadRail extends StatelessWidget {
   }
 }
 
+/// A single linked Tale part rendered by the shared multipart Tale surface.
+class CampTalePart {
+  final String content;
+  final List<String> mediaUrls;
+
+  const CampTalePart({required this.content, this.mediaUrls = const []});
+}
+
+/// Consistent multipart Tale layout used by the feed and Camp Profile.
+///
+/// Part 1 is always rendered as the normal Tale. Expanding the reader only
+/// appends linked continuation parts, so the opening text and media never
+/// disappear or get duplicated in a different card treatment.
+class CampTaleMultipart extends StatelessWidget {
+  final List<CampTalePart> parts;
+  final int? totalPartCount;
+  final bool expanded;
+  final VoidCallback? onToggle;
+  final VoidCallback? onViewAll;
+  final Widget Function(BuildContext context, List<String> urls)? mediaBuilder;
+  final String? keyPrefix;
+
+  const CampTaleMultipart({
+    super.key,
+    required this.parts,
+    this.totalPartCount,
+    this.expanded = false,
+    this.onToggle,
+    this.onViewAll,
+    this.mediaBuilder,
+    this.keyPrefix,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (parts.isEmpty) return const SizedBox.shrink();
+    final colors = Theme.of(context).colorScheme;
+    final count = totalPartCount ?? parts.length;
+    final first = parts.first;
+    final continuations = expanded
+        ? parts.skip(1).toList()
+        : const <CampTalePart>[];
+    final canExpand = count > 1 && (onToggle != null || onViewAll != null);
+
+    Widget partText(
+      CampTalePart part,
+      int position, {
+      required bool firstPart,
+    }) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!firstPart)
+            Text(
+              'Part $position of $count',
+              style: TextStyle(
+                color: colors.primary,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          if (!firstPart) const SizedBox(height: 8),
+          if (part.content.trim().isNotEmpty)
+            CampTaleText(
+              key: keyPrefix == null ? null : ValueKey('$keyPrefix-$position'),
+              text: part.content.trim(),
+              fontSize: firstPart ? 17 : 15,
+            ),
+          if (part.mediaUrls.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            if (mediaBuilder != null) mediaBuilder!(context, part.mediaUrls),
+          ],
+        ],
+      );
+    }
+
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      clipBehavior: Clip.hardEdge,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          partText(first, 1, firstPart: true),
+          if (expanded && continuations.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Icon(Icons.menu_book_rounded, size: 18, color: colors.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Reading this Tale',
+                  style: TextStyle(
+                    color: colors.primary,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '$count parts',
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            ...continuations.asMap().entries.map((entry) {
+              final index = entry.key;
+              return CampTaleThreadRail(
+                isLast: index == continuations.length - 1,
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    bottom: index == continuations.length - 1 ? 0 : 14,
+                  ),
+                  child: partText(entry.value, index + 2, firstPart: false),
+                ),
+              );
+            }),
+          ],
+          if (canExpand) ...[
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: expanded ? onToggle : (onToggle ?? onViewAll),
+              icon: Icon(
+                expanded ? Icons.expand_less : Icons.account_tree_outlined,
+                size: 18,
+              ),
+              label: Text(
+                expanded ? 'Show fewer parts' : 'View all $count parts',
+              ),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 /// The same author header for a Tale, comment or reply; only actions vary.
 class CampTaleHeader extends StatelessWidget {
   const CampTaleHeader({
