@@ -35,9 +35,8 @@ class LinkPreviewWidget extends StatelessWidget {
     }
     final uri = parsedUri;
     final isGriotLink =
-        uri != null &&
-        (uri.host.toLowerCase() == 'griot.network' ||
-            uri.host.toLowerCase() == 'www.griot.network');
+        uri.host.toLowerCase() == 'griot.network' ||
+        uri.host.toLowerCase() == 'www.griot.network';
     if (isGriotLink) {
       return _buildGriotPreview(context, uri, colorScheme);
     }
