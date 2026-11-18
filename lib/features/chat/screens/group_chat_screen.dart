@@ -102,6 +102,8 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   bool _showScrollToBottom = false;
   DateTime? _visibleMessageDate;
   bool _dateUpdateScheduled = false;
+  bool _showVisibleDateHeader = false;
+  Timer? _visibleDateHeaderTimer;
   int _initialUnreadCount = 0;
   Map<String, dynamic>? _activeGroupCall;
   Timer? _activeCallRefreshTimer;
@@ -227,6 +229,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
 
   @override
   void dispose() {
+    _visibleDateHeaderTimer?.cancel();
     _activeCallRefreshTimer?.cancel();
     _typingTimer?.cancel();
     _highlightTimer?.cancel();
@@ -324,6 +327,13 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
 
   void _onScrollChanged() {
     if (!scrollController.hasClients) return;
+    _visibleDateHeaderTimer?.cancel();
+    if (!_showVisibleDateHeader) {
+      setState(() => _showVisibleDateHeader = true);
+    }
+    _visibleDateHeaderTimer = Timer(const Duration(milliseconds: 900), () {
+      if (mounted) setState(() => _showVisibleDateHeader = false);
+    });
     final bool show = scrollController.offset > 400;
     if (show != _showScrollToBottom) {
       setState(() => _showScrollToBottom = show);
@@ -1183,9 +1193,13 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                               left: 0,
                               right: 0,
                               child: Center(
-                                child: StickyDateHeader(
-                                  date: _visibleMessageDate!,
-                                  colorScheme: colorScheme,
+                                child: AnimatedOpacity(
+                                  opacity: _showVisibleDateHeader ? 1 : 0,
+                                  duration: const Duration(milliseconds: 180),
+                                  child: StickyDateHeader(
+                                    date: _visibleMessageDate!,
+                                    colorScheme: colorScheme,
+                                  ),
                                 ),
                               ),
                             ),

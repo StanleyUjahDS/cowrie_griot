@@ -23,6 +23,7 @@ import '../services/messaging_api_service.dart';
 import '../services/chat_draft_store.dart';
 import '../widgets/chatting/attachment_sheet.dart';
 import '../widgets/chatting/media_preview_sheet.dart';
+import '../widgets/chatting/sticker_picker_sheet.dart';
 import '../widgets/chatting/day_separator.dart';
 import '../widgets/chatting/message_bubble.dart';
 import '../widgets/chatting/reply_swipe.dart';
@@ -39,6 +40,7 @@ class DMChatScreen extends StatefulWidget {
   final Conversation? initialConversation;
   final ChatUser? initialUser;
   final String? initialMessageId;
+  final Map<String, dynamic>? initialStoryReply;
 
   const DMChatScreen({
     super.key,
@@ -47,10 +49,47 @@ class DMChatScreen extends StatefulWidget {
     this.initialConversation,
     this.initialUser,
     this.initialMessageId,
+    this.initialStoryReply,
   });
 
   @override
   State<DMChatScreen> createState() => _DMChatScreenState();
+}
+
+class _MessageSearchEmptyState extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+
+  const _MessageSearchEmptyState({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 48, color: colors.primary.withValues(alpha: .7)),
+            const SizedBox(height: 14),
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 6),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: colors.onSurfaceVariant),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _DMChatScreenState extends State<DMChatScreen> {
@@ -68,11 +107,17 @@ class _DMChatScreenState extends State<DMChatScreen> {
   String? _highlightedMessageId;
   bool _lastTypingState = false;
   bool _showScrollToBottom = false;
+  DateTime? _visibleMessageDate;
+  bool _dateUpdateScheduled = false;
+  bool _showVisibleDateHeader = false;
+  Timer? _visibleDateHeaderTimer;
   bool _loading = false;
+  int _initialUnreadCount = 0;
   String _message = '';
   final ChatDraftStore _draftStore = const ChatDraftStore();
   String? _draftRestoredFor;
   MessagingProvider? _messagingProvider;
+  Map<String, dynamic>? _storyReplyData;
 
   @override
   void didChangeDependencies() {
@@ -98,6 +143,10 @@ class _DMChatScreenState extends State<DMChatScreen> {
     scrollController.addListener(_onScrollChanged);
     _conversationId = widget.conversationId ?? widget.initialConversation?.id;
     _conversation = widget.initialConversation;
+    _initialUnreadCount = widget.initialConversation?.unreadCount ?? 0;
+    _storyReplyData = widget.initialStoryReply == null
+        ? null
+        : Map<String, dynamic>.from(widget.initialStoryReply!);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -107,6 +156,10 @@ class _DMChatScreenState extends State<DMChatScreen> {
       } else if (widget.userId != null) {
         _initDirectConversation();
       }
+      // The status viewer opens this screen with a pre-filled reply. Apply it
+      // once the route has mounted as well as after the conversation is ready;
+      // this covers both existing and newly-created conversations.
+      _applyInitialStoryReply();
       provider.loadTipConfig();
       if (widget.initialMessageId == null) {
         Future.delayed(
@@ -127,17 +180,34 @@ class _DMChatScreenState extends State<DMChatScreen> {
       0.0,
       scrollController.position.maxScrollExtent,
     );
-    scrollController.jumpTo(target);
+    // The message list is reverse-rendered and message bubbles have variable
+    // heights. A short animated settle is less jarring than jumping while the
+    // first page is still being laid out.
+    scrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+    );
     if (!_showScrollToBottom) setState(() => _showScrollToBottom = true);
+  }
+
+  void _closeConversation() {
+    if (!mounted) return;
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/chat?tab=direct');
+    }
   }
 
   Future<void> _initConversationById(String conversationId) async {
     await _restoreDraft(conversationId);
+    _applyInitialStoryReply();
     if (!mounted) return;
     final provider = Provider.of<MessagingProvider>(context, listen: false);
     final apiService = context.read<MessagingApiService>();
     provider.joinConversation(conversationId);
-    provider.loadMessages(conversationId, refresh: true);
+    unawaited(provider.loadMessagesIfStale(conversationId));
     provider.loadPinnedMessages(conversationId);
 
     if (_conversation == null) {
@@ -151,6 +221,9 @@ class _DMChatScreenState extends State<DMChatScreen> {
                 conversation.otherUser == null && existingOtherUser != null
                 ? conversation.copyWith(otherUser: existingOtherUser)
                 : conversation;
+            if (_initialUnreadCount == 0) {
+              _initialUnreadCount = conversation.unreadCount;
+            }
           });
         }
       } catch (e) {
@@ -171,9 +244,12 @@ class _DMChatScreenState extends State<DMChatScreen> {
         debugPrint('Failed to load DM participant: $error');
       }
     }
+    // The conversation shell and cached participant are ready to show now.
+    // Refreshing the avatar/relationship must not block the first frame.
     if (participant != null) {
-      await _hydrateOtherUserProfile(participant);
+      unawaited(_hydrateOtherUserProfile(participant));
     }
+    _applyInitialStoryReply();
   }
 
   /// Conversation lists may contain an expired signed avatar URL from the
@@ -235,12 +311,14 @@ class _DMChatScreenState extends State<DMChatScreen> {
               : conversation;
         });
         await _restoreDraft(conversation.id);
+        _applyInitialStoryReply();
         final participant = _conversation?.otherUser;
         if (participant != null) {
-          await _hydrateOtherUserProfile(participant);
+          // Do not hold the DM open animation on a second profile request.
+          unawaited(_hydrateOtherUserProfile(participant));
         }
         provider.joinConversation(conversation.id);
-        provider.loadMessages(conversation.id, refresh: true);
+        unawaited(provider.loadMessagesIfStale(conversation.id));
       }
     } catch (e) {
       if (mounted) {
@@ -249,8 +327,19 @@ class _DMChatScreenState extends State<DMChatScreen> {
     }
   }
 
+  void _applyInitialStoryReply() {
+    final initialText =
+        _storyReplyData?['initialText']?.toString().trim() ?? '';
+    if (initialText.isEmpty || controller.text.isNotEmpty) return;
+    controller.value = TextEditingValue(
+      text: initialText,
+      selection: TextSelection.collapsed(offset: initialText.length),
+    );
+  }
+
   @override
   void dispose() {
+    _visibleDateHeaderTimer?.cancel();
     _typingTimer?.cancel();
     _draftSaveTimer?.cancel();
     if (_conversationId != null && controller.text.trim().isNotEmpty) {
@@ -347,8 +436,9 @@ class _DMChatScreenState extends State<DMChatScreen> {
           builder: (context, setState) {
             final results = messages
                 .where(
-                  (m) =>
-                      m.text.toLowerCase().contains(query.toLowerCase().trim()),
+                  (m) => '${m.text} ${m.previewText}'.toLowerCase().contains(
+                    query.toLowerCase().trim(),
+                  ),
                 )
                 .toList(growable: false);
             return Dialog.fullscreen(
@@ -361,15 +451,20 @@ class _DMChatScreenState extends State<DMChatScreen> {
                   ),
                 ),
                 body: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
                   child: Column(
                     children: [
                       TextField(
                         autofocus: true,
                         textInputAction: TextInputAction.search,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           hintText: 'Search this conversation',
                           prefixIcon: Icon(Icons.search_rounded),
+                          filled: true,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.all(Radius.circular(18)),
+                            borderSide: BorderSide.none,
+                          ),
                         ),
                         onChanged: (value) => setState(() {
                           query = value;
@@ -379,13 +474,18 @@ class _DMChatScreenState extends State<DMChatScreen> {
                       const SizedBox(height: 12),
                       Expanded(
                         child: query.trim().isEmpty
-                            ? const Center(
-                                child: Text(
-                                  'Search messages in this conversation',
-                                ),
+                            ? const _MessageSearchEmptyState(
+                                title: 'Search this conversation',
+                                subtitle:
+                                    'Find messages, files and shared text.',
+                                icon: Icons.manage_search_rounded,
                               )
                             : results.isEmpty
-                            ? const Center(child: Text('No messages found'))
+                            ? const _MessageSearchEmptyState(
+                                title: 'No messages found',
+                                subtitle: 'Try a different word or phrase.',
+                                icon: Icons.search_off_rounded,
+                              )
                             : ListView.builder(
                                 itemCount:
                                     results.take(visibleCount).length +
@@ -409,12 +509,15 @@ class _DMChatScreenState extends State<DMChatScreen> {
                                   final result = results[index];
                                   return Card(
                                     margin: const EdgeInsets.only(bottom: 10),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(18),
+                                    ),
                                     child: ListTile(
                                       leading: const Icon(
                                         Icons.chat_bubble_outline_rounded,
                                       ),
                                       title: Text(
-                                        result.text,
+                                        result.previewText,
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
                                       ),
@@ -498,12 +601,60 @@ class _DMChatScreenState extends State<DMChatScreen> {
 
   void _onScrollChanged() {
     if (!scrollController.hasClients) return;
+    _visibleDateHeaderTimer?.cancel();
+    if (!_showVisibleDateHeader) {
+      setState(() => _showVisibleDateHeader = true);
+    }
+    _visibleDateHeaderTimer = Timer(const Duration(milliseconds: 900), () {
+      if (mounted) setState(() => _showVisibleDateHeader = false);
+    });
     // Since reverse: true, 0 is bottom.
     // If offset > 400, user has scrolled up significantly.
     final bool show = scrollController.offset > 400;
     if (show != _showScrollToBottom) {
       setState(() => _showScrollToBottom = show);
     }
+    _scheduleVisibleDateUpdate();
+  }
+
+  void _scheduleVisibleDateUpdate() {
+    if (_dateUpdateScheduled) return;
+    _dateUpdateScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _dateUpdateScheduled = false;
+      if (!mounted) return;
+      final messages = _messagingProvider?.getMessagesForConversation(
+        _conversationId ?? '',
+      );
+      if (messages == null || messages.isEmpty) return;
+      final viewportTop = MediaQuery.paddingOf(context).top + kToolbarHeight;
+      DateTime? candidate;
+      double candidateTop = double.infinity;
+      DateTime? fallback;
+      double fallbackBottom = -double.infinity;
+      for (final message in messages) {
+        final renderObject = _messageKeys[message.id]?.currentContext
+            ?.findRenderObject();
+        if (renderObject is! RenderBox || !renderObject.hasSize) continue;
+        final offset = renderObject.localToGlobal(Offset.zero);
+        final top = offset.dy;
+        final bottom = top + renderObject.size.height;
+        if (bottom > fallbackBottom) {
+          fallbackBottom = bottom;
+          fallback = message.createdAt;
+        }
+        if (bottom >= viewportTop && top < candidateTop) {
+          candidateTop = top;
+          candidate = message.createdAt;
+        }
+      }
+      final next = candidate ?? fallback;
+      if (next != null &&
+          (_visibleMessageDate == null ||
+              !DateUtils.isSameDay(_visibleMessageDate, next))) {
+        setState(() => _visibleMessageDate = next);
+      }
+    });
   }
 
   bool get _hasText => controller.text.trim().isNotEmpty;
@@ -591,12 +742,18 @@ class _DMChatScreenState extends State<DMChatScreen> {
     });
 
     try {
+      final storyReply = _storyReplyData == null
+          ? null
+          : Map<String, dynamic>.from(_storyReplyData!);
+      storyReply?.remove('initialText');
       await provider.sendMessage(
         conversationId,
         text,
         replyToMessageId: replyId,
+        tipData: _storyReplyData == null ? null : {'storyReply': storyReply!},
       );
       controller.clear();
+      _storyReplyData = null;
       await _draftStore.clear(conversationId);
       _scrollToBottom();
     } catch (e) {
@@ -949,7 +1106,7 @@ class _DMChatScreenState extends State<DMChatScreen> {
                 elevation: 0,
                 scrolledUnderElevation: 0,
                 leading: IconButton(
-                  onPressed: () => context.go('/chat?tab=direct'),
+                  onPressed: _closeConversation,
                   icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
                 ),
                 title: InkWell(
@@ -1089,97 +1246,140 @@ class _DMChatScreenState extends State<DMChatScreen> {
                     Expanded(
                       child: (cid == null && otherUser == null)
                           ? const Center(child: GriotLoader())
-                          : ListView.builder(
-                              controller: scrollController,
-                              reverse: true,
-                              padding: const EdgeInsets.fromLTRB(
-                                12,
-                                16,
-                                12,
-                                12,
-                              ),
-                              itemCount: provider
-                                  .getMessagesForConversation(cid ?? '')
-                                  .length,
-                              itemBuilder: (context, index) {
-                                final messages = provider
-                                    .getMessagesForConversation(cid ?? '');
-                                final message = messages[index];
-                                final isMe =
-                                    message.senderId ==
-                                    context.read<UserProvider>().user?.id;
-                                final nextMessage = index > 0
-                                    ? messages[index - 1]
-                                    : null;
-                                final prevMessage = index < messages.length - 1
-                                    ? messages[index + 1]
-                                    : null;
+                          : Stack(
+                              children: [
+                                ListView.builder(
+                                  controller: scrollController,
+                                  reverse: true,
+                                  padding: const EdgeInsets.fromLTRB(
+                                    12,
+                                    16,
+                                    12,
+                                    12,
+                                  ),
+                                  itemCount:
+                                      provider
+                                          .getMessagesForConversation(cid ?? '')
+                                          .length +
+                                      (_initialUnreadCount > 0 ? 1 : 0),
+                                  itemBuilder: (context, index) {
+                                    final messages = provider
+                                        .getMessagesForConversation(cid ?? '');
+                                    final unreadBoundary = _initialUnreadCount
+                                        .clamp(0, messages.length);
+                                    if (unreadBoundary > 0 &&
+                                        index == unreadBoundary) {
+                                      return NewMessagesSeparator(
+                                        colorScheme: colorScheme,
+                                      );
+                                    }
+                                    final messageIndex = index > unreadBoundary
+                                        ? index - 1
+                                        : index;
+                                    final message = messages[messageIndex];
+                                    final isMe =
+                                        message.senderId ==
+                                        context.read<UserProvider>().user?.id;
+                                    final nextMessage = messageIndex > 0
+                                        ? messages[messageIndex - 1]
+                                        : null;
+                                    final prevMessage =
+                                        messageIndex < messages.length - 1
+                                        ? messages[messageIndex + 1]
+                                        : null;
 
-                                final bool isLastInGroup =
-                                    nextMessage == null ||
-                                    nextMessage.senderId != message.senderId;
-                                final bool isFirstInGroup =
-                                    prevMessage == null ||
-                                    prevMessage.senderId != message.senderId;
-                                final startsNewDay =
-                                    index == messages.length - 1 ||
-                                    !_isSameCalendarDay(
-                                      message.createdAt,
-                                      messages[index + 1].createdAt,
+                                    final bool isLastInGroup =
+                                        nextMessage == null ||
+                                        nextMessage.senderId !=
+                                            message.senderId;
+                                    final bool isFirstInGroup =
+                                        prevMessage == null ||
+                                        prevMessage.senderId !=
+                                            message.senderId;
+                                    final startsNewDay =
+                                        messageIndex == messages.length - 1 ||
+                                        !_isSameCalendarDay(
+                                          message.createdAt,
+                                          messages[messageIndex + 1].createdAt,
+                                        );
+
+                                    final messageKey = _messageKeys.putIfAbsent(
+                                      message.id,
+                                      GlobalKey.new,
                                     );
-
-                                final messageKey = _messageKeys.putIfAbsent(
-                                  message.id,
-                                  GlobalKey.new,
-                                );
-                                return KeyedSubtree(
-                                  key: messageKey,
-                                  child: Column(
-                                    children: [
-                                      if (startsNewDay)
-                                        DaySeparator(
-                                          date: message.createdAt,
+                                    return KeyedSubtree(
+                                      key: messageKey,
+                                      child: Column(
+                                        children: [
+                                          if (startsNewDay)
+                                            DaySeparator(
+                                              date: message.createdAt,
+                                              colorScheme: colorScheme,
+                                            ),
+                                          ReplySwipe(
+                                            key: ValueKey(
+                                              'reply-${message.id}',
+                                            ),
+                                            background: _replySwipeBackground(
+                                              colorScheme,
+                                            ),
+                                            onReply: () => setState(
+                                              () => _replyingTo = message,
+                                            ),
+                                            child: MessageBubble(
+                                              key: ValueKey(message.id),
+                                              message: message,
+                                              isMe: isMe,
+                                              isDark: isDark,
+                                              colorScheme: colorScheme,
+                                              onReply: (m) => setState(
+                                                () => _replyingTo = m,
+                                              ),
+                                              onReplyTap:
+                                                  message.replyToMessageId ==
+                                                      null
+                                                  ? null
+                                                  : () => _jumpToMessage(
+                                                      message.replyToMessageId!,
+                                                    ),
+                                              isHighlighted:
+                                                  _highlightedMessageId ==
+                                                  message.id,
+                                              conversation: currentConversation,
+                                              canPinMessage: true,
+                                              isPinned: provider
+                                                  .pinnedMessageIds(cid ?? '')
+                                                  .contains(message.id),
+                                              onEdit: () =>
+                                                  _beginEditing(message),
+                                              isFirstInGroup: isFirstInGroup,
+                                              isLastInGroup: isLastInGroup,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
+                                if (_visibleMessageDate != null)
+                                  Positioned(
+                                    top: 8,
+                                    left: 0,
+                                    right: 0,
+                                    child: Center(
+                                      child: AnimatedOpacity(
+                                        opacity: _showVisibleDateHeader ? 1 : 0,
+                                        duration: const Duration(
+                                          milliseconds: 180,
+                                        ),
+                                        child: StickyDateHeader(
+                                          date: _visibleMessageDate!,
                                           colorScheme: colorScheme,
-                                        ),
-                                      ReplySwipe(
-                                        key: ValueKey('reply-${message.id}'),
-                                        background: _replySwipeBackground(
-                                          colorScheme,
-                                        ),
-                                        onReply: () => setState(
-                                          () => _replyingTo = message,
-                                        ),
-                                        child: MessageBubble(
-                                          key: ValueKey(message.id),
-                                          message: message,
-                                          isMe: isMe,
-                                          isDark: isDark,
-                                          colorScheme: colorScheme,
-                                          onReply: (m) =>
-                                              setState(() => _replyingTo = m),
-                                          onReplyTap:
-                                              message.replyToMessageId == null
-                                              ? null
-                                              : () => _jumpToMessage(
-                                                  message.replyToMessageId!,
-                                                ),
-                                          isHighlighted:
-                                              _highlightedMessageId ==
-                                              message.id,
-                                          conversation: currentConversation,
-                                          canPinMessage: true,
-                                          isPinned: provider
-                                              .pinnedMessageIds(cid ?? '')
-                                              .contains(message.id),
-                                          onEdit: () => _beginEditing(message),
-                                          isFirstInGroup: isFirstInGroup,
-                                          isLastInGroup: isLastInGroup,
                                         ),
                                       ),
-                                    ],
+                                    ),
                                   ),
-                                );
-                              },
+                              ],
                             ),
                     ),
                     _buildComposer(provider, cid, otherUser),
@@ -1235,6 +1435,7 @@ class _DMChatScreenState extends State<DMChatScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (_replyingTo != null) _buildReplyPreview(),
+        if (_storyReplyData != null) _buildStoryReplyComposerPreview(),
         if (_editingMessage != null) const SizedBox(height: 0),
         if (_loading)
           Padding(
@@ -1255,6 +1456,7 @@ class _DMChatScreenState extends State<DMChatScreen> {
           onSend: _sendMessage,
           onAttachment: _showAttachmentSheet,
           onCamera: () => _pickImage(ImageSource.camera),
+          onSticker: _showStickerPicker,
           onMicTap: () {
             if (cid == null) {
               NotificationService.showInfo(
@@ -1274,6 +1476,56 @@ class _DMChatScreenState extends State<DMChatScreen> {
           onCancelEdit: _cancelEditing,
         ),
       ],
+    );
+  }
+
+  Widget _buildStoryReplyComposerPreview() {
+    final colors = Theme.of(context).colorScheme;
+    final data = _storyReplyData!;
+    final name = data['displayName']?.toString().trim();
+    final preview = data['preview']?.toString().trim();
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+      decoration: BoxDecoration(
+        color: colors.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border(left: BorderSide(color: colors.primary, width: 3)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.auto_stories_rounded, size: 18, color: colors.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Replying to ${name?.isNotEmpty == true ? name : 'status'}${preview?.isNotEmpty == true ? ': $preview' : ''}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: colors.onSurface,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Remove status reply',
+            icon: Icon(
+              Icons.close_rounded,
+              size: 18,
+              color: colors.onSurfaceVariant,
+            ),
+            onPressed: () {
+              final initialText = data['initialText']?.toString() ?? '';
+              setState(() {
+                _storyReplyData = null;
+                if (controller.text.trim() == initialText.trim()) {
+                  controller.clear();
+                }
+              });
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -1409,6 +1661,10 @@ class _DMChatScreenState extends State<DMChatScreen> {
             conversationType: ConversationType.dm,
           );
         },
+        onSticker: () {
+          Navigator.pop(sheetContext);
+          _showStickerPicker();
+        },
       ),
     );
   }
@@ -1483,6 +1739,26 @@ class _DMChatScreenState extends State<DMChatScreen> {
       }
       debugPrint('Contact sharing failed: $error');
     }
+  }
+
+  Future<void> _showStickerPicker() async {
+    final conversationId = _conversationId;
+    if (conversationId == null) return;
+    await StickerPickerSheet.show(
+      context,
+      onSelected: (asset) async {
+        await context.read<MessagingProvider>().sendMediaMessage(
+          conversationId: conversationId,
+          filePath: asset.path,
+          type: MessageType.sticker,
+          replyToMessageId: _replyingTo?.id,
+        );
+        if (mounted) {
+          setState(() => _replyingTo = null);
+          _scrollToBottom();
+        }
+      },
+    );
   }
 
   Future<void> _pickImage(ImageSource source) async {
