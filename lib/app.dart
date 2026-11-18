@@ -1302,10 +1302,49 @@ class _ActiveCallBannerState extends State<_ActiveCallBanner> {
                                 ),
                               ),
                               const SizedBox(width: 6),
-                              Icon(
-                                Icons.keyboard_arrow_up_rounded,
-                                size: 22,
-                                color: Theme.of(context).colorScheme.onPrimary,
+                              if (call.conversationType == 'space')
+                                IconButton(
+                                  tooltip: 'Open Campfire chat',
+                                  visualDensity: VisualDensity.compact,
+                                  padding: EdgeInsets.zero,
+                                  onPressed: owner.onMiniChat,
+                                  icon: Icon(
+                                    Icons.chat_bubble_outline_rounded,
+                                    size: 20,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onPrimary,
+                                  ),
+                                ),
+                              IconButton(
+                                tooltip: owner.audioEnabled
+                                    ? 'Mute microphone'
+                                    : 'Unmute microphone',
+                                visualDensity: VisualDensity.compact,
+                                padding: EdgeInsets.zero,
+                                onPressed: owner.onMiniMute,
+                                icon: Icon(
+                                  owner.audioEnabled
+                                      ? Icons.mic_rounded
+                                      : Icons.mic_off_rounded,
+                                  size: 20,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onPrimary,
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: 'End call',
+                                visualDensity: VisualDensity.compact,
+                                padding: EdgeInsets.zero,
+                                onPressed: owner.onMiniEnd,
+                                icon: Icon(
+                                  Icons.call_end_rounded,
+                                  size: 20,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onPrimary,
+                                ),
                               ),
                             ],
                           ),
