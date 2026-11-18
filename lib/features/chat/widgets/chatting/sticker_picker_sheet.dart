@@ -35,6 +35,7 @@ class _StickerPickerSheetState extends State<StickerPickerSheet> {
   List<StickerAsset> _assets = const [];
   bool _loading = true;
   bool _deleteMode = false;
+  bool _selecting = false;
 
   @override
   void initState() {
@@ -141,8 +142,14 @@ class _StickerPickerSheetState extends State<StickerPickerSheet> {
   }
 
   Future<void> _select(StickerAsset asset) async {
+    if (_selecting) return;
+    _selecting = true;
     Navigator.of(context).pop();
-    await widget.onSelected(asset);
+    try {
+      await widget.onSelected(asset);
+    } finally {
+      _selecting = false;
+    }
   }
 
   Future<void> _delete(StickerAsset asset) async {

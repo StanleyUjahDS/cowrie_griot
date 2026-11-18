@@ -2044,6 +2044,7 @@ class MessagingProvider extends ChangeNotifier {
   // ==========================================================
 
   final Set<String> _receiptRequestsInFlight = <String>{};
+  final Set<String> _mediaSendsInFlight = <String>{};
   final Map<String, MessageStatus> _pendingMessageStatuses =
       <String, MessageStatus>{};
 
@@ -2705,6 +2706,8 @@ class MessagingProvider extends ChangeNotifier {
   }) async {
     final currentUserId = _userProvider.user?.id ?? '';
     final clientMsgId = clientMessageId ?? 'client_media_${_uuid.v4()}';
+    final mediaSendKey = '$conversationId\u0000$filePath';
+    if (!_mediaSendsInFlight.add(mediaSendKey)) return;
 
     final String defaultText;
     switch (type) {
@@ -2798,6 +2801,8 @@ class MessagingProvider extends ChangeNotifier {
         notifyListeners();
       }
       rethrow;
+    } finally {
+      _mediaSendsInFlight.remove(mediaSendKey);
     }
   }
 
