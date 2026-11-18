@@ -19,6 +19,8 @@ class PublicDeepLinkRecoveryScreen extends StatefulWidget {
         path == '/plus' ||
         path == '/call/join' ||
         path.startsWith('/campfires/') ||
+        path.startsWith('/campfire/') ||
+        path.startsWith('/spaces/') ||
         path.startsWith('/camp/profile/') ||
         path.startsWith('/camp/tales/') ||
         path.startsWith('/tale/') ||
@@ -43,6 +45,8 @@ class PublicDeepLinkRecoveryScreen extends StatefulWidget {
       'channel',
       'camp',
       'campfires',
+      'campfire',
+      'spaces',
       'tale',
       'tales',
     };

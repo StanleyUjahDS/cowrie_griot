@@ -80,6 +80,9 @@
                 <data android:scheme="griot" android:host="plus" />
                 <!-- Call links are also used for Campfires and group calls. -->
                 <data android:scheme="griot" android:host="call" />
+                <data android:scheme="griot" android:host="campfires" />
+                <data android:scheme="griot" android:host="campfire" />
+                <data android:scheme="griot" android:host="spaces" />
                 <data android:scheme="griot" android:host="profile" />
                 <data android:scheme="griot" android:host="group" />
                 <data android:scheme="griot" android:host="circle" />

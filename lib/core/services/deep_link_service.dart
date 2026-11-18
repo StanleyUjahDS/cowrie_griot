@@ -118,7 +118,9 @@ class DeepLinkService {
       return;
     }
 
-    if (normalizedPath.startsWith('/campfires/')) {
+    if (normalizedPath.startsWith('/campfires/') ||
+        normalizedPath.startsWith('/campfire/') ||
+        normalizedPath.startsWith('/spaces/')) {
       final campfireId = _lastPathSegment(path);
       if (campfireId.isEmpty) return;
       await _savePendingDestination(canonicalUri);
@@ -471,7 +473,9 @@ class DeepLinkService {
       return;
     }
 
-    if (normalizedPath.startsWith('/campfires/')) {
+    if (normalizedPath.startsWith('/campfires/') ||
+        normalizedPath.startsWith('/campfire/') ||
+        normalizedPath.startsWith('/spaces/')) {
       final campfireId = _lastPathSegment(path);
       if (campfireId.isEmpty) return;
       if (savePending) await _savePendingDestination(uri);
@@ -534,6 +538,8 @@ class DeepLinkService {
         path == '/plus' ||
         path == '/call/join' ||
         path.startsWith('/campfires/') ||
+        path.startsWith('/campfire/') ||
+        path.startsWith('/spaces/') ||
         path.startsWith('/camp/profile/') ||
         path.startsWith('/tale/') ||
         path.startsWith('/tales/') ||
