@@ -1409,7 +1409,9 @@ class _CampProfileScreenState extends State<CampProfileScreen>
           }
           if (filter == 'comments') return type == 'comment' || type == 'reply';
           if (filter == 'likes') {
-            return type == 'like' || type == 'comment_like';
+            return type == 'like' ||
+                type == 'downvote' ||
+                type == 'comment_like';
           }
           return type == filter;
         })
@@ -2636,6 +2638,7 @@ class _CampProfileScreenState extends State<CampProfileScreen>
     final isComment = savedTarget == 'comment' || savedTarget == 'reply';
     final targetId = item['target_id']?.toString();
     final targetType = '${item['target_type'] ?? ''}'.toLowerCase();
+    final hasTargetTale = targetType == 'tale' && targetId != null;
     final profileAuthor =
         _loadedPublicUser ??
         widget.profileUser ??
@@ -2646,6 +2649,8 @@ class _CampProfileScreenState extends State<CampProfileScreen>
         ? Icons.local_fire_department_rounded
         : isComment
         ? Icons.chat_bubble_outline_rounded
+        : type == 'downvote'
+        ? Icons.thumb_down_alt_outlined
         : type == 'saved'
         ? Icons.bookmark_border_rounded
         : Icons.forum_outlined;
@@ -2760,6 +2765,8 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                   ? 'Commented on a Tale'
                   : type == 'like'
                   ? 'Liked a Tale'
+                  : type == 'downvote'
+                  ? 'Downvoted a Tale'
                   : '${item['summary'] ?? 'Activity'}',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -2771,7 +2778,9 @@ class _CampProfileScreenState extends State<CampProfileScreen>
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
-            trailing: (isTale || isCampfire || isComment) && entityId != null
+            trailing:
+                (isTale || isCampfire || isComment || hasTargetTale) &&
+                    (entityId != null || targetId != null)
                 ? const Icon(Icons.chevron_right_rounded)
                 : null,
             onTap: entityId == null
@@ -2782,6 +2791,8 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                 ? () => context.push('/campfires')
                 : isComment
                 ? () => context.push('/tale/${targetId ?? entityId}')
+                : hasTargetTale
+                ? () => context.push('/tale/$targetId')
                 : null,
           ),
           commentCard,
