@@ -1003,8 +1003,8 @@ class _TalePublicScreenState extends State<TalePublicScreen>
       icon: icon,
       label: '$count',
       tooltip: nextVote == 'up' || nextVote == 'remove_up'
-          ? (active ? 'Remove upvote' : 'Like comment')
-          : (active ? 'Remove downvote' : 'Dislike comment'),
+          ? (active ? 'Remove upvote' : 'Upvote comment')
+          : (active ? 'Remove downvote' : 'Downvote comment'),
       active: active,
       activeColor: color,
       onTap: id.isEmpty ? null : () => _voteComment(id, nextVote),
@@ -1869,7 +1869,7 @@ class _TalePublicScreenState extends State<TalePublicScreen>
                                                 : Icons.thumb_up_alt_outlined,
                                             tooltip: viewerUpvoted
                                                 ? 'Remove upvote'
-                                                : 'Like Tale',
+                                                : 'Upvote Tale',
                                             count: '$upvotes',
                                             color: viewerUpvoted
                                                 ? colors.primary
@@ -1889,7 +1889,7 @@ class _TalePublicScreenState extends State<TalePublicScreen>
                                                 : Icons.thumb_down_alt_outlined,
                                             tooltip: viewerDownvoted
                                                 ? 'Remove downvote'
-                                                : 'Dislike Tale',
+                                                : 'Downvote Tale',
                                             count: '$downvotes',
                                             color: viewerDownvoted
                                                 ? colors.error

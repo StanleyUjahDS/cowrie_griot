@@ -2008,7 +2008,9 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                               : Icons.thumb_up_alt_outlined,
                           label:
                               '${tale['likeCount'] ?? tale['upvote_count'] ?? 0}',
-                          tooltip: 'Like Tale',
+                          tooltip: viewerUpvoted
+                              ? 'Remove upvote'
+                              : 'Upvote Tale',
                           active: viewerUpvoted,
                           onTap: taleId == null
                               ? null
@@ -2026,7 +2028,9 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                               : Icons.thumb_down_alt_outlined,
                           label:
                               '${tale['downvoteCount'] ?? tale['downvote_count'] ?? 0}',
-                          tooltip: 'Dislike Tale',
+                          tooltip: viewerDownvoted
+                              ? 'Remove downvote'
+                              : 'Downvote Tale',
                           active: viewerDownvoted,
                           activeColor: colors.error,
                           onTap: taleId == null
@@ -2789,7 +2793,7 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                   : isComment
                   ? 'Commented on a Tale'
                   : type == 'like'
-                  ? 'Liked a Tale'
+                  ? 'Upvoted a Tale'
                   : type == 'downvote'
                   ? 'Downvoted a Tale'
                   : '${item['summary'] ?? 'Activity'}',
