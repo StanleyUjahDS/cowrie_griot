@@ -84,13 +84,43 @@ class _StickerVideoEditorState extends State<StickerVideoEditor> {
       setState(() => _saveProgress = 1);
       Navigator.of(context).pop(outputPath);
     } catch (_) {
-      if (!mounted) return;
-      setState(() => _saving = false);
-      NotificationService.showError(
-        context,
-        'Could not create the sticker clip.',
-      );
+      // Some iPhone HEVC/MOV files cannot be cropped by the native editor.
+      // Fall back to a lossless-in-practice native trim so sticker creation
+      // still succeeds instead of failing after the user has waited for an
+      // export. The duration constraint and source resolution are preserved.
+      try {
+        if (mounted) {
+          setState(() => _saveStage = 'Finalising compatible video…');
+        }
+        final fallbackPath = await _fallbackTrim();
+        if (fallbackPath == null || fallbackPath.isEmpty) {
+          throw Exception('Fallback export returned no file.');
+        }
+        if (!mounted) return;
+        setState(() => _saveProgress = 1);
+        Navigator.of(context).pop(fallbackPath);
+      } catch (_) {
+        if (!mounted) return;
+        setState(() => _saving = false);
+        NotificationService.showError(
+          context,
+          'Could not create the sticker clip. Try a shorter video.',
+        );
+      }
     }
+  }
+
+  Future<String?> _fallbackTrim() async {
+    final result = Completer<String?>();
+    await _trimmer.saveTrimmedVideo(
+      startValue: _start,
+      endValue: _end,
+      outputType: OutputType.video,
+      onSave: (path) {
+        if (!result.isCompleted) result.complete(path);
+      },
+    );
+    return result.future.timeout(const Duration(seconds: 45));
   }
 
   @override
