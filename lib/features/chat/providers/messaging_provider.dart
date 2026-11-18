@@ -159,6 +159,7 @@ class MessagingProvider extends ChangeNotifier {
 
   final Map<String, List<ChatMessage>> _messagesByConversation = {};
   final Map<String, bool> _isLoadingMessages = {};
+  final Map<String, DateTime> _lastMessageRefreshAt = {};
   final Map<String, List<String>> _pinnedMessageIdsByConversation = {};
 
   List<Conversation> _conversations = [];
@@ -211,8 +212,10 @@ class MessagingProvider extends ChangeNotifier {
   bool _isLoadingTipConfig = false;
 
   DateTime? _lastSeenNotificationTime;
+  DateTime? _lastSeenCampNotificationTime;
   final List<DateTime> _liveNotificationTimes = <DateTime>[];
   DateTime? get lastSeenNotificationTime => _lastSeenNotificationTime;
+  DateTime? get lastSeenCampNotificationTime => _lastSeenCampNotificationTime;
 
   // Real-time
   io.Socket? _socket;
@@ -381,6 +384,26 @@ class MessagingProvider extends ChangeNotifier {
     return count;
   }
 
+  bool _isCampNotificationType(String type) =>
+      type.startsWith('campfire_') ||
+      type.startsWith('tale_') ||
+      type.startsWith('camp_');
+
+  int get unreadCampNotificationCount {
+    final lastSeen =
+        _lastSeenCampNotificationTime ?? DateTime.fromMillisecondsSinceEpoch(0);
+    return notificationEvents.where((item) {
+      final type = item['type']?.toString().toLowerCase() ?? '';
+      final raw = item['timestamp'];
+      final timestamp = raw is DateTime
+          ? raw
+          : DateTime.tryParse(raw?.toString() ?? '');
+      return _isCampNotificationType(type) &&
+          timestamp != null &&
+          timestamp.isAfter(lastSeen);
+    }).length;
+  }
+
   int get unreadMessageCount => _conversations.fold<int>(
     0,
     (total, conversation) => total + conversation.unreadCount,
@@ -391,6 +414,24 @@ class MessagingProvider extends ChangeNotifier {
 
   bool isLoadingMessages(String conversationId) =>
       _isLoadingMessages[conversationId] ?? false;
+
+  /// Returns immediately when this conversation was refreshed recently. The
+  /// socket remains responsible for new messages, while a stale conversation
+  /// gets a silent reconciliation when the user re-enters it.
+  Future<void> loadMessagesIfStale(
+    String conversationId, {
+    Duration maxAge = const Duration(seconds: 20),
+  }) async {
+    final cached = _messagesByConversation[conversationId];
+    final lastRefresh = _lastMessageRefreshAt[conversationId];
+    if (cached != null &&
+        cached.isNotEmpty &&
+        lastRefresh != null &&
+        DateTime.now().difference(lastRefresh) < maxAge) {
+      return;
+    }
+    await loadMessages(conversationId, refresh: true);
+  }
 
   // ==========================================================
   // CHANNEL POSTS & COMMENTS STATE
@@ -418,10 +459,14 @@ class MessagingProvider extends ChangeNotifier {
   Future<void> _loadNotificationSeenTime() async {
     final prefs = await SharedPreferences.getInstance();
     final timeStr = prefs.getString('last_seen_notification_time');
+    final campTimeStr = prefs.getString('last_seen_camp_notification_time');
     if (timeStr != null) {
       _lastSeenNotificationTime = DateTime.tryParse(timeStr);
-      notifyListeners();
     }
+    if (campTimeStr != null) {
+      _lastSeenCampNotificationTime = DateTime.tryParse(campTimeStr);
+    }
+    notifyListeners();
   }
 
   Future<void> refreshNotifications() async {
@@ -1335,6 +1380,17 @@ class MessagingProvider extends ChangeNotifier {
     );
   }
 
+  void markCampNotificationsSeen() async {
+    _lastSeenCampNotificationTime = DateTime.now();
+    notifyListeners();
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      'last_seen_camp_notification_time',
+      _lastSeenCampNotificationTime!.toIso8601String(),
+    );
+  }
+
   // ==========================================================
   // RELATIONSHIP LIFECYCLE
   // ==========================================================
@@ -1431,17 +1487,76 @@ class MessagingProvider extends ChangeNotifier {
       return incoming.copyWith(otherUser: previousUser);
     }
 
+    final incomingProfileUrl = incomingUser.profileUrl;
+    final profileUrl =
+        _sameMediaReference(previousUser.profileUrl, incomingProfileUrl)
+        ? previousUser.profileUrl
+        : incomingProfileUrl ?? previousUser.profileUrl;
+
+    final imageUrl = _sameMediaReference(previous.imageUrl, incoming.imageUrl)
+        ? previous.imageUrl
+        : incoming.imageUrl ?? previous.imageUrl;
+
     return incoming.copyWith(
+      imageUrl: imageUrl,
       otherUser: incomingUser.copyWith(
         username: incomingUser.username ?? previousUser.username,
         displayName: incomingUser.displayName ?? previousUser.displayName,
-        profileUrl: incomingUser.profileUrl ?? previousUser.profileUrl,
+        profileUrl: profileUrl,
         bio: incomingUser.bio ?? previousUser.bio,
         reputation: incomingUser.reputation ?? previousUser.reputation,
         isPlus: incomingUser.isPlus || previousUser.isPlus,
         isPioneer: incomingUser.isPioneer || previousUser.isPioneer,
       ),
     );
+  }
+
+  static bool _sameMediaReference(String? first, String? second) {
+    if (first == null || second == null || first.isEmpty || second.isEmpty) {
+      return first == second;
+    }
+    final a = Uri.tryParse(first);
+    final b = Uri.tryParse(second);
+    if (a == null || b == null || a.host.isEmpty || b.host.isEmpty) {
+      return first == second;
+    }
+    return a.scheme == b.scheme &&
+        a.host == b.host &&
+        a.port == b.port &&
+        a.path == b.path;
+  }
+
+  static dynamic _normaliseSnapshot(dynamic value) {
+    if (value is Map) {
+      return value.map((key, item) => MapEntry(key, _normaliseSnapshot(item)));
+    }
+    if (value is List) return value.map(_normaliseSnapshot).toList();
+    if (value is String) {
+      final parsed = Uri.tryParse(value);
+      if (parsed != null && parsed.hasScheme && parsed.host.isNotEmpty) {
+        return Uri(
+          scheme: parsed.scheme,
+          host: parsed.host,
+          port: parsed.hasPort ? parsed.port : null,
+          path: parsed.path,
+        ).toString();
+      }
+    }
+    return value;
+  }
+
+  static bool _conversationListsEqual(
+    List<Conversation> first,
+    List<Conversation> second,
+  ) {
+    if (identical(first, second)) return true;
+    if (first.length != second.length) return false;
+    for (var index = 0; index < first.length; index++) {
+      final left = jsonEncode(_normaliseSnapshot(first[index].toJson()));
+      final right = jsonEncode(_normaliseSnapshot(second[index].toJson()));
+      if (left != right) return false;
+    }
+    return true;
   }
 
   Future<void> _loadConversations() async {
@@ -1512,11 +1627,12 @@ class MessagingProvider extends ChangeNotifier {
       }
       list.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
 
-      _conversations = list;
+      final changed = !_conversationListsEqual(_conversations, list);
+      if (changed) _conversations = list;
       _lastConversationsLoadedAt = DateTime.now();
 
       // 3. Update cache with deduplicated list
-      await _messageCache.saveConversations(list);
+      if (changed) await _messageCache.saveConversations(list);
     } catch (e) {
       debugPrint('Error loading conversations: $e');
       if (_conversations.isEmpty) _conversations = [];
@@ -1932,7 +2048,7 @@ class MessagingProvider extends ChangeNotifier {
       <String, MessageStatus>{};
 
   // authoritative delivery and deduplication.
-  void upsertMessage(ChatMessage incoming) {
+  void upsertMessage(ChatMessage incoming, {bool notify = true}) {
     final list = _messagesByConversation[incoming.conversationId] ?? [];
 
     final existingIndex = list.indexWhere((message) {
@@ -2170,7 +2286,7 @@ class MessagingProvider extends ChangeNotifier {
       loadConversations(force: true);
     }
 
-    notifyListeners();
+    if (notify) notifyListeners();
   }
 
   Future<void> loadMessages(
@@ -2179,37 +2295,55 @@ class MessagingProvider extends ChangeNotifier {
   }) async {
     if (_isLoadingMessages[conversationId] == true) return;
 
-    await _messageCache.initialize();
-
-    final cachedMessages = await _messageCache.getMessages(conversationId);
-    final currentMessages =
-        _messagesByConversation[conversationId] ?? cachedMessages;
-    if (!_messagesByConversation.containsKey(conversationId) &&
-        cachedMessages.isNotEmpty) {
-      _messagesByConversation[conversationId] = [...cachedMessages]
-        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      notifyListeners();
-    }
-    String? before;
-
-    if (!refresh && currentMessages.isNotEmpty) {
-      // Sort to find the oldest message for pagination
-      final sorted = [...currentMessages]
-        ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
-      before = sorted.first.id; // Spec: Use message ID as cursor
-    }
-
+    // Mark the conversation as loading before any await. Chat entry can be
+    // triggered by the route, socket reconnect, and notification handling at
+    // nearly the same time; setting this later allowed those callers to start
+    // overlapping requests and repaint the chat repeatedly.
     _isLoadingMessages[conversationId] = true;
-    notifyListeners();
 
     try {
+      await _messageCache.initialize();
+
+      final cachedMessages = await _messageCache.getMessages(conversationId);
+      final currentMessages =
+          _messagesByConversation[conversationId] ?? cachedMessages;
+      if (!_messagesByConversation.containsKey(conversationId) &&
+          cachedMessages.isNotEmpty) {
+        _messagesByConversation[conversationId] = [...cachedMessages]
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        // Paint the cached conversation immediately. Do not emit a separate
+        // "loading" repaint; the final reconciliation below emits once more.
+        notifyListeners();
+      }
+
+      String? before;
+      if (!refresh && currentMessages.isNotEmpty) {
+        // Sort to find the oldest message for pagination
+        final sorted = [...currentMessages]
+          ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+        before = sorted.first.id; // Spec: Use message ID as cursor
+      }
+
       final newMessages = await _apiService.getMessages(
         conversationId,
         before: before,
       );
+      _lastMessageRefreshAt[conversationId] = DateTime.now();
 
+      final beforeFingerprint = jsonEncode(
+        _normaliseSnapshot(
+          (_messagesByConversation[conversationId] ?? const <ChatMessage>[])
+              .map((message) => message.toJson())
+              .toList(),
+        ),
+      );
+
+      // Reconcile the whole page before notifying the widgets. Emitting one
+      // rebuild per message makes a reverse ListView repeatedly recalculate
+      // its extent while opening a conversation, which looks like messages
+      // sliding/jumping down one at a time.
       for (final msg in newMessages) {
-        upsertMessage(msg);
+        upsertMessage(msg, notify: false);
       }
 
       // Requirement 10: Receipts
@@ -2217,13 +2351,21 @@ class MessagingProvider extends ChangeNotifier {
       _markIncomingMessagesAsDelivered(conversationId, newMessages);
       // Messages loaded for the active conversation have been seen by the user.
       if (_currentRoomId == conversationId) {
-        _markIncomingMessagesAsRead(conversationId, newMessages);
+        await _markIncomingMessagesAsRead(conversationId, newMessages);
       }
+      // Repaint once with the reconciled page rather than once per message.
+      final afterFingerprint = jsonEncode(
+        _normaliseSnapshot(
+          (_messagesByConversation[conversationId] ?? const <ChatMessage>[])
+              .map((message) => message.toJson())
+              .toList(),
+        ),
+      );
+      if (beforeFingerprint != afterFingerprint) notifyListeners();
     } catch (e) {
       debugPrint('Error loading messages: $e');
     } finally {
       _isLoadingMessages[conversationId] = false;
-      notifyListeners();
     }
   }
 
@@ -2241,18 +2383,20 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
-  void _markIncomingMessagesAsRead(
+  Future<void> _markIncomingMessagesAsRead(
     String conversationId,
     List<ChatMessage> messages,
-  ) {
+  ) async {
     final currentUserId = _userProvider.user?.id ?? '';
+    final pending = <Future<void>>[];
     for (final msg in messages) {
       if (msg.conversationId == conversationId &&
           msg.senderId != currentUserId &&
           msg.status != MessageStatus.read) {
-        markAsRead(msg.id);
+        pending.add(markAsRead(msg.id));
       }
     }
+    await Future.wait(pending);
   }
 
   void removeMessageLocally(String conversationId, String messageId) {
@@ -2482,6 +2626,7 @@ class MessagingProvider extends ChangeNotifier {
     String conversationId,
     String content, {
     String? replyToMessageId,
+    Map<String, dynamic>? tipData,
   }) async {
     final trimmed = content.trim();
     if (trimmed.isEmpty) return;
@@ -2501,6 +2646,7 @@ class MessagingProvider extends ChangeNotifier {
       status: MessageStatus.sending,
       createdAt: DateTime.now(),
       replyToMessageId: replyToMessageId,
+      tipData: tipData,
     );
 
     upsertMessage(optimisticMessage);
@@ -2511,6 +2657,7 @@ class MessagingProvider extends ChangeNotifier {
         content: trimmed,
         replyToMessageId: replyToMessageId,
         clientMessageId: clientMsgId,
+        tipData: tipData,
       );
 
       // Update with server ID but keep client ID for deduplication
@@ -2549,6 +2696,12 @@ class MessagingProvider extends ChangeNotifier {
       case MessageType.audio:
         defaultText = '🎤 Voice Message';
         break;
+      case MessageType.sticker:
+        defaultText = '✨ Sticker';
+        break;
+      case MessageType.gif:
+        defaultText = '🎞️ GIF';
+        break;
       default:
         defaultText = '📎 Attachment';
     }
@@ -2571,7 +2724,12 @@ class MessagingProvider extends ChangeNotifier {
     try {
       // 1. Upload
       final Map<String, dynamic> uploadResult = await _mediaApiService
-          .uploadMedia(filePath, conversationId: conversationId);
+          .uploadMedia(
+            filePath,
+            conversationId: conversationId,
+            optimizeImages:
+                type != MessageType.sticker && type != MessageType.gif,
+          );
 
       final String mediaId =
           (uploadResult['id'] ?? uploadResult['mediaId'])?.toString() ?? '';
@@ -2602,6 +2760,10 @@ class MessagingProvider extends ChangeNotifier {
       upsertMessage(
         realMessage.copyWith(
           clientMessageId: clientMsgId,
+          // Keep the requested presentation type authoritative. Some media
+          // responses report the underlying video MIME type, but a sticker
+          // must continue through the sticker bubble/autoplay renderer.
+          type: type,
           mediaUrl: mediaUrl.isNotEmpty ? mediaUrl : realMessage.mediaUrl,
         ),
       );
@@ -3314,6 +3476,7 @@ class MessagingProvider extends ChangeNotifier {
       _localCache.remove(_notificationsCacheKey),
       prefs.remove(_pinnedConversationsKey),
       prefs.remove('last_seen_notification_time'),
+      prefs.remove('last_seen_camp_notification_time'),
     ]);
 
     notifyListeners();
@@ -3502,7 +3665,7 @@ class MessagingProvider extends ChangeNotifier {
 
       // Mark existing messages as read
       final messages = _messagesByConversation[conversationId] ?? [];
-      _markIncomingMessagesAsRead(conversationId, messages);
+      unawaited(_markIncomingMessagesAsRead(conversationId, messages));
 
       notifyListeners();
     }
@@ -3597,6 +3760,7 @@ class MessagingProvider extends ChangeNotifier {
   // ==========================================================
 
   Future<void> loadChannelPosts(String conversationId) async {
+    if (_isLoadingPosts[conversationId] == true) return;
     _isLoadingPosts[conversationId] = true;
     notifyListeners();
 
@@ -3679,6 +3843,7 @@ class MessagingProvider extends ChangeNotifier {
   }
 
   Future<void> loadPostComments(String conversationId, String postId) async {
+    if (_isLoadingComments[postId] == true) return;
     _isLoadingComments[postId] = true;
     notifyListeners();
 
