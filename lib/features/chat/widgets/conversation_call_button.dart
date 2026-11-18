@@ -119,7 +119,11 @@ class ConversationCallButton extends StatelessWidget {
 /// conversation-scoped Campfire flow. Channels intentionally do not use this
 /// widget: their only live audio entry point is the Campfire action.
 class GroupConversationCallButton extends StatelessWidget {
-  static const int maxRegularCallParticipants = 9;
+  /// Regular RTC calls are useful for small and medium-sized groups. Once a
+  /// group grows beyond this size, a Campfire is the only call surface so the
+  /// room can scale with listeners instead of consuming one RTC participant
+  /// slot per member.
+  static const int campfireOnlyMemberCount = 50;
   final String conversationId;
   final bool canCreateCampfire;
   final int? memberCount;
@@ -133,7 +137,7 @@ class GroupConversationCallButton extends StatelessWidget {
 
   Future<void> open(BuildContext context) async {
     final isLargeGroup =
-        memberCount != null && memberCount! > maxRegularCallParticipants;
+        memberCount != null && memberCount! > campfireOnlyMemberCount;
     final action = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -173,7 +177,7 @@ class GroupConversationCallButton extends StatelessWidget {
                 ),
                 const SizedBox(height: 18),
                 Text(
-                  'Start something together',
+                  'Start a group call',
                   style: textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w900,
                   ),
@@ -181,8 +185,8 @@ class GroupConversationCallButton extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   isLargeGroup
-                      ? 'This group has $memberCount members. Use a private Campfire so listeners do not consume call media credits.'
-                      : 'Choose a regular group call or a Campfire space.',
+                      ? 'This group has $memberCount members. Campfire is the supported format for groups over $campfireOnlyMemberCount members.'
+                      : 'Choose voice, video, or a Campfire space.',
                   style: textTheme.bodyMedium?.copyWith(
                     color: colors.onSurfaceVariant,
                   ),
@@ -190,12 +194,19 @@ class GroupConversationCallButton extends StatelessWidget {
                 const SizedBox(height: 16),
                 if (!isLargeGroup) ...[
                   _CallOption(
-                    icon: Icons.groups_rounded,
-                    title: 'Group call',
-                    subtitle:
-                        'Free private voice or video call for group members',
+                    icon: Icons.phone_rounded,
+                    title: 'Voice call',
+                    subtitle: 'Talk without video',
                     color: colors.primary,
-                    onTap: () => Navigator.pop(sheetContext, 'group_call'),
+                    onTap: () => Navigator.pop(sheetContext, 'voice'),
+                  ),
+                  const SizedBox(height: 10),
+                  _CallOption(
+                    icon: Icons.videocam_rounded,
+                    title: 'Video call',
+                    subtitle: 'Talk face to face',
+                    color: colors.secondary,
+                    onTap: () => Navigator.pop(sheetContext, 'video'),
                   ),
                   const SizedBox(height: 10),
                 ],
@@ -228,53 +239,10 @@ class GroupConversationCallButton extends StatelessWidget {
       ).open(context);
       return;
     }
-    final mode = await _chooseGroupCallMode(context);
-    if (!context.mounted || mode == null) return;
+    if (action != 'voice' && action != 'video') return;
     await context.push(
       '/calls/$conversationId',
-      extra: {'type': 'group', 'mode': mode},
-    );
-  }
-
-  Future<String?> _chooseGroupCallMode(BuildContext context) {
-    return showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        final colors = Theme.of(sheetContext).colorScheme;
-        return SafeArea(
-          child: Container(
-            margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
-            decoration: BoxDecoration(
-              color: colors.surface,
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: colors.primary.withValues(alpha: .65)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: 8),
-                _CallOption(
-                  icon: Icons.phone_rounded,
-                  title: 'Voice call',
-                  subtitle: 'Talk without video',
-                  color: colors.primary,
-                  onTap: () => Navigator.pop(sheetContext, 'voice'),
-                ),
-                const SizedBox(height: 10),
-                _CallOption(
-                  icon: Icons.videocam_rounded,
-                  title: 'Video call',
-                  subtitle: 'Talk face to face',
-                  color: colors.secondary,
-                  onTap: () => Navigator.pop(sheetContext, 'video'),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+      extra: {'type': 'group', 'mode': action},
     );
   }
 
