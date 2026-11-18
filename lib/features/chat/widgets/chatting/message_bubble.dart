@@ -89,6 +89,12 @@ class MessageBubble extends StatelessWidget {
 
     final double topRadius = isFirstInGroup ? 22 : 6;
     final double bottomRadius = isLastInGroup ? 22 : 6;
+    // Reserve the avatar column for every incoming message in a group. The
+    // avatar and sender label are only painted on the first bubble, but the
+    // following bubbles must keep the same left edge instead of jumping under
+    // the wallpaper when the group continues.
+    final isIncomingGroupMessage =
+        !isMe && conversation?.type == ConversationType.group;
     final borderRadius = BorderRadius.only(
       topLeft: Radius.circular(isMe ? 22 : topRadius),
       topRight: Radius.circular(isMe ? topRadius : 22),
@@ -130,21 +136,12 @@ class MessageBubble extends StatelessWidget {
                     ),
                   Container(
                     margin: EdgeInsets.only(
-                      left:
-                          !isMe &&
-                              isFirstInGroup &&
-                              conversation?.type == ConversationType.group
-                          ? 50
-                          : 0,
+                      left: isIncomingGroupMessage ? 50 : 0,
                     ),
                     constraints: BoxConstraints(
                       maxWidth:
                           MediaQuery.of(context).size.width * 0.78 -
-                          (!isMe &&
-                                  isFirstInGroup &&
-                                  conversation?.type == ConversationType.group
-                              ? 50
-                              : 0),
+                          (isIncomingGroupMessage ? 50 : 0),
                       minWidth: 60,
                     ),
                     decoration: BoxDecoration(
