@@ -1127,8 +1127,15 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                                   message.createdAt.day !=
                                       messages[messageIndex + 1].createdAt.day;
 
+                              // A server/optimistic reconciliation can
+                              // briefly expose the same or an empty id twice.
+                              // GlobalKeys must still be unique per rendered
+                              // row, so suffix duplicate occurrences.
+                              final keyId = _messageKeys.containsKey(message.id)
+                                  ? '${message.id}#$messageIndex'
+                                  : message.id;
                               final messageKey = _messageKeys.putIfAbsent(
-                                message.id,
+                                keyId,
                                 GlobalKey.new,
                               );
                               return KeyedSubtree(

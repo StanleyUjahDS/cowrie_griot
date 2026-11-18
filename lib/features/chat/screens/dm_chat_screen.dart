@@ -1303,8 +1303,12 @@ class _DMChatScreenState extends State<DMChatScreen> {
                                           messages[messageIndex + 1].createdAt,
                                         );
 
+                                    final keyId =
+                                        _messageKeys.containsKey(message.id)
+                                        ? '${message.id}#$messageIndex'
+                                        : message.id;
                                     final messageKey = _messageKeys.putIfAbsent(
-                                      message.id,
+                                      keyId,
                                       GlobalKey.new,
                                     );
                                     return KeyedSubtree(
