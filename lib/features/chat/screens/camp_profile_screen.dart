@@ -2820,8 +2820,11 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                 ? () => context.push('/tale/$targetId')
                 : null,
           ),
-          targetCard,
-          commentCard,
+          // A comment is the user's primary interaction, so show it first;
+          // the canonical parent Tale follows immediately beneath it. Other
+          // activity types show their Tale card directly.
+          if (isComment) commentCard else targetCard,
+          if (isComment) targetCard,
         ],
       ),
     );
