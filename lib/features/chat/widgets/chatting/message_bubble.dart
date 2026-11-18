@@ -1736,6 +1736,13 @@ class MessageBubble extends StatelessWidget {
             width: 164,
             height: 164,
             fit: BoxFit.contain,
+            gaplessPlayback: true,
+            frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+              if (wasSynchronouslyLoaded || frame != null) return child;
+              return const Center(child: GriotLoader(size: 24));
+            },
+            errorBuilder: (context, error, stackTrace) =>
+                const Icon(Icons.broken_image_outlined),
           )
         : CachedNetworkImage(
             imageUrl: url,
