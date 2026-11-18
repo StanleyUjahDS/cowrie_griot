@@ -3373,8 +3373,11 @@ class _CallScreenState extends State<CallScreen> {
   void _openCampfireParticipantProfile(SpaceParticipant participant) {
     if (!mounted || participant.id.trim().isEmpty) return;
     _owner.minimize();
+    // Campfire is a Camp-first surface: opening a guest should preserve the
+    // Camp context and show their Tales, Campfires and activity. The normal
+    // personal profile remains reachable from that Camp profile.
     AppRouter.router.push(
-      '/user/profile',
+      '/camp/profile/${Uri.encodeComponent(participant.id.trim())}',
       extra: UserModel(
         id: participant.id,
         walletAddress: participant.id,
