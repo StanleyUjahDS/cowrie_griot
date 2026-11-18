@@ -59,6 +59,11 @@ class ApiConfig {
   static String mediaComplete(String mediaId) =>
       '$baseUrl/media/$mediaId/complete';
 
+  static String get stories => '$baseUrl/stories';
+  static String storyView(String storyId) => '$stories/$storyId/view';
+  static String storyViewers(String storyId) => '$stories/$storyId/viewers';
+  static String story(String storyId) => '$stories/$storyId';
+
   static String usersSearch(String query, {int limit = 20, int offset = 0}) =>
       Uri.parse('$baseUrl/users/search')
           .replace(
@@ -376,6 +381,11 @@ class ApiConfig {
 
   static String get messagingBlocks => '$messagingBase/blocks';
   static String messagingBlockUser(String userId) => '$messagingBlocks/$userId';
+  static String get messagingMutes => '$messagingBlocks/mutes';
+  static String messagingMuteUser(String userId) =>
+      '$messagingBlocks/mute/$userId';
+  static String messagingUnrecordedCampfires(String userId) =>
+      '$messagingBase/camp-profiles/$userId/campfires/unrecorded';
 
   static String get messagingReports => '$messagingBase/reports';
 
@@ -410,6 +420,16 @@ class ApiConfig {
       '$plusCryptoInvoices/$invoiceId/verify';
   static String plusCryptoGiftClaim(String invoiceId) =>
       '$plusBase/crypto/gifts/$invoiceId/claim';
+
+  // ==========================================================
+  // GRIOT GOLDS
+  // ==========================================================
+
+  static String get goldsBase => '$baseUrl/golds';
+  static String get goldsCatalog => '$goldsBase/catalog';
+  static String get goldsBalance => '$goldsBase/balance';
+  static String get goldsTips => '$goldsBase/tips';
+  static String get goldsPlus => '$goldsBase/plus';
 
   // ==========================================================
   // GROUPS & CHANNELS
@@ -451,6 +471,10 @@ class ApiConfig {
       '$messagingBase/campfires/$id/leave';
   static String messagingCampfireParticipants(String id) =>
       '$messagingBase/campfires/$id/participants';
+  static String messagingCampfireComments(String id) =>
+      '$messagingBase/campfires/$id/comments';
+  static String messagingCampfireComment(String id, String commentId) =>
+      '$messagingBase/campfires/$id/comments/$commentId';
   static String messagingCampfireRequestSpeaker(String id) =>
       '$messagingBase/campfires/$id/request-speaker';
   static String messagingCampfireModerateParticipant(
@@ -461,6 +485,105 @@ class ApiConfig {
       '$messagingBase/campfires/$id/end';
   static String messagingCampfireReminder(String id) =>
       '$messagingBase/campfires/$id/reminder';
+
+  static String get messagingCampProfiles => '$messagingBase/camp-profiles';
+  static String messagingCampProfile(String userId) =>
+      '$messagingCampProfiles/${Uri.encodeComponent(userId)}';
+  static String messagingCampProfileTales(String userId) =>
+      '${messagingCampProfile(userId)}/tales';
+  static String messagingCampProfileCampfires(
+    String userId, {
+    String status = 'all',
+    int limit = 20,
+    int offset = 0,
+  }) => Uri.parse('${messagingCampProfile(userId)}/campfires')
+      .replace(
+        queryParameters: {
+          'status': status,
+          'limit': '$limit',
+          'offset': '$offset',
+        },
+      )
+      .toString();
+  static String messagingCampProfileActivity(
+    String userId, {
+    String filter = 'all',
+    int limit = 20,
+    int offset = 0,
+  }) => Uri.parse('${messagingCampProfile(userId)}/activity')
+      .replace(
+        queryParameters: {
+          'filter': filter,
+          'limit': '$limit',
+          'offset': '$offset',
+        },
+      )
+      .toString();
+  static String messagingCampProfileFollow(String userId) =>
+      '${messagingCampProfile(userId)}/follow';
+  static String messagingCampProfileFollowers(
+    String userId, {
+    int limit = 50,
+    int offset = 0,
+  }) => Uri.parse('${messagingCampProfile(userId)}/followers')
+      .replace(queryParameters: {'limit': '$limit', 'offset': '$offset'})
+      .toString();
+  static String messagingCampProfileFollowing(
+    String userId, {
+    int limit = 50,
+    int offset = 0,
+  }) => Uri.parse('${messagingCampProfile(userId)}/following')
+      .replace(queryParameters: {'limit': '$limit', 'offset': '$offset'})
+      .toString();
+  static String messagingCampProfileKudos(String userId) =>
+      '${messagingCampProfile(userId)}/kudos';
+  static String get messagingCampProfileSearch =>
+      '$messagingCampProfiles/search';
+  static String get messagingCampProfileSaves => '$messagingCampProfiles/saves';
+  static String get messagingCampProfileMe => '$messagingCampProfiles/me';
+  static String messagingCampfireRecordings({int limit = 20, int offset = 0}) =>
+      Uri.parse('$messagingCampProfiles/recordings')
+          .replace(queryParameters: {'limit': '$limit', 'offset': '$offset'})
+          .toString();
+  static String messagingCampfireRecordingComments(String recordingId) =>
+      '$messagingCampProfiles/recordings/$recordingId/comments';
+  static String messagingCampfireRecordingComment(
+    String recordingId,
+    String commentId,
+  ) => '$messagingCampProfiles/recordings/$recordingId/comments/$commentId';
+  static String get messagingTales => '$messagingBase/tales';
+  static String publicTale(String taleId) => '$baseUrl/public/tales/$taleId';
+  static String messagingTalesFeed({
+    String feed = 'public',
+    String? category,
+    String? cursor,
+    int limit = 20,
+  }) => Uri.parse(messagingTales)
+      .replace(
+        queryParameters: {
+          'feed': feed,
+          'limit': '$limit',
+          if (category != null && category.isNotEmpty) 'category': category,
+          if (cursor != null && cursor.isNotEmpty) 'cursor': cursor,
+        },
+      )
+      .toString();
+  static String messagingTale(String taleId) => '$messagingTales/$taleId';
+  static String get messagingTaleBookmarks => '$messagingTales/bookmarks';
+  static String messagingTaleBookmark(String taleId) =>
+      '$messagingTaleBookmarks/$taleId';
+  static String messagingTaleComments(String taleId) =>
+      '${messagingTale(taleId)}/comments';
+  static String messagingTaleComment(String taleId, String commentId) =>
+      '${messagingTaleComments(taleId)}/$commentId';
+  static String messagingTaleCommentVote(String taleId, String commentId) =>
+      '${messagingTaleComments(taleId)}/$commentId/vote';
+  static String messagingTaleView(String taleId) =>
+      '${messagingTale(taleId)}/view';
+  static String messagingTaleVote(String taleId) =>
+      '${messagingTale(taleId)}/vote';
+  static String messagingTaleBoost(String taleId) =>
+      '${messagingTale(taleId)}/boost';
 
   static String messagingConversationById(String conversationId) =>
       '$messagingBase/conversations/$conversationId';

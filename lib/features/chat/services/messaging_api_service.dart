@@ -143,6 +143,464 @@ class MessagingApiService {
     return {'items': <dynamic>[], 'hasMore': false};
   }
 
+  Future<Map<String, dynamic>> getCampProfile(String userId) async {
+    final response = await _apiClient.get(
+      ApiConfig.messagingCampProfile(userId),
+      forceRefresh: true,
+    );
+    final data = _getData(response);
+    if (data is List) {
+      return {'items': List<dynamic>.from(data)};
+    }
+    if (data is Map) {
+      final map = Map<String, dynamic>.from(data);
+      // Accept the response names used by the public feed across deployments.
+      final items = map['items'] ?? map['tales'] ?? map['results'];
+      if (items is List && !map.containsKey('items')) {
+        map['items'] = items;
+      }
+      return map;
+    }
+    return <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> getCampProfileTales(
+    String userId, {
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final response = await _apiClient.get(
+      '${ApiConfig.messagingCampProfileTales(userId)}?limit=$limit&offset=$offset',
+      forceRefresh: true,
+    );
+    final data = _getData(response);
+    return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> getCampProfileCampfires(
+    String userId, {
+    String status = 'all',
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final response = await _apiClient.get(
+      ApiConfig.messagingCampProfileCampfires(
+        userId,
+        status: status,
+        limit: limit,
+        offset: offset,
+      ),
+      forceRefresh: true,
+    );
+    final data = _getData(response);
+    return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> getCampfireRecordings({
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final response = await _apiClient.get(
+      ApiConfig.messagingCampfireRecordings(limit: limit, offset: offset),
+      forceRefresh: true,
+    );
+    final data = _getData(response);
+    return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+  }
+
+  Future<List<dynamic>> getCampfireRecordingComments(String recordingId) async {
+    final response = await _apiClient.get(
+      ApiConfig.messagingCampfireRecordingComments(recordingId),
+      forceRefresh: true,
+    );
+    final data = _getData(response);
+    if (data is Map && data['items'] is List) {
+      return List<dynamic>.from(data['items']);
+    }
+    return const <dynamic>[];
+  }
+
+  Future<Map<String, dynamic>> addCampfireRecordingComment({
+    required String recordingId,
+    required String content,
+    String? parentCommentId,
+  }) async {
+    final response = await _apiClient.post(
+      ApiConfig.messagingCampfireRecordingComments(recordingId),
+      body: {
+        'content': content,
+        ...?parentCommentId == null
+            ? null
+            : {'parentCommentId': parentCommentId},
+      },
+    );
+    final data = _getData(response);
+    return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+  }
+
+  Future<void> deleteCampfireRecordingComment({
+    required String recordingId,
+    required String commentId,
+  }) async {
+    await _apiClient.delete(
+      ApiConfig.messagingCampfireRecordingComment(recordingId, commentId),
+    );
+  }
+
+  Future<Map<String, dynamic>> getCampProfileActivity(
+    String userId, {
+    String filter = 'all',
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final response = await _apiClient.get(
+      ApiConfig.messagingCampProfileActivity(
+        userId,
+        filter: filter,
+        limit: limit,
+        offset: offset,
+      ),
+      forceRefresh: true,
+    );
+    final data = _getData(response);
+    return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> searchCampside(String query) async {
+    final response = await _apiClient.get(
+      Uri.parse(
+        ApiConfig.messagingCampProfileSearch,
+      ).replace(queryParameters: {'q': query}).toString(),
+      forceRefresh: true,
+    );
+    final data = _getData(response);
+    return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+  }
+
+  Future<void> followCampProfile(String userId) async {
+    await _apiClient.post(ApiConfig.messagingCampProfileFollow(userId));
+  }
+
+  Future<void> unfollowCampProfile(String userId) async {
+    await _apiClient.delete(ApiConfig.messagingCampProfileFollow(userId));
+  }
+
+  Future<Map<String, dynamic>> updateCampProfile({
+    String? bio,
+    String? bannerMediaId,
+  }) async {
+    final response = await _apiClient.patch(
+      ApiConfig.messagingCampProfileMe,
+      body: {
+        ...?bio == null ? null : {'bio': bio},
+        ...?bannerMediaId == null ? null : {'bannerMediaId': bannerMediaId},
+      },
+    );
+    final data = _getData(response);
+    return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> getCampProfileFollowers(String userId) async {
+    final response = await _apiClient.get(
+      ApiConfig.messagingCampProfileFollowers(userId),
+      forceRefresh: true,
+    );
+    final data = _getData(response);
+    return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> getCampProfileFollowing(String userId) async {
+    final response = await _apiClient.get(
+      ApiConfig.messagingCampProfileFollowing(userId),
+      forceRefresh: true,
+    );
+    final data = _getData(response);
+    return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> giveCampProfileKudos(String userId) async {
+    final response = await _apiClient.post(
+      ApiConfig.messagingCampProfileKudos(userId),
+    );
+    final data = _getData(response);
+    return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+  }
+
+  Future<void> saveCampContent({
+    required String targetType,
+    required String targetId,
+  }) async {
+    await _apiClient.post(
+      ApiConfig.messagingCampProfileSaves,
+      body: {'targetType': targetType, 'targetId': targetId},
+    );
+  }
+
+  Future<void> unsaveCampContent({
+    required String targetType,
+    required String targetId,
+  }) async {
+    await _apiClient.delete(
+      ApiConfig.messagingCampProfileSaves,
+      body: {'targetType': targetType, 'targetId': targetId},
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getTaleBookmarks() async {
+    final response = await _apiClient.get(
+      ApiConfig.messagingTaleBookmarks,
+      forceRefresh: true,
+    );
+    final data = _getData(response);
+    if (data is Map && data['items'] is List) {
+      return (data['items'] as List)
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+    }
+    return const [];
+  }
+
+  Future<void> bookmarkTale(String taleId) async {
+    await _apiClient.post(ApiConfig.messagingTaleBookmark(taleId));
+  }
+
+  Future<void> removeTaleBookmark(String taleId) async {
+    await _apiClient.delete(ApiConfig.messagingTaleBookmark(taleId));
+  }
+
+  Future<Map<String, dynamic>> getTales({
+    String feed = 'public',
+    String? category,
+    String? cursor,
+    int limit = 20,
+  }) async {
+    final response = await _apiClient.get(
+      ApiConfig.messagingTalesFeed(
+        feed: feed,
+        category: category,
+        cursor: cursor,
+        limit: limit,
+      ),
+      forceRefresh: true,
+    );
+    final data = _getData(response);
+    if (data is List) {
+      return {'items': List<dynamic>.from(data)};
+    }
+    if (data is Map) {
+      final map = Map<String, dynamic>.from(data);
+      List<dynamic>? findItems(dynamic value, {int depth = 0}) {
+        if (value is List) return List<dynamic>.from(value);
+        if (value is! Map || depth > 4) return null;
+        for (final key in const ['items', 'tales', 'results', 'parts']) {
+          final found = findItems(value[key], depth: depth + 1);
+          if (found != null) return found;
+        }
+        return findItems(value['data'], depth: depth + 1);
+      }
+
+      final items = findItems(map);
+      if (items != null) map['items'] = items;
+      // A few API versions return a single Tale under `tale`/`result`.
+      if (map['items'] is! List) {
+        final single = map['tale'] ?? map['result'];
+        if (single is Map) map['items'] = [single];
+      }
+      return map;
+    }
+    return <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> publishTale({
+    required String category,
+    required String content,
+    String visibility = 'public',
+    String? threadId,
+    String? mediaUrl,
+    String? mediaType,
+    List<String>? mediaUrls,
+    String? linkUrl,
+    String? linkTitle,
+    String? linkDescription,
+    String? linkThumbnailUrl,
+    String? retellOfTaleId,
+  }) async {
+    final response = await _apiClient.post(
+      ApiConfig.messagingTales,
+      body: {
+        'category': category,
+        'content': content,
+        'visibility': visibility,
+        ...?(threadId == null ? null : {'threadId': threadId}),
+        ...?(mediaUrl == null ? null : {'mediaUrl': mediaUrl}),
+        ...?(mediaType == null ? null : {'mediaType': mediaType}),
+        ...?(mediaUrls == null ? null : {'mediaUrls': mediaUrls}),
+        ...?(linkUrl == null ? null : {'linkUrl': linkUrl}),
+        ...?(linkTitle == null ? null : {'linkTitle': linkTitle}),
+        ...?(linkDescription == null
+            ? null
+            : {'linkDescription': linkDescription}),
+        ...?(linkThumbnailUrl == null
+            ? null
+            : {'linkThumbnailUrl': linkThumbnailUrl}),
+        ...?(retellOfTaleId == null
+            ? null
+            : {'retellOfTaleId': retellOfTaleId}),
+      },
+    );
+    final data = _getData(response);
+    return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> getTaleThread(String taleId) async {
+    final response = await _apiClient.get(
+      '${ApiConfig.messagingTales}/$taleId/thread',
+      forceRefresh: true,
+    );
+    final data = _getData(response);
+    // Some deployments return the parts array directly while newer ones wrap
+    // it in `{items: [...]}` (occasionally under `data`/`thread`). Keep the
+    // reader contract stable so the dedicated Tale view never loses linked
+    // parts simply because the response envelope differs.
+    if (data is List) {
+      return <String, dynamic>{'items': data};
+    }
+    if (data is! Map) return <String, dynamic>{};
+    final map = Map<String, dynamic>.from(data);
+    // Older deployments wrap the thread in `data` or `thread`; normalise it
+    // here so every reader receives the same `{items: [...]}` contract.
+    final nested = map['thread'] ?? map['data'];
+    if (nested is Map) {
+      final nestedMap = Map<String, dynamic>.from(nested);
+      if (nestedMap['items'] is List || nestedMap['parts'] is List) {
+        return {...map, 'items': nestedMap['items'] ?? nestedMap['parts']};
+      }
+    }
+    if (map['items'] is List) return map;
+    if (map['parts'] is List) return {...map, 'items': map['parts']};
+    return map;
+  }
+
+  Future<Map<String, dynamic>> getTale(String taleId) async {
+    dynamic response;
+    try {
+      response = await _apiClient.get(
+        ApiConfig.messagingTale(taleId),
+        forceRefresh: true,
+      );
+      final authenticatedData = _getData(response);
+      if (authenticatedData is Map && authenticatedData.isNotEmpty) {
+        final map = Map<String, dynamic>.from(authenticatedData);
+        final nested = map['tale'] ?? map['data'];
+        if (nested is Map) return Map<String, dynamic>.from(nested);
+        return map;
+      }
+    } catch (_) {
+      // Fall through to the public endpoint. Shared Tale links and public
+      // feed items must remain readable even when the authenticated endpoint
+      // rejects an expired session or a following-only visibility check.
+    }
+    response = await _apiClient.get(
+      ApiConfig.publicTale(taleId),
+      forceRefresh: true,
+    );
+    final data = _getData(response);
+    if (data is! Map) return <String, dynamic>{};
+    final map = Map<String, dynamic>.from(data);
+    final nested = map['tale'] ?? map['data'];
+    if (nested is Map) return Map<String, dynamic>.from(nested);
+    return map;
+  }
+
+  Future<void> deleteTale(String taleId) async {
+    final response = await _apiClient.delete(ApiConfig.messagingTale(taleId));
+    _checkSuccess(response);
+  }
+
+  Future<void> markTaleViewed(String taleId) async {
+    await _apiClient.post(ApiConfig.messagingTaleView(taleId));
+  }
+
+  Future<Map<String, dynamic>> voteOnTale(
+    String taleId, {
+    required String? vote,
+  }) async {
+    final response = await _apiClient.post(
+      ApiConfig.messagingTaleVote(taleId),
+      body: {'vote': vote ?? 'remove'},
+    );
+    final data = _getData(response);
+    return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> boostTale(
+    String taleId, {
+    int durationHours = 24,
+    Map<String, dynamic>? targeting,
+  }) async {
+    final response = await _apiClient.post(
+      ApiConfig.messagingTaleBoost(taleId),
+      body: {
+        'durationHours': durationHours,
+        ...?targeting == null
+            ? null
+            : <String, dynamic>{'targeting': targeting},
+      },
+    );
+    final data = _getData(response);
+    return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+  }
+
+  Future<List<Map<String, dynamic>>> getTaleComments(String taleId) async {
+    final response = await _apiClient.get(
+      ApiConfig.messagingTaleComments(taleId),
+      forceRefresh: true,
+    );
+    final data = _getData(response);
+    final raw = data is Map ? data['items'] : data;
+    return raw is List
+        ? raw
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList()
+        : <Map<String, dynamic>>[];
+  }
+
+  Future<Map<String, dynamic>> createTaleComment(
+    String taleId, {
+    required String content,
+    String? parentCommentId,
+  }) async {
+    final response = await _apiClient.post(
+      ApiConfig.messagingTaleComments(taleId),
+      body: {
+        'content': content,
+        if (parentCommentId != null && parentCommentId.isNotEmpty)
+          'parentCommentId': parentCommentId,
+      },
+    );
+    final data = _getData(response);
+    return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+  }
+
+  Future<void> deleteTaleComment(String taleId, String commentId) async {
+    await _apiClient.delete(ApiConfig.messagingTaleComment(taleId, commentId));
+  }
+
+  Future<Map<String, dynamic>> voteOnTaleComment(
+    String taleId,
+    String commentId, {
+    String? vote,
+  }) async {
+    final response = await _apiClient.post(
+      ApiConfig.messagingTaleCommentVote(taleId, commentId),
+      body: {'vote': vote ?? 'remove'},
+    );
+    final data = _getData(response);
+    return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+  }
+
   Future<Map<String, dynamic>> createCampfire({
     required String title,
     String? description,
@@ -245,6 +703,37 @@ class MessagingApiService {
               )
               .toList()
         : <SpaceParticipant>[];
+  }
+
+  Future<List<Map<String, dynamic>>> getCampfireComments(String id) async {
+    final response = await _apiClient.get(
+      ApiConfig.messagingCampfireComments(id),
+      forceRefresh: true,
+    );
+    final data = _getData(response);
+    final raw = data is Map ? (data['items'] ?? data['comments'] ?? []) : data;
+    return raw is List
+        ? raw
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList()
+        : <Map<String, dynamic>>[];
+  }
+
+  Future<Map<String, dynamic>> createCampfireComment(
+    String id,
+    String content,
+  ) async {
+    final response = await _apiClient.post(
+      ApiConfig.messagingCampfireComments(id),
+      body: {'content': content},
+    );
+    final data = _getData(response);
+    return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+  }
+
+  Future<void> deleteCampfireComment(String id, String commentId) async {
+    await _apiClient.delete(ApiConfig.messagingCampfireComment(id, commentId));
   }
 
   Future<void> requestCampfireSpeaker(String id, {bool raised = true}) async {
@@ -741,6 +1230,21 @@ class MessagingApiService {
     _checkSuccess(response);
   }
 
+  Future<List<Map<String, dynamic>>> getMessageReceipts(
+    String messageId,
+  ) async {
+    final response = await _apiClient.get(
+      ApiConfig.messagingReceipts(messageId),
+      forceRefresh: true,
+    );
+    final data = _getData(response);
+    if (data is! List) return const [];
+    return data
+        .whereType<Map>()
+        .map((row) => Map<String, dynamic>.from(row))
+        .toList();
+  }
+
   Future<void> toggleReaction(String messageId, String emoji) async {
     // Reference: POST /api/messaging/messages/:messageId/reactions { "reaction": "❤️" }
     final response = await _apiClient.post(
@@ -915,6 +1419,37 @@ class MessagingApiService {
       ApiConfig.messagingBlockUser(userId),
     );
     _checkSuccess(response);
+  }
+
+  Future<List<String>> getMutedUserIds() async {
+    final response = await _apiClient.get(ApiConfig.messagingMutes);
+    final data = _getData(response);
+    if (data is List) {
+      return data
+          .map((user) => (user['id'] ?? user['userId']).toString())
+          .toList();
+    }
+    return [];
+  }
+
+  Future<void> muteUser(String userId) async {
+    final response = await _apiClient.post(ApiConfig.messagingMuteUser(userId));
+    _checkSuccess(response);
+  }
+
+  Future<void> unmuteUser(String userId) async {
+    final response = await _apiClient.delete(
+      ApiConfig.messagingMuteUser(userId),
+    );
+    _checkSuccess(response);
+  }
+
+  Future<int> deleteUnrecordedCampfires(String userId) async {
+    final response = await _apiClient.delete(
+      ApiConfig.messagingUnrecordedCampfires(userId),
+    );
+    final data = _getData(response);
+    return data is Map ? int.tryParse('${data['deletedCount']}') ?? 0 : 0;
   }
 
   Future<void> reportContent({

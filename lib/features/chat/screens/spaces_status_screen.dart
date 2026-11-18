@@ -63,6 +63,7 @@ class _LocalTale {
   final String? linkUrl;
   final int commentCount;
   final int viewCount;
+  final bool isBoosted;
   final int likeCount;
   final int downvoteCount;
   final int viewerVote;
@@ -105,6 +106,7 @@ class _LocalTale {
     this.linkUrl,
     this.commentCount = 0,
     this.viewCount = 0,
+    this.isBoosted = false,
     this.likeCount = 0,
     this.downvoteCount = 0,
     this.viewerVote = 0,
@@ -159,6 +161,7 @@ class _LocalTale {
     linkUrl: linkUrl,
     commentCount: commentCount,
     viewCount: viewCount,
+    isBoosted: isBoosted,
     likeCount: likeCount ?? this.likeCount,
     downvoteCount: downvoteCount ?? this.downvoteCount,
     viewerVote: viewerVote ?? this.viewerVote,
@@ -199,6 +202,7 @@ class _LocalTale {
     'linkUrl': linkUrl,
     'commentCount': commentCount,
     'viewCount': viewCount,
+    'isBoosted': isBoosted,
     'upvoteCount': likeCount,
     'downvoteCount': downvoteCount,
     'retellCount': retellCount,
@@ -511,6 +515,7 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                 '${item['viewCount'] ?? item['view_count'] ?? item['views'] ?? 0}',
               ) ??
               0,
+          isBoosted: item['isBoosted'] == true || item['is_boosted'] == true,
           likeCount:
               int.tryParse(
                 '${item['upvoteCount'] ?? item['upvote_count'] ?? 0}',
@@ -2593,6 +2598,13 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                       colors.surfaceContainerHighest,
                       foreground: colors.onSurfaceVariant,
                     ),
+                  if (tale.isBoosted)
+                    _taleBadge(
+                      context,
+                      'Boosted',
+                      colors.primary.withValues(alpha: .16),
+                      foreground: colors.primary,
+                    ),
                 ],
                 subtitle: [
                   _formatTaleTime(tale.createdAt),
@@ -3102,6 +3114,13 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
               title: Text('Retell (${tale.retellCount})'),
               onTap: () => Navigator.pop(sheetContext, 'retell'),
             ),
+            if (_isOwnTale(tale))
+              ListTile(
+                leading: const Icon(Icons.rocket_launch_outlined),
+                title: const Text('Boost with Griot Golds'),
+                subtitle: const Text('250 Golds · 24 hours'),
+                onTap: () => Navigator.pop(sheetContext, 'boost'),
+              ),
             ListTile(
               enabled: tale.threadId != null,
               leading: const Icon(Icons.link_rounded),
@@ -3120,6 +3139,44 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
       await _retellTale(tale);
     } else if (choice == 'cotell') {
       await _coTellTale(tale);
+    } else if (choice == 'boost') {
+      await _boostTale(tale);
+    }
+  }
+
+  Future<void> _boostTale(_LocalTale tale) async {
+    final taleId = tale.id;
+    if (!mounted || taleId == null || taleId.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Boost this Tale?'),
+        content: const Text(
+          '250 Griot Golds will promote this Tale in eligible Camp feeds for 24 hours.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Boost for 250 Golds'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+    try {
+      await context.read<MessagingApiService>().boostTale(taleId);
+      if (mounted) {
+        NotificationService.showInfo(context, 'Tale boosted for 24 hours.');
+        unawaited(_loadTales());
+      }
+    } catch (error) {
+      if (mounted) {
+        NotificationService.showError(context, 'Could not boost Tale: $error');
+      }
     }
   }
 
