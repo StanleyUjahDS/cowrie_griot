@@ -192,7 +192,8 @@ class GroupConversationCallButton extends StatelessWidget {
                   _CallOption(
                     icon: Icons.groups_rounded,
                     title: 'Group call',
-                    subtitle: 'Private voice or video call for group members',
+                    subtitle:
+                        'Free private voice or video call for group members',
                     color: colors.primary,
                     onTap: () => Navigator.pop(sheetContext, 'group_call'),
                   ),
@@ -204,8 +205,8 @@ class GroupConversationCallButton extends StatelessWidget {
                   subtitle: canCreateCampfire
                       ? (isLargeGroup
                             ? 'Recommended for this group: up to 9 speakers, everyone else listens'
-                            : 'A hosted live room with speakers and listeners')
-                      : 'Join a live Campfire, or ask an admin to start one',
+                            : 'Plus-hosted live room with speakers and listeners')
+                      : 'Join a live Campfire, or ask an admin to start a Plus-hosted one',
                   color: Colors.deepOrange,
                   // The Campfire screen decides whether to join an existing
                   // room or create a new one. Joining is available to every
