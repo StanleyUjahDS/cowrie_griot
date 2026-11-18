@@ -18,6 +18,7 @@ import '../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../core/ui/widgets/griot_branded_container.dart';
 import '../../../core/ui/widgets/griot_plus_badge.dart';
 import '../../../core/ui/widgets/griot_pioneer_badge.dart';
+import '../../../core/ui/widgets/griot_avatar.dart';
 import '../../users/models/user_model.dart';
 import '../../users/providers/user_provider.dart';
 import '../services/realtime_call_service.dart';
@@ -222,6 +223,8 @@ class _CallScreenState extends State<CallScreen> {
 
   final Map<String, String> _spaceReactions = <String, String>{};
   final Map<String, Timer> _spaceReactionTimers = <String, Timer>{};
+  final ValueNotifier<List<Map<String, dynamic>>> _campfireComments =
+      ValueNotifier<List<Map<String, dynamic>>>(const []);
   List<SpaceParticipant> get _spaceParticipants => _owner.participants;
   set _spaceParticipants(List<SpaceParticipant> value) =>
       _owner.participants = value;
@@ -281,6 +284,7 @@ class _CallScreenState extends State<CallScreen> {
         _campfireRevision = provider.campfireRevision;
         provider.addListener(_onCampfireRevision);
         _owner.listen(provider.campfireEventStream, _onCampfireEvent);
+        unawaited(_refreshCampfireComments());
       }
       final provider = context.read<MessagingProvider>();
       _owner.listen(provider.callStatusStream, _onCallStatusUpdated);
@@ -363,12 +367,73 @@ class _CallScreenState extends State<CallScreen> {
       unawaited(_close(notifyServer: false));
       return;
     }
+    if (type == 'campfire_comment_created' ||
+        type == 'campfire_comment_deleted') {
+      // Re-fetch to hydrate author/avatar fields (the broadcast payload is
+      // intentionally minimal) and keep ordering consistent for all viewers.
+      unawaited(_refreshCampfireComments());
+      return;
+    }
     if (type == 'campfire_participants_changed' ||
         type == 'campfire_speaker_requested') {
       _participantRefreshDebounce?.cancel();
       _participantRefreshDebounce = Timer(const Duration(milliseconds: 60), () {
         unawaited(_refreshCampfireParticipants());
       });
+    }
+  }
+
+  Future<void> _refreshCampfireComments() async {
+    if (_cleaningUp || widget.conversationType != 'space') return;
+    try {
+      final comments = await context
+          .read<MessagingApiService>()
+          .getCampfireComments(widget.conversationId);
+      if (mounted && !_cleaningUp) _campfireComments.value = comments;
+    } catch (error) {
+      debugPrint('[Campfire][comments] refresh failed: $error');
+    }
+  }
+
+  Future<void> _openCampfireComments() async {
+    if (!mounted || widget.conversationType != 'space') return;
+    await _refreshCampfireComments();
+    if (!mounted) return;
+    final api = context.read<MessagingApiService>();
+    final user = context.read<UserProvider>().user;
+    final controller = TextEditingController();
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetContext) => _CampfireCommentsSheet(
+          comments: _campfireComments,
+          title: _campfireTitle,
+          controller: controller,
+          onSend: (text) async {
+            final created = await api.createCampfireComment(
+              widget.conversationId,
+              text,
+            );
+            // The create response does not include profile data, so add the
+            // local author's identity immediately; the socket refresh then
+            // reconciles it with the canonical server representation.
+            final enriched = <String, dynamic>{
+              ...created,
+              'display_name': user?.displayName,
+              'username': user?.username,
+              'avatar_url': user?.avatarUrl,
+            };
+            final next = [..._campfireComments.value, enriched];
+            _campfireComments.value = next;
+            unawaited(_refreshCampfireComments());
+          },
+        ),
+      );
+    } finally {
+      controller.dispose();
     }
   }
 
@@ -2326,6 +2391,12 @@ class _CallScreenState extends State<CallScreen> {
                   onPressed: _tipCampfireHost,
                   icon: const Icon(Icons.volunteer_activism_outlined),
                 ),
+            if (widget.conversationType == 'space')
+              IconButton(
+                tooltip: 'Campfire chat',
+                onPressed: _openCampfireComments,
+                icon: const Icon(Icons.chat_bubble_outline_rounded),
+              ),
             if (widget.conversationType == 'space')
               IconButton(
                 tooltip: 'Participants and controls',
@@ -4647,6 +4718,225 @@ class _CallControl extends StatelessWidget {
             shape: const CircleBorder(),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _CampfireCommentsSheet extends StatefulWidget {
+  final ValueNotifier<List<Map<String, dynamic>>> comments;
+  final String title;
+  final TextEditingController controller;
+  final Future<void> Function(String text) onSend;
+
+  const _CampfireCommentsSheet({
+    required this.comments,
+    required this.title,
+    required this.controller,
+    required this.onSend,
+  });
+
+  @override
+  State<_CampfireCommentsSheet> createState() => _CampfireCommentsSheetState();
+}
+
+class _CampfireCommentsSheetState extends State<_CampfireCommentsSheet> {
+  bool _sending = false;
+
+  Future<void> _send() async {
+    final text = widget.controller.text.trim();
+    if (text.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    try {
+      await widget.onSend(text);
+      widget.controller.clear();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not send message: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  String _author(Map<String, dynamic> item) {
+    final name = (item['display_name'] ?? item['displayName'] ?? '').toString();
+    if (name.trim().isNotEmpty) return name.trim();
+    final username = (item['username'] ?? '').toString();
+    return username.trim().isNotEmpty ? '@$username' : 'Campfire member';
+  }
+
+  String _time(Map<String, dynamic> item) {
+    final raw = item['created_at'] ?? item['createdAt'];
+    final date = DateTime.tryParse(raw?.toString() ?? '')?.toLocal();
+    if (date == null) return '';
+    final hour = date.hour % 12 == 0 ? 12 : date.hour % 12;
+    final minute = date.minute.toString().padLeft(2, '0');
+    return '$hour:$minute ${date.hour >= 12 ? 'PM' : 'AM'}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      height: MediaQuery.sizeOf(context).height * .72,
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: Column(
+        children: [
+          const SizedBox(height: 10),
+          Container(
+            width: 42,
+            height: 4,
+            decoration: BoxDecoration(
+              color: colors.outlineVariant,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 12, 10),
+            child: Row(
+              children: [
+                const Icon(Icons.chat_bubble_rounded),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '${widget.title} chat',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Close chat',
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ValueListenableBuilder<List<Map<String, dynamic>>>(
+              valueListenable: widget.comments,
+              builder: (context, comments, _) {
+                if (comments.isEmpty) {
+                  return Center(
+                    child: Text(
+                      'No messages yet. Start the conversation.',
+                      style: TextStyle(color: colors.onSurfaceVariant),
+                    ),
+                  );
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                  reverse: true,
+                  itemCount: comments.length,
+                  itemBuilder: (context, index) {
+                    final item = comments[comments.length - 1 - index];
+                    final avatar = (item['avatar_url'] ?? item['avatarUrl'])
+                        ?.toString();
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 5),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          GriotAvatar(radius: 18, avatarUrl: avatar),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.fromLTRB(13, 9, 13, 8),
+                              decoration: BoxDecoration(
+                                color: colors.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(17),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          _author(item),
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                      Text(
+                                        _time(item),
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: colors.onSurfaceVariant,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text((item['content'] ?? '').toString()),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              14,
+              8,
+              14,
+              14 + MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: widget.controller,
+                    minLines: 1,
+                    maxLines: 4,
+                    textInputAction: TextInputAction.newline,
+                    decoration: InputDecoration(
+                      hintText: 'Message the Campfire…',
+                      filled: true,
+                      fillColor: colors.surfaceContainerHighest,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 11,
+                      ),
+                    ),
+                    onSubmitted: (_) => _send(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filled(
+                  tooltip: 'Send message',
+                  onPressed: _sending ? null : _send,
+                  icon: _sending
+                      ? const SizedBox(
+                          width: 19,
+                          height: 19,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.send_rounded),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

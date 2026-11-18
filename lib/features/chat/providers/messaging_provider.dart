@@ -3078,6 +3078,15 @@ class MessagingProvider extends ChangeNotifier {
       campfireRevision++;
       notifyListeners();
     });
+    // Live Campfire chat is deliberately separate from normal conversation
+    // messages. Forward comment events to the active room so its chat sheet
+    // can update immediately without polling.
+    _socket?.on('campfire_comment_created', (data) {
+      emitCampfireEvent('campfire_comment_created', data);
+    });
+    _socket?.on('campfire_comment_deleted', (data) {
+      emitCampfireEvent('campfire_comment_deleted', data);
+    });
     _socket?.on('campfire_ended', (data) {
       emitCampfireEvent('campfire_ended', data);
       if (data is Map) {
