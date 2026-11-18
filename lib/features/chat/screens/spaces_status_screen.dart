@@ -285,6 +285,7 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
   String _campfireView = 'live';
   late final TabController _campfireTabs;
   final Set<String> _campfireReminders = <String>{};
+  final Set<String> _expandedUpcomingGroups = <String>{};
   String _region = 'GLOBAL';
   int _lastCampRefreshNonce = 0;
   int _lastCampScrollNonce = 0;
@@ -1090,7 +1091,11 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
     try {
       final result = await context
           .read<MessagingApiService>()
-          .getUpcomingCampfires(region: _region, forceRefresh: forceRefresh);
+          .getUpcomingCampfires(
+            region: _region,
+            limit: 50,
+            forceRefresh: forceRefresh,
+          );
       final raw = result['items'] ?? result['spaces'] ?? [];
       if (!mounted || requestId != _upcomingRequestId || raw is! List) return;
       final parsed = raw
@@ -3861,6 +3866,35 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
     List<SpaceModel> upcomingSpaces,
   ) {
     final colors = Theme.of(context).colorScheme;
+    final groups = <String, List<SpaceModel>>{
+      'mine': upcomingSpaces
+          .where((space) => space.hostRelationship == 'mine' || space.isHost)
+          .toList(),
+      'friends': upcomingSpaces
+          .where(
+            (space) => space.hostRelationship == 'friends' && !space.isHost,
+          )
+          .toList(),
+      'following': upcomingSpaces
+          .where(
+            (space) => space.hostRelationship == 'following' && !space.isHost,
+          )
+          .toList(),
+      'public': upcomingSpaces
+          .where(
+            (space) =>
+                !space.isHost &&
+                space.hostRelationship != 'friends' &&
+                space.hostRelationship != 'following',
+          )
+          .toList(),
+    };
+    final labels = <String, (String, IconData)>{
+      'mine': ('Your scheduled Campfires', Icons.event_available_rounded),
+      'friends': ('From friends', Icons.people_alt_rounded),
+      'following': ('From people you follow', Icons.person_add_alt_1_rounded),
+      'public': ('Public discovery', Icons.public_rounded),
+    };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -3872,107 +3906,176 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
         ),
         const SizedBox(height: 4),
         Text(
-          'Upcoming Campfires from the community',
+          'A calmer schedule built around people and communities you care about.',
           style: TextStyle(color: colors.onSurfaceVariant),
         ),
         const SizedBox(height: 12),
-        ...upcomingSpaces.map(
-          (space) => Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: GriotBrandedContainer(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              borderRadius: 18,
-              child: Row(
+        for (final group in groups.entries)
+          if (group.value.isNotEmpty)
+            _upcomingGroupSection(
+              context,
+              group.key,
+              labels[group.key]!.$1,
+              labels[group.key]!.$2,
+              group.value,
+            ),
+      ],
+    );
+  }
+
+  Widget _upcomingGroupSection(
+    BuildContext context,
+    String groupKey,
+    String title,
+    IconData icon,
+    List<SpaceModel> spaces,
+  ) {
+    final colors = Theme.of(context).colorScheme;
+    final expanded = _expandedUpcomingGroups.contains(groupKey);
+    final visible = expanded ? spaces : spaces.take(6).toList();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 18, color: colors.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+              Text(
+                '${spaces.length}',
+                style: TextStyle(
+                  color: colors.onSurfaceVariant,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...visible.map((space) => _upcomingSpaceCard(context, space)),
+          if (spaces.length > 6)
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton.icon(
+                onPressed: () => setState(() {
+                  if (expanded) {
+                    _expandedUpcomingGroups.remove(groupKey);
+                  } else {
+                    _expandedUpcomingGroups.add(groupKey);
+                  }
+                }),
+                icon: Icon(
+                  expanded
+                      ? Icons.expand_less_rounded
+                      : Icons.expand_more_rounded,
+                ),
+                label: Text(
+                  expanded ? 'Show fewer' : 'Show all ${spaces.length}',
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _upcomingSpaceCard(BuildContext context, SpaceModel space) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: GriotBrandedContainer(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        borderRadius: 18,
+        child: Row(
+          children: [
+            GriotAvatar(
+              avatarUrl: space.hostAvatarUrl,
+              radius: 20,
+              backgroundColor: colors.primary.withValues(alpha: .14),
+              iconColor: colors.primary,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  GriotAvatar(
-                    avatarUrl: space.hostAvatarUrl,
-                    radius: 20,
-                    backgroundColor: colors.primary.withValues(alpha: .14),
-                    iconColor: colors.primary,
+                  Text(
+                    space.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          space.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _formatScheduledTime(space.scheduledAt),
-                          style: TextStyle(color: colors.primary),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Hosted by ${space.hostName}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: colors.onSurfaceVariant,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        if (space.description != null &&
-                            space.description!.trim().isNotEmpty) ...[
-                          const SizedBox(height: 3),
-                          Text(
-                            space.description!.trim(),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: colors.onSurfaceVariant.withValues(
-                                alpha: .78,
-                              ),
-                              fontSize: 12,
-                              height: 1.2,
-                            ),
-                          ),
-                        ],
-                      ],
+                  const SizedBox(height: 4),
+                  Text(
+                    _formatScheduledTime(space.scheduledAt),
+                    style: TextStyle(color: colors.primary),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Hosted by ${space.hostName}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: colors.onSurfaceVariant,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                  if (space.isHost &&
-                      space.scheduledAt != null &&
-                      !space.scheduledAt!.isAfter(DateTime.now()))
-                    FilledButton.icon(
-                      onPressed: () => _joinSpace(context, space),
-                      icon: const Icon(Icons.play_arrow_rounded),
-                      label: const Text('Start'),
-                    )
-                  else
-                    IconButton.filledTonal(
-                      tooltip: _reminderActive(space)
-                          ? 'Reminder enabled'
-                          : 'Notify me',
-                      onPressed: () => _toggleReminder(context, space),
-                      icon: Icon(
-                        _reminderActive(space)
-                            ? Icons.notifications_active_rounded
-                            : Icons.notifications_none_rounded,
+                  if (space.description != null &&
+                      space.description!.trim().isNotEmpty)
+                    Text(
+                      space.description!.trim(),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant.withValues(alpha: .78),
+                        fontSize: 12,
+                        height: 1.2,
                       ),
-                    ),
-                  IconButton(
-                    tooltip: 'Share scheduled Campfire',
-                    onPressed: () => _shareCampfire(context, space),
-                    icon: const Icon(Icons.ios_share_rounded),
-                  ),
-                  if (space.isHost)
-                    IconButton(
-                      tooltip: 'Manage scheduled Campfire',
-                      onPressed: () => _removeScheduledSpace(context, space),
-                      icon: const Icon(Icons.more_vert_rounded),
                     ),
                 ],
               ),
             ),
-          ),
+            if (space.isHost &&
+                space.scheduledAt != null &&
+                !space.scheduledAt!.isAfter(DateTime.now()))
+              FilledButton.icon(
+                onPressed: () => _joinSpace(context, space),
+                icon: const Icon(Icons.play_arrow_rounded),
+                label: const Text('Start'),
+              )
+            else
+              IconButton.filledTonal(
+                tooltip: _reminderActive(space)
+                    ? 'Reminder enabled'
+                    : 'Notify me',
+                onPressed: () => _toggleReminder(context, space),
+                icon: Icon(
+                  _reminderActive(space)
+                      ? Icons.notifications_active_rounded
+                      : Icons.notifications_none_rounded,
+                ),
+              ),
+            IconButton(
+              tooltip: 'Share scheduled Campfire',
+              onPressed: () => _shareCampfire(context, space),
+              icon: const Icon(Icons.ios_share_rounded),
+            ),
+            if (space.isHost)
+              IconButton(
+                tooltip: 'Manage scheduled Campfire',
+                onPressed: () => _removeScheduledSpace(context, space),
+                icon: const Icon(Icons.more_vert_rounded),
+              ),
+          ],
         ),
-      ],
+      ),
     );
   }
 

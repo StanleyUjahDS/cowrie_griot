@@ -4,7 +4,10 @@ class SpaceModel {
   final String? description;
   final String mode;
   final String hostName;
+  final String? hostId;
+  final String? hostWalletAddress;
   final String? hostAvatarUrl;
+  final String hostRelationship;
   final bool isHost;
   final String regionCode;
   final int participantCount;
@@ -19,7 +22,10 @@ class SpaceModel {
     this.description,
     this.mode = 'voice',
     this.hostName = 'Griot user',
+    this.hostId,
+    this.hostWalletAddress,
     this.hostAvatarUrl,
+    this.hostRelationship = 'public',
     this.isHost = false,
     this.regionCode = 'GLOBAL',
     this.participantCount = 0,
@@ -38,7 +44,11 @@ class SpaceModel {
     hostName: _displayIdentity(
       json['host_name'] ?? json['hostName'] ?? 'Griot user',
     ),
+    hostId: _hostId(json),
+    hostWalletAddress: _hostWalletAddress(json),
     hostAvatarUrl: _avatarUrl(json),
+    hostRelationship:
+        '${json['host_relationship'] ?? json['hostRelationship'] ?? 'public'}',
     isHost:
         json['is_host'] == true ||
         json['isHost'] == true ||
@@ -85,6 +95,33 @@ class SpaceModel {
         hostMap?['profileUrl'];
     final url = value?.toString().trim();
     return url == null || url.isEmpty ? null : url;
+  }
+
+  static String? _hostId(Map<String, dynamic> json) {
+    final host = json['host'];
+    final hostMap = host is Map ? Map<String, dynamic>.from(host) : null;
+    final value =
+        json['host_id'] ??
+        json['hostId'] ??
+        json['owner_id'] ??
+        json['ownerId'] ??
+        hostMap?['id'];
+    final id = value?.toString().trim();
+    return id == null || id.isEmpty ? null : id;
+  }
+
+  static String? _hostWalletAddress(Map<String, dynamic> json) {
+    final host = json['host'];
+    final hostMap = host is Map ? Map<String, dynamic>.from(host) : null;
+    final value =
+        json['host_wallet_address'] ??
+        json['hostWalletAddress'] ??
+        json['owner_wallet_address'] ??
+        json['ownerWalletAddress'] ??
+        hostMap?['wallet_address'] ??
+        hostMap?['walletAddress'];
+    final wallet = value?.toString().trim();
+    return wallet == null || wallet.isEmpty ? null : wallet;
   }
 
   static List<Map<String, dynamic>> _parseFriends(Object? value) {
