@@ -1691,15 +1691,7 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
           if (remoteTales.isNotEmpty) ...[
             _searchSectionLabel(context, 'Tales', Icons.menu_book_rounded),
             for (final tale in remoteTales)
-              _searchResultTile(
-                context,
-                icon: Icons.menu_book_rounded,
-                title: '${tale['content'] ?? ''}',
-                subtitle: 'Tale · ${tale['category'] ?? 'Personal'}',
-                onTap: tale['id'] == null
-                    ? null
-                    : () => context.push('/tale/${tale['id']}', extra: tale),
-              ),
+              _searchTaleResultCard(context, tale),
           ],
           if (remoteComments.isNotEmpty) ...[
             _searchSectionLabel(context, 'Comments', Icons.forum_outlined),
@@ -1938,6 +1930,94 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                     ),
                   ),
                 ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _searchTaleResultCard(
+    BuildContext context,
+    Map<String, dynamic> tale,
+  ) {
+    final colors = Theme.of(context).colorScheme;
+    final author = tale['author'] is Map
+        ? Map<String, dynamic>.from(tale['author'] as Map)
+        : const <String, dynamic>{};
+    final id = (tale['id'] ?? tale['tale_id'] ?? tale['taleId'])?.toString();
+    final authorId =
+        (author['id'] ??
+                author['userId'] ??
+                author['user_id'] ??
+                tale['author_id'] ??
+                tale['authorId'])
+            ?.toString();
+    final authorName =
+        '${author['displayName'] ?? author['display_name'] ?? tale['author_name'] ?? tale['authorName'] ?? author['username'] ?? tale['username'] ?? 'Griot user'}';
+    final avatarUrl =
+        (author['avatarUrl'] ??
+                author['avatar_url'] ??
+                tale['author_avatar_url'] ??
+                tale['authorAvatarUrl'])
+            ?.toString();
+    final category = '${tale['category'] ?? 'Personal'}';
+    final content = '${tale['content'] ?? tale['text'] ?? ''}'.trim();
+    final media = <String>{
+      if ('${tale['media_url'] ?? tale['mediaUrl'] ?? ''}'.trim().isNotEmpty)
+        '${tale['media_url'] ?? tale['mediaUrl']}',
+      ..._mediaUrlList(tale['media_urls'] ?? tale['mediaUrls']),
+    }.toList();
+    final comments =
+        int.tryParse('${tale['comment_count'] ?? tale['commentCount'] ?? 0}') ??
+        0;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: CampTaleCardSurface(
+        margin: EdgeInsets.zero,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: id == null
+              ? null
+              : () => context.push('/tale/$id', extra: tale),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CampTaleHeader(
+                authorName: authorName,
+                avatarUrl: avatarUrl,
+                subtitle: 'Tale',
+                inlineBadges: [
+                  _taleBadge(
+                    context,
+                    category,
+                    colors.surfaceContainerHighest,
+                    foreground: colors.onSurfaceVariant,
+                  ),
+                ],
+                onAuthorTap: authorId == null
+                    ? null
+                    : () => context.push('/camp/profile/$authorId'),
+                menu: const SizedBox.shrink(),
+              ),
+              const SizedBox(height: 10),
+              CampTaleText(text: content, fontSize: 17),
+              if (media.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                _buildTaleGallery(context, media),
+              ],
+              const SizedBox(height: 10),
+              Divider(
+                height: 1,
+                color: colors.outlineVariant.withValues(alpha: .35),
+              ),
+              const SizedBox(height: 4),
+              CampTaleActionButton(
+                icon: Icons.forum_outlined,
+                label: '$comments',
+                tooltip: 'Comments',
+                onTap: id == null ? null : () => context.push('/tale/$id'),
+              ),
             ],
           ),
         ),
