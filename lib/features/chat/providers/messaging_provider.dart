@@ -3695,6 +3695,9 @@ class MessagingProvider extends ChangeNotifier {
       unawaited(_markIncomingMessagesAsRead(conversationId, messages));
 
       notifyListeners();
+      // Persist the cleared badge immediately so returning to Chat Home does
+      // not briefly resurrect a stale unread count from the local cache.
+      unawaited(_messageCache.saveConversations(_conversations));
     }
 
     // Clear the server-side unread state as well. The loaded page may only
