@@ -550,8 +550,12 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                 '${item['coTellCount'] ?? item['co_tell_count'] ?? 0}',
               ) ??
               0,
-          retellSourceId: (item['retellSourceId'] ?? item['retell_source_id'])
-              ?.toString(),
+          retellSourceId:
+              (item['retellSourceId'] ??
+                      item['retell_source_id'] ??
+                      item['retellOfTaleId'] ??
+                      item['retell_of_tale_id'])
+                  ?.toString(),
           retellSourceContent:
               (item['retellSourceContent'] ?? item['retell_source_content'])
                   ?.toString(),
@@ -608,7 +612,11 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
             item['retellSourceMediaUrls'] ??
                 item['retell_source_media_urls'] ??
                 retellSource['mediaUrls'] ??
-                retellSource['media_urls'],
+                retellSource['media_urls'] ??
+                retellSource['mediaUrl'] ??
+                retellSource['media_url'] ??
+                item['retellSourceMediaUrl'] ??
+                item['retell_source_media_url'],
           ),
           threadOriginalAuthorName:
               (item['threadOriginalAuthorName'] ??
@@ -2716,6 +2724,7 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                   tale.retellSourceContent != null &&
                   tale.retellSourceContent!.trim().isNotEmpty) ...[
                 CampTaleReshareCard(
+                  sourceTaleId: tale.retellSourceId,
                   sourceAuthorName: tale.retellSourceAuthorName ?? '',
                   sourceAuthorUsername: tale.retellSourceAuthorUsername,
                   sourceAuthorIsPlus: tale.retellSourceAuthorIsPlus,

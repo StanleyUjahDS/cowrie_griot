@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../../core/ui/widgets/griot_branded_container.dart';
 import '../../../core/ui/widgets/griot_avatar.dart';
@@ -6,6 +7,7 @@ import '../../../core/ui/widgets/griot_plus_badge.dart';
 import '../../../core/ui/widgets/griot_pioneer_badge.dart';
 import '../../../core/ui/widgets/native_ad.dart';
 import '../../../core/theme/app_text.dart';
+import '../services/messaging_api_service.dart';
 
 /// One scroll contract for Camp surfaces. Keeping the parent physics explicit
 /// prevents the feed, profile and reader from feeling like three different
@@ -63,6 +65,7 @@ class CampTaleCardSurface extends StatelessWidget {
 class CampTaleReshareCard extends StatelessWidget {
   final String label;
   final String sourceAuthorName;
+  final String? sourceTaleId;
   final String? sourceAuthorUsername;
   final String? sourceAuthorSubtitle;
   final bool sourceAuthorIsPlus;
@@ -78,6 +81,7 @@ class CampTaleReshareCard extends StatelessWidget {
     super.key,
     this.label = 'Retold from another Tale',
     required this.sourceAuthorName,
+    this.sourceTaleId,
     this.sourceAuthorUsername,
     this.sourceAuthorSubtitle,
     this.sourceAuthorIsPlus = false,
@@ -92,6 +96,68 @@ class CampTaleReshareCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Older API deployments returned only retell text. Hydrate the canonical
+    // source Tale when identity or media is missing so a retell never becomes
+    // a text-only orphan card.
+    if (sourceTaleId != null &&
+        (sourceAuthorName.trim().isEmpty || sourceMediaUrls.isEmpty)) {
+      return FutureBuilder<Map<String, dynamic>>(
+        future: context.read<MessagingApiService>().getTale(sourceTaleId!),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return _buildCard(context);
+          }
+          final source = snapshot.data!;
+          final author = source['author'] is Map
+              ? Map<String, dynamic>.from(source['author'] as Map)
+              : const <String, dynamic>{};
+          final media = <String>[
+            if (source['mediaUrl'] != null) source['mediaUrl'].toString(),
+            if (source['media_url'] != null) source['media_url'].toString(),
+            if (source['mediaUrls'] is List)
+              ...(source['mediaUrls'] as List).map((value) => value.toString()),
+            if (source['media_urls'] is List)
+              ...(source['media_urls'] as List).map(
+                (value) => value.toString(),
+              ),
+          ].where((value) => value.trim().isNotEmpty).toSet().toList();
+          return CampTaleReshareCard(
+            label: label,
+            sourceTaleId: null,
+            sourceAuthorName: sourceAuthorName.trim().isEmpty
+                ? '${author['displayName'] ?? author['display_name'] ?? source['displayName'] ?? source['display_name'] ?? 'Original creator'}'
+                : sourceAuthorName,
+            sourceAuthorUsername:
+                sourceAuthorUsername ??
+                (author['username'] ?? source['username'])?.toString(),
+            sourceAuthorIsPlus:
+                sourceAuthorIsPlus ||
+                author['isPlus'] == true ||
+                author['is_plus'] == true,
+            sourceAuthorIsPioneer:
+                sourceAuthorIsPioneer ||
+                author['isPioneer'] == true ||
+                author['is_pioneer'] == true,
+            sourceAuthorAvatarUrl:
+                sourceAuthorAvatarUrl ??
+                (author['avatarUrl'] ??
+                        author['avatar_url'] ??
+                        source['avatarUrl'] ??
+                        source['avatar_url'])
+                    ?.toString(),
+            sourceText: sourceText,
+            sourceMediaUrls: sourceMediaUrls.isEmpty ? media : sourceMediaUrls,
+            onAuthorTap: onAuthorTap,
+            onSourceTap: onSourceTap,
+            mediaBuilder: mediaBuilder,
+          );
+        },
+      );
+    }
+    return _buildCard(context);
+  }
+
+  Widget _buildCard(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return InkWell(
       onTap: onSourceTap,

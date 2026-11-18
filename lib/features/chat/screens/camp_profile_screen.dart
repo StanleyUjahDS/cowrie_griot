@@ -2206,6 +2206,7 @@ class _CampProfileScreenState extends State<CampProfileScreen>
     final sourceId =
         '${tale['retellSourceId'] ?? tale['retell_source_id'] ?? ''}'.trim();
     return CampTaleReshareCard(
+      sourceTaleId: sourceId.isEmpty ? null : sourceId,
       sourceAuthorName: authorName ?? '',
       sourceAuthorUsername: authorUsername.isEmpty ? null : authorUsername,
       sourceAuthorIsPlus:

@@ -2437,6 +2437,7 @@ class _TalePublicScreenState extends State<TalePublicScreen>
         sourceAuthorMap['is_pioneer'] == true;
     if (source.isEmpty) return const SizedBox.shrink();
     return CampTaleReshareCard(
+      sourceTaleId: sourceId,
       sourceAuthorName: sourceAuthor,
       sourceAuthorUsername: sourceAuthorUsername.isEmpty
           ? null
