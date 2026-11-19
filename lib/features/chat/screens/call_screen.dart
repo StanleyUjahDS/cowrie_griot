@@ -2202,16 +2202,26 @@ class _CallScreenState extends State<CallScreen> {
   }
 
   void _startCallHeartbeat() {
-    if (widget.conversationType == 'space' || _callId == null) return;
+    if (widget.conversationType != 'space' && _callId == null) return;
     _callHeartbeatTimer?.cancel();
     _callHeartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      final id = _callId;
-      if (id == null || _cleaningUp || !_started) return;
-      unawaited(
-        RealtimeCallService(
-          context.read<ApiClient>(),
-        ).updateStatus(id, 'active').catchError((_) {}),
-      );
+      if (_cleaningUp || !_started) return;
+      if (widget.conversationType == 'space') {
+        unawaited(
+          context
+              .read<MessagingApiService>()
+              .heartbeatCampfire(widget.conversationId)
+              .catchError((_) {}),
+        );
+      } else {
+        final id = _callId;
+        if (id == null) return;
+        unawaited(
+          RealtimeCallService(
+            context.read<ApiClient>(),
+          ).updateStatus(id, 'active').catchError((_) {}),
+        );
+      }
     });
   }
 

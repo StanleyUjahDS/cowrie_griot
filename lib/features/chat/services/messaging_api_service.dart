@@ -695,6 +695,10 @@ class MessagingApiService {
     await _apiClient.post(ApiConfig.messagingCampfireLeave(id));
   }
 
+  Future<void> heartbeatCampfire(String id) async {
+    await _apiClient.post(ApiConfig.messagingCampfireHeartbeat(id));
+  }
+
   Future<List<SpaceParticipant>> getCampfireParticipants(String id) async {
     final response = await _apiClient.get(
       ApiConfig.messagingCampfireParticipants(id),

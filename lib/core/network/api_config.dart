@@ -472,6 +472,8 @@ class ApiConfig {
       '$messagingBase/campfires/$id/join';
   static String messagingCampfireLeave(String id) =>
       '$messagingBase/campfires/$id/leave';
+  static String messagingCampfireHeartbeat(String id) =>
+      '$messagingBase/campfires/$id/heartbeat';
   static String messagingCampfireParticipants(String id) =>
       '$messagingBase/campfires/$id/participants';
   static String messagingCampfireComments(String id) =>
