@@ -173,6 +173,19 @@ class AppRouter {
               : null,
         ),
       ),
+      // Social share aliases (tweet/post) resolve to the same canonical Tale
+      // reader. Keeping these routes registered prevents a cold-start red
+      // screen before app_links hands the URL to DeepLinkService.
+      GoRoute(
+        path: '/tweet/:taleId',
+        builder: (context, state) =>
+            TalePublicScreen(taleId: state.pathParameters['taleId']!),
+      ),
+      GoRoute(
+        path: '/post/:taleId',
+        builder: (context, state) =>
+            TalePublicScreen(taleId: state.pathParameters['taleId']!),
+      ),
 
       // Public links may reach GoRouter before app_links emits the platform
       // link. Register their shapes explicitly so a cold start never falls

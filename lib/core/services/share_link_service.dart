@@ -46,6 +46,20 @@ class ShareLinkService {
     return '$_origin/profile/${Uri.encodeComponent(id)}';
   }
 
+  /// Canonical public link for a Tale. Keep social shares on the same URL so
+  /// web, iOS Universal Links and Android App Links resolve identically.
+  static String tale(String taleId) {
+    return '$_origin/tale/${Uri.encodeComponent(taleId.trim())}';
+  }
+
+  static String campProfile(String identifier) {
+    return '$_origin/camp/profile/${Uri.encodeComponent(_pathValue(identifier) ?? identifier.trim())}';
+  }
+
+  static String campfire(String campfireId) {
+    return '$_origin/campfires/${Uri.encodeComponent(campfireId.trim())}';
+  }
+
   static String? _username(String? value) {
     final normalized = _pathValue(value);
     return normalized == null || normalized.isEmpty ? null : normalized;

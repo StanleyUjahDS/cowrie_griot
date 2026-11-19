@@ -157,7 +157,9 @@ class DeepLinkService {
     // of treating the link as an unknown profile/community destination.
     if (normalizedPath.startsWith('/tale/') ||
         normalizedPath.startsWith('/tales/') ||
-        normalizedPath.startsWith('/camp/tales/')) {
+        normalizedPath.startsWith('/camp/tales/') ||
+        normalizedPath.startsWith('/tweet/') ||
+        normalizedPath.startsWith('/post/')) {
       final taleId = _lastPathSegment(path);
       if (taleId.isEmpty) return;
       _openTaleWhenReady(taleId);
@@ -493,7 +495,9 @@ class DeepLinkService {
 
     if (normalizedPath.startsWith('/tale/') ||
         normalizedPath.startsWith('/tales/') ||
-        normalizedPath.startsWith('/camp/tales/')) {
+        normalizedPath.startsWith('/camp/tales/') ||
+        normalizedPath.startsWith('/tweet/') ||
+        normalizedPath.startsWith('/post/')) {
       final taleId = _lastPathSegment(path);
       if (taleId.isEmpty) return;
       if (savePending) await _savePendingDestination(uri);
@@ -544,6 +548,8 @@ class DeepLinkService {
         path.startsWith('/tale/') ||
         path.startsWith('/tales/') ||
         path.startsWith('/camp/tales/') ||
+        path.startsWith('/tweet/') ||
+        path.startsWith('/post/') ||
         path.startsWith('/profile/') ||
         path.startsWith('/group/') ||
         path.startsWith('/circle/') ||

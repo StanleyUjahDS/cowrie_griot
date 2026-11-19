@@ -18,6 +18,7 @@ import '../../../core/ui/widgets/griot_branded_container.dart';
 import '../../../core/ui/widgets/griot_plus_badge.dart';
 import '../../../core/ui/widgets/griot_pioneer_badge.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/services/share_link_service.dart';
 import '../../../core/services/navigation_scroll_service.dart';
 import '../../auth/auth_controller.dart';
 import '../../users/models/user_model.dart';
@@ -1732,9 +1733,7 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                       _toggleProfilePin(taleId);
                     } else if (value == 'copy' && taleId != null) {
                       Clipboard.setData(
-                        ClipboardData(
-                          text: 'https://griot.network/tale/$taleId',
-                        ),
+                        ClipboardData(text: ShareLinkService.tale(taleId)),
                       );
                       NotificationService.showInfo(
                         context,
@@ -2036,7 +2035,7 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                               : () => SharePlus.instance.share(
                                   ShareParams(
                                     text:
-                                        'Read this Tale on Griot:\nhttps://griot.network/tale/$taleId',
+                                        'Read this Tale on Griot:\n${ShareLinkService.tale(taleId)}',
                                   ),
                                 ),
                         ),

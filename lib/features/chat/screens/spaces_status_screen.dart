@@ -17,6 +17,7 @@ import '../../../core/ui/widgets/griot_branded_container.dart';
 import '../../../core/ui/widgets/griot_avatar.dart';
 import '../../../core/ui/widgets/griot_feed_media.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/services/share_link_service.dart';
 import '../../../core/services/navigation_scroll_service.dart';
 import '../models/space_model.dart';
 import '../models/chat_user.dart';
@@ -2207,7 +2208,7 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                           : () => SharePlus.instance.share(
                               ShareParams(
                                 text:
-                                    'Read this Tale on Griot:\nhttps://griot.network/tale/$id',
+                                    'Read this Tale on Griot:\n${ShareLinkService.tale(id)}',
                               ),
                             ),
                     ),
@@ -3364,7 +3365,7 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                           : () => SharePlus.instance.share(
                               ShareParams(
                                 text:
-                                    'Read this Tale on Griot:\nhttps://griot.network/tale/${tale.id}',
+                                    'Read this Tale on Griot:\n${ShareLinkService.tale(tale.id!)}',
                               ),
                             ),
                     ),
@@ -3534,9 +3535,7 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
   Future<void> _copyTaleLink(_LocalTale tale) async {
     final taleId = tale.id;
     if (taleId == null || taleId.isEmpty) return;
-    await Clipboard.setData(
-      ClipboardData(text: 'https://griot.network/camp/tales/$taleId'),
-    );
+    await Clipboard.setData(ClipboardData(text: ShareLinkService.tale(taleId)));
     if (mounted) NotificationService.showInfo(context, 'Tale link copied.');
   }
 
