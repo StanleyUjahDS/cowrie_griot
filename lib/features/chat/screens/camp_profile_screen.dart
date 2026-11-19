@@ -2912,10 +2912,15 @@ class _CampProfileScreenState extends State<CampProfileScreen>
               ),
             ),
           ),
-          // A comment is its own normal comment card. Reshares and all Tale
-          // interactions use the same canonical Tale card as the feed/profile;
-          // the compact row above is the only extra activity indication.
-          if (isComment) commentCard else targetCard,
+          // Comments show the parent Tale preview first, followed by the
+          // user's comment. This keeps the interaction understandable without
+          // forcing a jump to another screen, while preserving the same Tale
+          // card treatment used by the feed and profile.
+          if (isComment) ...[
+            if (hasTargetTale) targetCard,
+            commentCard,
+          ] else
+            targetCard,
         ],
       ),
     );
