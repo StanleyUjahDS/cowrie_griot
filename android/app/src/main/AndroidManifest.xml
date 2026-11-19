@@ -18,6 +18,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <!-- Required by Android 14+ when a call publishes a screen-capture stream. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
@@ -84,6 +86,9 @@
                 <data android:scheme="griot" android:host="campfire" />
                 <data android:scheme="griot" android:host="spaces" />
                 <data android:scheme="griot" android:host="profile" />
+                <data android:scheme="griot" android:host="camp" />
+                <data android:scheme="griot" android:host="tale" />
+                <data android:scheme="griot" android:host="tales" />
                 <data android:scheme="griot" android:host="group" />
                 <data android:scheme="griot" android:host="circle" />
                 <data android:scheme="griot" android:host="channel" />
@@ -104,6 +109,14 @@
                 <data android:scheme="https" android:host="www.griot.network" android:pathPrefix="/campfire/" />
                 <data android:scheme="https" android:host="griot.network" android:pathPrefix="/spaces/" />
                 <data android:scheme="https" android:host="www.griot.network" android:pathPrefix="/spaces/" />
+                <data android:scheme="https" android:host="griot.network" android:pathPrefix="/camp/profile/" />
+                <data android:scheme="https" android:host="www.griot.network" android:pathPrefix="/camp/profile/" />
+                <data android:scheme="https" android:host="griot.network" android:pathPrefix="/tale/" />
+                <data android:scheme="https" android:host="www.griot.network" android:pathPrefix="/tale/" />
+                <data android:scheme="https" android:host="griot.network" android:pathPrefix="/tales/" />
+                <data android:scheme="https" android:host="www.griot.network" android:pathPrefix="/tales/" />
+                <data android:scheme="https" android:host="griot.network" android:pathPrefix="/camp/tales/" />
+                <data android:scheme="https" android:host="www.griot.network" android:pathPrefix="/camp/tales/" />
             </intent-filter>
 
             <!-- Receive content shared from WhatsApp, Telegram, browsers, and other apps. -->
@@ -176,7 +189,7 @@
         <!-- FCM Notification Metadata -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
-            android:resource="@mipmap/ic_launcher" />
+            android:resource="@drawable/ic_stat_griot" />
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@color/notification_icon_color" />
