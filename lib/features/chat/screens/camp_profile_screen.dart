@@ -2711,44 +2711,116 @@ class _CampProfileScreenState extends State<CampProfileScreen>
           )
         : const SizedBox.shrink();
     final commentCard = isComment
-        ? Padding(
-            padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-            child: CampTaleCommentSurface(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  CampTaleHeader(
-                    authorName: profileAuthor?.effectiveName ?? 'Griot user',
-                    avatarUrl: profileAuthor?.avatarUrl,
-                    subtitle: 'Comment',
-                    menu: const SizedBox.shrink(),
-                    onAuthorTap: profileAuthor == null
-                        ? null
-                        : () => context.push(
-                            '/user/profile',
-                            extra: profileAuthor,
+        ? CampTaleCommentSurface(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CampTaleHeader(
+                  authorName: profileAuthor?.effectiveName ?? 'Griot user',
+                  avatarUrl: profileAuthor?.avatarUrl,
+                  isPlus: profileAuthor?.isPlus == true,
+                  isPioneer: profileAuthor?.isPioneer == true,
+                  subtitle: [
+                    if (profileAuthor?.formattedUsername.isNotEmpty == true)
+                      profileAuthor!.formattedUsername,
+                    if (item['created_at'] != null)
+                      _taleTime(item['created_at']),
+                  ].join(' · '),
+                  onAuthorTap: profileAuthor == null
+                      ? null
+                      : () => context.push(
+                          '/camp/profile/${Uri.encodeComponent(profileAuthor.id)}',
+                        ),
+                  menu: PopupMenuButton<String>(
+                    tooltip: 'Comment options',
+                    icon: const Icon(Icons.more_horiz_rounded, size: 20),
+                    onSelected: (value) {
+                      if (value == 'view' && targetId != null) {
+                        context.push('/tale/$targetId');
+                      }
+                    },
+                    itemBuilder: (_) => [
+                      PopupMenuItem(
+                        value: 'view',
+                        enabled: targetId != null,
+                        child: const ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(Icons.open_in_new_rounded),
+                          title: Text('View parent Tale'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  attribution: targetId == null
+                      ? null
+                      : TextButton.icon(
+                          onPressed: () => context.push('/tale/$targetId'),
+                          icon: const Icon(
+                            Icons.subdirectory_arrow_right_rounded,
+                            size: 16,
                           ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${item['summary'] ?? ''}'.trim(),
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  TextButton.icon(
-                    onPressed: targetId == null
-                        ? null
-                        : () => context.push('/tale/$targetId'),
-                    icon: const Icon(Icons.open_in_new_rounded, size: 17),
-                    label: const Text('View parent Tale'),
-                    style: TextButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          label: const Text('Commented on a Tale'),
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                ),
+                const SizedBox(height: 9),
+                CampTaleText(
+                  key: ValueKey('activity-comment-${entityId ?? targetId}'),
+                  text: '${item['summary'] ?? item['content'] ?? ''}'.trim(),
+                ),
+                const SizedBox(height: 12),
+                Divider(
+                  height: 1,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.outlineVariant.withValues(alpha: .35),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Expanded(
+                      child: CampTaleActionButton(
+                        icon: Icons.thumb_up_alt_outlined,
+                        label: '${field('upvote_count', 'upvoteCount') ?? 0}',
+                        tooltip: 'Comment upvotes',
+                        onTap: null,
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                    Expanded(
+                      child: CampTaleActionButton(
+                        icon: Icons.thumb_down_alt_outlined,
+                        label:
+                            '${field('downvote_count', 'downvoteCount') ?? 0}',
+                        tooltip: 'Comment downvotes',
+                        onTap: null,
+                      ),
+                    ),
+                    Expanded(
+                      child: CampTaleActionButton(
+                        icon: Icons.reply_rounded,
+                        label: 'Reply',
+                        tooltip: 'Open Tale conversation',
+                        onTap: targetId == null
+                            ? null
+                            : () => context.push('/tale/$targetId'),
+                      ),
+                    ),
+                    Expanded(
+                      child: CampTaleActionButton(
+                        icon: Icons.repeat_rounded,
+                        label: '${field('retell_count', 'retellCount') ?? 0}',
+                        tooltip: 'Comment retells',
+                        onTap: null,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           )
         : const SizedBox.shrink();
