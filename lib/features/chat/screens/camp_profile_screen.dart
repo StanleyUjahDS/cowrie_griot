@@ -2779,56 +2779,93 @@ class _CampProfileScreenState extends State<CampProfileScreen>
             ),
           )
         : const SizedBox.shrink();
-    return CampTaleCardSurface(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: EdgeInsets.zero,
+    final activityTitle = type == 'saved'
+        ? 'Saved ${isCampfire ? 'Campfire' : 'Tale'}'
+        : isComment
+        ? 'Commented on a Tale'
+        : type == 'like'
+        ? 'Upvoted a Tale'
+        : type == 'downvote'
+        ? 'Downvoted a Tale'
+        : '${item['summary'] ?? 'Activity'}';
+    final activitySubtitle = isComment
+        ? 'Your comment in the Tale conversation'
+        : (type == 'saved' ? 'Saved to your Camp list' : label);
+    final activityRoute = isComment && targetId != null
+        ? '/tale/$targetId'
+        : isTale && entityId != null
+        ? '/tale/$entityId'
+        : isCampfire && entityId != null
+        ? '/campfires'
+        : hasTargetTale
+        ? '/tale/$targetId'
+        : null;
+
+    // The activity label is deliberately outside the content cards. Wrapping
+    // a full Tale card in another CampTaleCardSurface made interactions look
+    // like a card inside a card and created excessive padding in Camp.
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ListTile(
-            leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
-            title: Text(
-              type == 'saved'
-                  ? 'Saved ${isCampfire ? 'Campfire' : 'Tale'}'
-                  : isComment
-                  ? 'Commented on a Tale'
-                  : type == 'like'
-                  ? 'Upvoted a Tale'
-                  : type == 'downvote'
-                  ? 'Downvoted a Tale'
-                  : '${item['summary'] ?? 'Activity'}',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            subtitle: Text(
-              isComment
-                  ? 'Your comment in the Tale conversation'
-                  : (type == 'saved' ? 'Saved to your Camp list' : label),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            trailing:
-                (isTale || isCampfire || isComment || hasTargetTale) &&
-                    (entityId != null || targetId != null)
-                ? const Icon(Icons.chevron_right_rounded)
-                : null,
-            onTap: entityId == null
+          InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: activityRoute == null
                 ? null
-                : isTale
-                ? () => context.push('/tale/$entityId')
-                : isCampfire
-                ? () => context.push('/campfires')
-                : isComment
-                ? () => context.push('/tale/${targetId ?? entityId}')
-                : hasTargetTale
-                ? () => context.push('/tale/$targetId')
-                : null,
+                : () => context.push(activityRoute),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+              child: Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: .12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      icon,
+                      size: 18,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          activityTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          activitySubtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (activityRoute != null)
+                    const Icon(Icons.chevron_right_rounded, size: 20),
+                ],
+              ),
+            ),
           ),
-          // A comment is the user's primary interaction, so show it first;
-          // the canonical parent Tale follows immediately beneath it. Other
-          // activity types show their Tale card directly.
-          if (isComment) commentCard else targetCard,
-          if (isComment) targetCard,
+          // Comments are shown first, followed by the canonical parent Tale.
+          // Other interactions show only the normal shared Tale card.
+          if (isComment) commentCard,
+          if (isComment && hasTargetTale) const SizedBox(height: 2),
+          targetCard,
         ],
       ),
     );
