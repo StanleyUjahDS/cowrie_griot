@@ -227,9 +227,11 @@ class ApiClient {
       }
 
       throw ApiException(
-        message: data is Map
-            ? (data['message'] ?? 'Upload failed')
-            : 'Upload failed',
+        message: _friendlyApiMessage(
+          response.statusCode,
+          data,
+          fallback: 'Upload failed. Please try again.',
+        ),
         statusCode: response.statusCode,
         data: data,
       );
@@ -461,15 +463,7 @@ class ApiClient {
     // SERVER ERROR
     // ==========================================================
 
-    String message = 'Request failed.';
-
-    if (data is Map<String, dynamic>) {
-      final serverMessage = data['message'];
-
-      if (serverMessage is String && serverMessage.isNotEmpty) {
-        message = serverMessage;
-      }
-    }
+    final message = _friendlyApiMessage(response.statusCode, data);
 
     if (kDebugMode) {
       debugPrint('API ERROR: $message');
@@ -481,6 +475,53 @@ class ApiClient {
       statusCode: response.statusCode,
       data: data,
     );
+  }
+
+  /// Keep internal database/provider errors out of feature state and UI.
+  /// Feature-specific, human-readable messages from the API are preserved.
+  String _friendlyApiMessage(
+    int statusCode,
+    dynamic data, {
+    String fallback = 'Request failed. Please try again.',
+  }) {
+    final serverMessage = data is Map
+        ? data['message']?.toString().trim()
+        : null;
+    final lower = (serverMessage ?? '').toLowerCase();
+    final technical =
+        lower.contains('sql') ||
+        lower.contains('constraint') ||
+        lower.contains('stack trace') ||
+        lower.contains('internal server error') ||
+        lower.contains('exception') ||
+        lower.contains('syntax error');
+
+    if (statusCode >= 500 ||
+        technical ||
+        serverMessage == null ||
+        serverMessage.isEmpty) {
+      if (statusCode >= 500 &&
+          (lower.contains('reaction') || lower.contains('vote'))) {
+        return 'Could not save your reaction. Please try again.';
+      }
+      return fallback;
+    }
+    if (statusCode == 403) {
+      return 'You do not have permission to do that.';
+    }
+    if (statusCode == 404) {
+      return 'That content is no longer available.';
+    }
+    if (statusCode == 409) {
+      return 'This changed while you were viewing it. Please try again.';
+    }
+    if (statusCode == 413) {
+      return 'That file is too large. Please choose a smaller one.';
+    }
+    if (statusCode == 429) {
+      return 'You are doing that too often. Please try again shortly.';
+    }
+    return serverMessage;
   }
 
   // ============================================================
