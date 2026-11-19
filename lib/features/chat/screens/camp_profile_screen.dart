@@ -677,6 +677,9 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                     case 'drafts':
                       context.push('/camp/tales/drafts');
                       break;
+                    case 'settings':
+                      context.push('/settings/camp-profile');
+                      break;
                     case 'profile':
                       if (user != null) {
                         context.push('/user/profile', extra: user);
@@ -700,6 +703,15 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                         contentPadding: EdgeInsets.zero,
                         leading: Icon(Icons.drafts_outlined),
                         title: Text('Tale drafts'),
+                      ),
+                    ),
+                  if (!widget.isPublic)
+                    const PopupMenuItem(
+                      value: 'settings',
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.tune_rounded),
+                        title: Text('Camp profile settings'),
                       ),
                     ),
                   if (user != null)

@@ -793,6 +793,16 @@ class AppRouter {
         },
       ),
 
+      // Camp Profile opens the same profile editor used by account settings.
+      // Keep this as a dedicated route so the Camp Profile menu has a stable
+      // destination without duplicating profile-editing logic.
+      GoRoute(
+        path: '/settings/camp-profile',
+        builder: (context, state) {
+          return const AccountDetailsScreen();
+        },
+      ),
+
       GoRoute(
         path: '/settings/chat-settings',
         builder: (_, _) => const ChatSettingsScreen(),
