@@ -64,7 +64,7 @@ class _ReputationScreenState extends State<ReputationScreen> {
 
       final shareLink = ShareLinkService.referral(referralCode);
       final shareText =
-          'My status on the Griot app: ${reputation.tier.name}! 🦡\n\nJoin the Cowrie Protocol legacy: $shareLink';
+          'My reputation on Griot: ${reputation.tier.name}! 🦡\n\nJoin the Griot community: $shareLink';
 
       await SharePlus.instance.share(
         ShareParams(files: [XFile(file.path)], text: shareText),
@@ -217,11 +217,11 @@ class _ReputationScreenState extends State<ReputationScreen> {
         children:
             [
                   _buildPrestigeHero(reputation, colors, text),
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 16),
                   _buildProgressionCard(reputation, colors, text),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 16),
                   _buildJourneyGuide(context, reputation),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
                   _buildFooter(colors, text),
                 ]
                 .animate(interval: 50.ms)
@@ -236,122 +236,78 @@ class _ReputationScreenState extends State<ReputationScreen> {
     ColorScheme colors,
     TextTheme text,
   ) {
-    return Center(
-      child: Column(
-        children: [
-          const SizedBox(height: 10),
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              Container(
-                    width: 150,
-                    height: 150,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppColors.parseHexColor(
-                        reputation.tier.badgeColor,
-                      ).withValues(alpha: 0.05),
-                    ),
-                  )
-                  .animate(onPlay: (c) => c.repeat())
-                  .scale(
-                    begin: const Offset(0.8, 0.8),
-                    end: const Offset(1.3, 1.3),
-                    duration: 3.seconds,
-                  )
-                  .fadeOut(),
-              Container(
-                width: 135,
-                height: 135,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: AppColors.parseHexColor(
-                      reputation.tier.badgeColor,
-                    ).withValues(alpha: 0.1),
-                  ),
-                ),
-              ),
-              SizedBox(
-                width: 120,
-                height: 120,
-                child: CircularProgressIndicator(
-                  value: 1.0,
-                  strokeWidth: 4,
-                  color: colors.onSurface.withValues(alpha: 0.05),
-                ),
-              ),
-              SizedBox(
-                width: 120,
-                height: 120,
-                child: TweenAnimationBuilder<double>(
-                  tween: Tween<double>(begin: 0, end: reputation.progress),
-                  duration: 1800.ms,
-                  curve: Curves.elasticOut,
-                  builder: (context, value, _) => CircularProgressIndicator(
-                    value: value,
-                    strokeWidth: 6,
-                    strokeCap: StrokeCap.round,
-                    color: AppColors.parseHexColor(reputation.tier.badgeColor),
-                  ),
-                ),
-              ),
-              Container(
-                    width: 90,
-                    height: 90,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          AppColors.parseHexColor(reputation.tier.badgeColor),
-                          AppColors.parseHexColor(
-                            reputation.tier.badgeColor,
-                          ).withValues(alpha: 0.85),
-                        ],
-                      ),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.4),
-                        width: 2.5,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.parseHexColor(
-                            reputation.tier.badgeColor,
-                          ).withValues(alpha: 0.5),
-                          blurRadius: 30,
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      Icons.workspace_premium_rounded,
-                      size: 46,
-                      color: Colors.white,
-                    ),
-                  )
-                  .animate(onPlay: (c) => c.repeat())
-                  .shimmer(delay: 2.seconds, duration: 2.seconds),
-            ],
+    final tierColor = AppColors.parseHexColor(reputation.tier.badgeColor);
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(22),
+        border: Border(
+          top: BorderSide(color: tierColor.withValues(alpha: .7), width: 1.4),
+          bottom: BorderSide(
+            color: tierColor.withValues(alpha: .7),
+            width: 1.4,
           ),
-          const SizedBox(height: 24),
-          Text(
-            reputation.tier.name.toUpperCase(),
-            style: text.titleMedium?.copyWith(
-              fontWeight: FontWeight.w900,
-              letterSpacing: 2.0,
-              color: AppColors.parseHexColor(reputation.tier.badgeColor),
+        ),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 88,
+            height: 88,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                CircularProgressIndicator(
+                  value: reputation.progress,
+                  strokeWidth: 6,
+                  strokeCap: StrokeCap.round,
+                  color: tierColor,
+                  backgroundColor: colors.onSurface.withValues(alpha: .08),
+                ),
+                CircleAvatar(
+                  radius: 30,
+                  backgroundColor: tierColor,
+                  child: Icon(
+                    Icons.workspace_premium_rounded,
+                    color: Colors.white,
+                    size: 30,
+                  ),
+                ),
+              ],
             ),
-          ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.3, end: 0),
-          const SizedBox(height: 12),
-          Text(
-            'Earn trust, grow your legacy.',
-            style: text.labelMedium?.copyWith(
-              color: colors.onSurfaceVariant.withValues(alpha: 0.5),
-              letterSpacing: 1.0,
-              fontWeight: FontWeight.w600,
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'YOUR REPUTATION',
+                  style: text.labelSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.2,
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  reputation.tier.name,
+                  style: text.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: tierColor,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  '${reputation.points.toStringAsFixed(0)} points · ${(reputation.progress * 100).toInt()}% to next rank',
+                  style: text.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
-          ).animate().fadeIn(delay: 800.ms),
+          ),
         ],
       ),
     );
@@ -528,7 +484,7 @@ class _ReputationScreenState extends State<ReputationScreen> {
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              'Higher tiers unlock exclusive benefits and mining boosts within the network.',
+              'Higher tiers unlock exclusive reputation benefits within the network.',
               style: text.bodySmall?.copyWith(
                 color: colors.onSurfaceVariant,
                 fontSize: 11,
@@ -596,8 +552,8 @@ class _ReputationScreenState extends State<ReputationScreen> {
 
   String _tierRules(ReputationTier tier) {
     final multiplier = tier.miningMultiplier.toStringAsFixed(3);
-    return 'Mining activity: complete one eligible session every 3 hours. '
-        'This tier weights your base mining reward at $multiplier× '
+    return 'Reputation activity: complete eligible sessions to build your standing. '
+        'This tier applies a $multiplier× reputation factor '
         '(${tier.reputationBonusLabel}).';
   }
 
@@ -676,7 +632,7 @@ class _ReputationScreenState extends State<ReputationScreen> {
   }
 
   String _multiplierLabel(ReputationTier tier) {
-    return '${tier.miningMultiplier.toStringAsFixed(3)}× mining';
+    return '${tier.miningMultiplier.toStringAsFixed(3)}× reputation';
   }
 
   Widget _tierMetaChip(
