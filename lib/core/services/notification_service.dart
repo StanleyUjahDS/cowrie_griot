@@ -3,6 +3,82 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:toastification/toastification.dart';
 import '../ui/widgets/griot_avatar.dart';
 
+/// WhatsApp-style notification identity: the sender avatar is primary and
+/// Griot's launcher icon is a small branded badge on its lower edge.
+class _NotificationIdentity extends StatelessWidget {
+  const _NotificationIdentity({
+    required this.avatarUrl,
+    required this.fallbackIcon,
+    required this.primary,
+    required this.surface,
+  });
+
+  final String? avatarUrl;
+  final IconData fallbackIcon;
+  final Color primary;
+  final Color surface;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasAvatar = avatarUrl != null && avatarUrl!.trim().isNotEmpty;
+    final avatar = hasAvatar
+        ? GriotAvatar(
+            avatarUrl: avatarUrl,
+            radius: 21,
+            backgroundColor: primary.withValues(alpha: 0.13),
+          )
+        : Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: primary.withValues(alpha: 0.13),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(fallbackIcon, color: primary, size: 21),
+          );
+
+    return SizedBox(
+      width: 48,
+      height: 48,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(left: 1, top: 1, child: avatar),
+          Positioned(
+            right: -1,
+            bottom: -1,
+            child: Container(
+              width: 18,
+              height: 18,
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                color: surface,
+                shape: BoxShape.circle,
+                border: Border.all(color: surface, width: 1.5),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x33000000),
+                    blurRadius: 3,
+                    offset: Offset(0, 1),
+                  ),
+                ],
+              ),
+              child: ClipOval(
+                child: Image.asset(
+                  'assets/coins_logo/ic_launcher.png',
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) =>
+                      Icon(Icons.apps_rounded, size: 11, color: primary),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class NotificationService {
   static DateTime? _lastCampfireScheduledAt;
 
@@ -17,6 +93,7 @@ class NotificationService {
     required String title,
     required String message,
     required IconData icon,
+    String? avatarUrl,
     VoidCallback? onTap,
   }) {
     final colors = Theme.of(context).colorScheme;
@@ -56,14 +133,11 @@ class NotificationService {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            color: colors.primary.withValues(alpha: 0.13),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(icon, color: colors.primary, size: 21),
+                        _NotificationIdentity(
+                          avatarUrl: avatarUrl,
+                          fallbackIcon: icon,
+                          primary: colors.primary,
+                          surface: colors.surface,
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -225,7 +299,7 @@ class NotificationService {
   static void showError(BuildContext context, String message) {
     _replaceActiveToast();
     final colors = Theme.of(context).colorScheme;
-    final parsedMessage = _parseErrorMessage(message);
+    final parsedMessage = friendlyError(message);
 
     toastification.show(
       context: context,
@@ -534,13 +608,64 @@ class NotificationService {
   // ERROR PARSER (INTERNAL)
   // ============================================================
 
-  static String _parseErrorMessage(String rawMessage) {
+  /// Converts API/client failures into copy that is safe and understandable
+  /// in the UI. Never expose HTTP status codes, SQL, JSON, URLs, or stack
+  /// traces to users. Callers may pass either an exception or an already
+  /// formatted action message (for example, "Could not save reaction: $e").
+  static String friendlyError(
+    Object error, {
+    String fallback = 'Something went wrong. Please try again.',
+  }) {
+    final raw = error.toString();
+    final parsed = _parseErrorMessage(raw, fallback: fallback);
+    return parsed.isEmpty ? fallback : parsed;
+  }
+
+  static String _parseErrorMessage(
+    String rawMessage, {
+    String fallback = 'Something went wrong. Please try again.',
+  }) {
     var msg = rawMessage.trim();
     if (msg.startsWith('Exception: ')) msg = msg.substring(11);
     if (msg.startsWith('Transaction failed: ')) msg = msg.substring(20);
     if (msg.startsWith('Swap failed: ')) msg = msg.substring(13);
 
     final lower = msg.toLowerCase();
+    final statusMatch = RegExp(
+      r'(?:apiexception\s*\()?\s*(?:status(?:\s*code)?\s*[:=]?\s*)?(4\d{2}|5\d{2})',
+    ).firstMatch(lower);
+    final status = int.tryParse(statusMatch?.group(1) ?? '');
+    if (status != null) {
+      if (status == 401) {
+        return 'Your session has expired. Please sign in again.';
+      }
+      if (status == 403) {
+        return 'You do not have permission to do that.';
+      }
+      if (status == 404) {
+        return 'That content is no longer available.';
+      }
+      if (status == 409) {
+        return 'This changed while you were viewing it. Please try again.';
+      }
+      if (status == 413) {
+        return 'That file is too large. Please choose a smaller one.';
+      }
+      if (status == 429) {
+        return 'You are doing that too often. Please try again shortly.';
+      }
+      if (status >= 500) {
+        if (lower.contains('reaction') || lower.contains('vote')) {
+          return 'Could not save your reaction. Please try again.';
+        }
+        if (lower.contains('comment')) {
+          return 'Could not save your comment. Please try again.';
+        }
+        return 'Griot is having trouble completing that. Please try again.';
+      }
+      return fallback;
+    }
+
     if (lower.contains('insufficient funds')) {
       return "Insufficient funds for gas fees.";
     }
@@ -551,16 +676,46 @@ class NotificationService {
       return "Transaction canceled.";
     }
 
+    if (lower.contains('no unique or exclusion constraint') ||
+        lower.contains('violates ') ||
+        lower.contains('syntax error') ||
+        lower.contains('sqlstate') ||
+        lower.contains('stack trace') ||
+        lower.contains('internal server error')) {
+      if (lower.contains('reaction') || lower.contains('vote')) {
+        return 'Could not save your reaction. Please try again.';
+      }
+      return 'Griot is having trouble completing that. Please try again.';
+    }
+
+    if (lower.contains('unable to connect') ||
+        lower.contains('connection refused') ||
+        lower.contains('network is unreachable') ||
+        lower.contains('timed out') ||
+        lower.contains('timeout')) {
+      return 'Connection problem. Check your internet and try again.';
+    }
+
     if (lower.contains('transaction=') ||
         lower.contains('code=') ||
         lower.contains('version=')) {
       final regExp = RegExp(r'"message"\s*:\s*"([^"]+)"');
       final match = regExp.firstMatch(msg);
       if (match != null && match.groupCount >= 1) {
-        return _parseErrorMessage(match.group(1)!);
+        return _parseErrorMessage(match.group(1)!, fallback: fallback);
       }
       return "Blockchain error. Check your gas balance.";
     }
-    return msg;
+
+    // Do not render raw exception wrappers or structured response bodies.
+    if (lower.contains('apiexception') ||
+        lower.contains('status code') ||
+        lower.contains('http://') ||
+        lower.contains('https://') ||
+        lower.startsWith('{') ||
+        lower.contains('exception:')) {
+      return fallback;
+    }
+    return msg.isEmpty ? fallback : msg;
   }
 }
