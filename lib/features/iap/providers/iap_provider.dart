@@ -193,10 +193,11 @@ class IapProvider extends ChangeNotifier {
 
   Future<void> _restoreStorePurchases({bool bestEffort = true}) async {
     try {
-      if (Platform.isIOS) {
+      if (Platform.isIOS && !bestEffort) {
         // StoreKit 2 can keep the transaction on the App Store while the
-        // local queue is stale. Synchronise first so Restore Purchases can
-        // replay the transaction to purchaseStream.
+        // local queue is stale. Only an explicit user-initiated restore may
+        // synchronise with Apple: calling sync() during every app startup
+        // repeatedly opens the Apple ID sign-in prompt.
         final addition = _iap
             .getPlatformAddition<InAppPurchaseStoreKitPlatformAddition>();
         try {

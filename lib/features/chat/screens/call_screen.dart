@@ -802,6 +802,10 @@ class _CallScreenState extends State<CallScreen> {
       await ZegoExpressEngine.instance.startSoundLevelMonitor(
         config: ZegoSoundLevelConfig(100, true),
       );
+      // Reset playback to the SDK's full stream level for every call. This
+      // survives a previous call that left a per-stream volume reduced and
+      // prevents Campfire speakers sounding quiet on loudspeaker.
+      await ZegoExpressEngine.instance.setAllPlayStreamVolume(100);
       await ZegoExpressEngine.instance.setAudioRouteToSpeaker(_speakerEnabled);
       try {
         _audioRoute = await ZegoExpressEngine.instance.getAudioRouteType();
@@ -1116,6 +1120,7 @@ class _CallScreenState extends State<CallScreen> {
     final next = !_speakerEnabled;
     try {
       await ZegoExpressEngine.instance.setAudioRouteToSpeaker(next);
+      await ZegoExpressEngine.instance.setAllPlayStreamVolume(100);
       if (mounted && !_cleaningUp) {
         final route = await ZegoExpressEngine.instance.getAudioRouteType();
         setState(() {

@@ -52,6 +52,10 @@ class CallMediaSession {
 
   Future<String> publish(String userId) async {
     final streamId = 'griot-$userId-${DateTime.now().millisecondsSinceEpoch}';
+    // Keep the sender at the SDK's normal full capture level.  A reduced
+    // capture level is otherwise carried into Campfires and makes the host
+    // sound quiet even when listeners select loudspeaker.
+    await ZegoExpressEngine.instance.setCaptureVolume(100);
     await ZegoExpressEngine.instance.startPublishingStream(streamId);
     return streamId;
   }
