@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../providers/mining_provider.dart';
 import '../providers/reputation_provider.dart';
 import '../../../core/services/navigation_scroll_service.dart';
@@ -436,6 +437,12 @@ class _MinerScreenState extends State<MinerScreen> {
 
                     const SizedBox(height: 48),
 
+                    // Cowrie is the earnable mining reward. Reputation points
+                    // determine standing and multipliers; they are separate.
+                    _CowrieRewardCard(status: status),
+
+                    const SizedBox(height: 16),
+
                     // Keep the governance-token link below the live mining
                     // timer so the primary reputation action stays first.
                     const _HbadgEcosystemCard(),
@@ -493,6 +500,79 @@ class _MinerScreenState extends State<MinerScreen> {
                   .fade(duration: 400.ms)
                   .slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
         ),
+      ),
+    );
+  }
+}
+
+class _CowrieRewardCard extends StatelessWidget {
+  const _CowrieRewardCard({required this.status});
+
+  final MiningStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    String amount(double value) =>
+        value.toStringAsFixed(value == value.roundToDouble() ? 0 : 4);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerLow.withValues(alpha: .78),
+        borderRadius: BorderRadius.circular(20),
+        border: Border(
+          top: BorderSide(color: colors.primary.withValues(alpha: .5)),
+          bottom: BorderSide(color: colors.primary.withValues(alpha: .5)),
+        ),
+      ),
+      child: Row(
+        children: [
+          SvgPicture.asset(
+            'assets/coins_logo/Cowrie.svg',
+            width: 34,
+            height: 34,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'COWRIE REWARDS',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Earned from eligible mining activity',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                amount(status.availableBalance),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              Text(
+                'available',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

@@ -94,6 +94,8 @@ class MiningStatus {
       rewardPool: _parseOptionalDouble(
         json['rewardPool'] ?? json['reward_pool'] ?? json['pool'],
       ),
+      // Mining rewards are denominated in Cowrie. Reputation points are a
+      // separate standing score and are not token balances.
       currency: (json['currency'])?.toString() ?? 'COWRIE',
       canMine: _parseBool(json['canMine'] ?? json['can_mine'], true),
       nextAvailableAt: _parseDateTime(

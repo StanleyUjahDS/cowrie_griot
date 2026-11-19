@@ -23,7 +23,7 @@ class MiningRulesScreen extends StatelessWidget {
     return GradientScaffold(
       appBar: AppBar(
         title: const Text(
-          'COWRIE Activity Rules',
+          'Reputation Activity Rules',
           style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
         ),
         centerTitle: true,
@@ -34,31 +34,6 @@ class MiningRulesScreen extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          Positioned(
-            right: -80,
-            bottom: 40,
-            child: Opacity(
-              opacity: 0.03,
-              child: Image.asset(
-                'assets/cowrie_images/Cowrie5.png',
-                width: 300,
-                fit: BoxFit.contain,
-              ),
-            ),
-          ),
-          Positioned(
-            left: -40,
-            top: 200,
-            child: Opacity(
-              opacity: 0.02,
-              child: Image.asset(
-                'assets/cowrie_images/Cowrie9.png',
-                width: 250,
-                fit: BoxFit.contain,
-              ),
-            ),
-          ),
-
           SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
             child: Column(
@@ -91,7 +66,7 @@ class MiningRulesScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 20),
                       const Text(
-                        'Cloud-Based COWRIE Activity',
+                        'Cloud-Based Reputation Activity',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 24,
@@ -101,7 +76,7 @@ class MiningRulesScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       const Text(
-                        'Take part in the daily community activity cycle and build COWRIE reputation without using your device hardware or battery.',
+                        'Take part in the daily community activity cycle to build reputation without using your device hardware or battery.',
                         style: TextStyle(
                           color: Colors.white70,
                           fontSize: 15,
@@ -133,34 +108,34 @@ class MiningRulesScreen extends StatelessWidget {
                 _buildRuleItem(
                   context,
                   icon: Icons.groups_rounded,
-                  title: 'Daily Community Allocation',
+                  title: 'Daily Reputation Progress',
                   description:
-                      'The daily COWRIE allocation recognises participation across the community. Your share reflects your activity for that day.',
+                      'Your reputation score recognises meaningful participation across the Griot community. Your progress reflects your activity for the day.',
                 ),
 
                 const SizedBox(height: 40),
 
-                _buildSectionHeader(context, 'MINING ACTIVITY RULES'),
+                _buildSectionHeader(context, 'REPUTATION ACTIVITY RULES'),
                 _buildRuleItem(
                   context,
                   icon: Icons.timer_rounded,
-                  title: 'One session every 3 hours',
+                  title: 'One activity session every 3 hours',
                   description:
-                      'Complete an eligible cloud-mining session after the cooldown. Each accepted session adds weighted participation and reputation points.',
+                      'Complete an eligible activity session after the cooldown. Each accepted session adds weighted participation and reputation points.',
                 ),
                 _buildRuleItem(
                   context,
                   icon: Icons.play_circle_outline_rounded,
-                  title: 'Rewarded activity confirmation',
+                  title: 'Activity confirmation',
                   description:
                       'When a reward ad is required, it must finish successfully before the session is recorded. Closing or failing the ad does not grant activity credit.',
                 ),
                 _buildRuleItem(
                   context,
                   icon: Icons.pie_chart_rounded,
-                  title: 'Daily pool allocation',
+                  title: 'Reputation progression',
                   description:
-                      'Your final COWRIE share is based on your weighted activity compared with the whole community for that mining day. The displayed amount is an estimate until settlement.',
+                      'Your reputation progression is based on weighted activity compared with the community. Your tier and benefits update as activity is confirmed.',
                 ),
                 if (mining.activities.isNotEmpty) ...[
                   const SizedBox(height: 8),
@@ -177,7 +152,7 @@ class MiningRulesScreen extends StatelessWidget {
 
                 const SizedBox(height: 16),
 
-                _buildSectionHeader(context, 'MULTIPLIER BONUSES'),
+                _buildSectionHeader(context, 'REPUTATION FACTORS'),
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
@@ -241,7 +216,7 @@ class MiningRulesScreen extends StatelessWidget {
                   context,
                   icon: Icons.shield_rounded,
                   text:
-                      'COWRIE is a community reputation score. It has no cash value and cannot be transferred, traded, redeemed, withdrawn, or converted to cryptocurrency.',
+                      'Reputation is a community standing score, separate from Cowrie rewards. Eligible mining activity can earn Cowrie, but rewards are not guaranteed and reputation points themselves are not money or a cryptocurrency balance.',
                 ),
 
                 const SizedBox(height: 80),
@@ -362,7 +337,7 @@ class MiningRulesScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      '${tier.miningMultiplier.toStringAsFixed(3)}× mining multiplier',
+                      '${tier.miningMultiplier.toStringAsFixed(3)}× reputation factor',
                       style: TextStyle(
                         color: colors.onSurfaceVariant,
                         fontSize: 12,
