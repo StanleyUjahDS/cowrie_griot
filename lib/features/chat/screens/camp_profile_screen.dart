@@ -2626,7 +2626,18 @@ class _CampProfileScreenState extends State<CampProfileScreen>
     final savedTarget = type == 'saved'
         ? '${item['summary'] ?? ''}'.toLowerCase()
         : type.toLowerCase();
-    final isTale = savedTarget == 'tale' || savedTarget == 'post';
+    final isReshare = {
+      'retell',
+      'retelling',
+      'repost',
+      'reposted',
+      'quote',
+      'quote_tweet',
+      'quote_post',
+      'co_tell',
+      'cotell',
+    }.contains(type);
+    final isTale = savedTarget == 'tale' || savedTarget == 'post' || isReshare;
     final isCampfire = savedTarget == 'campfire' || savedTarget == 'space';
     final isComment = savedTarget == 'comment' || savedTarget == 'reply';
     // Comments/replies are activity entities themselves, but their primary
@@ -2652,7 +2663,9 @@ class _CampProfileScreenState extends State<CampProfileScreen>
         _loadedPublicUser ??
         widget.profileUser ??
         context.read<UserProvider>().user;
-    final icon = isTale
+    final icon = isReshare
+        ? Icons.repeat_rounded
+        : isTale
         ? Icons.menu_book_rounded
         : isCampfire
         ? Icons.local_fire_department_rounded
@@ -2663,7 +2676,9 @@ class _CampProfileScreenState extends State<CampProfileScreen>
         : type == 'saved'
         ? Icons.bookmark_border_rounded
         : Icons.forum_outlined;
-    final label = isTale
+    final label = isReshare
+        ? 'Retell'
+        : isTale
         ? 'Tale'
         : isCampfire
         ? 'Campfire'
@@ -2687,6 +2702,11 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                 'targetAuthorAvatarUrl',
               ),
               'media_url': field('target_media_url', 'targetMediaUrl'),
+              'retellSourceId': field('retell_source_id', 'retellSourceId'),
+              'retellSourceContent': field(
+                'retell_source_content',
+                'retellSourceContent',
+              ),
             },
           )
         : const SizedBox.shrink();
@@ -2732,7 +2752,11 @@ class _CampProfileScreenState extends State<CampProfileScreen>
             ),
           )
         : const SizedBox.shrink();
-    final activityTitle = type == 'saved'
+    final activityTitle = isReshare
+        ? (type == 'repost' || type == 'reposted'
+              ? 'Reposted a Tale'
+              : 'Retold a Tale')
+        : type == 'saved'
         ? 'Saved ${isCampfire ? 'Campfire' : 'Tale'}'
         : isComment
         ? 'Commented on a Tale'
@@ -2741,7 +2765,9 @@ class _CampProfileScreenState extends State<CampProfileScreen>
         : type == 'downvote'
         ? 'Downvoted a Tale'
         : '${item['summary'] ?? 'Activity'}';
-    final activitySubtitle = isComment
+    final activitySubtitle = isReshare
+        ? 'Shown as a normal Tale card with the original creator attached'
+        : isComment
         ? 'Your comment in the Tale conversation'
         : (type == 'saved' ? 'Saved to your Camp list' : label);
     final activityRoute = isComment && targetId != null
@@ -2814,11 +2840,10 @@ class _CampProfileScreenState extends State<CampProfileScreen>
               ),
             ),
           ),
-          // Comments are shown first, followed by the canonical parent Tale.
-          // Other interactions show only the normal shared Tale card.
-          if (isComment) commentCard,
-          if (isComment && hasTargetTale) const SizedBox(height: 2),
-          targetCard,
+          // A comment is its own normal comment card. Reshares and all Tale
+          // interactions use the same canonical Tale card as the feed/profile;
+          // the compact row above is the only extra activity indication.
+          if (isComment) commentCard else targetCard,
         ],
       ),
     );
