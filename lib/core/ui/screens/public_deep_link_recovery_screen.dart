@@ -25,6 +25,8 @@ class PublicDeepLinkRecoveryScreen extends StatefulWidget {
         path.startsWith('/camp/tales/') ||
         path.startsWith('/tale/') ||
         path.startsWith('/tales/') ||
+        path.startsWith('/tweet/') ||
+        path.startsWith('/post/') ||
         path.startsWith('/profile/') ||
         path.startsWith('/channel/') ||
         path.startsWith('/circle/') ||
@@ -49,6 +51,8 @@ class PublicDeepLinkRecoveryScreen extends StatefulWidget {
       'spaces',
       'tale',
       'tales',
+      'tweet',
+      'post',
     };
     if (!supportedHosts.contains(host)) return uri;
 

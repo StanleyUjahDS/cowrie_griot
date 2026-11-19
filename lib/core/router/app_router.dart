@@ -186,6 +186,36 @@ class AppRouter {
         builder: (context, state) =>
             TalePublicScreen(taleId: state.pathParameters['taleId']!),
       ),
+      GoRoute(
+        path: '/campfires/:destinationId',
+        builder: (context, state) =>
+            PublicDeepLinkRecoveryScreen(uri: state.uri),
+      ),
+      GoRoute(
+        path: '/campfire/:destinationId',
+        builder: (context, state) =>
+            PublicDeepLinkRecoveryScreen(uri: state.uri),
+      ),
+      GoRoute(
+        path: '/spaces/:destinationId',
+        builder: (context, state) =>
+            PublicDeepLinkRecoveryScreen(uri: state.uri),
+      ),
+      GoRoute(
+        path: '/campfires/tale/:destinationId',
+        builder: (context, state) =>
+            PublicDeepLinkRecoveryScreen(uri: state.uri),
+      ),
+      GoRoute(
+        path: '/campfires/tales/:destinationId',
+        builder: (context, state) =>
+            PublicDeepLinkRecoveryScreen(uri: state.uri),
+      ),
+      GoRoute(
+        path: '/camp/tales/:destinationId',
+        builder: (context, state) =>
+            PublicDeepLinkRecoveryScreen(uri: state.uri),
+      ),
 
       // Public links may reach GoRouter before app_links emits the platform
       // link. Register their shapes explicitly so a cold start never falls
