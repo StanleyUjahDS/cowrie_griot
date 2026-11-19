@@ -78,7 +78,26 @@ class GoldsApiService {
     );
     final data = response['data'];
     if (response['success'] != true || data is! Map) {
-      throw StateError(response['message']?.toString() ?? 'Gold purchase verification failed');
+      throw StateError(
+        response['message']?.toString() ?? 'Gold purchase verification failed',
+      );
+    }
+    return (data['balance'] as num?)?.toInt() ?? 0;
+  }
+
+  Future<int> verifyGooglePurchase({
+    required String productId,
+    required String purchaseToken,
+  }) async {
+    final response = await apiClient.post(
+      ApiConfig.goldsGoogleVerify,
+      body: {'productId': productId, 'purchaseToken': purchaseToken},
+    );
+    final data = response['data'];
+    if (response['success'] != true || data is! Map) {
+      throw StateError(
+        response['message']?.toString() ?? 'Gold purchase verification failed',
+      );
     }
     return (data['balance'] as num?)?.toInt() ?? 0;
   }

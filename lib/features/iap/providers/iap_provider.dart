@@ -47,9 +47,11 @@ class IapProvider extends ChangeNotifier {
   bool get hasPendingVerification => _pendingVerifications.isNotEmpty;
   int get goldPurchaseGeneration => _goldPurchaseGeneration;
 
-  IapProvider({required PlusApiService apiService, required GoldsApiService goldsApiService})
-      : _apiService = apiService,
-        _goldsApiService = goldsApiService {
+  IapProvider({
+    required PlusApiService apiService,
+    required GoldsApiService goldsApiService,
+  }) : _apiService = apiService,
+       _goldsApiService = goldsApiService {
     final purchaseUpdated = _iap.purchaseStream;
     _subscription = purchaseUpdated.listen(
       _onPurchaseUpdate,
@@ -79,9 +81,10 @@ class IapProvider extends ChangeNotifier {
       // 2. Initialize store
       _isStoreAvailable = await _iap.isAvailable();
       if (_isStoreAvailable) {
-        final ProductDetailsResponse response = await _iap.queryProductDetails(
-          {..._productIds, ...goldProductIds},
-        );
+        final ProductDetailsResponse response = await _iap.queryProductDetails({
+          ..._productIds,
+          ...goldProductIds,
+        });
 
         if (response.error != null) {
           debugPrint('IAP: StoreKit error: ${response.error?.message}');
@@ -172,11 +175,6 @@ class IapProvider extends ChangeNotifier {
   }
 
   Future<void> buyGoldProduct(ProductDetails product) async {
-    if (!Platform.isIOS) {
-      _error = 'Gold purchases are currently available on iPhone and iPad.';
-      notifyListeners();
-      return;
-    }
     if (!goldProductIds.contains(product.id)) {
       _error = 'Unsupported Gold package.';
       notifyListeners();
@@ -315,18 +313,38 @@ class IapProvider extends ChangeNotifier {
     _isVerifying = true;
     notifyListeners();
     try {
-      String receipt = purchase.verificationData.localVerificationData.trim();
-      if (Platform.isIOS && receipt.isEmpty) {
-        final addition = _iap.getPlatformAddition<InAppPurchaseStoreKitPlatformAddition>();
-        final refreshed = await addition.refreshPurchaseVerificationData();
-        receipt = refreshed?.localVerificationData.trim() ?? '';
+      if (Platform.isAndroid) {
+        final googleDetails = purchase as GooglePlayPurchaseDetails;
+        final purchaseToken = googleDetails
+            .verificationData
+            .serverVerificationData
+            .trim();
+        if (purchaseToken.isEmpty) {
+          throw StateError('Google Play did not provide a purchase token.');
+        }
+        await _goldsApiService.verifyGooglePurchase(
+          productId: purchase.productID,
+          purchaseToken: purchaseToken,
+        );
+      } else if (Platform.isIOS) {
+        String receipt = purchase.verificationData.localVerificationData.trim();
+        if (receipt.isEmpty) {
+          final addition = _iap
+              .getPlatformAddition<InAppPurchaseStoreKitPlatformAddition>();
+          final refreshed = await addition.refreshPurchaseVerificationData();
+          receipt = refreshed?.localVerificationData.trim() ?? '';
+        }
+        if (receipt.isEmpty) {
+          throw StateError('Apple could not provide a purchase receipt.');
+        }
+        await _goldsApiService.verifyApplePurchase(
+          productId: purchase.productID,
+          transactionId: purchase.purchaseID ?? '',
+          receipt: receipt,
+        );
+      } else {
+        throw StateError('Gold purchases are not available on this platform.');
       }
-      if (receipt.isEmpty) throw StateError('Apple could not provide a purchase receipt.');
-      await _goldsApiService.verifyApplePurchase(
-        productId: purchase.productID,
-        transactionId: purchase.purchaseID ?? '',
-        receipt: receipt,
-      );
       _goldPurchaseGeneration++;
       _error = null;
       return true;
