@@ -309,12 +309,6 @@ class _MinerScreenState extends State<MinerScreen> {
                       ),
                     ),
 
-                    const SizedBox(height: 24),
-
-                    const _HbadgEcosystemCard(),
-
-                    const SizedBox(height: 24),
-
                     Align(
                       alignment: Alignment.center,
                       child: Container(
@@ -441,6 +435,12 @@ class _MinerScreenState extends State<MinerScreen> {
                     ),
 
                     const SizedBox(height: 48),
+
+                    // Keep the governance-token link below the live mining
+                    // timer so the primary reputation action stays first.
+                    const _HbadgEcosystemCard(),
+
+                    const SizedBox(height: 24),
 
                     // 3. Stats Row
                     Row(

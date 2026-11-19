@@ -501,7 +501,7 @@ class MessagingProvider extends ChangeNotifier {
       final mapped = activityEvents.map((event) {
         final walletAddress = event['counterpartyWalletAddress']?.toString();
         final actorName =
-            event['username'] ?? event['displayName'] ?? 'Someone';
+            event['displayName'] ?? event['username'] ?? 'Someone';
         final metadata = event['metadata'] is Map
             ? Map<String, dynamic>.from(event['metadata'])
             : <String, dynamic>{};
@@ -593,6 +593,38 @@ class MessagingProvider extends ChangeNotifier {
           title = 'Mining session complete';
           message = 'Your next mining session is ready to start.';
           icon = Icons.bolt_rounded;
+        } else if (type == 'tale_upvote' || type == 'tale_downvote') {
+          final action = type == 'tale_upvote' ? 'upvoted' : 'downvoted';
+          title = '$actorName $action your Tale';
+          message =
+              'Your Tale received a ${type == 'tale_upvote' ? 'upvote' : 'downvote'}.';
+          icon = type == 'tale_upvote'
+              ? Icons.thumb_up_alt_rounded
+              : Icons.thumb_down_alt_rounded;
+        } else if (type == 'tale_comment' || type == 'tale_reply') {
+          title = type == 'tale_reply'
+              ? '$actorName replied to your Tale'
+              : '$actorName commented on your Tale';
+          message = type == 'tale_reply'
+              ? '$actorName replied to your Tale conversation.'
+              : '$actorName commented on your Tale.';
+          icon = Icons.chat_bubble_outline_rounded;
+        } else if (type == 'tale_retell') {
+          title = '$actorName retold your Tale';
+          message = '$actorName shared your Tale with their audience.';
+          icon = Icons.repeat_rounded;
+        } else if (type == 'tale_cotell') {
+          title = '$actorName added a co-tell';
+          message = '$actorName added a connected part to your Tale.';
+          icon = Icons.account_tree_rounded;
+        } else if (type == 'tale_mention') {
+          title = '$actorName mentioned you in a Tale';
+          message = '$actorName mentioned you in a Griot Tale.';
+          icon = Icons.alternate_email_rounded;
+        } else if (type == 'camp_profile_follow') {
+          title = '$actorName followed your Camp Profile';
+          message = '$actorName is now following your Camp Profile.';
+          icon = Icons.person_add_alt_1_rounded;
         } else {
           title = 'Griot update';
           message = 'You have a new update.';
