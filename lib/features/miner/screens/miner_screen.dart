@@ -306,43 +306,22 @@ class _MinerScreenState extends State<MinerScreen> {
                               ),
                             ],
                           ),
-                        ],
-                      ),
-                    ),
-
-                    Align(
-                      alignment: Alignment.center,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: colors.primary.withValues(alpha: 0.05),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: colors.primary.withValues(alpha: 0.1),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.groups_rounded,
-                              size: 14,
+                          const SizedBox(height: 10),
+                          Text(
+                            '${status.reputation?.points.toStringAsFixed(0) ?? status.pointsToday.toStringAsFixed(0)} Community points',
+                            style: theme.textTheme.titleMedium?.copyWith(
                               color: colors.primary,
+                              fontWeight: FontWeight.w900,
                             ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Community participation · ${status.reputation?.points.toStringAsFixed(0) ?? status.pointsToday.toStringAsFixed(0)} points',
-                              style: TextStyle(
-                                color: colors.primary,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 12,
-                              ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            'Your participation builds this reputation tier',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colors.onSurfaceVariant,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
 
@@ -454,9 +433,8 @@ class _MinerScreenState extends State<MinerScreen> {
                       children: [
                         Expanded(
                           child: _StatCard(
-                            label: 'Activity points',
+                            label: 'Today\'s participation',
                             value:
-                                status.reputation?.points.toStringAsFixed(0) ??
                                 status.pointsToday.toStringAsFixed(0),
                             icon: Icons.auto_awesome_rounded,
                           ),

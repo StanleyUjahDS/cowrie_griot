@@ -538,7 +538,10 @@ class _TalePublicScreenState extends State<TalePublicScreen>
                     visibleRoots[index],
                     replies[visibleRoots[index]['id']?.toString()] ?? const [],
                   ),
-                  if (visibleRoots.length >= 12 && index == 5) ...[
+                  // Keep short conversations uninterrupted. A compact native
+                  // ad appears once after the eighth root comment only when
+                  // the thread is long enough to justify a break.
+                  if (visibleRoots.length >= 10 && index == 7) ...[
                     const SizedBox(height: 8),
                     CampNativeAdCard(
                       key: ValueKey('comments-native-ad-$_commentTargetTaleId'),
