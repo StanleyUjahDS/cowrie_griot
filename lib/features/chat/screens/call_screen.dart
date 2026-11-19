@@ -4887,13 +4887,15 @@ class _CampfireCommentsSheetState extends State<_CampfireCommentsSheet> {
     setState(() => _sending = true);
     try {
       await widget.onSend(text, parentCommentId);
+      // The sheet can be dismissed while the request is in flight.  Never
+      // touch the controller or state after that route has been disposed;
+      // doing so produces the red error screen when returning to the call.
+      if (!mounted) return;
       widget.controller.clear();
-      if (mounted) {
-        setState(() {
-          _replyToId = null;
-          _replyToName = null;
-        });
-      }
+      setState(() {
+        _replyToId = null;
+        _replyToName = null;
+      });
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -4975,7 +4977,10 @@ class _CampfireCommentsSheetState extends State<_CampfireCommentsSheet> {
                   tooltip: 'Close chat',
                   onPressed: () {
                     FocusScope.of(context).unfocus();
-                    Navigator.of(context, rootNavigator: true).pop();
+                    // Pop the modal route hosting this sheet only.  Using the
+                    // root navigator here could pop the call screen beneath
+                    // it when the sheet was opened from a nested navigator.
+                    Navigator.of(context).maybePop();
                   },
                   icon: const Icon(Icons.close_rounded),
                 ),
