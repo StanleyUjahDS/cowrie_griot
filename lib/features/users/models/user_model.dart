@@ -179,6 +179,7 @@ class UserModel {
     String? relationshipStatus,
     bool? isOnline,
     bool? isPlus,
+    bool? isPioneer,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -193,6 +194,7 @@ class UserModel {
       relationshipStatus: relationshipStatus ?? this.relationshipStatus,
       isOnline: isOnline ?? this.isOnline,
       isPlus: isPlus ?? this.isPlus,
+      isPioneer: isPioneer ?? this.isPioneer,
     );
   }
 }
