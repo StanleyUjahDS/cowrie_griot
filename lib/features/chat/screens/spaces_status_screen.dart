@@ -319,6 +319,7 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
   String _taleFeed = 'public';
   late final FocusNode _searchFocusNode;
   Timer? _socketRefreshTimer;
+  Timer? _notificationRefreshTimer;
   bool _chromeVisible = true;
   double _lastFeedOffset = 0;
   late final AnimationController _chromeAnimation;
@@ -443,6 +444,16 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
     _messagingProvider = context.read<MessagingProvider>();
     _campfireRevision = _messagingProvider!.campfireRevision;
     _messagingProvider!.addListener(_onCampfireSocketEvent);
+    // Activity events (likes, comments and follows) are delivered through
+    // the activity API rather than the Campfire socket. Keep the Camp bell
+    // current while this surface is open without rebuilding the feed.
+    _notificationRefreshTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) {
+        final provider = _messagingProvider;
+        if (provider != null) unawaited(provider.refreshNotifications());
+      },
+    );
     _region = 'GLOBAL';
     // Let ApiClient serve its short-lived cache first. A background refresh
     // still reconciles newly-created Campfires, but the cached cards remain
@@ -1153,6 +1164,7 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
     _feedScrollController.dispose();
     NavigationScrollService.instance.removeListener(_onNavigationSignal);
     _socketRefreshTimer?.cancel();
+    _notificationRefreshTimer?.cancel();
     _chromeAnimation.dispose();
     _messagingProvider?.removeListener(_onCampfireSocketEvent);
     _searchFocusNode.dispose();
@@ -1258,6 +1270,8 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
     if (state == AppLifecycleState.resumed && mounted) {
       unawaited(_loadSpaces(forceRefresh: true, silent: true));
       unawaited(_loadUpcomingSpaces(forceRefresh: true, silent: true));
+      final provider = _messagingProvider;
+      if (provider != null) unawaited(provider.refreshNotifications());
     }
   }
 

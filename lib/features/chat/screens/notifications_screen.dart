@@ -16,7 +16,9 @@ import '../models/chat_user.dart';
 import '../utils/tip_display.dart';
 
 class NotificationsScreen extends StatefulWidget {
-  const NotificationsScreen({super.key});
+  final bool campOnly;
+
+  const NotificationsScreen({super.key, this.campOnly = false});
 
   @override
   State<NotificationsScreen> createState() => _NotificationsScreenState();
@@ -130,7 +132,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     if (!mounted) return;
     final provider = Provider.of<MessagingProvider>(context, listen: false);
-    _visitTime = provider.lastSeenNotificationTime;
+    _visitTime = widget.campOnly
+        ? provider.lastSeenCampNotificationTime
+        : provider.lastSeenNotificationTime;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -138,7 +142,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           PushNotificationService.instance.clearDeliveredNotifications(),
         );
         provider.refreshNotifications();
-        provider.markNotificationsSeen();
+        if (widget.campOnly) {
+          provider.markCampNotificationsSeen();
+        } else {
+          provider.markNotificationsSeen();
+        }
       }
     });
   }
@@ -184,6 +192,55 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
+  List<Map<String, dynamic>> _groupCampActivity(
+    List<Map<String, dynamic>> events,
+  ) {
+    final grouped = <String, Map<String, dynamic>>{};
+    final passthrough = <Map<String, dynamic>>[];
+    for (final event in events) {
+      final type = event['type']?.toString().toLowerCase() ?? '';
+      final metadata = event['metadata'] is Map
+          ? Map<String, dynamic>.from(event['metadata'] as Map)
+          : const <String, dynamic>{};
+      final taleId = (metadata['taleId'] ??
+              metadata['tale_id'] ??
+              event['taleId'] ??
+              event['tale_id'])
+          ?.toString();
+      // Reactions on one Tale are more useful as one compact activity row;
+      // comments, retells and follows remain individual conversation items.
+      final isReaction = type == 'tale_upvote' || type == 'tale_downvote';
+      if (!isReaction || taleId == null || taleId.isEmpty) {
+        passthrough.add(event);
+        continue;
+      }
+      final key = '$type:$taleId';
+      final existing = grouped[key];
+      if (existing == null) {
+        grouped[key] = {
+          ...event,
+          '_activityCount': 1,
+          '_activityActors': <String>[
+            (event['displayName'] ?? event['username'] ?? 'Someone').toString(),
+          ],
+        };
+      } else {
+        final count = (existing['_activityCount'] as int? ?? 1) + 1;
+        final actors = (existing['_activityActors'] as List<String>? ?? [])
+          ..add((event['displayName'] ?? event['username'] ?? 'Someone').toString());
+        existing['_activityCount'] = count;
+        existing['_activityActors'] = actors;
+        final current = existing['timestamp'];
+        final next = event['timestamp'];
+        if (current is DateTime && next is DateTime && next.isAfter(current)) {
+          existing['timestamp'] = next;
+          existing['avatarUrl'] = event['avatarUrl'] ?? existing['avatarUrl'];
+        }
+      }
+    }
+    return [...passthrough, ...grouped.values];
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -196,7 +253,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         useSafeArea: false,
         extendBodyBehindAppBar: false,
         appBar: AppBar(
-          title: const Text('Updates'),
+          title: Text(widget.campOnly ? 'Camp updates' : 'Updates'),
           centerTitle: true,
           backgroundColor: colors.surface,
           elevation: 0,
@@ -225,8 +282,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final colors = Theme.of(context).colorScheme;
 
     // Combine all social activity sources
-    final requestItems = provider.requestNotifications;
-    final genericItems = provider.notificationEvents;
+    final requestItems = widget.campOnly
+        ? const <MessageRequest>[]
+        : provider.requestNotifications;
+    final genericItems = widget.campOnly
+        ? _groupCampActivity(provider.notificationEvents
+              .where((event) {
+                final type = event['type']?.toString().toLowerCase() ?? '';
+                return type.startsWith('campfire_') ||
+                    type.startsWith('tale_') ||
+                    type.startsWith('camp_');
+              })
+              .toList(growable: false))
+        : provider.notificationEvents;
 
     final List<dynamic> allItems = [...requestItems, ...genericItems];
     allItems.sort((a, b) {
@@ -368,6 +436,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               // Generic Activity
               title = rawItem['title'];
               subtitle = rawItem['message'];
+              final activityCount = rawItem['_activityCount'] as int? ?? 1;
+              if (activityCount > 1) {
+                final actors = (rawItem['_activityActors'] as List<String>? ?? [])
+                    .take(2)
+                    .join(' and ');
+                final extra = activityCount > 2
+                    ? ' and ${activityCount - 2} others'
+                    : '';
+                title = '$actors$extra reacted to your Tale';
+                subtitle = '$activityCount reactions on the same Tale';
+              }
               timestamp = rawItem['timestamp'];
               icon = rawItem['icon'] ?? Icons.notifications_rounded;
               avatarUrl =
@@ -773,13 +852,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          const Text(
-            'No Updates',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+          Text(
+            widget.campOnly ? 'No Camp updates' : 'No Updates',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 8),
           Text(
-            'New requests, tips, and alerts will appear here.',
+            widget.campOnly
+                ? 'Campfire and Tale activity will appear here.'
+                : 'New requests, tips, and alerts will appear here.',
             style: TextStyle(
               color: colors.onSurfaceVariant.withValues(alpha: 0.6),
               fontWeight: FontWeight.w600,
