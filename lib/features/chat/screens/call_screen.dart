@@ -1318,6 +1318,7 @@ class _CallScreenState extends State<CallScreen> {
         await ZegoExpressEngine.instance.setStreamExtraInfo(
           jsonEncode({'muted': !_audioEnabled, 'screenSharing': false}),
         );
+        await _refreshLocalPreviewCanvas(fit: false);
       } else {
         if (_publishedStreamId == null) {
           _showCallNotice(
@@ -1385,6 +1386,7 @@ class _CallScreenState extends State<CallScreen> {
         await ZegoExpressEngine.instance.setStreamExtraInfo(
           jsonEncode({'muted': !_audioEnabled, 'screenSharing': true}),
         );
+        await _refreshLocalPreviewCanvas(fit: true);
       }
       if (mounted) setState(() => _screenSharing = !_screenSharing);
     } catch (error) {
@@ -1406,7 +1408,7 @@ class _CallScreenState extends State<CallScreen> {
     if (!_engineCreated) return;
     if (_localVideoView != null && _localViewId != null) {
       await ZegoExpressEngine.instance.startPreview(
-        canvas: _callCanvas(_localViewId!),
+        canvas: _callCanvas(_localViewId!, fit: _screenSharing),
       );
       return;
     }
@@ -1419,6 +1421,22 @@ class _CallScreenState extends State<CallScreen> {
       );
     });
     if (mounted) setState(() => _localVideoView = localView);
+  }
+
+  /// Re-apply the native canvas mode when the local track changes between a
+  /// camera frame and a screen frame.  Screen content must use aspect-fit so
+  /// text and app controls are not cropped like a portrait camera tile.
+  Future<void> _refreshLocalPreviewCanvas({required bool fit}) async {
+    final viewId = _localViewId;
+    if (!_engineCreated || viewId == null) return;
+    try {
+      await ZegoExpressEngine.instance.stopPreview();
+      await ZegoExpressEngine.instance.startPreview(
+        canvas: _callCanvas(viewId, fit: fit),
+      );
+    } catch (error) {
+      debugPrint('[Call][screen-share] local preview refresh failed: $error');
+    }
   }
 
   Future<void> _ensureRemoteVideoView(String streamId) async {
