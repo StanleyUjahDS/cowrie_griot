@@ -1931,34 +1931,33 @@ class _TalePublicScreenState extends State<TalePublicScreen>
                                         ],
                                       ),
                                       const SizedBox(height: 6),
-                                      if (viewCount > 0)
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                            bottom: 6,
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              Icon(
-                                                Icons.visibility_outlined,
-                                                size: 15,
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 6,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.visibility_outlined,
+                                              size: 15,
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.onSurfaceVariant,
+                                            ),
+                                            const SizedBox(width: 5),
+                                            Text(
+                                              '${formatTaleViewCount(viewCount)} ${viewCount == 1 ? 'view' : 'views'}',
+                                              style: TextStyle(
                                                 color: Theme.of(
                                                   context,
                                                 ).colorScheme.onSurfaceVariant,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
                                               ),
-                                              const SizedBox(width: 5),
-                                              Text(
-                                                '$viewCount ${viewCount == 1 ? 'view' : 'views'}',
-                                                style: TextStyle(
-                                                  color: Theme.of(context)
-                                                      .colorScheme
-                                                      .onSurfaceVariant,
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
+                                            ),
+                                          ],
                                         ),
+                                      ),
                                       SizedBox(
                                         width: double.infinity,
                                         child: countAction(

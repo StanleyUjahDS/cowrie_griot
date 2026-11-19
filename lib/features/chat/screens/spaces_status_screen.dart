@@ -447,13 +447,12 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
     // Activity events (likes, comments and follows) are delivered through
     // the activity API rather than the Campfire socket. Keep the Camp bell
     // current while this surface is open without rebuilding the feed.
-    _notificationRefreshTimer = Timer.periodic(
-      const Duration(seconds: 30),
-      (_) {
-        final provider = _messagingProvider;
-        if (provider != null) unawaited(provider.refreshNotifications());
-      },
-    );
+    _notificationRefreshTimer = Timer.periodic(const Duration(seconds: 30), (
+      _,
+    ) {
+      final provider = _messagingProvider;
+      if (provider != null) unawaited(provider.refreshNotifications());
+    });
     _region = 'GLOBAL';
     // Let ApiClient serve its short-lived cache first. A background refresh
     // still reconciles newly-created Campfires, but the cached cards remain
@@ -3392,27 +3391,25 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                 height: 1,
                 color: colors.outlineVariant.withValues(alpha: .35),
               ),
-              if (tale.viewCount > 0) ...[
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.visibility_outlined,
-                      size: 15,
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(
+                    Icons.visibility_outlined,
+                    size: 15,
+                    color: colors.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    '${formatTaleViewCount(tale.viewCount)} ${tale.viewCount == 1 ? 'view' : 'views'}',
+                    style: TextStyle(
                       color: colors.onSurfaceVariant,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
                     ),
-                    const SizedBox(width: 5),
-                    Text(
-                      '${tale.viewCount} ${tale.viewCount == 1 ? 'view' : 'views'}',
-                      style: TextStyle(
-                        color: colors.onSurfaceVariant,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
               const SizedBox(height: 4),
               Row(
                 children: [

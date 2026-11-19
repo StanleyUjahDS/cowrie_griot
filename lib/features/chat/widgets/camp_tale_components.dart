@@ -16,6 +16,20 @@ const ScrollPhysics campScrollPhysics = BouncingScrollPhysics(
   parent: AlwaysScrollableScrollPhysics(),
 );
 
+/// Stable, compact view-count wording shared by feed, Camp Profile and the
+/// dedicated Tale reader. Keeping zero visible makes the analytics action
+/// feel live instead of appearing/disappearing as the first view arrives.
+String formatTaleViewCount(int count) {
+  final safe = count < 0 ? 0 : count;
+  if (safe >= 1000000) {
+    return '${(safe / 1000000).toStringAsFixed(safe % 1000000 == 0 ? 0 : 1)}M';
+  }
+  if (safe >= 1000) {
+    return '${(safe / 1000).toStringAsFixed(safe % 1000 == 0 ? 0 : 1)}K';
+  }
+  return '$safe';
+}
+
 /// Shared visual primitives for every Tale surface in Griot Camp.
 ///
 /// Keeping these primitives in one place prevents the public feed, Camp

@@ -1931,27 +1931,25 @@ class _CampProfileScreenState extends State<CampProfileScreen>
                 height: 1,
                 color: colors.outlineVariant.withValues(alpha: .35),
               ),
-              if (viewCount > 0) ...[
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.visibility_outlined,
-                      size: 15,
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(
+                    Icons.visibility_outlined,
+                    size: 15,
+                    color: colors.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    '${formatTaleViewCount(viewCount)} ${viewCount == 1 ? 'view' : 'views'}',
+                    style: TextStyle(
                       color: colors.onSurfaceVariant,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
                     ),
-                    const SizedBox(width: 5),
-                    Text(
-                      '$viewCount ${viewCount == 1 ? 'view' : 'views'}',
-                      style: TextStyle(
-                        color: colors.onSurfaceVariant,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
               const SizedBox(height: 4),
               Row(
                 children: [
