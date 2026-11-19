@@ -114,6 +114,7 @@ class _DMChatScreenState extends State<DMChatScreen> {
   Timer? _visibleDateHeaderTimer;
   bool _loading = false;
   int _initialUnreadCount = 0;
+  bool _newMessagesIndicatorArmed = false;
   String _message = '';
   final ChatDraftStore _draftStore = const ChatDraftStore();
   String? _draftRestoredFor;
@@ -189,7 +190,25 @@ class _DMChatScreenState extends State<DMChatScreen> {
       duration: const Duration(milliseconds: 260),
       curve: Curves.easeOutCubic,
     );
-    if (!_showScrollToBottom) setState(() => _showScrollToBottom = true);
+    if (mounted) {
+      setState(() {
+        _showScrollToBottom = true;
+        _newMessagesIndicatorArmed = true;
+      });
+    }
+  }
+
+  void _clearNewMessagesIndicatorIfRead() {
+    if (!_newMessagesIndicatorArmed ||
+        _initialUnreadCount <= 0 ||
+        !scrollController.hasClients ||
+        scrollController.offset > 24) {
+      return;
+    }
+    setState(() {
+      _initialUnreadCount = 0;
+      _newMessagesIndicatorArmed = false;
+    });
   }
 
   void _closeConversation() {
@@ -602,6 +621,7 @@ class _DMChatScreenState extends State<DMChatScreen> {
 
   void _onScrollChanged() {
     if (!scrollController.hasClients) return;
+    _clearNewMessagesIndicatorIfRead();
     final conversationId = _conversationId;
     if (conversationId != null &&
         scrollController.position.extentAfter < 500 &&
@@ -1289,6 +1309,7 @@ class _DMChatScreenState extends State<DMChatScreen> {
                                           index == unreadBoundary) {
                                         return NewMessagesSeparator(
                                           colorScheme: colorScheme,
+                                          count: _initialUnreadCount,
                                         );
                                       }
                                       final messageIndex =

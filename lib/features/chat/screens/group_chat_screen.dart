@@ -107,6 +107,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   bool _showVisibleDateHeader = false;
   Timer? _visibleDateHeaderTimer;
   int _initialUnreadCount = 0;
+  bool _newMessagesIndicatorArmed = false;
   Map<String, dynamic>? _activeGroupCall;
   final Set<String> _endedGroupCallIds = <String>{};
   Timer? _activeCallRefreshTimer;
@@ -173,7 +174,25 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
       duration: const Duration(milliseconds: 260),
       curve: Curves.easeOutCubic,
     );
-    if (!_showScrollToBottom) setState(() => _showScrollToBottom = true);
+    if (mounted) {
+      setState(() {
+        _showScrollToBottom = true;
+        _newMessagesIndicatorArmed = true;
+      });
+    }
+  }
+
+  void _clearNewMessagesIndicatorIfRead() {
+    if (!_newMessagesIndicatorArmed ||
+        _initialUnreadCount <= 0 ||
+        !scrollController.hasClients ||
+        scrollController.offset > 24) {
+      return;
+    }
+    setState(() {
+      _initialUnreadCount = 0;
+      _newMessagesIndicatorArmed = false;
+    });
   }
 
   Future<void> _loadActiveGroupCall() async {
@@ -366,6 +385,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
 
   void _onScrollChanged() {
     if (!scrollController.hasClients) return;
+    _clearNewMessagesIndicatorIfRead();
     if (scrollController.position.extentAfter < 500 &&
         _messagingProvider?.hasMoreMessages(widget.conversationId) == true) {
       unawaited(_messagingProvider!.loadMessages(widget.conversationId));
@@ -1155,6 +1175,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                                     index == unreadBoundary) {
                                   return NewMessagesSeparator(
                                     colorScheme: colorScheme,
+                                    count: _initialUnreadCount,
                                   );
                                 }
                                 final messageIndex = index > unreadBoundary
