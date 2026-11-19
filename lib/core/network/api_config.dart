@@ -433,6 +433,7 @@ class ApiConfig {
   static String get goldsBalance => '$goldsBase/balance';
   static String get goldsTips => '$goldsBase/tips';
   static String get goldsPlus => '$goldsBase/plus';
+  static String get goldsAppleVerify => '$goldsBase/purchases/apple/verify';
 
   // ==========================================================
   // GROUPS & CHANNELS

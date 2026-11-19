@@ -1076,7 +1076,10 @@ class _GriotCowrieAppState extends State<GriotCowrieApp> {
         // IAP PROVIDER
         // ======================================================
         ChangeNotifierProvider<IapProvider>(
-          create: (_) => IapProvider(apiService: _plusApiService),
+          create: (_) => IapProvider(
+            apiService: _plusApiService,
+            goldsApiService: _goldsApiService,
+          ),
         ),
 
         // ======================================================

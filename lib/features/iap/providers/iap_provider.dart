@@ -6,18 +6,27 @@ import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart';
 import '../models/plus_status_model.dart';
 import '../services/plus_api_service.dart';
+import '../../golds/services/golds_api_service.dart';
 
 class IapProvider extends ChangeNotifier {
   final PlusApiService _apiService;
+  final GoldsApiService _goldsApiService;
   final InAppPurchase _iap = InAppPurchase.instance;
   late StreamSubscription<List<PurchaseDetails>> _subscription;
 
   static const String monthlyId = 'griot_plus_monthly';
   static const String yearlyId = 'griot_plus_yearly';
   static const Set<String> _productIds = {monthlyId, yearlyId};
+  static const Set<String> goldProductIds = {
+    'griot_gold_100',
+    'griot_gold_550',
+    'griot_gold_1200',
+    'griot_gold_2600',
+  };
 
   PlusStatus _status = PlusStatus.none();
   List<ProductDetails> _products = [];
+  List<ProductDetails> _goldProducts = [];
   bool _isStoreAvailable = false;
   bool _isLoading = true;
   bool _isVerifying = false;
@@ -26,16 +35,21 @@ class IapProvider extends ChangeNotifier {
   final Map<String, PurchaseDetails> _pendingVerifications = {};
   final Set<String> _verificationInFlight = {};
   int _verificationGeneration = 0;
+  int _goldPurchaseGeneration = 0;
 
   PlusStatus get status => _status;
   List<ProductDetails> get products => _products;
+  List<ProductDetails> get goldProducts => _goldProducts;
   bool get isStoreAvailable => _isStoreAvailable;
   bool get isLoading => _isLoading;
   bool get isVerifying => _isVerifying;
   String? get error => _error;
   bool get hasPendingVerification => _pendingVerifications.isNotEmpty;
+  int get goldPurchaseGeneration => _goldPurchaseGeneration;
 
-  IapProvider({required PlusApiService apiService}) : _apiService = apiService {
+  IapProvider({required PlusApiService apiService, required GoldsApiService goldsApiService})
+      : _apiService = apiService,
+        _goldsApiService = goldsApiService {
     final purchaseUpdated = _iap.purchaseStream;
     _subscription = purchaseUpdated.listen(
       _onPurchaseUpdate,
@@ -66,7 +80,7 @@ class IapProvider extends ChangeNotifier {
       _isStoreAvailable = await _iap.isAvailable();
       if (_isStoreAvailable) {
         final ProductDetailsResponse response = await _iap.queryProductDetails(
-          _productIds,
+          {..._productIds, ...goldProductIds},
         );
 
         if (response.error != null) {
@@ -78,7 +92,12 @@ class IapProvider extends ChangeNotifier {
             'No subscription products are currently available.',
           );
         } else {
-          _products = response.productDetails;
+          _products = response.productDetails
+              .where((product) => _productIds.contains(product.id))
+              .toList();
+          _goldProducts = response.productDetails
+              .where((product) => goldProductIds.contains(product.id))
+              .toList();
           _products.sort((a, b) => a.id.contains('monthly') ? -1 : 1);
           if ((Platform.isIOS || Platform.isAndroid) &&
               !_initialStoreRestoreRequested) {
@@ -146,6 +165,28 @@ class IapProvider extends ChangeNotifier {
     final PurchaseParam purchaseParam = PurchaseParam(productDetails: product);
     try {
       await _iap.buyNonConsumable(purchaseParam: purchaseParam);
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+    }
+  }
+
+  Future<void> buyGoldProduct(ProductDetails product) async {
+    if (!Platform.isIOS) {
+      _error = 'Gold purchases are currently available on iPhone and iPad.';
+      notifyListeners();
+      return;
+    }
+    if (!goldProductIds.contains(product.id)) {
+      _error = 'Unsupported Gold package.';
+      notifyListeners();
+      return;
+    }
+    try {
+      await _iap.buyConsumable(
+        purchaseParam: PurchaseParam(productDetails: product),
+        autoConsume: true,
+      );
     } catch (e) {
       _error = e.toString();
       notifyListeners();
@@ -230,7 +271,9 @@ class IapProvider extends ChangeNotifier {
   Future<void> _retryPendingVerifications() async {
     final pending = List<PurchaseDetails>.from(_pendingVerifications.values);
     for (final purchase in pending) {
-      final success = await _verifyAndComplete(purchase);
+      final success = goldProductIds.contains(purchase.productID)
+          ? await _verifyGoldAndComplete(purchase)
+          : await _verifyAndComplete(purchase);
       if (success && purchase.pendingCompletePurchase) {
         await _iap.completePurchase(purchase);
       }
@@ -251,7 +294,9 @@ class IapProvider extends ChangeNotifier {
         notifyListeners();
       } else if (purchase.status == PurchaseStatus.purchased ||
           purchase.status == PurchaseStatus.restored) {
-        final success = await _verifyAndComplete(purchase);
+        final success = goldProductIds.contains(purchase.productID)
+            ? await _verifyGoldAndComplete(purchase)
+            : await _verifyAndComplete(purchase);
         if (success && purchase.pendingCompletePurchase) {
           await _iap.completePurchase(purchase);
         }
@@ -261,6 +306,38 @@ class IapProvider extends ChangeNotifier {
           purchase.pendingCompletePurchase) {
         await _iap.completePurchase(purchase);
       }
+    }
+  }
+
+  Future<bool> _verifyGoldAndComplete(PurchaseDetails purchase) async {
+    final key = _purchaseKey(purchase);
+    if (!_verificationInFlight.add(key)) return false;
+    _isVerifying = true;
+    notifyListeners();
+    try {
+      String receipt = purchase.verificationData.localVerificationData.trim();
+      if (Platform.isIOS && receipt.isEmpty) {
+        final addition = _iap.getPlatformAddition<InAppPurchaseStoreKitPlatformAddition>();
+        final refreshed = await addition.refreshPurchaseVerificationData();
+        receipt = refreshed?.localVerificationData.trim() ?? '';
+      }
+      if (receipt.isEmpty) throw StateError('Apple could not provide a purchase receipt.');
+      await _goldsApiService.verifyApplePurchase(
+        productId: purchase.productID,
+        transactionId: purchase.purchaseID ?? '',
+        receipt: receipt,
+      );
+      _goldPurchaseGeneration++;
+      _error = null;
+      return true;
+    } catch (e) {
+      _error = 'Gold verification failed: $e';
+      return false;
+    } finally {
+      _verificationInFlight.remove(key);
+      _isVerifying = false;
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
