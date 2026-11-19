@@ -28,6 +28,7 @@ import '../../golds/services/golds_api_service.dart';
 import '../services/messaging_api_service.dart';
 import '../models/chat_user.dart';
 import '../widgets/camp_tip_sheet.dart';
+import '../widgets/camp_card_shimmer.dart';
 import '../widgets/camp_tale_components.dart';
 import '../widgets/camp_tale_media_gallery.dart';
 import '../widgets/chatting/report_content_sheet.dart';
@@ -1174,7 +1175,7 @@ class _CampProfileScreenState extends State<CampProfileScreen>
 
   Widget _campfiresTab(BuildContext context) {
     if (_loadingCampContent && _campfires.isEmpty) {
-      return const _CampProfileLoadingSkeleton(tale: false);
+      return const CampCardShimmer(tale: false);
     }
     if (_campfires.isNotEmpty) {
       return Column(
@@ -1269,7 +1270,7 @@ class _CampProfileScreenState extends State<CampProfileScreen>
 
   Widget _talesTab(BuildContext context) {
     if (_loadingCampContent && _campTales.isEmpty) {
-      return const _CampProfileLoadingSkeleton(tale: true);
+      return const CampCardShimmer(tale: true);
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

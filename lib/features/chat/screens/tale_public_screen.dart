@@ -16,6 +16,7 @@ import '../models/chat_user.dart';
 import '../widgets/camp_tip_sheet.dart';
 import '../widgets/camp_tale_components.dart';
 import '../widgets/camp_tale_media_gallery.dart';
+import '../widgets/camp_card_shimmer.dart';
 import '../widgets/chatting/link_preview_widget.dart';
 import '../widgets/chatting/report_content_sheet.dart';
 import '../../../core/services/notification_service.dart';
@@ -1350,7 +1351,7 @@ class _TalePublicScreenState extends State<TalePublicScreen>
               future: _taleFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState != ConnectionState.done) {
-                  return const _TaleReaderLoadingSkeleton();
+                  return const CampCardShimmer(tale: true, count: 1);
                 }
                 if (snapshot.hasError ||
                     snapshot.data == null ||
