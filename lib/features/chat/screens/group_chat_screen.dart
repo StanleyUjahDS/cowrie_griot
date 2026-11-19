@@ -26,6 +26,7 @@ import '../widgets/chatting/message_bubble.dart';
 import '../widgets/chatting/reply_swipe.dart';
 import '../widgets/chatting/message_input.dart';
 import '../widgets/chatting/pinned_messages_banner.dart';
+import '../widgets/chat_loading.dart';
 import '../widgets/chatting/tip_sheet.dart';
 import '../widgets/chatting/voice_recording_sheet.dart';
 import '../widgets/conversation_campfire_button.dart';
@@ -365,6 +366,10 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
 
   void _onScrollChanged() {
     if (!scrollController.hasClients) return;
+    if (scrollController.position.extentAfter < 500 &&
+        _messagingProvider?.hasMoreMessages(widget.conversationId) == true) {
+      unawaited(_messagingProvider!.loadMessages(widget.conversationId));
+    }
     _visibleDateHeaderTimer?.cancel();
     if (!_showVisibleDateHeader) {
       setState(() => _showVisibleDateHeader = true);
@@ -1113,125 +1118,144 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                     Expanded(
                       child: Stack(
                         children: [
-                          ListView.builder(
-                            controller: scrollController,
-                            reverse: true,
-                            padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
-                            itemCount:
-                                provider
-                                    .getMessagesForConversation(
-                                      widget.conversationId,
-                                    )
-                                    .length +
-                                (_initialUnreadCount > 0 ? 1 : 0),
-                            itemBuilder: (context, index) {
-                              final messages = provider
+                          if (provider.isLoadingMessages(
+                                widget.conversationId,
+                              ) &&
+                              provider
                                   .getMessagesForConversation(
                                     widget.conversationId,
+                                  )
+                                  .isEmpty)
+                            const ConversationMessagesLoading()
+                          else
+                            ListView.builder(
+                              controller: scrollController,
+                              reverse: true,
+                              padding: const EdgeInsets.fromLTRB(
+                                12,
+                                16,
+                                12,
+                                12,
+                              ),
+                              itemCount:
+                                  provider
+                                      .getMessagesForConversation(
+                                        widget.conversationId,
+                                      )
+                                      .length +
+                                  (_initialUnreadCount > 0 ? 1 : 0),
+                              itemBuilder: (context, index) {
+                                final messages = provider
+                                    .getMessagesForConversation(
+                                      widget.conversationId,
+                                    );
+                                final unreadBoundary = _initialUnreadCount
+                                    .clamp(0, messages.length);
+                                if (unreadBoundary > 0 &&
+                                    index == unreadBoundary) {
+                                  return NewMessagesSeparator(
+                                    colorScheme: colorScheme,
                                   );
-                              final unreadBoundary = _initialUnreadCount.clamp(
-                                0,
-                                messages.length,
-                              );
-                              if (unreadBoundary > 0 &&
-                                  index == unreadBoundary) {
-                                return NewMessagesSeparator(
-                                  colorScheme: colorScheme,
+                                }
+                                final messageIndex = index > unreadBoundary
+                                    ? index - 1
+                                    : index;
+                                final message = messages[messageIndex];
+                                final isMe =
+                                    message.senderId ==
+                                    context.read<UserProvider>().user?.id;
+                                final nextMessage = messageIndex > 0
+                                    ? messages[messageIndex - 1]
+                                    : null;
+                                final prevMessage =
+                                    messageIndex < messages.length - 1
+                                    ? messages[messageIndex + 1]
+                                    : null;
+
+                                final bool isLastInGroup =
+                                    nextMessage == null ||
+                                    nextMessage.senderId != message.senderId;
+                                final bool isFirstInGroup =
+                                    prevMessage == null ||
+                                    prevMessage.senderId != message.senderId;
+                                final startsNewDay =
+                                    messageIndex == messages.length - 1 ||
+                                    message.createdAt.day !=
+                                        messages[messageIndex + 1]
+                                            .createdAt
+                                            .day;
+
+                                // A server/optimistic reconciliation can
+                                // briefly expose the same or an empty id twice.
+                                // GlobalKeys must still be unique per rendered
+                                // row, so suffix duplicate occurrences.
+                                final keyId =
+                                    _messageKeys.containsKey(message.id)
+                                    ? '${message.id}#$messageIndex'
+                                    : message.id;
+                                final messageKey = _messageKeys.putIfAbsent(
+                                  keyId,
+                                  GlobalKey.new,
                                 );
-                              }
-                              final messageIndex = index > unreadBoundary
-                                  ? index - 1
-                                  : index;
-                              final message = messages[messageIndex];
-                              final isMe =
-                                  message.senderId ==
-                                  context.read<UserProvider>().user?.id;
-                              final nextMessage = messageIndex > 0
-                                  ? messages[messageIndex - 1]
-                                  : null;
-                              final prevMessage =
-                                  messageIndex < messages.length - 1
-                                  ? messages[messageIndex + 1]
-                                  : null;
-
-                              final bool isLastInGroup =
-                                  nextMessage == null ||
-                                  nextMessage.senderId != message.senderId;
-                              final bool isFirstInGroup =
-                                  prevMessage == null ||
-                                  prevMessage.senderId != message.senderId;
-                              final startsNewDay =
-                                  messageIndex == messages.length - 1 ||
-                                  message.createdAt.day !=
-                                      messages[messageIndex + 1].createdAt.day;
-
-                              // A server/optimistic reconciliation can
-                              // briefly expose the same or an empty id twice.
-                              // GlobalKeys must still be unique per rendered
-                              // row, so suffix duplicate occurrences.
-                              final keyId = _messageKeys.containsKey(message.id)
-                                  ? '${message.id}#$messageIndex'
-                                  : message.id;
-                              final messageKey = _messageKeys.putIfAbsent(
-                                keyId,
-                                GlobalKey.new,
-                              );
-                              return KeyedSubtree(
-                                key: messageKey,
-                                child: Column(
-                                  children: [
-                                    if (startsNewDay)
-                                      DaySeparator(
-                                        date: message.createdAt,
-                                        colorScheme: colorScheme,
+                                return KeyedSubtree(
+                                  key: messageKey,
+                                  child: Column(
+                                    children: [
+                                      if (startsNewDay)
+                                        DaySeparator(
+                                          date: message.createdAt,
+                                          colorScheme: colorScheme,
+                                        ),
+                                      ReplySwipe(
+                                        key: ValueKey('reply-${message.id}'),
+                                        background: _replySwipeBackground(
+                                          colorScheme,
+                                        ),
+                                        onReply: () => setState(
+                                          () => _replyingTo = message,
+                                        ),
+                                        child: MessageBubble(
+                                          key: ValueKey(message.id),
+                                          message: message,
+                                          isMe: isMe,
+                                          isDark: isDark,
+                                          colorScheme: colorScheme,
+                                          onReply: (m) =>
+                                              setState(() => _replyingTo = m),
+                                          sender:
+                                              _groupMembers[message.senderId],
+                                          memberDirectory: _groupMembers,
+                                          onSenderTap: isMe
+                                              ? null
+                                              : () => _openSenderProfile(
+                                                  message.senderId,
+                                                ),
+                                          onReplyTap:
+                                              message.replyToMessageId == null
+                                              ? null
+                                              : () => _jumpToMessage(
+                                                  message.replyToMessageId!,
+                                                ),
+                                          isHighlighted:
+                                              _highlightedMessageId ==
+                                              message.id,
+                                          conversation: currentConversation,
+                                          canPinMessage: canManageMessages,
+                                          isPinned: provider
+                                              .pinnedMessageIds(
+                                                widget.conversationId,
+                                              )
+                                              .contains(message.id),
+                                          onEdit: () => _beginEditing(message),
+                                          isFirstInGroup: isFirstInGroup,
+                                          isLastInGroup: isLastInGroup,
+                                        ),
                                       ),
-                                    ReplySwipe(
-                                      key: ValueKey('reply-${message.id}'),
-                                      background: _replySwipeBackground(
-                                        colorScheme,
-                                      ),
-                                      onReply: () =>
-                                          setState(() => _replyingTo = message),
-                                      child: MessageBubble(
-                                        key: ValueKey(message.id),
-                                        message: message,
-                                        isMe: isMe,
-                                        isDark: isDark,
-                                        colorScheme: colorScheme,
-                                        onReply: (m) =>
-                                            setState(() => _replyingTo = m),
-                                        sender: _groupMembers[message.senderId],
-                                        memberDirectory: _groupMembers,
-                                        onSenderTap: isMe
-                                            ? null
-                                            : () => _openSenderProfile(
-                                                message.senderId,
-                                              ),
-                                        onReplyTap:
-                                            message.replyToMessageId == null
-                                            ? null
-                                            : () => _jumpToMessage(
-                                                message.replyToMessageId!,
-                                              ),
-                                        isHighlighted:
-                                            _highlightedMessageId == message.id,
-                                        conversation: currentConversation,
-                                        canPinMessage: canManageMessages,
-                                        isPinned: provider
-                                            .pinnedMessageIds(
-                                              widget.conversationId,
-                                            )
-                                            .contains(message.id),
-                                        onEdit: () => _beginEditing(message),
-                                        isFirstInGroup: isFirstInGroup,
-                                        isLastInGroup: isLastInGroup,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
                           if (_visibleMessageDate != null)
                             Positioned(
                               top: 8,

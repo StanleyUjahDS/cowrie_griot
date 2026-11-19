@@ -159,6 +159,7 @@ class MessagingProvider extends ChangeNotifier {
 
   final Map<String, List<ChatMessage>> _messagesByConversation = {};
   final Map<String, bool> _isLoadingMessages = {};
+  final Map<String, bool> _hasMoreMessages = {};
   final Map<String, DateTime> _lastMessageRefreshAt = {};
   final Map<String, List<String>> _pinnedMessageIdsByConversation = {};
 
@@ -414,6 +415,9 @@ class MessagingProvider extends ChangeNotifier {
 
   bool isLoadingMessages(String conversationId) =>
       _isLoadingMessages[conversationId] ?? false;
+
+  bool hasMoreMessages(String conversationId) =>
+      _hasMoreMessages[conversationId] ?? true;
 
   /// Returns immediately when this conversation was refreshed recently. The
   /// socket remains responsible for new messages, while a stale conversation
@@ -2349,12 +2353,19 @@ class MessagingProvider extends ChangeNotifier {
     bool refresh = false,
   }) async {
     if (_isLoadingMessages[conversationId] == true) return;
+    if (!refresh &&
+        _hasMoreMessages[conversationId] == false &&
+        (_messagesByConversation[conversationId]?.isNotEmpty ?? false)) {
+      return;
+    }
+    if (refresh) _hasMoreMessages[conversationId] = true;
 
     // Mark the conversation as loading before any await. Chat entry can be
     // triggered by the route, socket reconnect, and notification handling at
     // nearly the same time; setting this later allowed those callers to start
     // overlapping requests and repaint the chat repeatedly.
     _isLoadingMessages[conversationId] = true;
+    notifyListeners();
 
     try {
       await _messageCache.initialize();
@@ -2383,6 +2394,7 @@ class MessagingProvider extends ChangeNotifier {
         conversationId,
         before: before,
       );
+      _hasMoreMessages[conversationId] = newMessages.length >= 50;
       _lastMessageRefreshAt[conversationId] = DateTime.now();
 
       final beforeFingerprint = jsonEncode(
@@ -2421,6 +2433,7 @@ class MessagingProvider extends ChangeNotifier {
       debugPrint('Error loading messages: $e');
     } finally {
       _isLoadingMessages[conversationId] = false;
+      notifyListeners();
     }
   }
 
