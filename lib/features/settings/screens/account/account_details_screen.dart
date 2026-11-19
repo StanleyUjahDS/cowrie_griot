@@ -4,12 +4,15 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/ui/scaffolds/gradient_scaffold.dart';
 import '../../../users/providers/user_provider.dart';
 import '../../../users/models/user_model.dart';
 import '../../../../core/ui/widgets/griot_branded_container.dart';
+import '../../../chat/services/media_api_service.dart';
+import '../../../chat/services/messaging_api_service.dart';
 
 import 'username_edit_sheet.dart';
 import 'display_name_edit_sheet.dart';
@@ -26,7 +29,9 @@ import '../../../../core/services/notification_service.dart';
 import '../../../../core/services/share_link_service.dart';
 
 class AccountDetailsScreen extends StatefulWidget {
-  const AccountDetailsScreen({super.key});
+  const AccountDetailsScreen({super.key, this.title = 'Your Griot Account'});
+
+  final String title;
 
   @override
   State<AccountDetailsScreen> createState() => _AccountDetailsScreenState();
@@ -88,6 +93,39 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
         await provider.updateBio(value.trim());
       },
     );
+  }
+
+  Future<void> _editProfileBanner(BuildContext context) async {
+    final image = await ImagePicker().pickImage(source: ImageSource.gallery);
+    if (image == null || !context.mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final mediaApi = context.read<MediaApiService>();
+    final messagingApi = context.read<MessagingApiService>();
+    try {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Uploading profile banner…')),
+      );
+      final upload = await mediaApi.uploadMedia(image.path);
+      final mediaId = upload['id']?.toString();
+      if (mediaId == null || mediaId.isEmpty) {
+        throw Exception('The uploaded image did not return a media ID.');
+      }
+      await messagingApi.updateCampProfile(bannerMediaId: mediaId);
+      if (!context.mounted) return;
+      messenger.hideCurrentSnackBar();
+      NotificationService.showSuccess(
+        context,
+        'Profile banner updated. It will appear across Griot Camp.',
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      messenger.hideCurrentSnackBar();
+      NotificationService.showError(
+        context,
+        'Could not update profile banner: $error',
+      );
+    }
   }
 
   String _valueOrFallback(String? value, String fallback) {
@@ -163,8 +201,8 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
 
     return GradientScaffold(
       appBar: AppBar(
-        title: const Text(
-          'Your Griot Account',
+        title: Text(
+          widget.title,
           style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
         ),
         centerTitle: true,
@@ -267,6 +305,15 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
                             : rawBio,
                         trailingIcon: Icons.edit_rounded,
                         onTap: () => _editBio(context, rawBio),
+                      ),
+                      const SettingsDivider(),
+                      ProfileField(
+                        icon: Icons.panorama_outlined,
+                        title: 'Profile Banner',
+                        value:
+                            'Set the banner shown on your Griot Camp profile',
+                        trailingIcon: Icons.add_photo_alternate_outlined,
+                        onTap: () => _editProfileBanner(context),
                       ),
                       const SettingsDivider(),
                       ProfileField(

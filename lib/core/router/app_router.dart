@@ -799,7 +799,7 @@ class AppRouter {
       GoRoute(
         path: '/settings/camp-profile',
         builder: (context, state) {
-          return const AccountDetailsScreen();
+          return const AccountDetailsScreen(title: 'Camp Profile Settings');
         },
       ),
 
