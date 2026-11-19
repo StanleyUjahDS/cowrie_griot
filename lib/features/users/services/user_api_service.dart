@@ -7,12 +7,33 @@ import '../models/user_model.dart';
 
 class UserApiService {
   static const Set<String> _preferenceKeys = {
+    'push_notifications',
     'chat_notifications',
+    'message_requests',
+    'message_reactions',
+    'call_notifications',
+    'campfire_notifications',
+    'social_notifications',
+    'crypto_notifications',
     'message_preview',
     'read_receipts',
     'typing_indicators',
     'online_status_visibility',
     'profile_discoverability',
+    'tale_upvotes',
+    'tale_downvotes',
+    'tale_comments',
+    'tale_retells',
+    'tale_cotells',
+    'tale_mentions',
+    'campfire_invites',
+    'campfire_speaker_requests',
+    'campfire_reminders',
+    'campfire_live_activity',
+    'camp_profile_follows',
+    'camp_tips',
+    'status_replies',
+    'status_reactions',
   };
 
   final ApiClient _apiClient;
@@ -186,6 +207,27 @@ class UserApiService {
       return _parsePreferences(data);
     }
     return {};
+  }
+
+  Future<List<String>> getCampInterests() async {
+    final response = await _apiClient.get(ApiConfig.campInterests);
+    final data = _getData(response);
+    final interests = data is Map ? data['interests'] : data;
+    return interests is List
+        ? interests.map((value) => value.toString()).toList(growable: false)
+        : const [];
+  }
+
+  Future<List<String>> updateCampInterests(List<String> interests) async {
+    final response = await _apiClient.put(
+      ApiConfig.campInterests,
+      body: {'interests': interests},
+    );
+    final data = _getData(response);
+    final values = data is Map ? data['interests'] : data;
+    return values is List
+        ? values.map((value) => value.toString()).toList(growable: false)
+        : const [];
   }
 
   // ==========================================================

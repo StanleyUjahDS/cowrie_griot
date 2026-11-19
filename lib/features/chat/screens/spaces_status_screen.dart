@@ -22,6 +22,7 @@ import '../../../core/services/navigation_scroll_service.dart';
 import '../models/space_model.dart';
 import '../models/chat_user.dart';
 import '../providers/messaging_provider.dart';
+import '../../users/services/user_api_service.dart';
 import '../services/realtime_call_service.dart';
 import '../services/messaging_api_service.dart';
 import '../services/active_call_controller.dart';
@@ -451,12 +452,113 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
   }
 
   Future<void> _loadInitialCamp() async {
+    await _loadCampInterests();
     await Future.wait<void>([
       _loadSpaces(),
       _loadUpcomingSpaces(),
       _loadTales(),
     ]);
     if (mounted) setState(() => _initialCampLoadComplete = true);
+  }
+
+  Future<void> _loadCampInterests() async {
+    try {
+      final interests = await context.read<UserApiService>().getCampInterests();
+      if (mounted) {
+        setState(() {
+          _campInterests
+            ..clear()
+            ..addAll(interests);
+        });
+      }
+    } catch (error) {
+      debugPrint('Camp interests could not be loaded: $error');
+    }
+  }
+
+  Future<void> _editCampInterests() async {
+    final selected = {..._campInterests};
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Choose your Camp interests',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'These choices shape For You and suggestions. You can change them anytime.',
+                  ),
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _taleCategories
+                        .skip(1)
+                        .map(
+                          (category) => FilterChip(
+                            label: Text(category),
+                            selected: selected.contains(category),
+                            onSelected: (value) {
+                              if (!value && selected.length == 1) return;
+                              if (value && selected.length >= 8) return;
+                              setSheetState(
+                                () => value
+                                    ? selected.add(category)
+                                    : selected.remove(category),
+                              );
+                            },
+                          ),
+                        )
+                        .toList(),
+                  ),
+                  const SizedBox(height: 18),
+                  FilledButton(
+                    onPressed: selected.isEmpty
+                        ? null
+                        : () => Navigator.of(sheetContext).pop(true),
+                    child: Text('Save ${selected.length} interests'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    if (saved != true || !mounted) return;
+    try {
+      final interests = await context
+          .read<UserApiService>()
+          .updateCampInterests(selected.toList());
+      setState(() {
+        _campInterests
+          ..clear()
+          ..addAll(interests);
+        _localTales.clear();
+        _taleCursor = null;
+      });
+      await _loadTales();
+    } catch (error) {
+      if (mounted) {
+        NotificationService.showError(
+          context,
+          'Could not save Camp interests: $error',
+        );
+      }
+    }
   }
 
   Future<void> _loadTales({bool nextPage = false}) async {
@@ -885,7 +987,8 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
         0.0,
         now.difference(tale.createdAt).inMinutes / 60.0,
       );
-      final freshness = math.exp(-ageHours / 48.0) * 3.0;
+      final freshness =
+          math.exp(-ageHours / 48.0) * (_taleFeed == 'public' ? 2.4 : 2.8);
       final engagement =
           math.log(
             1 +
@@ -894,18 +997,18 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
                 tale.retellCount * 2 +
                 tale.coTellCount,
           ) /
-          2.0;
+          (_taleFeed == 'for_you' ? 1.5 : 0.8);
       final category = tale.category.trim().toLowerCase();
       final selectedCategoryBoost = preferred != null && category == preferred
           ? 2.5
           : 0.0;
-      final interestBoost = _campInterests.contains(tale.category)
-          ? 2.0
-          : (_campInterests.any(
-                  (interest) => interest.toLowerCase() == category,
-                )
-                ? 2.0
-                : 0.0);
+      final interestBoost =
+          _taleFeed == 'for_you' &&
+              _campInterests.any(
+                (interest) => interest.toLowerCase() == category,
+              )
+          ? 2.5
+          : 0.0;
       final mediaBoost = tale.mediaUrl != null || tale.mediaUrls.isNotEmpty
           ? .15
           : 0.0;
@@ -2574,12 +2677,25 @@ class _SpacesStatusScreenState extends State<SpacesStatusScreen>
             },
           ),
           const SizedBox(height: 12),
-          Text(
-            'Browse by category',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: colors.onSurfaceVariant,
-              fontWeight: FontWeight.w600,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Browse by category',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _editCampInterests,
+                icon: const Icon(Icons.tune_rounded, size: 17),
+                label: Text(
+                  _campInterests.isEmpty ? 'Personalise' : 'Edit interests',
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 10),
           SizedBox(

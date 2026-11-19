@@ -50,6 +50,7 @@ class ApiConfig {
   static String get userPolicyAcceptance =>
       '$baseUrl/users/me/policy-acceptance';
   static String get userPreferences => '$baseUrl/users/preferences';
+  static String get campInterests => '$userPreferences/camp-interests';
 
   // ==========================================================
   // MEDIA (PRESIGNED FLOW)
